@@ -1,0 +1,86 @@
+{
+  "epic": {
+    "key": "OI-EPIC-008",
+    "name": "Documentation & Developer Experience",
+    "objective": "Document setup, API, and development workflows for contributors and users",
+    "definition_of_done": "README has complete setup instructions, API is documented, and developer can go from clone to running in under 30 minutes",
+    "status": "To Do",
+    "initiative": "OI-INIT-001",
+    "tasks": [
+      {
+        "key": "OI-049",
+        "name": "Update README with setup instructions",
+        "description": "Comprehensive getting started guide",
+        "acceptance_criteria": [
+          "Prerequisites listed (Docker, Slack app)",
+          "Clone, configure, run steps",
+          "Slack app setup instructions with required scopes",
+          "Accessing the UI and API",
+          "Testing with sample Alertmanager payload",
+          "Troubleshooting common issues"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-050",
+        "name": "Create .env.example file",
+        "description": "Document all environment variables",
+        "acceptance_criteria": [
+          "All environment variables listed with descriptions",
+          "Example values that are clearly fake",
+          "Required vs optional clearly marked",
+          "Links to where to obtain values (Slack app, etc.)"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 1
+      },
+      {
+        "key": "OI-051",
+        "name": "Document API endpoints",
+        "description": "Create API documentation for v0.1 endpoints",
+        "acceptance_criteria": [
+          "All endpoints documented in docs/API.md or OpenAPI spec",
+          "Request/response examples for each endpoint",
+          "Error response formats documented",
+          "Authentication requirements noted (none for v0.1)",
+          "Alertmanager payload example included"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-052",
+        "name": "Create CONTRIBUTING.md",
+        "description": "Guide for contributors",
+        "acceptance_criteria": [
+          "Development setup instructions",
+          "Code style guidelines (link to ADRs)",
+          "Testing requirements",
+          "PR process",
+          "Commit message format (conventional commits)"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 2
+      },
+      {
+        "key": "OI-053",
+        "name": "Add sample Alertmanager payload for testing",
+        "description": "Provide curl commands for manual testing",
+        "acceptance_criteria": [
+          "Sample firing alert payload",
+          "Sample resolved alert payload",
+          "curl commands to send to webhook",
+          "Instructions in README or separate testing doc"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 1
+      }
+    ]
+  }
+}

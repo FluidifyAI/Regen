@@ -1,0 +1,104 @@
+{
+  "epic": {
+    "key": "OI-EPIC-003",
+    "name": "Prometheus Webhook Ingestion",
+    "objective": "Receive and process Prometheus Alertmanager webhooks, store alerts, and trigger incident creation",
+    "definition_of_done": "Alertmanager can POST to /api/v1/webhooks/prometheus, alerts are stored with proper parsing, and critical/warning alerts auto-create incidents",
+    "status": "To Do",
+    "initiative": "OI-INIT-001",
+    "tasks": [
+      {
+        "key": "OI-015",
+        "name": "Define Alertmanager webhook payload structs",
+        "description": "Create Go structs matching Prometheus Alertmanager webhook JSON format",
+        "acceptance_criteria": [
+          "AlertmanagerPayload struct with receiver, status, alerts array, groupLabels, commonLabels, commonAnnotations, externalURL",
+          "AlertmanagerAlert struct with status, labels, annotations, startsAt, endsAt, generatorURL, fingerprint",
+          "JSON tags match Alertmanager field names exactly",
+          "Time fields properly parse ISO8601 format"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 2
+      },
+      {
+        "key": "OI-016",
+        "name": "Implement Prometheus webhook handler",
+        "description": "Create HTTP handler for POST /api/v1/webhooks/prometheus that receives and validates Alertmanager payloads",
+        "acceptance_criteria": [
+          "POST /api/v1/webhooks/prometheus endpoint registered",
+          "Request body parsed into AlertmanagerPayload struct",
+          "Validation rejects malformed payloads with 400 status",
+          "Returns 200 with JSON response: {received: N, incidents_created: M}",
+          "Logs receipt of webhook with alert count"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 3
+      },
+      {
+        "key": "OI-017",
+        "name": "Implement alert parsing and normalization service",
+        "description": "Create service that transforms Alertmanager alerts into internal Alert model",
+        "acceptance_criteria": [
+          "Maps alertname label to title",
+          "Maps summary/description annotations to description",
+          "Maps severity label to severity enum (defaults to warning if missing)",
+          "Preserves all labels and annotations as JSONB",
+          "Stores complete raw payload",
+          "Uses fingerprint as external_id",
+          "Sets source to 'prometheus'"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-018",
+        "name": "Implement alert deduplication",
+        "description": "Check for existing alert by source + external_id before creating, update if exists",
+        "acceptance_criteria": [
+          "If alert with same (source, external_id) exists, update status and ended_at",
+          "If alert is new, create with received_at = NOW()",
+          "Deduplication is atomic (no race conditions)",
+          "Returns whether alert was created or updated"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-019",
+        "name": "Implement incident auto-creation service",
+        "description": "Create service that evaluates alerts and creates incidents for critical/warning severity",
+        "acceptance_criteria": [
+          "Critical severity alerts always create incident",
+          "Warning severity alerts always create incident",
+          "Info severity alerts do not create incident",
+          "Incident title derived from alert title",
+          "Incident slug generated from title (URL-safe, max 50 chars)",
+          "Incident severity matches alert severity (critical->critical, warning->high)",
+          "Alert is linked to created incident via incident_alerts",
+          "Timeline entry created: type=incident_created, content={trigger: 'alert', alert_id: '...'}"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5
+      },
+      {
+        "key": "OI-020",
+        "name": "Add webhook request logging and metrics",
+        "description": "Log all webhook requests with timing and add basic metrics",
+        "acceptance_criteria": [
+          "Log entry for each webhook: timestamp, alert_count, processing_time_ms, incidents_created",
+          "Counter metric: openincident_webhooks_received_total{source='prometheus'}",
+          "Counter metric: openincident_alerts_processed_total{source='prometheus', status='firing|resolved'}",
+          "Histogram metric: openincident_webhook_processing_duration_seconds"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 2
+      }
+    ]
+  }
+}

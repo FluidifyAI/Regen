@@ -1,0 +1,89 @@
+{
+  "epic": {
+    "key": "OI-EPIC-007",
+    "name": "Observability & Health",
+    "objective": "Implement health checks, metrics endpoint, and structured logging for operational visibility",
+    "definition_of_done": "Health and readiness endpoints functional, Prometheus metrics exposed, structured JSON logging throughout application",
+    "status": "To Do",
+    "initiative": "OI-INIT-001",
+    "tasks": [
+      {
+        "key": "OI-044",
+        "name": "Implement GET /health endpoint",
+        "description": "Liveness check that returns OK if server is running",
+        "acceptance_criteria": [
+          "Returns {status: 'ok'} with 200 status",
+          "No dependency checks (pure liveness)",
+          "Response time under 10ms",
+          "Suitable for Kubernetes liveness probe"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 1
+      },
+      {
+        "key": "OI-045",
+        "name": "Implement GET /ready endpoint",
+        "description": "Readiness check that verifies database and Redis connectivity",
+        "acceptance_criteria": [
+          "Checks PostgreSQL connection with simple query",
+          "Checks Redis connection with PING",
+          "Returns {status: 'ready', database: 'ok', redis: 'ok'} when healthy",
+          "Returns 503 with failing component if unhealthy",
+          "Timeout of 5 seconds per check",
+          "Suitable for Kubernetes readiness probe"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 2
+      },
+      {
+        "key": "OI-046",
+        "name": "Implement GET /metrics endpoint",
+        "description": "Expose Prometheus-format metrics",
+        "acceptance_criteria": [
+          "Uses prometheus/client_golang",
+          "Exposes Go runtime metrics",
+          "Exposes HTTP request metrics (method, path, status, duration)",
+          "Exposes business metrics (incidents_total, alerts_total by status/severity)",
+          "Exposes database connection pool metrics",
+          "Endpoint at /metrics"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-047",
+        "name": "Implement structured JSON logging",
+        "description": "Configure application-wide structured logging",
+        "acceptance_criteria": [
+          "All logs output as JSON",
+          "Standard fields: timestamp, level, message, service",
+          "Request logs include: method, path, status, duration_ms, request_id",
+          "Error logs include: error message, stack trace",
+          "Log level configurable via LOG_LEVEL env var",
+          "Sensitive data (tokens, passwords) never logged"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-048",
+        "name": "Add request ID middleware",
+        "description": "Generate and propagate request IDs for tracing",
+        "acceptance_criteria": [
+          "Generate UUID request ID for each request",
+          "Accept X-Request-ID header if provided",
+          "Include request ID in all log entries",
+          "Return X-Request-ID in response headers",
+          "Pass request ID to downstream services (Slack, etc.)"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 2
+      }
+    ]
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "epic": {
+    "key": "OI-EPIC-002",
+    "name": "Database & Models",
+    "objective": "Implement PostgreSQL database layer with GORM, migrations, and core data models (Alert, Incident, TimelineEntry)",
+    "definition_of_done": "All v0.1 models exist with migrations, immutable timestamp constraints enforced, and repository layer provides CRUD operations",
+    "status": "To Do",
+    "initiative": "OI-INIT-001",
+    "tasks": [
+      {
+        "key": "OI-006",
+        "name": "Set up GORM with PostgreSQL connection",
+        "description": "Configure GORM with PostgreSQL driver, connection pooling, and structured logging",
+        "acceptance_criteria": [
+          "Database connection established from DATABASE_URL env var",
+          "Connection pool configured (max open, max idle, max lifetime)",
+          "GORM logger outputs structured JSON",
+          "Graceful connection handling on shutdown",
+          "Connection retry logic on startup"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 3
+      },
+      {
+        "key": "OI-007",
+        "name": "Implement database migration system",
+        "description": "Set up golang-migrate for versioned schema migrations with up/down support",
+        "acceptance_criteria": [
+          "migrations/ directory with numbered migration files",
+          "make migrate applies pending migrations",
+          "make migrate-down rolls back last migration",
+          "Migration status can be checked",
+          "Migrations run automatically on application start in development"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 3
+      },
+      {
+        "key": "OI-008",
+        "name": "Create Alert model and migration",
+        "description": "Implement Alert struct and database schema as defined in architecture.md with immutable received_at timestamp",
+        "acceptance_criteria": [
+          "Alert struct with all fields: id (UUID), external_id, source, fingerprint, status, severity, title, description, labels (JSONB), annotations (JSONB), raw_payload (JSONB), started_at, ended_at, received_at, created_at",
+          "Migration creates alerts table with proper types",
+          "UNIQUE constraint on (source, external_id)",
+          "received_at defaults to NOW() and is immutable",
+          "Appropriate indexes on source, external_id, status, severity, received_at"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-009",
+        "name": "Create Incident model and migration",
+        "description": "Implement Incident struct and database schema as defined in architecture.md with sequential incident_number and immutable timestamps",
+        "acceptance_criteria": [
+          "Incident struct with all fields: id (UUID), incident_number (SERIAL), title, slug, status, severity, summary, slack_channel_id, slack_channel_name, created_at, triggered_at, acknowledged_at, resolved_at, created_by_type, created_by_id",
+          "Migration creates incidents table with proper types",
+          "incident_number is auto-incrementing SERIAL",
+          "created_at and triggered_at default to NOW() and are immutable",
+          "Status enum constraint: triggered, acknowledged, resolved, canceled",
+          "Severity enum constraint: critical, high, medium, low",
+          "Indexes on status, severity, created_at, incident_number"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-010",
+        "name": "Create IncidentAlert join table and migration",
+        "description": "Implement many-to-many relationship between incidents and alerts",
+        "acceptance_criteria": [
+          "incident_alerts table with incident_id, alert_id, linked_at, linked_by_type, linked_by_id",
+          "Composite primary key on (incident_id, alert_id)",
+          "Foreign key constraints with CASCADE delete",
+          "linked_at defaults to NOW()"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 2
+      },
+      {
+        "key": "OI-011",
+        "name": "Create TimelineEntry model and migration",
+        "description": "Implement immutable timeline entry model with database trigger preventing updates as per ADR-003",
+        "acceptance_criteria": [
+          "TimelineEntry struct with: id (UUID), incident_id, timestamp, type, actor_type, actor_id, content (JSONB), created_at",
+          "Migration creates timeline_entries table",
+          "timestamp and created_at default to NOW() and are immutable",
+          "Database trigger prevents UPDATE operations on timeline_entries",
+          "Database trigger prevents DELETE operations on timeline_entries",
+          "Foreign key to incidents with CASCADE delete",
+          "Index on (incident_id, timestamp)"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5
+      },
+      {
+        "key": "OI-012",
+        "name": "Implement Alert repository",
+        "description": "Create repository layer for Alert CRUD operations with proper error handling",
+        "acceptance_criteria": [
+          "Create(alert) - inserts new alert",
+          "GetByID(id) - retrieves alert by UUID",
+          "GetByExternalID(source, externalID) - retrieves by unique constraint",
+          "List(filters, pagination) - lists alerts with filtering",
+          "Update(alert) - updates mutable fields only",
+          "All methods return typed errors for not found, duplicate, etc."
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-013",
+        "name": "Implement Incident repository",
+        "description": "Create repository layer for Incident CRUD operations",
+        "acceptance_criteria": [
+          "Create(incident) - inserts new incident, returns with generated incident_number",
+          "GetByID(id) - retrieves incident by UUID",
+          "GetByNumber(number) - retrieves by incident_number",
+          "List(filters, pagination) - lists with status/severity/date filters",
+          "Update(incident) - updates mutable fields, sets acknowledged_at/resolved_at on status change",
+          "LinkAlert(incidentID, alertID) - creates incident_alert record",
+          "GetAlerts(incidentID) - retrieves linked alerts"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5
+      },
+      {
+        "key": "OI-014",
+        "name": "Implement TimelineEntry repository",
+        "description": "Create repository layer for TimelineEntry (append-only)",
+        "acceptance_criteria": [
+          "Create(entry) - inserts new timeline entry",
+          "GetByIncidentID(incidentID, pagination) - lists entries for incident ordered by timestamp",
+          "No Update or Delete methods exist",
+          "Bulk create for importing multiple entries"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 2
+      }
+    ]
+  }
+}

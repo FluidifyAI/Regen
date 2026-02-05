@@ -1,0 +1,119 @@
+{
+  "epic": {
+    "key": "OI-EPIC-004",
+    "name": "Slack Integration",
+    "objective": "Implement Slack channel creation and message posting for incidents using the ChatService interface pattern",
+    "definition_of_done": "When an incident is created, a Slack channel is auto-created with naming convention inc-{number}-{slug}, and incident details are posted as the first message",
+    "status": "To Do",
+    "initiative": "OI-INIT-001",
+    "tasks": [
+      {
+        "key": "OI-021",
+        "name": "Define ChatService interface",
+        "description": "Create abstract interface for chat operations as per ADR-005 to enable future Teams support",
+        "acceptance_criteria": [
+          "ChatService interface defined with: CreateChannel, PostMessage, UpdateMessage, ArchiveChannel methods",
+          "Channel struct with ID, Name, URL fields",
+          "Message struct with Text, Blocks, ThreadTS fields",
+          "Interface documented with expected behavior"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 2
+      },
+      {
+        "key": "OI-022",
+        "name": "Implement SlackService with slack-go SDK",
+        "description": "Create Slack implementation of ChatService using slack-go library",
+        "acceptance_criteria": [
+          "SlackService struct implements ChatService interface",
+          "Configured with SLACK_BOT_TOKEN from environment",
+          "Connection validated on startup",
+          "Proper error handling for Slack API errors",
+          "Rate limiting handled with exponential backoff"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 5
+      },
+      {
+        "key": "OI-023",
+        "name": "Implement Slack channel creation",
+        "description": "Create channels following naming convention inc-{incident_number}-{slug}",
+        "acceptance_criteria": [
+          "Channel name formatted as inc-{number}-{slug} (e.g., inc-042-api-gateway-errors)",
+          "Channel name truncated to Slack's 80 char limit",
+          "Channel name sanitized (lowercase, hyphens only)",
+          "Returns channel ID and name",
+          "Handles channel name collision by appending suffix",
+          "Channel created as public by default"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-024",
+        "name": "Implement incident message formatting",
+        "description": "Create rich Slack message with incident details and action buttons",
+        "acceptance_criteria": [
+          "Message includes: emoji indicator, incident number, title, severity, status, created timestamp",
+          "Severity displayed with appropriate emoji (red circle critical, orange high, yellow medium, green low)",
+          "Linked alerts listed with source and title",
+          "Action buttons: Acknowledge, Resolve (using Slack Block Kit)",
+          "Message formatted using Slack Block Kit for rich display"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-025",
+        "name": "Connect incident creation to Slack channel creation",
+        "description": "Integrate Slack channel creation into incident creation flow",
+        "acceptance_criteria": [
+          "When incident is created, Slack channel is created asynchronously",
+          "Incident record updated with slack_channel_id and slack_channel_name",
+          "Initial message posted to channel after creation",
+          "Timeline entry added: type=slack_channel_created",
+          "Failure to create Slack channel does not fail incident creation",
+          "Slack errors logged with incident context"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5
+      },
+      {
+        "key": "OI-026",
+        "name": "Implement async Slack operations via Redis queue",
+        "description": "Queue Slack API calls through Redis to handle rate limits and failures as per ADR-007",
+        "acceptance_criteria": [
+          "SlackJob struct with type, incident_id, payload",
+          "Jobs queued to Redis list",
+          "Worker process consumes jobs and executes Slack calls",
+          "Failed jobs retried with exponential backoff (max 3 attempts)",
+          "Dead letter handling for permanently failed jobs",
+          "Job status trackable"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5
+      },
+      {
+        "key": "OI-027",
+        "name": "Add Slack configuration validation",
+        "description": "Validate Slack credentials on startup and provide clear error messages",
+        "acceptance_criteria": [
+          "On startup, verify SLACK_BOT_TOKEN is valid by calling auth.test",
+          "Verify bot has required scopes: channels:manage, channels:read, chat:write",
+          "Clear error message if token invalid or missing scopes",
+          "Application starts without Slack if SLACK_BOT_TOKEN not set (degraded mode)",
+          "Log warning when running in degraded mode"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 2
+      }
+    ]
+  }
+}

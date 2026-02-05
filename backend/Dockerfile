@@ -3,8 +3,8 @@
 # ============================================================================
 FROM golang:1.22-alpine AS development
 
-# Install air for hot reload
-RUN go install github.com/cosmtrek/air@latest
+# Install air for hot reload (using new module path)
+RUN go install github.com/air-verse/air@v1.52.3
 
 WORKDIR /app
 

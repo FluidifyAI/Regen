@@ -1,0 +1,134 @@
+{
+  "epic": {
+    "key": "OI-EPIC-005",
+    "name": "Incident REST API",
+    "objective": "Implement REST API endpoints for incident CRUD operations and status transitions",
+    "definition_of_done": "All v0.1 incident endpoints functional: list, get, create (manual), update (acknowledge/resolve), with proper validation and error responses",
+    "status": "To Do",
+    "initiative": "OI-INIT-001",
+    "tasks": [
+      {
+        "key": "OI-028",
+        "name": "Implement GET /api/v1/incidents endpoint",
+        "description": "List incidents with filtering and pagination",
+        "acceptance_criteria": [
+          "Returns paginated list of incidents",
+          "Query params: status, severity, created_after, created_before, limit (default 50, max 250), offset",
+          "Response includes: incidents array, total count, limit, offset",
+          "Incidents ordered by created_at DESC by default",
+          "Each incident includes: id, incident_number, title, status, severity, slack_channel_name, created_at, acknowledged_at, resolved_at"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 3
+      },
+      {
+        "key": "OI-029",
+        "name": "Implement GET /api/v1/incidents/:id endpoint",
+        "description": "Get single incident with full details including timeline and linked alerts",
+        "acceptance_criteria": [
+          "Returns incident by UUID or incident_number (detect format)",
+          "Response includes all incident fields",
+          "Includes linked alerts array",
+          "Includes timeline entries (last 50 by default)",
+          "Includes slack_channel object with id, name, url",
+          "Returns 404 if incident not found"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 3
+      },
+      {
+        "key": "OI-030",
+        "name": "Implement POST /api/v1/incidents endpoint",
+        "description": "Create incident manually (not from alert)",
+        "acceptance_criteria": [
+          "Request body: title (required), severity, description",
+          "Creates incident with created_by_type='user'",
+          "Generates slug from title",
+          "Triggers Slack channel creation",
+          "Returns created incident with 201 status",
+          "Timeline entry: type=incident_created, content={trigger: 'manual'}"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-031",
+        "name": "Implement PATCH /api/v1/incidents/:id endpoint",
+        "description": "Update incident status, severity, or summary",
+        "acceptance_criteria": [
+          "Request body: status, severity, summary (all optional)",
+          "Status transitions validated: triggered->acknowledged->resolved, triggered->resolved, triggered->canceled",
+          "acknowledged_at set when status changes to acknowledged",
+          "resolved_at set when status changes to resolved",
+          "Timeline entry created for each field change",
+          "Returns updated incident",
+          "Returns 400 for invalid status transitions"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5
+      },
+      {
+        "key": "OI-032",
+        "name": "Implement GET /api/v1/incidents/:id/timeline endpoint",
+        "description": "Get timeline entries for an incident",
+        "acceptance_criteria": [
+          "Returns paginated timeline entries",
+          "Query params: types (filter), limit, offset",
+          "Entries ordered by timestamp ASC",
+          "Each entry includes: id, timestamp, type, actor_type, actor_id, content"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 2
+      },
+      {
+        "key": "OI-033",
+        "name": "Implement POST /api/v1/incidents/:id/timeline endpoint",
+        "description": "Add manual timeline entry (e.g., user note)",
+        "acceptance_criteria": [
+          "Request body: type, content",
+          "Only allows type='message' for manual entries",
+          "Sets actor_type='user', actor_id from auth context (or 'anonymous' for v0.1)",
+          "Returns created entry with 201 status",
+          "Timestamp is server-generated"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 2
+      },
+      {
+        "key": "OI-034",
+        "name": "Implement Slack status update notifications",
+        "description": "Post message to incident Slack channel when status changes",
+        "acceptance_criteria": [
+          "When incident status changes, message posted to Slack channel",
+          "Message includes: new status, who changed it, timestamp",
+          "Message threaded under original incident message if possible",
+          "Failure to post does not fail the status update"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-035",
+        "name": "Implement API error handling and response format",
+        "description": "Standardize error responses across all endpoints",
+        "acceptance_criteria": [
+          "All errors return JSON: {error: {code: string, message: string, details: object}}",
+          "400 Bad Request for validation errors with field-level details",
+          "404 Not Found with resource type in message",
+          "500 Internal Server Error logs full error, returns safe message",
+          "Request ID included in all responses for tracing"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      }
+    ]
+  }
+}

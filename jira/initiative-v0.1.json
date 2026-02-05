@@ -1,0 +1,21 @@
+{
+  "initiative": {
+    "key": "OI-INIT-001",
+    "name": "OpenIncident v0.1 - Alert to Slack MVP",
+    "description": "Deliver the foundational incident management flow: Prometheus alert webhook triggers incident creation, auto-creates Slack channel, posts incident details, and provides a basic web UI to view and manage incidents. Self-hosted via Docker Compose with PostgreSQL and Redis.",
+    "status": "To Do",
+    "target_release": "v0.1",
+    "epics": [
+      "OI-EPIC-001",
+      "OI-EPIC-002",
+      "OI-EPIC-003",
+      "OI-EPIC-004",
+      "OI-EPIC-005",
+      "OI-EPIC-006",
+      "OI-EPIC-007",
+      "OI-EPIC-008",
+      "OI-EPIC-009",
+      "OI-EPIC-010"
+    ]
+  }
+}

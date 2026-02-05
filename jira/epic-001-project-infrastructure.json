@@ -1,0 +1,90 @@
+{
+  "epic": {
+    "key": "OI-EPIC-001",
+    "name": "Project Infrastructure & Setup",
+    "objective": "Establish project structure, development environment, and containerized infrastructure for local development",
+    "definition_of_done": "Developer can run 'make dev' and have PostgreSQL, Redis, backend API, and frontend running locally in Docker",
+    "status": "Done",
+    "initiative": "OI-INIT-001",
+    "tasks": [
+      {
+        "key": "OI-001",
+        "name": "Initialize Go module and project structure",
+        "description": "Create the monorepo directory structure as defined in claude.md with backend/, frontend/, docs/, deploy/ directories. Initialize go.mod for the backend.",
+        "acceptance_criteria": [
+          "go.mod exists with module github.com/openincident/openincident",
+          "Directory structure matches claude.md specification",
+          "cmd/openincident/main.go exists with minimal main function",
+          "internal/ directories created: config/, api/, models/, services/, repository/, worker/"
+        ],
+        "status": "Done",
+        "priority": "Highest",
+        "story_points": 2
+      },
+      {
+        "key": "OI-002",
+        "name": "Create docker-compose.yml for development",
+        "description": "Define Docker Compose configuration with PostgreSQL 15, Redis 7, and service definitions for api and web containers",
+        "acceptance_criteria": [
+          "PostgreSQL service with persistent volume and health check",
+          "Redis service with persistent volume and health check",
+          "API service with hot reload capability and depends_on db/redis",
+          "Web service placeholder for frontend",
+          "Environment variables loaded from .env file",
+          ".env.example file with all required variables documented"
+        ],
+        "status": "Done",
+        "priority": "Highest",
+        "story_points": 3
+      },
+      {
+        "key": "OI-003",
+        "name": "Create Makefile with development commands",
+        "description": "Implement Makefile with common development commands as specified in claude.md",
+        "acceptance_criteria": [
+          "make dev - starts all services",
+          "make backend - runs backend only",
+          "make frontend - runs frontend only",
+          "make migrate - runs database migrations",
+          "make test - runs test suite",
+          "make fmt - formats Go and TypeScript code",
+          "make lint - runs linters",
+          "make build - builds production binaries"
+        ],
+        "status": "Done",
+        "priority": "High",
+        "story_points": 2
+      },
+      {
+        "key": "OI-004",
+        "name": "Create backend Dockerfile",
+        "description": "Multi-stage Dockerfile for Go backend with development and production targets",
+        "acceptance_criteria": [
+          "Development stage with air for hot reload",
+          "Production stage with minimal alpine image",
+          "Single binary output under 50MB",
+          "Non-root user for security",
+          "Health check instruction included"
+        ],
+        "status": "Done",
+        "priority": "High",
+        "story_points": 2
+      },
+      {
+        "key": "OI-005",
+        "name": "Configure Go application with Gin framework",
+        "description": "Set up Gin router with basic middleware (logging, recovery, CORS) and configuration loading from environment variables",
+        "acceptance_criteria": [
+          "Gin router initialized with appropriate mode (debug/release)",
+          "Structured JSON logging configured",
+          "CORS middleware configured for local development",
+          "Recovery middleware to prevent panics from crashing server",
+          "Configuration struct loads from environment variables with sensible defaults"
+        ],
+        "status": "Done",
+        "priority": "High",
+        "story_points": 3
+      }
+    ]
+  }
+}

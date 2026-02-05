@@ -1,0 +1,79 @@
+{
+  "epic": {
+    "key": "OI-EPIC-010",
+    "name": "End-to-End Testing & Validation",
+    "objective": "Validate the complete v0.1 flow works as specified",
+    "definition_of_done": "Full flow tested: Prometheus alert -> Incident -> Slack -> UI -> Acknowledge/Resolve, with documented test results",
+    "status": "To Do",
+    "initiative": "OI-INIT-001",
+    "tasks": [
+      {
+        "key": "OI-058",
+        "name": "Write integration tests for webhook flow",
+        "description": "Automated tests for alert -> incident creation",
+        "acceptance_criteria": [
+          "Test: Alertmanager payload creates alert record",
+          "Test: Critical alert creates incident",
+          "Test: Warning alert creates incident",
+          "Test: Info alert does not create incident",
+          "Test: Duplicate alert updates existing",
+          "Test: Invalid payload returns 400"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5
+      },
+      {
+        "key": "OI-059",
+        "name": "Write integration tests for incident API",
+        "description": "Automated tests for incident CRUD operations",
+        "acceptance_criteria": [
+          "Test: List incidents with pagination",
+          "Test: Get incident by ID",
+          "Test: Get incident by number",
+          "Test: Create manual incident",
+          "Test: Acknowledge incident",
+          "Test: Resolve incident",
+          "Test: Invalid status transition returns 400"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5
+      },
+      {
+        "key": "OI-060",
+        "name": "Create manual E2E test script",
+        "description": "Document manual test procedure for full flow",
+        "acceptance_criteria": [
+          "Step-by-step test procedure documented",
+          "Expected outcomes at each step",
+          "Screenshots of expected UI states",
+          "Slack channel verification steps",
+          "Cleanup procedure"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 2
+      },
+      {
+        "key": "OI-061",
+        "name": "Perform E2E validation",
+        "description": "Execute complete flow and document results",
+        "acceptance_criteria": [
+          "Prometheus alert received and stored",
+          "Incident auto-created with correct fields",
+          "Slack channel created with correct name",
+          "Initial message posted with incident details",
+          "Incident visible in UI list",
+          "Incident detail page shows all data",
+          "Acknowledge from UI updates status and posts to Slack",
+          "Resolve from UI updates status and posts to Slack",
+          "All timestamps are server-generated"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      }
+    ]
+  }
+}

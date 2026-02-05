@@ -1,0 +1,259 @@
+{
+  "epic": {
+    "key": "OI-EPIC-006",
+    "name": "Frontend - Incident Dashboard",
+    "objective": "Build a React frontend matching incident.io's layout patterns: persistent dark left sidebar navigation, incidents table with filtering, two-panel incident detail with collapsible properties, and a home dashboard with active incident kanban board. Uses OpenIncident's blue-primary color scheme derived from the logo.",
+    "definition_of_done": "User can navigate via persistent left sidebar, view a home dashboard with active incidents as kanban cards, browse a filterable incidents table, open incident details in two-panel layout (main content + collapsible properties panel), and acknowledge/resolve incidents via quick actions and property panel. All views use the OpenIncident design token system with blue primary brand color.",
+    "status": "To Do",
+    "initiative": "OI-INIT-001",
+    "ui_decisions": {
+      "reference": "ui-decision/ folder (42 screenshots from incident.io)",
+      "layout_pattern": "incident.io structural clone with OpenIncident branding",
+      "color_scheme": {
+        "strategy": "Blue-primary from logo shield. Amber/orange reserved for semantic alerts/warnings only. Differentiates from incident.io's coral/orange brand.",
+        "logo_colors_extracted": {
+          "shield_blue": "#2B6CB0",
+          "siren_amber": "#E8842C",
+          "text_navy": "#1E293B"
+        },
+        "palette": {
+          "brand_primary": "#2563EB",
+          "brand_primary_hover": "#1D4ED8",
+          "brand_primary_light": "#DBEAFE",
+          "accent_amber": "#F59E0B",
+          "sidebar_bg": "#0F172A",
+          "sidebar_hover": "#1E293B",
+          "sidebar_active": "#1E3A5F",
+          "sidebar_text": "#94A3B8",
+          "sidebar_text_active": "#F1F5F9",
+          "sidebar_border": "#1E293B",
+          "surface_primary": "#FFFFFF",
+          "surface_secondary": "#F8FAFC",
+          "surface_tertiary": "#F1F5F9",
+          "text_primary": "#0F172A",
+          "text_secondary": "#475569",
+          "text_tertiary": "#94A3B8",
+          "border_default": "#E2E8F0",
+          "border_strong": "#CBD5E1",
+          "severity_critical": "#DC2626",
+          "severity_high": "#EA580C",
+          "severity_medium": "#F59E0B",
+          "severity_low": "#3B82F6",
+          "status_triggered": "#DC2626",
+          "status_acknowledged": "#F59E0B",
+          "status_resolved": "#16A34A"
+        },
+        "typography": {
+          "font_family": "Inter, system-ui, -apple-system, sans-serif",
+          "sizes": {
+            "xs": "12px",
+            "sm": "13px",
+            "base": "14px",
+            "lg": "16px",
+            "xl": "18px",
+            "2xl": "20px",
+            "3xl": "24px",
+            "page_title": "24px semi-bold"
+          }
+        },
+        "spacing": {
+          "sidebar_width_expanded": "240px",
+          "sidebar_width_collapsed": "56px",
+          "content_padding": "24px",
+          "section_gap": "16px",
+          "properties_panel_width": "320px"
+        }
+      }
+    },
+    "tasks": [
+      {
+        "key": "OI-036",
+        "name": "Initialize React + TypeScript + Vite project",
+        "description": "Set up frontend project with modern tooling, TailwindCSS, and React Router for SPA navigation",
+        "acceptance_criteria": [
+          "Vite configured with React 18 and TypeScript in strict mode",
+          "ESLint and Prettier configured with consistent rules",
+          "TailwindCSS v3 installed and configured with custom theme extending the design tokens defined in OI-062",
+          "React Router v6 installed with route structure: / (home), /incidents (list), /incidents/:id (detail)",
+          "API client base configured using fetch with typed request/response wrappers",
+          "Environment variable VITE_API_URL for backend base URL",
+          "Docker-ready with nginx for production serving",
+          "Project compiles and renders a blank shell page with no errors"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 3,
+        "depends_on": []
+      },
+      {
+        "key": "OI-037",
+        "name": "Create frontend Dockerfile",
+        "description": "Multi-stage Dockerfile for React frontend with nginx serving and API proxying",
+        "acceptance_criteria": [
+          "Build stage compiles TypeScript and bundles assets via Vite",
+          "Production stage uses nginx:alpine",
+          "nginx configured to proxy /api/* requests to backend service",
+          "SPA routing configured: all non-API, non-static routes serve index.html",
+          "Build-time environment variable injection via env.js pattern (VITE_API_URL baked into build)",
+          "Final image size under 30MB",
+          "Container runs as non-root user"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 2,
+        "depends_on": ["OI-036"]
+      },
+      {
+        "key": "OI-038",
+        "name": "Implement API client with TypeScript types",
+        "description": "Create a typed API client module that mirrors all v0.1 backend endpoints (incidents, alerts, timeline) with proper error handling and loading state management",
+        "acceptance_criteria": [
+          "TypeScript interfaces defined in src/api/types.ts matching backend models exactly: Incident (id, incident_number, title, slug, status, severity, summary, slack_channel_id, slack_channel_name, created_at, triggered_at, acknowledged_at, resolved_at, created_by_type, created_by_id, commander_id), Alert (id, external_id, source, status, severity, title, description, labels, annotations, started_at, ended_at, received_at), TimelineEntry (id, incident_id, timestamp, type, actor_type, actor_id, content)",
+          "Type for PaginatedResponse<T> with fields: data, total, limit, offset",
+          "Type for ApiError with fields: code, message, details",
+          "Async functions in src/api/incidents.ts: listIncidents(params), getIncident(id), createIncident(body), updateIncident(id, body)",
+          "Async functions in src/api/timeline.ts: getTimeline(incidentId, params), addTimelineEntry(incidentId, body)",
+          "Async functions in src/api/alerts.ts: listAlerts(params), getAlert(id)",
+          "Global fetch wrapper with: base URL from env, JSON Content-Type header, response interceptor that parses JSON and throws typed ApiError on non-2xx",
+          "All functions return typed Promises (no any types)"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 3,
+        "depends_on": ["OI-036"]
+      },
+      {
+        "key": "OI-062",
+        "name": "Create design system tokens and base component library",
+        "description": "Define the complete design token system derived from the OpenIncident logo (steel blue shield, amber siren) and incident.io's layout patterns, but with OpenIncident's blue-primary color identity. Implement as TailwindCSS theme extension and reusable base components.",
+        "acceptance_criteria": [
+          "Design tokens defined in tailwind.config.ts extending the theme with the full color palette defined in this epic's ui_decisions.color_scheme.palette section",
+          "Typography scale configured: font-family Inter/system-ui, sizes xs(12px), sm(13px), base(14px), lg(16px), xl(18px), 2xl(20px), 3xl(24px), page-title(24px semi-bold)",
+          "Spacing scale defined: sidebar-width: 240px, sidebar-collapsed-width: 56px, content-padding: 24px, section-gap: 16px, properties-panel-width: 320px",
+          "Badge component (src/components/ui/Badge.tsx): variant prop for severity (critical=red bg, high=orange bg, medium=amber bg, low=blue bg) and status (triggered=red dot, acknowledged=amber dot, resolved=green dot). Each variant shows colored dot/icon + text.",
+          "Button component (src/components/ui/Button.tsx): variant=primary (blue bg #2563EB, white text), variant=secondary (white bg, gray border), variant=ghost (transparent bg, hover gray), variant=danger (red). Sizes: sm, md, lg. Loading state with spinner icon.",
+          "Avatar component (src/components/ui/Avatar.tsx): circular, with initials fallback when no image, sizes sm(24px), md(32px), lg(40px). Colored background based on name hash.",
+          "Tooltip component (src/components/ui/Tooltip.tsx): for truncated text and disabled item explanations. Dark bg, white text, appears on hover with 200ms delay.",
+          "All severity and status values rendered with consistent colored dot/icon + text pattern matching incident.io screenshots",
+          "Dark mode NOT included in v0.1 (only the sidebar is dark; main content area is light)"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 3,
+        "depends_on": ["OI-036"]
+      },
+      {
+        "key": "OI-042",
+        "name": "Create persistent left sidebar navigation and app shell layout",
+        "description": "Implement the app shell layout matching incident.io's pattern: persistent dark left sidebar with organization branding, collapsible navigation sections, and bottom user bar. The sidebar persists across all routes. Main content area fills remaining horizontal space.",
+        "acceptance_criteria": [
+          "SIDEBAR STRUCTURE (top to bottom): (1) Top bar with OpenIncident logo icon (shield) + 'OpenIncident' text + sidebar collapse/expand toggle button (double chevron left when expanded, right when collapsed). (2) Nav item: 'Home' with house icon, navigates to /. (3) Nav item: 'Search' with magnifying glass icon (v0.1: placeholder, shows 'Coming soon' toast). (4) Section header: 'Your organization' with chevron toggle to collapse/expand. (5) Nav item: 'Incidents' with flame icon, navigates to /incidents, active state on /incidents and /incidents/:id routes. (6) Nav item: 'On-call' with phone icon (v0.1: disabled/grayed, tooltip 'Coming in v0.4'). (7) Bottom bar pinned to bottom: user avatar placeholder (circle with initials), display name, settings gear icon, notification bell icon (both non-functional in v0.1).",
+          "SIDEBAR STYLING: Background #0F172A (dark navy). Width expanded: 240px, collapsed: 56px (icons only, no text). Active nav item: #1E3A5F background + #F1F5F9 text + left 3px border in #2563EB. Hover nav item: #1E293B background. Inactive text: #94A3B8, icons: #64748B. Section header text: #64748B uppercase, font-size 11px, tracking-wider. Divider lines: #1E293B. Smooth 200ms transition on collapse/expand.",
+          "COLLAPSE BEHAVIOR: Collapsed sidebar shows only icons (24px) centered, no text. Tooltip on hover shows nav item name when collapsed. Collapse state persisted in localStorage. On mobile (<768px): sidebar hidden by default, hamburger menu button in a slim top bar to toggle overlay sidebar with backdrop.",
+          "MAIN CONTENT AREA: Fills remaining width calc(100vw - sidebar-width). Background #FFFFFF. No separate top header bar (page titles are within each page component). Smooth width transition when sidebar collapses/expands.",
+          "LAYOUT COMPONENT: AppLayout component wraps all routes with sidebar on left and React Router <Outlet/> on right. Nested route structure: AppLayout > Home (/), Incidents list (/incidents), Incident detail (/incidents/:id)."
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 5,
+        "depends_on": ["OI-062"]
+      },
+      {
+        "key": "OI-039",
+        "name": "Create incidents list page",
+        "description": "Main incidents list page matching incident.io's layout: page title with action buttons, filter toolbar, and data table with specific column structure. Accessible at /incidents route.",
+        "acceptance_criteria": [
+          "PAGE HEADER: Left side has flame icon + 'Incidents' title in 24px semi-bold. Right side has 'Export CSV' secondary button (v0.1: disabled with tooltip 'Coming soon') and 'Declare incident' primary button (blue #2563EB bg, white text, shield/plus icon) that opens a create-incident modal.",
+          "FILTER TOOLBAR (below header, above table): Left group has 'Any team' dropdown button with users icon (v0.1: single option, placeholder for future) and 'Filter' button with filter icon (opens dropdown with Status filter: All/Triggered/Acknowledged/Resolved and Severity filter: All/Critical/High/Medium/Low). Right group has Search input with magnifying glass icon and placeholder 'Search...' (filters client-side by title or incident number) and 'Display' button with layout icon (v0.1: non-functional placeholder).",
+          "TABLE COLUMNS (matching incident.io order exactly): (1) Checkbox column (non-functional in v0.1, visually present). (2) 'Incident' column: 'INC-{number}' in muted text (#94A3B8, 13px) on first line, incident title in primary text (#0F172A, 14px semi-bold) on second line. (3) 'Severity' column: severity-colored bar chart icon + severity text (Critical/High/Medium/Low). (4) 'Status' column: colored dot (status-triggered/acknowledged/resolved colors) + status text with first letter capitalized. (5) 'Duration' column: calculated from created_at to now (if active) or resolved_at, displayed as 'Xd Xh' or 'Xh Xm'. (6) 'Reported' column: relative time 'Xd Xh ago' or 'X minutes ago'. (7) 'Incident Lead' column: avatar circle (24px, initials) + name text, or 'Unassigned' in muted text if no commander_id.",
+          "TABLE BEHAVIOR: Rows have hover state (#F8FAFC background). Click anywhere on row navigates to /incidents/:id. Default sort: created_at DESC (newest first). Pagination at bottom: 'Showing X-Y of Z incidents', Previous/Next buttons, page size selector (25/50/100). Auto-refresh: poll GET /api/v1/incidents every 30 seconds, merge results without losing scroll position.",
+          "DECLARE INCIDENT MODAL: Triggered by 'Declare incident' button. Fields: Title (required, text input), Severity (required, dropdown: Critical/High/Medium/Low, default Medium), Summary (optional, textarea). Buttons: 'Cancel' (secondary), 'Declare' (primary blue). On success: close modal, navigate to new incident detail page, show success toast. On error: show inline error message in modal."
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 8,
+        "depends_on": ["OI-038", "OI-042", "OI-062"]
+      },
+      {
+        "key": "OI-040",
+        "name": "Create incident detail page with two-panel layout",
+        "description": "Single incident view matching incident.io's two-panel layout: main content area (left) with breadcrumb, title, tabs, and timeline; collapsible Properties panel (right) with metadata, roles, and links. Accessible at /incidents/:id route.",
+        "acceptance_criteria": [
+          "PAGE TOP BAR: Left side shows breadcrumb 'Incidents > INC-{number}' where 'Incidents' is a link back to /incidents with flame icon, 'INC-{number}' is plain text for current page. Right side shows 'Slack channel' button (outlined, Slack icon + '#inc-{slug}' text, opens Slack URL in new tab if slack_channel_id exists, disabled with tooltip if no channel) and three-dot overflow menu (v0.1: contains 'Copy link' option only).",
+          "TITLE AREA: Incident title displayed in 24px semi-bold text below the breadcrumb. No inline severity/status badges next to title (those are in the Properties panel).",
+          "TABS: Two tabs below title: 'Overview' (default active) and 'Post-incident'. Active tab: #0F172A text + 2px bottom border in #2563EB. Inactive tab: #475569 text. 'Post-incident' tab content: placeholder message 'Post-mortems will be available in a future release.' with disabled 'Create post-mortem' button.",
+          "OVERVIEW TAB - SUMMARY: Editable summary area with placeholder 'Add a summary...' in muted color. Click to enter edit mode (textarea), blur or Cmd/Ctrl+Enter saves via PATCH /api/v1/incidents/:id with summary field. Displays existing summary in normal text if set.",
+          "OVERVIEW TAB - QUICK ACTIONS BAR: Horizontal bar below summary with icon+text ghost buttons: 'Add an action' (clipboard icon, opens textarea modal to add timeline entry of type 'message'), 'Start a call' (phone icon, v0.1: disabled with tooltip 'Coming soon'), 'Escalate to someone' (arrow-up icon, v0.1: disabled with tooltip 'Coming in v0.5'). Button style: #475569 text, hover bg #F1F5F9.",
+          "OVERVIEW TAB - ACTIVITY SECTION: 'Activity' header in 16px semi-bold. Sub-navigation pills: 'Highlights' (default, shows all timeline entries), 'Subscribe' (v0.1: non-functional), 'Share update' (v0.1: non-functional), 'Request update' (v0.1: non-functional). Timeline entries grouped by date headers (format: 'Tuesday 27th January 2026'). Each entry: timestamp HH:MM in muted text left, colored circle icon (orange=incident_created, blue=status_change, gray=message), entry description + actor name right. Timeline loads via GET /api/v1/incidents/:id/timeline, ordered ASC (oldest first).",
+          "PROPERTIES PANEL (right side, 320px width, collapsible): Header 'Properties' with collapse button (tooltip 'Hide details'). Clicking collapses panel, main content expands to full width, small 'Show details' button appears at right edge. Panel background #FFFFFF with #E2E8F0 left border. Sections top to bottom: (1) Status: label + colored dot + text, clickable opens dropdown for valid transitions. (2) Severity: label + icon + text, clickable opens dropdown. (3) Declared at: label + calendar icon + date ('Jan 27 at 22:04'). (4) Duration: label + clock icon + calculated string. (5) Divider. (6) Roles section: Incident Lead (avatar+name or 'Unassigned'), Reporter (avatar+name from created_by), Active participants (avatar stack, v0.1: empty placeholder). (7) Divider. (8) Links section: 'Status page' / 'Related incidents' / 'Escalations' each with 'Add' link (all non-functional v0.1). (9) Divider. (10) Custom fields: 'None set' placeholder. (11) Collapsible 'Timestamps & durations': shows created_at, triggered_at, acknowledged_at, resolved_at formatted values.",
+          "RESPONSIVE: Properties panel collapse state persisted in localStorage. On screens <1024px: panel defaults to collapsed. Main content minimum width: 480px."
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 13,
+        "depends_on": ["OI-038", "OI-042", "OI-062"]
+      },
+      {
+        "key": "OI-041",
+        "name": "Implement incident status and severity actions",
+        "description": "Wire up all interactive status/severity change flows from the incident detail page: property panel dropdowns, quick action bar entries, and the declare-incident modal submission. Includes API integration, optimistic updates, confirmation dialogs, and toast notifications.",
+        "acceptance_criteria": [
+          "STATUS CHANGES VIA PROPERTIES PANEL: Clicking Status value opens dropdown with valid transitions only: Triggered shows 'Acknowledged' and 'Resolved'; Acknowledged shows 'Resolved'; Resolved is terminal (dropdown disabled). Selecting new status calls PATCH /api/v1/incidents/:id with {status: newValue}. 'Resolved' transition shows confirmation dialog: 'Resolve INC-{number}?' with Cancel and Resolve buttons. On success: optimistic UI update, new timeline entry appears, success toast. On error: revert optimistic update, error toast.",
+          "SEVERITY CHANGES VIA PROPERTIES PANEL: Clicking Severity value opens dropdown with all options: Critical, High, Medium, Low. Current severity indicated with check mark. Selecting new severity calls PATCH /api/v1/incidents/:id with {severity: newValue}. On success: optimistic update, timeline entry, success toast. On error: revert, error toast.",
+          "QUICK ACTION - ADD AN ACTION: Opens modal with textarea (placeholder 'What action was taken?'). Submit calls POST /api/v1/incidents/:id/timeline with {type: 'message', content: {text: value}}. On success: close modal, new entry in Activity timeline, success toast. On error: inline error in modal.",
+          "SUMMARY INLINE EDIT: Click summary area to enter edit mode (textarea replaces display text). Blur or Cmd/Ctrl+Enter saves via PATCH /api/v1/incidents/:id with {summary: value}. Shows saving indicator, then success state. On error: revert text, error toast.",
+          "TOAST NOTIFICATION SYSTEM: Toast component positioned top-right of main content area. Variants: success (green left border), error (red left border), info (blue left border). Auto-dismiss after 4 seconds with fade-out. Icon + message text. Max 3 toasts stacked vertically.",
+          "LOADING STATES: Buttons show spinner icon replacing normal icon during API calls. Dropdowns disabled during pending API calls. Double-submission prevention on all actions."
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "depends_on": ["OI-040"]
+      },
+      {
+        "key": "OI-063",
+        "name": "Create home dashboard with active incidents kanban board",
+        "description": "Implement the home page (/ route) matching incident.io's dashboard pattern: a kanban-style board showing active incidents grouped by status columns, with tabs for filtering scope.",
+        "acceptance_criteria": [
+          "PAGE HEADER: Left side has house icon + 'Home' title in 24px semi-bold. Right side has 'Declare incident' primary button (reuses same component/modal from OI-039).",
+          "TABS BAR: Tabs: 'Active incidents' (default), 'All', 'Participating', 'Leading'. 'Active incidents' shows only status != resolved. 'All' shows all incidents. 'Participating' and 'Leading' tabs: v0.1 show empty state message (no user auth). Active tab has underline style matching detail page tabs.",
+          "KANBAN BOARD (Active incidents tab): Columns for each active status: 'Triggered' (red dot + count), 'Acknowledged' (amber dot + count). Resolved column NOT shown on Active tab. On 'All' tab: add 'Resolved' column (green dot + count). Each column header: colored status dot + name + count badge. Empty columns show muted 'No incidents' placeholder.",
+          "INCIDENT CARDS: Card background #FFFFFF with #E2E8F0 border, 8px border-radius, subtle shadow on hover. Content: top line 'INC-{number}' muted (#94A3B8, 13px) + duration badge right (clock icon + 'Xd Xh'); second line incident title #0F172A 14px semi-bold, max 2 lines with ellipsis; third line severity badge (icon+text) left + incident lead avatar (24px) right. Click navigates to /incidents/:id. Cards sorted by created_at DESC within each column.",
+          "DATA LOADING: Fetches from GET /api/v1/incidents (filtered by status for Active tab, unfiltered for All tab). Auto-refresh every 30 seconds. Loading state: skeleton cards in each column.",
+          "EMPTY STATE: When no active incidents: centered message with checkmark-circle icon + 'No active incidents' heading + 'When incidents are declared, they will appear here.' subtext."
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "depends_on": ["OI-038", "OI-042", "OI-062"]
+      },
+      {
+        "key": "OI-043",
+        "name": "Implement loading, empty, and error states",
+        "description": "Create consistent loading, empty, and error state components used across all pages. Reusable components that ensure polish and professional feel.",
+        "acceptance_criteria": [
+          "SKELETON LOADERS (src/components/ui/Skeleton.tsx): SkeletonTable matching incidents list column layout. SkeletonCard matching kanban card layout. SkeletonDetail matching incident detail layout (breadcrumb, title, tabs, summary, timeline). SkeletonProperties matching the properties panel (label+value pairs). All use animated pulse effect with #E2E8F0 base and #F1F5F9 highlight.",
+          "EMPTY STATES (src/components/ui/EmptyState.tsx): Reusable component with props: icon, title, description, actionLabel, onAction. Variants: incidents list (shield icon, 'No incidents found', 'Adjust your filters or declare a new incident.', 'Declare incident' button), home dashboard (checkmark icon, 'No active incidents', 'When incidents are declared, they will appear here.'), timeline (clock icon, 'No timeline entries yet', 'Activity will appear here as the incident progresses.'). Centered in content area. Muted colors: icon #94A3B8, title #0F172A 18px semi-bold, description #475569 14px.",
+          "ERROR STATES (src/components/ui/ErrorState.tsx): Reusable component with props: title, message, onRetry. Default variant: alert-triangle icon #DC2626, 'Something went wrong', error message, 'Try again' button. 404 variant: 'Incident not found', 'The incident you are looking for does not exist.', 'Go to incidents' link. Network variant: 'Connection lost', 'Unable to reach the server.', 'Retry' button.",
+          "GLOBAL ERROR BOUNDARY: React Error Boundary wrapping the app, catches rendering errors, renders full-page error state with 'Something unexpected happened' and 'Reload page' button.",
+          "PAGE-LEVEL LOADING: Each page shows appropriate skeleton during initial data fetch. Subsequent 30-second polling refreshes do NOT show skeletons, they silently update data. Transition from skeleton to content is instant (no fade animation)."
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 3,
+        "depends_on": ["OI-062"]
+      }
+    ],
+    "total_story_points": 50,
+    "total_tasks": 10,
+    "build_sequence": [
+      "Step 1: OI-036 (project init)",
+      "Step 2: OI-062 + OI-038 + OI-037 (parallel: design tokens, API client, Dockerfile)",
+      "Step 3: OI-042 (sidebar layout and app shell)",
+      "Step 4: OI-043 (loading, empty, error states)",
+      "Step 5: OI-039 + OI-063 (parallel: incidents list page, home dashboard)",
+      "Step 6: OI-040 (incident detail page with two-panel layout)",
+      "Step 7: OI-041 (actions wiring: status/severity changes, toasts, optimistic updates)"
+    ]
+  }
+}

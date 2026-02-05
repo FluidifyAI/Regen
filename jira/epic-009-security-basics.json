@@ -1,0 +1,86 @@
+{
+  "epic": {
+    "key": "OI-EPIC-009",
+    "name": "Security Basics",
+    "objective": "Implement foundational security measures appropriate for v0.1",
+    "definition_of_done": "Basic security headers set, input validation in place, no secrets in logs, Slack signature verification implemented",
+    "status": "To Do",
+    "initiative": "OI-INIT-001",
+    "tasks": [
+      {
+        "key": "OI-054",
+        "name": "Implement security headers middleware",
+        "description": "Add standard security headers to all responses",
+        "acceptance_criteria": [
+          "X-Content-Type-Options: nosniff",
+          "X-Frame-Options: DENY",
+          "X-XSS-Protection: 1; mode=block",
+          "Content-Security-Policy: default-src 'self'",
+          "Referrer-Policy: strict-origin-when-cross-origin"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 2
+      },
+      {
+        "key": "OI-055",
+        "name": "Implement input validation for all endpoints",
+        "description": "Validate and sanitize all incoming data",
+        "acceptance_criteria": [
+          "Max request body size enforced (1MB for webhooks)",
+          "String fields have max length validation",
+          "Enum fields reject invalid values",
+          "UUID fields validated for format",
+          "SQL injection prevented via parameterized queries (GORM)",
+          "XSS prevented via proper JSON encoding"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3
+      },
+      {
+        "key": "OI-056",
+        "name": "Implement Slack request signature verification",
+        "description": "Verify Slack requests are authentic using signing secret",
+        "acceptance_criteria": [
+          "SLACK_SIGNING_SECRET loaded from environment",
+          "X-Slack-Signature header verified on Slack callbacks",
+          "X-Slack-Request-Timestamp validated (reject if >5 min old)",
+          "Invalid signatures rejected with 401",
+          "Verification can be disabled for development"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3,
+        "subtasks": [
+          {
+            "key": "OI-056-1",
+            "name": "Research Slack signature verification algorithm",
+            "description": "Document the HMAC-SHA256 verification process Slack uses",
+            "acceptance_criteria": [
+              "Algorithm documented",
+              "Test vectors identified"
+            ],
+            "status": "To Do",
+            "story_points": 1
+          }
+        ]
+      },
+      {
+        "key": "OI-057",
+        "name": "Audit logging for sensitive operations",
+        "description": "Log security-relevant events",
+        "acceptance_criteria": [
+          "Log incident status changes with actor",
+          "Log failed authentication attempts (future)",
+          "Log admin actions (future)",
+          "Logs include IP address where applicable",
+          "Sensitive data redacted from logs"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 2
+      }
+    ]
+  }
+}

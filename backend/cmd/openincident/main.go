@@ -2,65 +2,134 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"github.com/openincident/openincident/internal/api"
 	"github.com/openincident/openincident/internal/config"
+	"github.com/openincident/openincident/internal/database"
 )
 
 func main() {
+	// Load environment variables
+	if err := godotenv.Load(); err != nil {
+		slog.Warn("no .env file found")
+	}
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		slog.Error("failed to load configuration", "error", err)
+		os.Exit(1)
 	}
 
-	// Print startup banner
-	fmt.Printf("OpenIncident v0.1\n")
-	fmt.Printf("Environment: %s\n", cfg.App.Env)
-	fmt.Printf("Port: %d\n", cfg.App.Port)
-	fmt.Println("Starting server...")
+	// Setup structured logging
+	setupLogging(cfg.LogLevel)
 
-	// Setup router with middleware
-	router := api.SetupRouter(cfg)
+	slog.Info("starting OpenIncident",
+		"version", "0.1.0",
+		"environment", cfg.Environment,
+		"port", cfg.Port,
+	)
+
+	// Connect to database
+	dbLogLevel := "info"
+	if cfg.Environment == "production" {
+		dbLogLevel = "warn"
+	}
+
+	dbConfig := database.Config{
+		URL:          cfg.DatabaseURL,
+		MaxOpenConns: cfg.DBMaxOpenConns,
+		MaxIdleConns: cfg.DBMaxIdleConns,
+		ConnMaxLife:  cfg.DBConnMaxLife,
+		LogLevel:     dbLogLevel,
+	}
+
+	if err := database.Connect(dbConfig); err != nil {
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+
+	// Run migrations
+	slog.Info("running database migrations...")
+	if err := database.RunMigrations(database.DB, "./migrations"); err != nil {
+		slog.Error("failed to run migrations", "error", err)
+		os.Exit(1)
+	}
+
+	// Setup Gin
+	if cfg.Environment == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	router := gin.New()
+
+	// Setup routes
+	api.SetupRoutes(router, database.DB)
 
 	// Create HTTP server
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.App.Port),
+		Addr:         ":" + cfg.Port,
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start server in a goroutine
+	// Start server in goroutine
 	go func() {
-		fmt.Printf("Server listening on http://localhost:%d\n", cfg.App.Port)
+		slog.Info("server starting", "port", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			slog.Error("server failed to start", "error", err)
+			os.Exit(1)
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown
+	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	fmt.Println("\nShutting down server...")
+	slog.Info("shutting down server...")
 
-	// Graceful shutdown with 5 second timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Graceful shutdown with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		slog.Error("server forced to shutdown", "error", err)
 	}
 
-	fmt.Println("Server stopped")
+	slog.Info("server exited")
+}
+
+func setupLogging(level string) {
+	var logLevel slog.Level
+
+	switch level {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "info":
+		logLevel = slog.LevelInfo
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: logLevel,
+	})
+
+	slog.SetDefault(slog.New(handler))
 }

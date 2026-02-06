@@ -10,40 +10,26 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	App      AppConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	Slack    SlackConfig
-	OpenAI   OpenAIConfig
-}
+	Port        string `default:"8080"`
+	Environment string `default:"development"`
+	LogLevel    string `default:"info"`
 
-// AppConfig holds application-level configuration
-type AppConfig struct {
-	Env      string
-	LogLevel string
-	Port     int
-}
+	// Database
+	DatabaseURL    string `default:"postgresql://openincident:secret@localhost:5432/openincident?sslmode=disable"`
+	DBMaxOpenConns int    `default:"25"`
+	DBMaxIdleConns int    `default:"5"`
+	DBConnMaxLife  string `default:"5m"`
 
-// DatabaseConfig holds PostgreSQL configuration
-type DatabaseConfig struct {
-	URL string
-}
+	// Redis
+	RedisURL string `default:"redis://localhost:6379"`
 
-// RedisConfig holds Redis configuration
-type RedisConfig struct {
-	URL string
-}
+	// Slack
+	SlackBotToken      string
+	SlackSigningSecret string
+	SlackAppToken      string
 
-// SlackConfig holds Slack integration configuration
-type SlackConfig struct {
-	BotToken      string
-	SigningSecret string
-	AppToken      string
-}
-
-// OpenAIConfig holds OpenAI API configuration
-type OpenAIConfig struct {
-	APIKey string
+	// OpenAI
+	OpenAIAPIKey string
 }
 
 // Load reads configuration from environment variables
@@ -52,30 +38,31 @@ func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		App: AppConfig{
-			Env:      getEnv("APP_ENV", "development"),
-			LogLevel: getEnv("LOG_LEVEL", "info"),
-			Port:     getEnvAsInt("PORT", 8080),
-		},
-		Database: DatabaseConfig{
-			URL: getEnv("DATABASE_URL", "postgresql://openincident:secret@localhost:5432/openincident?sslmode=disable"),
-		},
-		Redis: RedisConfig{
-			URL: getEnv("REDIS_URL", "redis://localhost:6379"),
-		},
-		Slack: SlackConfig{
-			BotToken:      getEnv("SLACK_BOT_TOKEN", ""),
-			SigningSecret: getEnv("SLACK_SIGNING_SECRET", ""),
-			AppToken:      getEnv("SLACK_APP_TOKEN", ""),
-		},
-		OpenAI: OpenAIConfig{
-			APIKey: getEnv("OPENAI_API_KEY", ""),
-		},
+		Port:        getEnv("PORT", "8080"),
+		Environment: getEnv("APP_ENV", "development"),
+		LogLevel:    getEnv("LOG_LEVEL", "info"),
+
+		// Database
+		DatabaseURL:    getEnv("DATABASE_URL", "postgresql://openincident:secret@localhost:5432/openincident?sslmode=disable"),
+		DBMaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 25),
+		DBMaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
+		DBConnMaxLife:  getEnv("DB_CONN_MAX_LIFE", "5m"),
+
+		// Redis
+		RedisURL: getEnv("REDIS_URL", "redis://localhost:6379"),
+
+		// Slack
+		SlackBotToken:      getEnv("SLACK_BOT_TOKEN", ""),
+		SlackSigningSecret: getEnv("SLACK_SIGNING_SECRET", ""),
+		SlackAppToken:      getEnv("SLACK_APP_TOKEN", ""),
+
+		// OpenAI
+		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
 	}
 
 	// Validate required configuration
-	if cfg.App.Env == "production" {
-		if cfg.Database.URL == "" {
+	if cfg.Environment == "production" {
+		if cfg.DatabaseURL == "" {
 			return nil, fmt.Errorf("DATABASE_URL is required in production")
 		}
 	}
@@ -85,12 +72,12 @@ func Load() (*Config, error) {
 
 // IsDevelopment returns true if running in development mode
 func (c *Config) IsDevelopment() bool {
-	return c.App.Env == "development"
+	return c.Environment == "development"
 }
 
 // IsProduction returns true if running in production mode
 func (c *Config) IsProduction() bool {
-	return c.App.Env == "production"
+	return c.Environment == "production"
 }
 
 // Helper functions

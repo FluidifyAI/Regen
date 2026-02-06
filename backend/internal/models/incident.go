@@ -9,35 +9,35 @@ import (
 
 // Incident represents an incident
 type Incident struct {
-	ID               uuid.UUID        `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	IncidentNumber   int              `gorm:"autoIncrement;unique;not null" json:"incident_number"`
-	Title            string           `gorm:"type:varchar(500);not null" json:"title"`
-	Slug             string           `gorm:"type:varchar(100);not null" json:"slug"`
-	Status           IncidentStatus   `gorm:"type:varchar(20);not null;default:'triggered';index:idx_incidents_status" json:"status"`
-	Severity         IncidentSeverity `gorm:"type:varchar(20);not null;default:'medium';index:idx_incidents_severity" json:"severity"`
-	Summary          string           `gorm:"type:text" json:"summary,omitempty"`
+	ID             uuid.UUID        `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	IncidentNumber int              `gorm:"autoIncrement;unique;not null" json:"incident_number"`
+	Title          string           `gorm:"type:varchar(500);not null" json:"title"`
+	Slug           string           `gorm:"type:varchar(100);not null" json:"slug"`
+	Status         IncidentStatus   `gorm:"type:varchar(20);not null;default:'triggered';index:idx_incidents_status" json:"status"`
+	Severity       IncidentSeverity `gorm:"type:varchar(20);not null;default:'medium';index:idx_incidents_severity" json:"severity"`
+	Summary        string           `gorm:"type:text" json:"summary,omitempty"`
 
 	// Slack integration
-	SlackChannelID   string           `gorm:"type:varchar(50)" json:"slack_channel_id,omitempty"`
-	SlackChannelName string           `gorm:"type:varchar(100)" json:"slack_channel_name,omitempty"`
+	SlackChannelID   string `gorm:"type:varchar(50)" json:"slack_channel_id,omitempty"`
+	SlackChannelName string `gorm:"type:varchar(100)" json:"slack_channel_name,omitempty"`
 
 	// Timestamps (created_at and triggered_at are immutable)
-	CreatedAt        time.Time        `gorm:"not null;default:now()" json:"created_at"`
-	TriggeredAt      time.Time        `gorm:"not null;default:now();index:idx_incidents_triggered_at" json:"triggered_at"`
-	AcknowledgedAt   *time.Time       `json:"acknowledged_at,omitempty"`
-	ResolvedAt       *time.Time       `json:"resolved_at,omitempty"`
+	CreatedAt      time.Time  `gorm:"not null;default:now()" json:"created_at"`
+	TriggeredAt    time.Time  `gorm:"not null;default:now();index:idx_incidents_triggered_at" json:"triggered_at"`
+	AcknowledgedAt *time.Time `json:"acknowledged_at,omitempty"`
+	ResolvedAt     *time.Time `json:"resolved_at,omitempty"`
 
 	// Ownership
-	CreatedByType    string           `gorm:"type:varchar(20);not null" json:"created_by_type"`
-	CreatedByID      string           `gorm:"type:varchar(100)" json:"created_by_id,omitempty"`
-	CommanderID      *uuid.UUID       `gorm:"type:uuid" json:"commander_id,omitempty"`
+	CreatedByType string     `gorm:"type:varchar(20);not null" json:"created_by_type"`
+	CreatedByID   string     `gorm:"type:varchar(100)" json:"created_by_id,omitempty"`
+	CommanderID   *uuid.UUID `gorm:"type:uuid" json:"commander_id,omitempty"`
 
 	// Metadata
-	Labels           JSONB            `gorm:"type:jsonb;default:'{}'" json:"labels"`
-	CustomFields     JSONB            `gorm:"type:jsonb;default:'{}'" json:"custom_fields"`
+	Labels       JSONB `gorm:"type:jsonb;default:'{}'" json:"labels"`
+	CustomFields JSONB `gorm:"type:jsonb;default:'{}'" json:"custom_fields"`
 
 	// Relationships (not in database, loaded via joins)
-	Alerts           []Alert          `gorm:"many2many:incident_alerts;" json:"alerts,omitempty"`
+	Alerts []Alert `gorm:"many2many:incident_alerts;" json:"alerts,omitempty"`
 	// TimelineEntries will be added when TimelineEntry model is created
 	// TimelineEntries  []TimelineEntry  `gorm:"foreignKey:IncidentID" json:"timeline_entries,omitempty"`
 }

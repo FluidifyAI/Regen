@@ -52,6 +52,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 
 	// Middleware
+	router.Use(middleware.RequestID()) // Must be first for request tracing
 	router.Use(middleware.CORS())
 	router.Use(middleware.Recovery())
 	router.Use(middleware.Logger())
@@ -75,10 +76,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 			})
 		}
 
-		// Incidents (to be implemented)
-		v1.GET("/incidents", func(c *gin.Context) {
-			c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
-		})
+		// Incidents
+		v1.GET("/incidents", handlers.ListIncidents(incidentSvc))
+		v1.GET("/incidents/:id", handlers.GetIncident(incidentSvc))
+		v1.POST("/incidents", handlers.CreateIncident(incidentSvc))
+		v1.PATCH("/incidents/:id", handlers.UpdateIncident(incidentSvc))
+		v1.GET("/incidents/:id/timeline", handlers.GetIncidentTimeline(incidentSvc))
+		v1.POST("/incidents/:id/timeline", handlers.CreateTimelineEntry(incidentSvc))
 
 		// Alerts (to be implemented)
 		v1.GET("/alerts", func(c *gin.Context) {

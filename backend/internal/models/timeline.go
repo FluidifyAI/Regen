@@ -19,7 +19,7 @@ type TimelineEntry struct {
 	CreatedAt  time.Time `gorm:"not null;default:now()" json:"created_at"`
 
 	// Relationship
-	Incident   *Incident `gorm:"foreignKey:IncidentID" json:"incident,omitempty"`
+	Incident *Incident `gorm:"foreignKey:IncidentID" json:"incident,omitempty"`
 }
 
 // TimelineEntryType constants

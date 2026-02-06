@@ -9,14 +9,14 @@ import (
 
 // LogEntry represents a structured log entry
 type LogEntry struct {
-	Timestamp  string `json:"timestamp"`
-	Method     string `json:"method"`
-	Path       string `json:"path"`
-	Status     int    `json:"status"`
-	Latency    string `json:"latency"`
-	ClientIP   string `json:"client_ip"`
-	UserAgent  string `json:"user_agent,omitempty"`
-	Error      string `json:"error,omitempty"`
+	Timestamp string `json:"timestamp"`
+	Method    string `json:"method"`
+	Path      string `json:"path"`
+	Status    int    `json:"status"`
+	Latency   string `json:"latency"`
+	ClientIP  string `json:"client_ip"`
+	UserAgent string `json:"user_agent,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // Logger returns a Gin middleware for structured JSON logging

@@ -17,6 +17,7 @@ type IncidentRepository interface {
 	List(filters IncidentFilters, pagination Pagination) ([]models.Incident, int64, error)
 	Update(incident *models.Incident) error
 	UpdateStatus(id uuid.UUID, status models.IncidentStatus) error
+	UpdateSlackChannel(id uuid.UUID, channelID, channelName string) error
 	LinkAlert(incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error
 	GetAlerts(incidentID uuid.UUID) ([]models.Alert, error)
 }
@@ -159,6 +160,23 @@ func (r *incidentRepository) UpdateStatus(id uuid.UUID, status models.IncidentSt
 			return &NotFoundError{Resource: "incident", ID: id}
 		}
 		return &DatabaseError{Op: "update incident status", Err: err}
+	}
+
+	return nil
+}
+
+// UpdateSlackChannel updates the Slack channel information for an incident
+func (r *incidentRepository) UpdateSlackChannel(id uuid.UUID, channelID, channelName string) error {
+	updates := map[string]interface{}{
+		"slack_channel_id":   channelID,
+		"slack_channel_name": channelName,
+	}
+
+	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &NotFoundError{Resource: "incident", ID: id}
+		}
+		return &DatabaseError{Op: "update incident slack channel", Err: err}
 	}
 
 	return nil

@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/openincident/openincident/internal/models"
 	"github.com/slack-go/slack"
@@ -170,4 +172,63 @@ func blocksToInterfaces(blocks []slack.Block) []interface{} {
 		result[i] = block
 	}
 	return result
+}
+
+// BuildStatusUpdateMessage creates a message for incident status changes
+func (b *SlackMessageBuilder) BuildStatusUpdateMessage(
+	incident *models.Incident,
+	previousStatus models.IncidentStatus,
+	newStatus models.IncidentStatus,
+) Message {
+	// Status emoji mapping
+	statusEmoji := map[models.IncidentStatus]string{
+		models.IncidentStatusTriggered:    "🔴",
+		models.IncidentStatusAcknowledged: "🟡",
+		models.IncidentStatusResolved:     "🟢",
+		models.IncidentStatusCanceled:     "⚫",
+	}
+
+	emoji := statusEmoji[newStatus]
+	title := fmt.Sprintf("%s Incident #%d: %s → %s",
+		emoji,
+		incident.IncidentNumber,
+		strings.ToUpper(string(previousStatus)),
+		strings.ToUpper(string(newStatus)),
+	)
+
+	blocks := []slack.Block{
+		slack.NewHeaderBlock(slack.NewTextBlockObject(slack.PlainTextType, title, true, false)),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType,
+				fmt.Sprintf("*Incident:* %s\n*Previous Status:* %s\n*New Status:* %s\n*Changed At:* <!date^%d^{date_short_pretty} at {time}|%s>",
+					incident.Title,
+					strings.Title(string(previousStatus)),
+					strings.Title(string(newStatus)),
+					time.Now().Unix(),
+					time.Now().Format("2006-01-02 15:04:05 MST"),
+				),
+				false,
+				false,
+			),
+			nil,
+			nil,
+		),
+	}
+
+	// Add specific messaging for terminal states
+	if newStatus == models.IncidentStatusResolved {
+		blocks = append(blocks,
+			slack.NewContextBlock("", slack.NewTextBlockObject(slack.MarkdownType, "✅ This incident has been resolved. Great work team!", false, false)),
+		)
+	} else if newStatus == models.IncidentStatusCanceled {
+		blocks = append(blocks,
+			slack.NewContextBlock("", slack.NewTextBlockObject(slack.MarkdownType, "⚠️ This incident has been canceled.", false, false)),
+		)
+	}
+
+	return Message{
+		Text:   title,
+		Blocks: blocksToInterfaces(blocks),
+	}
 }

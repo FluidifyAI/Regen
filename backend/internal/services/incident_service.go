@@ -13,11 +13,49 @@ import (
 	"gorm.io/gorm"
 )
 
+// CreateIncidentParams holds parameters for creating a manual incident
+type CreateIncidentParams struct {
+	Title       string
+	Severity    models.IncidentSeverity
+	Description string
+	CreatedBy   string // "user", "system", "api"
+}
+
+// UpdateIncidentParams holds parameters for updating an incident
+type UpdateIncidentParams struct {
+	Status    models.IncidentStatus
+	Severity  models.IncidentSeverity
+	Summary   string
+	UpdatedBy string
+}
+
+// CreateTimelineEntryParams holds parameters for creating a timeline entry
+type CreateTimelineEntryParams struct {
+	IncidentID uuid.UUID
+	Type       string
+	Content    models.JSONB
+	ActorType  string
+	ActorID    string
+}
+
 // IncidentService defines the interface for incident operations
 type IncidentService interface {
+	// Alert-triggered incident creation
 	CreateIncidentFromAlert(alert *models.Alert) (*models.Incident, error)
 	ShouldCreateIncident(severity models.AlertSeverity) bool
 	CreateSlackChannelForIncident(incident *models.Incident, alerts []models.Alert) error
+
+	// API operations
+	ListIncidents(filters repository.IncidentFilters, pagination repository.Pagination) ([]models.Incident, int64, error)
+	GetIncident(id uuid.UUID, number int) (*models.Incident, error)
+	CreateIncident(params *CreateIncidentParams) (*models.Incident, error)
+	UpdateIncident(id uuid.UUID, params *UpdateIncidentParams) (*models.Incident, error)
+	GetIncidentAlerts(incidentID uuid.UUID) ([]models.Alert, error)
+	GetIncidentTimeline(incidentID uuid.UUID, pagination repository.Pagination) ([]models.TimelineEntry, int64, error)
+	CreateTimelineEntry(params *CreateTimelineEntryParams) (*models.TimelineEntry, error)
+
+	// Slack notifications
+	PostStatusUpdateToSlack(incident *models.Incident, previousStatus, newStatus models.IncidentStatus) error
 }
 
 // incidentService implements IncidentService
@@ -279,4 +317,232 @@ func generateSlug(title string) string {
 	}
 
 	return slug
+}
+
+// ListIncidents retrieves incidents with filtering and pagination
+func (s *incidentService) ListIncidents(filters repository.IncidentFilters, pagination repository.Pagination) ([]models.Incident, int64, error) {
+	return s.incidentRepo.List(filters, pagination)
+}
+
+// GetIncident retrieves an incident by UUID or incident number
+func (s *incidentService) GetIncident(id uuid.UUID, number int) (*models.Incident, error) {
+	if id != uuid.Nil {
+		return s.incidentRepo.GetByID(id)
+	}
+	return s.incidentRepo.GetByNumber(number)
+}
+
+// CreateIncident creates a new incident manually (not from an alert)
+func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.Incident, error) {
+	// Generate slug
+	slug := generateSlug(params.Title)
+
+	// Create incident
+	incident := &models.Incident{
+		ID:            uuid.New(),
+		Title:         params.Title,
+		Slug:          slug,
+		Status:        models.IncidentStatusTriggered,
+		Severity:      params.Severity,
+		Summary:       params.Description,
+		CreatedByType: "user",
+		CreatedByID:   params.CreatedBy,
+		TriggeredAt:   time.Now(),
+		Labels:        make(models.JSONB),
+		CustomFields:  make(models.JSONB),
+	}
+
+	// Execute in transaction
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Create incident
+		if err := s.incidentRepo.Create(incident); err != nil {
+			return fmt.Errorf("failed to create incident: %w", err)
+		}
+
+		// Create timeline entry
+		timelineEntry := &models.TimelineEntry{
+			ID:         uuid.New(),
+			IncidentID: incident.ID,
+			Timestamp:  time.Now(),
+			Type:       models.TimelineTypeIncidentCreated,
+			ActorType:  "user",
+			ActorID:    params.CreatedBy,
+			Content: models.JSONB{
+				"trigger": "manual",
+			},
+		}
+
+		if err := s.timelineRepo.Create(timelineEntry); err != nil {
+			return fmt.Errorf("failed to create timeline entry: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Create Slack channel asynchronously
+	if s.chatService != nil {
+		go func() {
+			if err := s.CreateSlackChannelForIncident(incident, []models.Alert{}); err != nil {
+				slog.Error("failed to create slack channel",
+					"incident_id", incident.ID,
+					"error", err)
+			}
+		}()
+	}
+
+	return incident, nil
+}
+
+// UpdateIncident updates an incident and creates timeline entries for changes
+func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentParams) (*models.Incident, error) {
+	// Fetch current incident
+	incident, err := s.incidentRepo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	previousStatus := incident.Status
+	previousSeverity := incident.Severity
+
+	// Execute update in transaction
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		// Update status if provided
+		if params.Status != "" && params.Status != incident.Status {
+			if err := s.incidentRepo.UpdateStatus(id, params.Status); err != nil {
+				return err
+			}
+
+			// Create timeline entry for status change
+			timelineEntry := &models.TimelineEntry{
+				ID:         uuid.New(),
+				IncidentID: id,
+				Timestamp:  time.Now(),
+				Type:       models.TimelineTypeStatusChanged,
+				ActorType:  "user",
+				ActorID:    params.UpdatedBy,
+				Content: models.JSONB{
+					"previous_status": string(previousStatus),
+					"new_status":      string(params.Status),
+				},
+			}
+			if err := s.timelineRepo.Create(timelineEntry); err != nil {
+				return err
+			}
+		}
+
+		// Update severity if provided
+		if params.Severity != "" && params.Severity != incident.Severity {
+			incident.Severity = params.Severity
+
+			// Create timeline entry for severity change
+			timelineEntry := &models.TimelineEntry{
+				ID:         uuid.New(),
+				IncidentID: id,
+				Timestamp:  time.Now(),
+				Type:       models.TimelineTypeSeverityChanged,
+				ActorType:  "user",
+				ActorID:    params.UpdatedBy,
+				Content: models.JSONB{
+					"previous_severity": string(previousSeverity),
+					"new_severity":      string(params.Severity),
+				},
+			}
+			if err := s.timelineRepo.Create(timelineEntry); err != nil {
+				return err
+			}
+		}
+
+		// Update summary if provided
+		if params.Summary != "" {
+			incident.Summary = params.Summary
+		}
+
+		// Update incident
+		if err := s.incidentRepo.Update(incident); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Post Slack notification asynchronously
+	if params.Status != "" && params.Status != previousStatus && s.chatService != nil {
+		go func() {
+			if err := s.PostStatusUpdateToSlack(incident, previousStatus, params.Status); err != nil {
+				slog.Error("failed to post slack notification", "error", err)
+			}
+		}()
+	}
+
+	// Fetch updated incident
+	return s.incidentRepo.GetByID(id)
+}
+
+// GetIncidentAlerts retrieves all alerts linked to an incident
+func (s *incidentService) GetIncidentAlerts(incidentID uuid.UUID) ([]models.Alert, error) {
+	return s.incidentRepo.GetAlerts(incidentID)
+}
+
+// GetIncidentTimeline retrieves timeline entries for an incident with pagination
+func (s *incidentService) GetIncidentTimeline(incidentID uuid.UUID, pagination repository.Pagination) ([]models.TimelineEntry, int64, error) {
+	return s.timelineRepo.GetByIncidentID(incidentID, pagination)
+}
+
+// CreateTimelineEntry creates a new timeline entry (e.g., user note)
+func (s *incidentService) CreateTimelineEntry(params *CreateTimelineEntryParams) (*models.TimelineEntry, error) {
+	entry := &models.TimelineEntry{
+		ID:         uuid.New(),
+		IncidentID: params.IncidentID,
+		Timestamp:  time.Now(),
+		Type:       params.Type,
+		ActorType:  params.ActorType,
+		ActorID:    params.ActorID,
+		Content:    params.Content,
+	}
+
+	if err := s.timelineRepo.Create(entry); err != nil {
+		return nil, err
+	}
+
+	return entry, nil
+}
+
+// PostStatusUpdateToSlack posts a status update message to the incident's Slack channel
+func (s *incidentService) PostStatusUpdateToSlack(
+	incident *models.Incident,
+	previousStatus models.IncidentStatus,
+	newStatus models.IncidentStatus,
+) error {
+	if s.chatService == nil {
+		return fmt.Errorf("slack service not configured")
+	}
+
+	if incident.SlackChannelID == "" {
+		return fmt.Errorf("incident has no slack channel")
+	}
+
+	message := s.messageBuilder.BuildStatusUpdateMessage(incident, previousStatus, newStatus)
+
+	_, err := s.chatService.PostMessage(incident.SlackChannelID, message)
+	if err != nil {
+		return fmt.Errorf("failed to post status update to slack: %w", err)
+	}
+
+	slog.Info("posted status update to slack",
+		"incident_id", incident.ID,
+		"incident_number", incident.IncidentNumber,
+		"previous_status", previousStatus,
+		"new_status", newStatus,
+		"channel_id", incident.SlackChannelID,
+	)
+
+	return nil
 }

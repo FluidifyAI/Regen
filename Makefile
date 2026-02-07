@@ -1,4 +1,4 @@
-.PHONY: help dev backend frontend migrate test fmt lint build clean docker down logs
+.PHONY: help dev dev-local backend backend-deps frontend frontend-local migrate test fmt lint build clean docker down logs
 
 # Default target
 help:
@@ -6,19 +6,31 @@ help:
 	@echo ""
 	@echo "Usage: make <target>"
 	@echo ""
-	@echo "Targets:"
-	@echo "  dev        - Start all services (db, redis, api, web)"
-	@echo "  backend    - Run backend only (with db and redis)"
-	@echo "  frontend   - Run frontend only"
-	@echo "  migrate    - Run database migrations"
-	@echo "  test       - Run test suite (backend + frontend)"
-	@echo "  fmt        - Format Go and TypeScript code"
-	@echo "  lint       - Run linters (Go + TypeScript)"
-	@echo "  build      - Build production binaries"
-	@echo "  docker     - Build Docker images"
-	@echo "  down       - Stop all services"
-	@echo "  clean      - Remove build artifacts and volumes"
-	@echo "  logs       - Show logs from all services"
+	@echo "Development:"
+	@echo "  dev-local    - Start backend (Docker) + frontend (local npm) - RECOMMENDED"
+	@echo "  backend-deps - Start just db + redis for local backend dev"
+	@echo "  frontend-local - Run frontend dev server (requires backend running)"
+	@echo "  dev          - Start all services via Docker Compose"
+	@echo ""
+	@echo "Services:"
+	@echo "  backend      - Run backend only (with db and redis)"
+	@echo "  frontend     - Run frontend only (Docker)"
+	@echo "  migrate      - Run database migrations"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  test         - Run test suite (backend + frontend)"
+	@echo "  fmt          - Format Go and TypeScript code"
+	@echo "  lint         - Run linters (Go + TypeScript)"
+	@echo ""
+	@echo "Build & Deploy:"
+	@echo "  build        - Build production binaries"
+	@echo "  docker       - Build Docker images"
+	@echo ""
+	@echo "Utilities:"
+	@echo "  down         - Stop all services"
+	@echo "  clean        - Remove build artifacts and volumes"
+	@echo "  logs         - Show logs from all services"
+	@echo "  health       - Check service health"
 
 # Start all services
 dev:
@@ -31,16 +43,47 @@ dev:
 	@echo "View logs: make logs"
 	@echo "Stop services: make down"
 
+# LOCAL DEVELOPMENT (Recommended for frontend work)
+dev-local:
+	@echo "🚀 Starting local development environment..."
+	@echo ""
+	@echo "Starting backend services (PostgreSQL + Redis + API)..."
+	@docker-compose up -d db redis api
+	@echo "⏳ Waiting for backend to be ready..."
+	@sleep 3
+	@echo ""
+	@echo "✅ Backend started on http://localhost:8080"
+	@echo ""
+	@echo "📦 Installing frontend dependencies (if needed)..."
+	@cd frontend && npm install --silent
+	@echo ""
+	@echo "🎨 Starting frontend dev server on http://localhost:3000"
+	@echo ""
+	@cd frontend && npm run dev
+
+# Start just database dependencies for local backend development
+backend-deps:
+	@echo "Starting backend dependencies (db + redis)..."
+	@docker-compose up -d db redis
+	@echo "✅ PostgreSQL (5432) and Redis (6379) started"
+	@echo "💡 Run backend locally: cd backend && go run cmd/openincident/main.go"
+
+# Run frontend dev server locally (requires backend running)
+frontend-local:
+	@echo "Starting frontend dev server..."
+	@cd frontend && npm run dev
+
+# DOCKER DEVELOPMENT
 # Run backend only
 backend:
 	@echo "Starting backend services (db, redis, api)..."
-	docker-compose up -d db redis api
+	@docker-compose up -d db redis api
 	@echo "Backend started on http://localhost:8080"
 
-# Run frontend only
+# Run frontend only (Docker)
 frontend:
 	@echo "Starting frontend service..."
-	docker-compose up -d web
+	@docker-compose up -d web
 	@echo "Frontend started on http://localhost:3000"
 
 # Run database migrations
@@ -94,8 +137,20 @@ docker:
 # Stop all services
 down:
 	@echo "Stopping all services..."
-	docker-compose down
+	@docker-compose down
 	@echo "Services stopped"
+
+# Stop just backend
+down-backend:
+	@echo "Stopping backend services..."
+	@docker-compose stop api
+	@echo "Backend API stopped (db and redis still running)"
+
+# Stop just dependencies
+down-deps:
+	@echo "Stopping db and redis..."
+	@docker-compose stop db redis
+	@echo "Database dependencies stopped"
 
 # Clean build artifacts and volumes
 clean:

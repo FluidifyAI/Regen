@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/openincident/openincident/internal/database"
+	"github.com/openincident/openincident/internal/redis"
 	"gorm.io/gorm"
 )
 
@@ -22,10 +23,17 @@ func Ready(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		status := "ready"
 		dbStatus := "ok"
+		redisStatus := "ok"
 
 		// Check database health
 		if err := database.Health(); err != nil {
 			dbStatus = "error"
+			status = "not ready"
+		}
+
+		// Check Redis health
+		if err := redis.Health(); err != nil {
+			redisStatus = "error"
 			status = "not ready"
 		}
 
@@ -37,6 +45,7 @@ func Ready(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(code, gin.H{
 			"status":   status,
 			"database": dbStatus,
+			"redis":    redisStatus,
 		})
 	}
 }

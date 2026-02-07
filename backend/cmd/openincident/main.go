@@ -14,6 +14,8 @@ import (
 	"github.com/openincident/openincident/internal/api"
 	"github.com/openincident/openincident/internal/config"
 	"github.com/openincident/openincident/internal/database"
+	"github.com/openincident/openincident/internal/metrics"
+	"github.com/openincident/openincident/internal/redis"
 )
 
 func main() {
@@ -58,6 +60,17 @@ func main() {
 	}
 	defer database.Close()
 
+	// Connect to Redis
+	redisConfig := redis.Config{
+		URL: cfg.RedisURL,
+	}
+
+	if err := redis.Connect(redisConfig); err != nil {
+		slog.Error("failed to connect to redis", "error", err)
+		os.Exit(1)
+	}
+	defer redis.Close()
+
 	// Run migrations
 	slog.Info("running database migrations...")
 	if err := database.RunMigrations(database.DB, "./migrations"); err != nil {
@@ -90,6 +103,19 @@ func main() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server failed to start", "error", err)
 			os.Exit(1)
+		}
+	}()
+
+	// Start metrics updater in goroutine
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		// Update immediately on start
+		metrics.UpdateBusinessMetrics(database.DB)
+
+		for range ticker.C {
+			metrics.UpdateBusinessMetrics(database.DB)
 		}
 	}()
 

@@ -8,8 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/openincident/openincident/internal/api/handlers"
 	"github.com/openincident/openincident/internal/api/middleware"
+	"github.com/openincident/openincident/internal/metrics"
 	"github.com/openincident/openincident/internal/repository"
 	"github.com/openincident/openincident/internal/services"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gorm.io/gorm"
 )
 
@@ -56,10 +58,14 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	router.Use(middleware.CORS())
 	router.Use(middleware.Recovery())
 	router.Use(middleware.Logger())
+	router.Use(metrics.Middleware()) // Prometheus metrics
 
 	// Health check endpoints
 	router.GET("/health", handlers.Health(db))
 	router.GET("/ready", handlers.Ready(db))
+
+	// Metrics endpoint
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")

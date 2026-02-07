@@ -1,0 +1,84 @@
+{
+  "receiver": "openincident",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "DatabaseConnectionsFull",
+        "severity": "critical",
+        "service": "database",
+        "environment": "production",
+        "region": "us-east-1",
+        "team": "database"
+      },
+      "annotations": {
+        "summary": "Database connection pool exhausted",
+        "description": "PostgreSQL connection pool is at 100% capacity (500/500 connections). New connections are being rejected.",
+        "runbook_url": "https://wiki.example.com/runbooks/db-connections",
+        "dashboard_url": "https://grafana.example.com/d/db-connections"
+      },
+      "startsAt": "2024-01-15T13:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph?g0.expr=pg_stat_database_numbackends%20%3E%3D%20500",
+      "fingerprint": "111222333444555"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "HighDiskUsage",
+        "severity": "warning",
+        "service": "database",
+        "environment": "production",
+        "region": "us-east-1",
+        "team": "database",
+        "volume": "/data"
+      },
+      "annotations": {
+        "summary": "Disk usage above 85%",
+        "description": "Database server disk usage is at 87% on /data volume. Available space: 130GB.",
+        "runbook_url": "https://wiki.example.com/runbooks/disk-space",
+        "dashboard_url": "https://grafana.example.com/d/disk-usage"
+      },
+      "startsAt": "2024-01-15T13:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph?g0.expr=node_filesystem_avail_bytes%20%2F%20node_filesystem_size_bytes%20%3C%200.15",
+      "fingerprint": "666777888999000"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "SlowQueries",
+        "severity": "warning",
+        "service": "database",
+        "environment": "production",
+        "region": "us-east-1",
+        "team": "database"
+      },
+      "annotations": {
+        "summary": "High number of slow queries",
+        "description": "Database is experiencing slow query performance. 15 queries over 5 seconds in the last minute.",
+        "runbook_url": "https://wiki.example.com/runbooks/slow-queries",
+        "dashboard_url": "https://grafana.example.com/d/query-performance"
+      },
+      "startsAt": "2024-01-15T13:05:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph?g0.expr=rate(pg_stat_statements_slow_queries%5B1m%5D)%20%3E%2010",
+      "fingerprint": "aaabbbcccdddee"
+    }
+  ],
+  "groupLabels": {
+    "service": "database"
+  },
+  "commonLabels": {
+    "service": "database",
+    "environment": "production",
+    "region": "us-east-1",
+    "team": "database"
+  },
+  "commonAnnotations": {},
+  "externalURL": "http://alertmanager:9093",
+  "version": "4",
+  "groupKey": "{}:{service=\"database\"}",
+  "truncatedAlerts": 0
+}

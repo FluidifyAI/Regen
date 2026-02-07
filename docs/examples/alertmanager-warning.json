@@ -1,0 +1,45 @@
+{
+  "receiver": "openincident",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "HighMemoryUsage",
+        "severity": "warning",
+        "service": "worker",
+        "environment": "production",
+        "region": "us-west-2",
+        "team": "platform"
+      },
+      "annotations": {
+        "summary": "Memory usage above 80%",
+        "description": "Worker service memory usage is at 85%. Threshold: 80%. Consider scaling up.",
+        "runbook_url": "https://wiki.example.com/runbooks/high-memory",
+        "dashboard_url": "https://grafana.example.com/d/worker-memory"
+      },
+      "startsAt": "2024-01-15T11:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph?g0.expr=node_memory_usage_percent%20%3E%200.8",
+      "fingerprint": "fedcba0987654321"
+    }
+  ],
+  "groupLabels": {
+    "alertname": "HighMemoryUsage",
+    "service": "worker"
+  },
+  "commonLabels": {
+    "alertname": "HighMemoryUsage",
+    "severity": "warning",
+    "service": "worker",
+    "environment": "production"
+  },
+  "commonAnnotations": {
+    "summary": "Memory usage above 80%",
+    "description": "Worker service memory usage is at 85%. Threshold: 80%. Consider scaling up."
+  },
+  "externalURL": "http://alertmanager:9093",
+  "version": "4",
+  "groupKey": "{}:{alertname=\"HighMemoryUsage\", service=\"worker\"}",
+  "truncatedAlerts": 0
+}

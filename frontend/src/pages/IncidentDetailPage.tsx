@@ -4,11 +4,17 @@ import { ChevronRight, AlertCircle } from 'lucide-react'
 import { useIncidentDetail } from '../hooks/useIncidentDetail'
 import { Timeline } from '../components/incidents/Timeline'
 import { PropertiesPanel } from '../components/layout/PropertiesPanel'
+import { StatusDropdown } from '../components/incidents/StatusDropdown'
+import { SeverityDropdown } from '../components/incidents/SeverityDropdown'
+import { AddTimelineEntry } from '../components/incidents/AddTimelineEntry'
 import { Badge } from '../components/ui/Badge'
+import { ToastContainer, useToast } from '../components/ui/Toast'
 import { GeneralError } from '../components/ui/ErrorState'
 import type { Alert } from '../api/types'
 
 type TabType = 'activity' | 'alerts'
+type StatusType = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
+type SeverityType = 'critical' | 'high' | 'medium' | 'low'
 
 /**
  * Incident detail page with two-panel layout
@@ -18,8 +24,29 @@ type TabType = 'activity' | 'alerts'
 export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState<TabType>('activity')
+  const { toasts, dismissToast, success, error: showError } = useToast()
 
-  const { incident, loading, error, refetch } = useIncidentDetail(id || '')
+  const { incident: fetchedIncident, loading, error, refetch } = useIncidentDetail(id || '')
+
+  // Local state for optimistic updates
+  const [incident, setIncident] = useState(fetchedIncident)
+
+  // Sync local state with fetched data
+  if (fetchedIncident && incident?.id !== fetchedIncident.id) {
+    setIncident(fetchedIncident)
+  }
+
+  const handleStatusChange = (newStatus: StatusType) => {
+    if (incident) {
+      setIncident({ ...incident, status: newStatus })
+    }
+  }
+
+  const handleSeverityChange = (newSeverity: SeverityType) => {
+    if (incident) {
+      setIncident({ ...incident, severity: newSeverity })
+    }
+  }
 
   if (loading) {
     return (
@@ -77,12 +104,20 @@ export function IncidentDetailPage() {
                   <span className="text-sm text-text-tertiary font-medium">
                     INC-{incident.incident_number}
                   </span>
-                  <Badge variant={incident.severity} type="severity">
-                    {incident.severity}
-                  </Badge>
-                  <Badge variant={incident.status} type="status">
-                    {incident.status}
-                  </Badge>
+                  <SeverityDropdown
+                    incidentId={incident.id}
+                    currentSeverity={incident.severity}
+                    onSeverityChange={handleSeverityChange}
+                    onSuccess={success}
+                    onError={showError}
+                  />
+                  <StatusDropdown
+                    incidentId={incident.id}
+                    currentStatus={incident.status}
+                    onStatusChange={handleStatusChange}
+                    onSuccess={success}
+                    onError={showError}
+                  />
                 </div>
                 <h1 className="text-2xl font-semibold text-text-primary mb-2">
                   {incident.title}
@@ -114,7 +149,17 @@ export function IncidentDetailPage() {
 
           {/* Tab Content */}
           <div className="bg-white border border-border rounded-lg p-6">
-            {activeTab === 'activity' && <Timeline entries={incident.timeline} />}
+            {activeTab === 'activity' && (
+              <div className="space-y-6">
+                <AddTimelineEntry
+                  incidentId={incident.id}
+                  onSuccess={success}
+                  onError={showError}
+                  onEntryAdded={refetch}
+                />
+                <Timeline entries={incident.timeline} />
+              </div>
+            )}
             {activeTab === 'alerts' && <AlertsList alerts={incident.alerts} />}
           </div>
         </div>
@@ -124,6 +169,9 @@ export function IncidentDetailPage() {
       <div className="w-80 flex-shrink-0">
         <PropertiesPanel incident={incident} />
       </div>
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }

@@ -90,7 +90,7 @@ send_alert() {
         -d @"$file")
 
     HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
-    BODY=$(echo "$RESPONSE" | head -n -1)
+    BODY=$(echo "$RESPONSE" | sed '$d')  # Remove last line (cross-platform)
 
     if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
         print_success "$name sent successfully (HTTP $HTTP_CODE)"

@@ -27,6 +27,7 @@ type UpdateIncidentParams struct {
 	Severity  models.IncidentSeverity
 	Summary   string
 	UpdatedBy string
+	ClientIP  string // For audit logging
 }
 
 // CreateTimelineEntryParams holds parameters for creating a timeline entry
@@ -416,6 +417,17 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 				return err
 			}
 
+			// Audit log: Record status change with actor and IP
+			slog.Info("incident status changed",
+				"incident_id", id,
+				"incident_number", incident.IncidentNumber,
+				"previous_status", string(previousStatus),
+				"new_status", string(params.Status),
+				"actor", params.UpdatedBy,
+				"client_ip", params.ClientIP,
+				"audit", true, // Tag for audit log filtering
+			)
+
 			// Create timeline entry for status change
 			timelineEntry := &models.TimelineEntry{
 				ID:         uuid.New(),
@@ -427,6 +439,7 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 				Content: models.JSONB{
 					"previous_status": string(previousStatus),
 					"new_status":      string(params.Status),
+					"client_ip":       params.ClientIP,
 				},
 			}
 			if err := s.timelineRepo.Create(timelineEntry); err != nil {
@@ -437,6 +450,17 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 		// Update severity if provided
 		if params.Severity != "" && params.Severity != incident.Severity {
 			incident.Severity = params.Severity
+
+			// Audit log: Record severity change with actor and IP
+			slog.Info("incident severity changed",
+				"incident_id", id,
+				"incident_number", incident.IncidentNumber,
+				"previous_severity", string(previousSeverity),
+				"new_severity", string(params.Severity),
+				"actor", params.UpdatedBy,
+				"client_ip", params.ClientIP,
+				"audit", true, // Tag for audit log filtering
+			)
 
 			// Create timeline entry for severity change
 			timelineEntry := &models.TimelineEntry{
@@ -449,6 +473,7 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 				Content: models.JSONB{
 					"previous_severity": string(previousSeverity),
 					"new_severity":      string(params.Severity),
+					"client_ip":         params.ClientIP,
 				},
 			}
 			if err := s.timelineRepo.Create(timelineEntry); err != nil {

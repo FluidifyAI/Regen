@@ -54,7 +54,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 
 	// Middleware
-	router.Use(middleware.RequestID()) // Must be first for request tracing
+	router.Use(middleware.RequestID())       // Must be first for request tracing
+	router.Use(middleware.SecurityHeaders()) // Security headers on all responses
 	router.Use(middleware.CORS())
 	router.Use(middleware.Recovery())
 	router.Use(middleware.Logger())
@@ -70,8 +71,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
-		// Webhooks
+		// Webhooks (with 1MB body size limit)
 		webhooks := v1.Group("/webhooks")
+		webhooks.Use(middleware.BodySizeLimit(middleware.WebhookMaxBodySize))
 		{
 			// Prometheus Alertmanager webhook (v0.1)
 			webhooks.POST("/prometheus", handlers.PrometheusWebhook(alertSvc))

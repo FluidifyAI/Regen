@@ -42,14 +42,9 @@ func RunMigrations(db *gorm.DB, migrationsPath string) error {
 		return err
 	}
 
-	defer func() {
-		if srcErr, dbErr := m.Close(); srcErr != nil || dbErr != nil {
-			slog.Warn("failed to close migrate instance",
-				"source_error", srcErr,
-				"database_error", dbErr,
-			)
-		}
-	}()
+	// Note: We don't close the migrate instance here because we used WithInstance()
+	// which means we don't own the database connection lifecycle.
+	// The source (file system) will be closed automatically on process exit.
 
 	// Check current migration state
 	version, dirty, err := m.Version()
@@ -99,14 +94,8 @@ func RollbackMigration(db *gorm.DB, migrationsPath string) error {
 		return err
 	}
 
-	defer func() {
-		if srcErr, dbErr := m.Close(); srcErr != nil || dbErr != nil {
-			slog.Warn("failed to close migrate instance",
-				"source_error", srcErr,
-				"database_error", dbErr,
-			)
-		}
-	}()
+	// Note: We don't close the migrate instance here because we used WithInstance()
+	// which means we don't own the database connection lifecycle.
 
 	// Check current version
 	version, dirty, err := m.Version()

@@ -1,7 +1,7 @@
 # ============================================================================
 # Development Stage - with hot reload using air
 # ============================================================================
-FROM golang:1.22-alpine AS development
+FROM golang:alpine AS development
 
 # Install air for hot reload (using new module path)
 RUN go install github.com/air-verse/air@v1.52.3
@@ -26,7 +26,7 @@ CMD ["air", "-c", ".air.toml"]
 # ============================================================================
 # Builder Stage - compile the binary
 # ============================================================================
-FROM golang:1.22-alpine AS builder
+FROM golang:alpine AS builder
 
 WORKDIR /app
 

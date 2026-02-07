@@ -384,18 +384,24 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 		return nil, err
 	}
 
+	// Reload incident to get trigger-assigned fields (e.g., incident_number)
+	reloadedIncident, err := s.incidentRepo.GetByID(incident.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reload incident after creation: %w", err)
+	}
+
 	// Create Slack channel asynchronously
 	if s.chatService != nil {
 		go func() {
-			if err := s.CreateSlackChannelForIncident(incident, []models.Alert{}); err != nil {
+			if err := s.CreateSlackChannelForIncident(reloadedIncident, []models.Alert{}); err != nil {
 				slog.Error("failed to create slack channel",
-					"incident_id", incident.ID,
+					"incident_id", reloadedIncident.ID,
 					"error", err)
 			}
 		}()
 	}
 
-	return incident, nil
+	return reloadedIncident, nil
 }
 
 // UpdateIncident updates an incident and creates timeline entries for changes

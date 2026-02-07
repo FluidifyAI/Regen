@@ -43,31 +43,119 @@ incident.io + PagerDuty, self-hosted, with BYO-AI.
 ## Quick Start
 
 ### Prerequisites
-- Docker & Docker Compose
-- Slack workspace (for Slack integration)
+
+Before you begin, ensure you have:
+
+- **Docker**: v20.10 or later ([install guide](https://docs.docker.com/get-docker/))
+- **Docker Compose**: v2.0 or later (included with Docker Desktop)
+- **Slack Workspace**: Admin access to create apps (optional but recommended)
+- **Git**: For cloning the repository
 
 ### 1. Clone and Configure
+
+Clone the repository:
 
 ```bash
 git clone https://github.com/yourusername/openincident.git
 cd openincident
-cp .env.example .env
-# Edit .env with your Slack credentials
 ```
 
+Copy the example environment file:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your configuration. **At minimum**, verify these are set:
+
+```env
+DATABASE_URL=postgresql://openincident:secret@db:5432/openincident?sslmode=disable
+REDIS_URL=redis://redis:6379
+PORT=8080
+```
+
+For Slack integration (optional but recommended), add:
+
+```env
+SLACK_BOT_TOKEN=xoxb-your-token-here
+SLACK_SIGNING_SECRET=your-signing-secret-here
+```
+
+See [Slack App Setup](#slack-app-setup) below for how to obtain these credentials.
+
 ### 2. Start Services
+
+Start all services (PostgreSQL, Redis, Backend, Frontend):
 
 ```bash
 docker-compose up -d
 ```
 
-### 3. Access the UI
+**Wait 10-15 seconds** for database migrations to complete. Check status:
 
-Open http://localhost:3000
+```bash
+docker-compose logs backend | grep "server starting"
+```
 
-### 4. Configure Prometheus (Optional)
+You should see: `"server starting" port=8080`
 
-Add to your `alertmanager.yml`:
+### 3. Verify Health
+
+Check that all services are ready:
+
+```bash
+curl http://localhost:8080/health
+# Expected: {"status":"ok"}
+
+curl http://localhost:8080/ready
+# Expected: {"database":"ok","redis":"ok","status":"ready"}
+```
+
+### 4. Access the UI
+
+Open your browser to:
+
+- **Frontend**: http://localhost:3000
+- **API**: http://localhost:8080
+- **Metrics**: http://localhost:8080/metrics
+
+### 5. Test with a Sample Alert
+
+Send a test Prometheus alert to verify the webhook is working:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/webhooks/prometheus \
+  -H "Content-Type: application/json" \
+  -d '{
+    "receiver": "openincident",
+    "status": "firing",
+    "alerts": [{
+      "status": "firing",
+      "labels": {
+        "alertname": "HighErrorRate",
+        "severity": "critical",
+        "service": "api"
+      },
+      "annotations": {
+        "summary": "Error rate above 5%",
+        "description": "The API service is experiencing elevated error rates"
+      },
+      "startsAt": "2024-01-15T10:00:00Z"
+    }]
+  }'
+```
+
+Check the response and verify an incident was created:
+
+```bash
+curl http://localhost:8080/api/v1/incidents
+```
+
+If Slack is configured, you should see a new channel created like `#incident-001-high-error-rate`.
+
+### 6. Configure Prometheus Alertmanager (Optional)
+
+To receive alerts from your existing Prometheus setup, add to your `alertmanager.yml`:
 
 ```yaml
 receivers:
@@ -75,6 +163,12 @@ receivers:
     webhook_configs:
       - url: http://localhost:8080/api/v1/webhooks/prometheus
         send_resolved: true
+```
+
+Reload Alertmanager:
+
+```bash
+curl -X POST http://localhost:9093/-/reload
 ```
 
 ---
@@ -193,16 +287,231 @@ APP_ENV=production
 
 ### Slack App Setup
 
-1. Create a new Slack app at https://api.slack.com/apps
-2. Add these OAuth scopes:
-   - `channels:manage`
-   - `channels:read`
-   - `channels:history`
-   - `chat:write`
-   - `commands`
-   - `users:read`
-3. Install to your workspace
-4. Copy Bot Token and Signing Secret to `.env`
+#### Step-by-Step Guide
+
+1. **Create a Slack App**
+   - Go to https://api.slack.com/apps
+   - Click **"Create New App"**
+   - Select **"From scratch"**
+   - Name: `OpenIncident` (or your preference)
+   - Choose your workspace
+   - Click **"Create App"**
+
+2. **Add Bot Token Scopes**
+   - In the left sidebar, click **"OAuth & Permissions"**
+   - Scroll to **"Scopes"** → **"Bot Token Scopes"**
+   - Click **"Add an OAuth Scope"** and add each of these:
+     - `channels:manage` — Create and archive incident channels
+     - `channels:read` — List channels for deduplication
+     - `chat:write` — Post status updates to channels
+     - `chat:write.public` — Post to channels without joining
+     - `users:read` — Lookup user information (for future features)
+
+3. **Install App to Workspace**
+   - Scroll up to **"OAuth Tokens for Your Workspace"**
+   - Click **"Install to Workspace"**
+   - Review permissions and click **"Allow"**
+
+4. **Copy Credentials**
+   - After installation, you'll see **"Bot User OAuth Token"**
+   - It starts with `xoxb-` — copy this value
+   - Add to your `.env` file:
+     ```env
+     SLACK_BOT_TOKEN=xoxb-1234567890-1234567890123-abcdefghijklmnopqrstuvwx
+     ```
+
+5. **Get Signing Secret**
+   - In the left sidebar, click **"Basic Information"**
+   - Scroll to **"App Credentials"**
+   - Under **"Signing Secret"**, click **"Show"** and copy
+   - Add to your `.env` file:
+     ```env
+     SLACK_SIGNING_SECRET=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+     ```
+
+6. **Restart OpenIncident**
+   ```bash
+   docker-compose restart backend
+   ```
+
+7. **Verify Integration**
+   - Send a test alert (see [Test with a Sample Alert](#5-test-with-a-sample-alert))
+   - Check your Slack workspace for a new channel like `#incident-001-high-error-rate`
+   - If the channel was created, Slack integration is working! ✅
+
+#### Required Scopes Summary
+
+| Scope | Purpose |
+|-------|---------|
+| `channels:manage` | Create, archive, and set topics on incident channels |
+| `channels:read` | List channels to prevent duplicates |
+| `chat:write` | Post messages and status updates |
+| `chat:write.public` | Post to channels without joining them first |
+| `users:read` | Look up user names and profiles (future feature) |
+
+---
+
+## Troubleshooting
+
+### Backend Won't Start
+
+**Symptom**: `docker-compose logs backend` shows connection errors
+
+**Possible causes**:
+
+1. **Database not ready**
+   ```bash
+   # Check if PostgreSQL is running
+   docker-compose ps db
+   # Expected: Status "Up"
+
+   # Check database logs
+   docker-compose logs db
+   ```
+   **Fix**: Wait 10-15 seconds after `docker-compose up -d`, or restart:
+   ```bash
+   docker-compose restart backend
+   ```
+
+2. **Port 8080 already in use**
+   ```bash
+   # Check what's using port 8080
+   lsof -i :8080
+   ```
+   **Fix**: Either stop the conflicting service or change `PORT` in `.env`:
+   ```env
+   PORT=8081
+   ```
+   Then update `docker-compose.yml` ports mapping.
+
+3. **Invalid DATABASE_URL**
+   - Verify `.env` has correct database credentials
+   - Default: `postgresql://openincident:secret@db:5432/openincident?sslmode=disable`
+
+### Slack Integration Not Working
+
+**Symptom**: Alerts create incidents but no Slack channel appears
+
+**Troubleshooting steps**:
+
+1. **Verify Slack token is set**
+   ```bash
+   docker-compose exec backend env | grep SLACK_BOT_TOKEN
+   ```
+   Should show `SLACK_BOT_TOKEN=xoxb-...`
+
+2. **Check backend logs**
+   ```bash
+   docker-compose logs backend | grep -i slack
+   ```
+   Look for:
+   - ✅ `"slack service initialized"` — integration working
+   - ❌ `"slack auth failed"` — invalid token
+   - ❌ `"failed to create channel"` — missing scopes
+
+3. **Verify OAuth scopes**
+   - Go to https://api.slack.com/apps → Your App → OAuth & Permissions
+   - Confirm all required scopes are added (see [Slack App Setup](#slack-app-setup))
+   - If you added scopes after installation, **reinstall the app**:
+     - Click "Reinstall to Workspace"
+     - Update `SLACK_BOT_TOKEN` in `.env` (it will change)
+     - Restart backend: `docker-compose restart backend`
+
+4. **Bot not invited to create channels**
+   - The bot should NOT need to be manually invited
+   - If channels aren't being created, check for `missing_scope` errors in logs
+
+### /ready Returns 503
+
+**Symptom**: `curl http://localhost:8080/ready` returns HTTP 503
+
+**Possible causes**:
+
+1. **Redis not running**
+   ```bash
+   docker-compose ps redis
+   # Expected: Status "Up"
+   ```
+   **Fix**: Start Redis:
+   ```bash
+   docker-compose up -d redis
+   docker-compose restart backend
+   ```
+
+2. **Database connection pool exhausted**
+   - Check database connections in metrics:
+     ```bash
+     curl http://localhost:8080/metrics | grep db_connections
+     ```
+   - Increase pool size in `.env`:
+     ```env
+     DB_MAX_OPEN_CONNS=50
+     DB_MAX_IDLE_CONNS=10
+     ```
+
+### Incidents Not Created from Alerts
+
+**Symptom**: Webhook returns 200 OK but no incident appears
+
+**Debug steps**:
+
+1. **Check alert severity**
+   - By default, only `critical` and `warning` alerts create incidents
+   - `info` level alerts are stored but don't auto-create incidents
+
+2. **Check backend logs**
+   ```bash
+   docker-compose logs backend | tail -50
+   ```
+   Look for error messages during incident creation
+
+3. **Verify alert deduplication**
+   - If an alert with the same external ID already exists, it won't create a new incident
+   - Check existing alerts:
+     ```bash
+     curl http://localhost:8080/api/v1/alerts
+     ```
+
+4. **Test with minimal payload**
+   ```bash
+   curl -X POST http://localhost:8080/api/v1/webhooks/prometheus \
+     -H "Content-Type: application/json" \
+     -d '{
+       "receiver": "test",
+       "status": "firing",
+       "alerts": [{
+         "status": "firing",
+         "labels": {"alertname": "TestAlert", "severity": "critical"},
+         "annotations": {"summary": "Test alert"},
+         "startsAt": "2024-01-01T00:00:00Z"
+       }]
+     }'
+   ```
+
+### Frontend Shows Empty State
+
+**Symptom**: UI loads but shows "No incidents" even though backend has data
+
+**Possible causes**:
+
+1. **Frontend can't reach backend**
+   - Check browser console (F12) for CORS errors
+   - Verify frontend is configured with correct API URL
+   - Default: `VITE_API_URL=http://localhost:8080` in `frontend/.env`
+
+2. **Backend not returning data**
+   - Test API directly:
+     ```bash
+     curl http://localhost:8080/api/v1/incidents
+     ```
+   - If empty, no incidents exist yet
+
+### Need More Help?
+
+- **Logs**: Always check `docker-compose logs backend` for detailed error messages
+- **Metrics**: Check http://localhost:8080/metrics for system health indicators
+- **GitHub Issues**: https://github.com/yourusername/openincident/issues
+- **Community**: Join our GitHub Discussions for support
 
 ---
 

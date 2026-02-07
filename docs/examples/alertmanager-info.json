@@ -1,0 +1,45 @@
+{
+  "receiver": "openincident",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "DeploymentCompleted",
+        "severity": "info",
+        "service": "frontend",
+        "environment": "production",
+        "region": "eu-west-1",
+        "team": "frontend",
+        "version": "v2.5.0"
+      },
+      "annotations": {
+        "summary": "Frontend deployment to production completed",
+        "description": "Frontend service version v2.5.0 has been deployed to production. Build: #1234.",
+        "release_notes": "https://github.com/example/frontend/releases/tag/v2.5.0"
+      },
+      "startsAt": "2024-01-15T12:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090/graph?g0.expr=kube_deployment_created%7Bdeployment%3D%22frontend%22%7D",
+      "fingerprint": "abc123def456789"
+    }
+  ],
+  "groupLabels": {
+    "alertname": "DeploymentCompleted",
+    "service": "frontend"
+  },
+  "commonLabels": {
+    "alertname": "DeploymentCompleted",
+    "severity": "info",
+    "service": "frontend",
+    "environment": "production"
+  },
+  "commonAnnotations": {
+    "summary": "Frontend deployment to production completed",
+    "description": "Frontend service version v2.5.0 has been deployed to production. Build: #1234."
+  },
+  "externalURL": "http://alertmanager:9093",
+  "version": "4",
+  "groupKey": "{}:{alertname=\"DeploymentCompleted\", service=\"frontend\"}",
+  "truncatedAlerts": 0
+}

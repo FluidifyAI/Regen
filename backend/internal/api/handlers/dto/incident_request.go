@@ -11,14 +11,14 @@ import (
 type CreateIncidentRequest struct {
 	Title       string `json:"title" binding:"required,min=1,max=500"`
 	Severity    string `json:"severity" binding:"omitempty,oneof=critical high medium low"`
-	Description string `json:"description"`
+	Description string `json:"description" binding:"max=10000"` // Max 10K chars for description
 }
 
 // UpdateIncidentRequest is the request body for PATCH /api/v1/incidents/:id
 type UpdateIncidentRequest struct {
 	Status   string `json:"status" binding:"omitempty,oneof=triggered acknowledged resolved canceled"`
 	Severity string `json:"severity" binding:"omitempty,oneof=critical high medium low"`
-	Summary  string `json:"summary"`
+	Summary  string `json:"summary" binding:"max=5000"` // Max 5K chars for summary
 }
 
 // IncidentFilters holds query parameters for filtering incidents

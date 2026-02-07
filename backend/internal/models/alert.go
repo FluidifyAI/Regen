@@ -45,9 +45,14 @@ func (j *JSONB) Scan(value interface{}) error {
 		return nil
 	}
 
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("failed to unmarshal JSONB value")
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return errors.New("failed to unmarshal JSONB value: unsupported type")
 	}
 
 	var result map[string]interface{}

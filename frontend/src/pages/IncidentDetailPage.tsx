@@ -1,0 +1,265 @@
+import { useState } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { ChevronRight, AlertCircle } from 'lucide-react'
+import { useIncidentDetail } from '../hooks/useIncidentDetail'
+import { Timeline } from '../components/incidents/Timeline'
+import { PropertiesPanel } from '../components/layout/PropertiesPanel'
+import { Badge } from '../components/ui/Badge'
+import { GeneralError } from '../components/ui/ErrorState'
+import type { Alert } from '../api/types'
+
+type TabType = 'activity' | 'alerts'
+
+/**
+ * Incident detail page with two-panel layout
+ * Left: Content area with tabs (Activity, Alerts)
+ * Right: Collapsible properties panel
+ */
+export function IncidentDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const [activeTab, setActiveTab] = useState<TabType>('activity')
+
+  const { incident, loading, error, refetch } = useIncidentDetail(id || '')
+
+  if (loading) {
+    return (
+      <div className="flex h-full">
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto px-6 py-6">
+            <SkeletonLoader />
+          </div>
+        </div>
+        {/* Properties Panel */}
+        <div className="w-80">
+          <div className="bg-white border-l border-border h-full" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !incident) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <GeneralError
+          message={error || 'Incident not found'}
+          onRetry={refetch}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full">
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto bg-surface-secondary">
+        <div className="max-w-5xl mx-auto px-6 py-6">
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-2 text-sm mb-4">
+            <Link to="/" className="text-text-tertiary hover:text-text-primary">
+              Home
+            </Link>
+            <ChevronRight className="w-4 h-4 text-text-tertiary" />
+            <Link to="/incidents" className="text-text-tertiary hover:text-text-primary">
+              Incidents
+            </Link>
+            <ChevronRight className="w-4 h-4 text-text-tertiary" />
+            <span className="text-text-primary font-medium">
+              INC-{incident.incident_number}
+            </span>
+          </nav>
+
+          {/* Page Header */}
+          <div className="bg-white border border-border rounded-lg p-6 mb-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-sm text-text-tertiary font-medium">
+                    INC-{incident.incident_number}
+                  </span>
+                  <Badge variant={incident.severity} type="severity">
+                    {incident.severity}
+                  </Badge>
+                  <Badge variant={incident.status} type="status">
+                    {incident.status}
+                  </Badge>
+                </div>
+                <h1 className="text-2xl font-semibold text-text-primary mb-2">
+                  {incident.title}
+                </h1>
+                {incident.summary && (
+                  <p className="text-sm text-text-secondary">{incident.summary}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="border-b border-border mb-6">
+            <div className="flex gap-6">
+              <TabButton
+                active={activeTab === 'activity'}
+                onClick={() => setActiveTab('activity')}
+                label="Activity"
+                count={incident.timeline.length}
+              />
+              <TabButton
+                active={activeTab === 'alerts'}
+                onClick={() => setActiveTab('alerts')}
+                label="Alerts"
+                count={incident.alerts.length}
+              />
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="bg-white border border-border rounded-lg p-6">
+            {activeTab === 'activity' && <Timeline entries={incident.timeline} />}
+            {activeTab === 'alerts' && <AlertsList alerts={incident.alerts} />}
+          </div>
+        </div>
+      </div>
+
+      {/* Properties Panel */}
+      <div className="w-80 flex-shrink-0">
+        <PropertiesPanel incident={incident} />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Tab button component
+ */
+function TabButton({
+  active,
+  onClick,
+  label,
+  count,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+  count: number
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`pb-3 border-b-2 transition-colors ${
+        active
+          ? 'border-brand-primary text-text-primary font-medium'
+          : 'border-transparent text-text-tertiary hover:text-text-primary'
+      }`}
+    >
+      {label}{' '}
+      <span
+        className={`text-sm ${active ? 'text-text-secondary' : 'text-text-tertiary'}`}
+      >
+        ({count})
+      </span>
+    </button>
+  )
+}
+
+/**
+ * Alerts list component
+ */
+function AlertsList({ alerts }: { alerts: Alert[] }) {
+  if (alerts.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-sm text-text-tertiary">No alerts linked to this incident</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {alerts.map((alert) => (
+        <div
+          key={alert.id}
+          className="border border-border rounded-lg p-4 hover:bg-surface-secondary transition-colors"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-severity-critical" />
+              <span className="text-sm font-medium text-text-primary">
+                {alert.title}
+              </span>
+            </div>
+            <Badge
+              variant={alert.severity as 'critical' | 'high' | 'medium' | 'low'}
+              type="severity"
+            >
+              {alert.severity}
+            </Badge>
+          </div>
+          <p className="text-sm text-text-secondary mb-3">{alert.description}</p>
+          <div className="flex items-center gap-4 text-xs text-text-tertiary">
+            <span>Source: {alert.source}</span>
+            <span>•</span>
+            <span>{formatDateTime(alert.started_at)}</span>
+            {alert.ended_at && (
+              <>
+                <span>•</span>
+                <span className="text-status-resolved">Resolved</span>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Loading skeleton
+ */
+function SkeletonLoader() {
+  return (
+    <div className="space-y-6">
+      {/* Breadcrumb skeleton */}
+      <div className="h-4 w-48 bg-surface-tertiary rounded animate-pulse" />
+
+      {/* Header skeleton */}
+      <div className="bg-white border border-border rounded-lg p-6">
+        <div className="flex gap-3 mb-2">
+          <div className="h-5 w-20 bg-surface-tertiary rounded animate-pulse" />
+          <div className="h-5 w-16 bg-surface-tertiary rounded animate-pulse" />
+          <div className="h-5 w-24 bg-surface-tertiary rounded animate-pulse" />
+        </div>
+        <div className="h-8 w-96 bg-surface-tertiary rounded animate-pulse mb-2" />
+        <div className="h-4 w-full bg-surface-tertiary rounded animate-pulse" />
+      </div>
+
+      {/* Tabs skeleton */}
+      <div className="flex gap-6 border-b border-border pb-3">
+        <div className="h-5 w-24 bg-surface-tertiary rounded animate-pulse" />
+        <div className="h-5 w-20 bg-surface-tertiary rounded animate-pulse" />
+      </div>
+
+      {/* Content skeleton */}
+      <div className="bg-white border border-border rounded-lg p-6">
+        <div className="space-y-4">
+          <div className="h-4 w-32 bg-surface-tertiary rounded animate-pulse" />
+          <div className="h-20 bg-surface-tertiary rounded animate-pulse" />
+          <div className="h-20 bg-surface-tertiary rounded animate-pulse" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Format timestamp as date and time
+ */
+function formatDateTime(timestamp: string): string {
+  const date = new Date(timestamp)
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}

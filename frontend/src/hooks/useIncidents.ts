@@ -7,7 +7,7 @@ interface UseIncidentsResult {
   loading: boolean
   error: string | null
   total: number
-  refetch: () => void
+  refetch: () => Promise<void>
 }
 
 /**

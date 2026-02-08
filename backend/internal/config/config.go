@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -24,9 +25,10 @@ type Config struct {
 	RedisURL string `default:"redis://localhost:6379"`
 
 	// Slack
-	SlackBotToken      string
-	SlackSigningSecret string
-	SlackAppToken      string
+	SlackBotToken          string
+	SlackSigningSecret     string
+	SlackAppToken          string
+	SlackAutoInviteUserIDs []string
 
 	// OpenAI
 	OpenAIAPIKey string
@@ -52,9 +54,10 @@ func Load() (*Config, error) {
 		RedisURL: getEnv("REDIS_URL", "redis://localhost:6379"),
 
 		// Slack
-		SlackBotToken:      getEnv("SLACK_BOT_TOKEN", ""),
-		SlackSigningSecret: getEnv("SLACK_SIGNING_SECRET", ""),
-		SlackAppToken:      getEnv("SLACK_APP_TOKEN", ""),
+		SlackBotToken:          getEnv("SLACK_BOT_TOKEN", ""),
+		SlackSigningSecret:     getEnv("SLACK_SIGNING_SECRET", ""),
+		SlackAppToken:          getEnv("SLACK_APP_TOKEN", ""),
+		SlackAutoInviteUserIDs: getEnvAsSlice("SLACK_AUTO_INVITE_USER_IDS", []string{}),
 
 		// OpenAI
 		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
@@ -96,4 +99,27 @@ func getEnvAsInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// getEnvAsSlice parses a comma-separated environment variable into a string slice.
+// Trims whitespace from each value and filters out empty strings.
+func getEnvAsSlice(key string, defaultValue []string) []string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+
+	if len(result) == 0 {
+		return defaultValue
+	}
+	return result
 }

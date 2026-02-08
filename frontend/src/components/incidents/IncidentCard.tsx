@@ -6,14 +6,16 @@ import type { Incident } from '../../api/types'
 
 interface IncidentCardProps {
   incident: Incident
+  isDragging?: boolean
 }
 
 /**
  * Incident card for kanban board
  * Shows incident number, title, severity badge, commander, and duration
  * Clickable to navigate to incident detail
+ * Supports drag-and-drop with visual feedback
  */
-export function IncidentCard({ incident }: IncidentCardProps) {
+export function IncidentCard({ incident, isDragging = false }: IncidentCardProps) {
   const formatDuration = (startDate: string) => {
     const start = new Date(startDate)
     const now = new Date()
@@ -35,7 +37,9 @@ export function IncidentCard({ incident }: IncidentCardProps) {
   return (
     <Link
       to={`/incidents/${incident.id}`}
-      className="block bg-white border border-border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+      className={`block bg-white border border-border rounded-lg p-4 shadow-sm transition-all ${
+        isDragging ? 'cursor-grabbing opacity-75' : 'cursor-grab hover:shadow-md hover:border-brand-primary'
+      }`}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">

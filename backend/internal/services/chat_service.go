@@ -61,6 +61,24 @@ type ChatService interface {
 	//
 	// Thread-safe: Yes
 	ArchiveChannel(channelID string) error
+
+	// InviteUsers invites users to a channel.
+	// Used for auto-inviting specific users to incident channels.
+	//
+	// Parameters:
+	//   - channelID: Platform-specific channel identifier
+	//   - userIDs: List of platform-specific user identifiers
+	//
+	// Returns:
+	//   - Error if invitation fails (permissions, invalid IDs, rate limits, network)
+	//
+	// Implementation notes:
+	//   - Empty userIDs list should return nil (no-op)
+	//   - Handle rate limits with exponential backoff
+	//   - Partial failures should return descriptive error
+	//
+	// Thread-safe: Yes
+	InviteUsers(channelID string, userIDs []string) error
 }
 
 // Channel represents a chat channel with platform-specific details.

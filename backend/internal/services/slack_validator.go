@@ -54,6 +54,7 @@ func (v *SlackValidator) ValidateScopes() error {
 		"channels:manage",
 		"channels:read",
 		"chat:write",
+		"users:read",
 	}
 
 	slog.Info("validating slack scopes", "required_scopes", requiredScopes)
@@ -73,15 +74,16 @@ func (v *SlackValidator) ValidateScopes() error {
 		slog.Info("channels:read scope validated")
 	}
 
-	// Note: channels:manage and chat:write scopes cannot be validated without side effects
-	// (creating a test channel or posting a test message). These will be validated on first use.
+	// Note: channels:manage, chat:write, and users:read scopes cannot be validated without side effects
+	// (creating a test channel, posting a test message, or inviting users). These will be validated on first use.
 	// If these scopes are missing, users will get clear error messages when attempting to:
 	// - Create incident channels (channels:manage required)
 	// - Post incident messages (chat:write required)
-	slog.Warn("channels:manage and chat:write scopes cannot be validated without side effects - will be verified on first use",
-		"impact", "if these scopes are missing, channel creation or message posting will fail with clear error messages")
+	// - Invite users to channels (users:read required)
+	slog.Warn("channels:manage, chat:write, and users:read scopes cannot be validated without side effects - will be verified on first use",
+		"impact", "if these scopes are missing, channel creation, message posting, or user invitation will fail with clear error messages")
 
-	slog.Info("slack scopes validation completed", "validated_scopes", []string{"channels:read"}, "deferred_scopes", []string{"channels:manage", "chat:write"})
+	slog.Info("slack scopes validation completed", "validated_scopes", []string{"channels:read"}, "deferred_scopes", []string{"channels:manage", "chat:write", "users:read"})
 	return nil
 }
 

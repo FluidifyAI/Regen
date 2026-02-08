@@ -1,20 +1,25 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { IncidentTable } from '../components/incidents/IncidentTable'
+import { CreateIncidentModal } from '../components/incidents/CreateIncidentModal'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyIncidentsList } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
 import { useIncidents } from '../hooks/useIncidents'
 import { Search, Plus } from 'lucide-react'
+import type { Incident } from '../api/types'
 
 /**
  * Incidents list page with filtering and search
  * Features: status/severity filters, search, pagination, declare incident button
  */
 export function IncidentsListPage() {
+  const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [severityFilter, setSeverityFilter] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   const { incidents, loading, error, total, refetch } = useIncidents({
     status: statusFilter || undefined,
@@ -30,13 +35,19 @@ export function IncidentsListPage() {
       )
     : incidents
 
-  const handleDeclareIncident = () => {
-    // TODO: Open create incident modal
-    console.log('Declare incident clicked')
+  const handleDeclareIncident = () => setShowCreateModal(true)
+
+  const handleIncidentCreated = (incident: Incident) => {
+    navigate(`/incidents/${incident.id}`)
   }
 
   return (
     <div className="flex flex-col h-full">
+      <CreateIncidentModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={handleIncidentCreated}
+      />
       {/* Page Header */}
       <div className="border-b border-border bg-white px-6 py-4">
         <div className="flex items-center justify-between mb-4">

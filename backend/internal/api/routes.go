@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/openincident/openincident/internal/api/handlers"
 	"github.com/openincident/openincident/internal/api/middleware"
+	"github.com/openincident/openincident/internal/config"
 	"github.com/openincident/openincident/internal/metrics"
 	"github.com/openincident/openincident/internal/repository"
 	"github.com/openincident/openincident/internal/services"
@@ -16,7 +17,7 @@ import (
 )
 
 // SetupRoutes configures all application routes
-func SetupRoutes(router *gin.Engine, db *gorm.DB) {
+func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	// Initialize repositories
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
@@ -50,8 +51,27 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	}
 
 	// Initialize services
-	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db)
+	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
+
+	// Start Slack Socket Mode event handler (bidirectional sync)
+	// Requires SLACK_APP_TOKEN in addition to SLACK_BOT_TOKEN
+	if cfg.SlackAppToken != "" && chatService != nil {
+		eventHandler, err := services.NewSlackEventHandler(
+			cfg.SlackAppToken,
+			cfg.SlackBotToken,
+			incidentSvc,
+			chatService,
+		)
+		if err != nil {
+			slog.Error("failed to initialize slack socket mode", "error", err)
+			slog.Warn("bidirectional Slack sync disabled - Slack will be one-way only")
+		} else {
+			eventHandler.Start()
+		}
+	} else if cfg.SlackAppToken == "" && chatService != nil {
+		slog.Warn("SLACK_APP_TOKEN not set - bidirectional Slack sync disabled (one-way only)")
+	}
 
 	// Middleware
 	router.Use(middleware.RequestID())       // Must be first for request tracing

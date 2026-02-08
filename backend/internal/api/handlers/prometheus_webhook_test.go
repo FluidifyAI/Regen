@@ -180,7 +180,7 @@ func TestPrometheusWebhookIntegration(t *testing.T) {
 			timelineRepo := repository.NewTimelineRepository(db)
 
 			// Create incident service with all required dependencies (nil for optional ChatService)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
 			alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 
 			// Create test router
@@ -270,7 +270,7 @@ func TestDuplicateAlertUpdate(t *testing.T) {
 	incidentRepo := repository.NewIncidentRepository(db)
 	timelineRepo := repository.NewTimelineRepository(db)
 
-	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
+	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 
 	router := gin.New()
@@ -438,7 +438,7 @@ func TestInvalidPayloadValidation(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
 			alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 
 			router := gin.New()
@@ -523,6 +523,7 @@ func setupTestDB(t *testing.T) (*gorm.DB, func()) {
 		summary TEXT,
 		slack_channel_id TEXT,
 		slack_channel_name TEXT,
+		slack_message_ts TEXT,
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		triggered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		acknowledged_at DATETIME,

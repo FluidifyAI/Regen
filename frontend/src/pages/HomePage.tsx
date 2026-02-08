@@ -1,5 +1,8 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { IncidentCard } from '../components/incidents/IncidentCard'
+import { CreateIncidentModal } from '../components/incidents/CreateIncidentModal'
 import { SkeletonCard } from '../components/ui/Skeleton'
 import { EmptyDashboard } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
@@ -13,14 +16,18 @@ import type { Incident } from '../api/types'
  * Shows resolved incidents in separate column
  */
 export function HomePage() {
+  const navigate = useNavigate()
+  const [showCreateModal, setShowCreateModal] = useState(false)
+
   // Fetch active incidents (not canceled)
   const { incidents, loading, error, refetch } = useIncidents({
     limit: 100,
   })
 
-  const handleDeclareIncident = () => {
-    // TODO: Open create incident modal
-    console.log('Declare incident clicked')
+  const handleDeclareIncident = () => setShowCreateModal(true)
+
+  const handleIncidentCreated = (incident: Incident) => {
+    navigate(`/incidents/${incident.id}`)
   }
 
   // Group incidents by status
@@ -35,6 +42,11 @@ export function HomePage() {
 
   return (
     <div className="flex flex-col h-full">
+      <CreateIncidentModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={handleIncidentCreated}
+      />
       {/* Page Header */}
       <div className="border-b border-border bg-white px-6 py-4">
         <div className="flex items-center justify-between">

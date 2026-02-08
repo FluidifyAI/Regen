@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Hash, Calendar, Clock } from 'lucide-react'
+import { ChevronDown, ChevronUp, Hash, Calendar, Clock, ExternalLink } from 'lucide-react'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
 
@@ -115,10 +115,13 @@ export function PropertiesPanel({ incident }: PropertiesPanelProps) {
               <div className="flex items-center gap-2">
                 <Hash className="w-4 h-4 text-text-tertiary" />
                 <a
-                  href={`slack://channel?team=T123&id=${incident.slack_channel_id}`}
-                  className="text-sm text-brand-primary hover:underline"
+                  href={`https://slack.com/app_redirect?channel=${incident.slack_channel_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-brand-primary hover:underline inline-flex items-center gap-1"
                 >
                   #{incident.slack_channel_name}
+                  <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
             </PropertySection>

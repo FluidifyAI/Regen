@@ -54,6 +54,25 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 
+	// Start Slack Socket Mode event handler (bidirectional sync)
+	// Requires SLACK_APP_TOKEN in addition to SLACK_BOT_TOKEN
+	if cfg.SlackAppToken != "" && chatService != nil {
+		eventHandler, err := services.NewSlackEventHandler(
+			cfg.SlackAppToken,
+			cfg.SlackBotToken,
+			incidentSvc,
+			chatService,
+		)
+		if err != nil {
+			slog.Error("failed to initialize slack socket mode", "error", err)
+			slog.Warn("bidirectional Slack sync disabled - Slack will be one-way only")
+		} else {
+			eventHandler.Start()
+		}
+	} else if cfg.SlackAppToken == "" && chatService != nil {
+		slog.Warn("SLACK_APP_TOKEN not set - bidirectional Slack sync disabled (one-way only)")
+	}
+
 	// Middleware
 	router.Use(middleware.RequestID())       // Must be first for request tracing
 	router.Use(middleware.SecurityHeaders()) // Security headers on all responses

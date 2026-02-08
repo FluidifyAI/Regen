@@ -1,0 +1,220 @@
+{
+  "epic": {
+    "key": "OI-EPIC-011",
+    "name": "Incident Lifecycle & Slack Bidirectional Sync",
+    "objective": "Complete the incident lifecycle with Slack bidirectional sync: interactive button handlers, slash commands, message-to-timeline sync, and frontend create incident modal",
+    "definition_of_done": "Users can acknowledge/resolve incidents from Slack buttons, create incidents via /incident slash command, Slack channel messages appear in incident timeline, and incidents can be created from the web UI modal",
+    "status": "To Do",
+    "initiative": "OI-INIT-002",
+    "release": "v0.2",
+    "prerequisites": ["OI-EPIC-004"],
+    "notes": "Status workflow, timeline entries, incident detail page, and one-way Slack posting are already implemented in v0.1. This epic focuses on what's missing: bidirectional Slack sync and the create incident modal.",
+    "tasks": [
+      {
+        "key": "OI-062",
+        "name": "Implement Slack Socket Mode listener",
+        "description": "Set up Slack Socket Mode connection to receive interactive events (button clicks, slash commands) without exposing a public URL. Socket Mode uses WebSocket via SLACK_APP_TOKEN.",
+        "acceptance_criteria": [
+          "Socket Mode connection established using slack-go socketmode package",
+          "Connection authenticated via SLACK_APP_TOKEN (xapp-...)",
+          "Automatic reconnection on disconnect with exponential backoff",
+          "Graceful shutdown on SIGTERM/SIGINT",
+          "Event dispatch loop running in background goroutine",
+          "Logs connection status (connected, disconnected, reconnecting)",
+          "Application starts without Socket Mode if SLACK_APP_TOKEN not set (degraded mode)"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 5,
+        "implementation_notes": "Socket Mode is preferred over Events API for self-hosted apps because it doesn't require a public URL or SSL certificate. Uses WebSocket instead of HTTP webhooks."
+      },
+      {
+        "key": "OI-063",
+        "name": "Implement Slack interactive button handlers",
+        "description": "Handle Acknowledge and Resolve button clicks from Slack incident messages. When a user clicks a button in the incident channel, update the incident status and post a confirmation message.",
+        "acceptance_criteria": [
+          "InteractionCallback events dispatched from Socket Mode listener",
+          "Acknowledge button: transitions incident to 'acknowledged' status",
+          "Resolve button: transitions incident to 'resolved' status",
+          "Status transition validated (same state machine as API)",
+          "Incident updated in database with AcknowledgedAt/ResolvedAt timestamps",
+          "Timeline entry created: type=status_changed, actor_type=slack_user, actor_id=slack_user_id",
+          "Original Slack message updated to reflect new status (emoji, fields)",
+          "Confirmation message posted to channel: '@user acknowledged INC-042'",
+          "Invalid transitions return ephemeral error to user (e.g., already resolved)",
+          "Button click from non-incident channel handled gracefully"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 8,
+        "implementation_notes": "Reuse existing incident_service.UpdateIncident() for status transitions. Map Slack user ID to actor for timeline entries."
+      },
+      {
+        "key": "OI-064",
+        "name": "Implement /incident slash command handler",
+        "description": "Handle /incident slash command in Slack for creating and managing incidents directly from any Slack channel",
+        "acceptance_criteria": [
+          "SlashCommand events dispatched from Socket Mode listener",
+          "/incident new [title] - opens modal dialog for incident creation",
+          "Modal includes fields: title (required), severity (dropdown), summary (optional)",
+          "On submit: creates incident via incident_service.CreateIncident()",
+          "Slack channel auto-created for new incident (existing flow)",
+          "Response posted to originating channel with incident link",
+          "Timeline entry: type=incident_created, actor_type=slack_user",
+          "/incident list - shows last 5 open incidents as ephemeral message",
+          "/incident help - shows usage instructions as ephemeral message",
+          "Invalid subcommand returns help text"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "Uses Slack modal views (views.open API). Modal submission is a separate event type (view_submission) handled in the Socket Mode listener."
+      },
+      {
+        "key": "OI-065",
+        "name": "Implement Slack message-to-timeline sync",
+        "description": "Capture messages posted in incident Slack channels and create corresponding timeline entries, providing a complete incident record in the web UI",
+        "acceptance_criteria": [
+          "Subscribe to message events in incident channels via Socket Mode",
+          "New messages in incident channels create timeline entries: type=slack_message",
+          "Timeline entry content includes: message text, author name, author avatar URL, timestamp",
+          "Bot messages and system messages are excluded (no echo loops)",
+          "Thread replies captured with parent message reference",
+          "Message edits update the corresponding timeline entry content",
+          "Message deletions add a timeline entry: type=slack_message_deleted",
+          "Rate limited: max 1 timeline entry per second per channel to prevent flooding",
+          "Only channels matching inc-* pattern are monitored"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "Filter messages by channel name prefix 'inc-'. Look up incident by slack_channel_id in the database. Ignore messages from the bot itself to prevent loops."
+      },
+      {
+        "key": "OI-066",
+        "name": "Update Slack message on incident status change from API/UI",
+        "description": "When incident status changes via API or web UI, update the original Slack message to reflect the new status",
+        "acceptance_criteria": [
+          "Status change via PATCH /api/v1/incidents/:id triggers Slack message update",
+          "Original incident message updated with new status, emoji, and timestamp",
+          "Action buttons updated: hide Acknowledge if acknowledged, hide both if resolved",
+          "Status update message posted to channel: 'Incident status changed to {status} by {actor}'",
+          "Works for all transitions: triggered→acknowledged, triggered→resolved, acknowledged→resolved",
+          "No Slack update if incident has no slack_channel_id (graceful skip)",
+          "Stores message_ts from initial message for future updates"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "Partially implemented - PostStatusUpdateToSlack() exists but doesn't update the original message or modify buttons. Need to store initial message_ts and use UpdateMessage()."
+      },
+      {
+        "key": "OI-067",
+        "name": "Implement create incident modal in frontend",
+        "description": "Build the 'Declare Incident' modal dialog in the React frontend, replacing the TODO placeholder in IncidentsListPage and HomePage",
+        "acceptance_criteria": [
+          "Modal triggered by 'Declare incident' button (replaces console.log TODO)",
+          "Form fields: Title (required, text input), Severity (required, dropdown: critical/high/medium/low), Summary (optional, textarea)",
+          "Form validation: title required and min 5 chars, severity required",
+          "Submit calls POST /api/v1/incidents with CreateIncidentRequest",
+          "Loading state shown during submission",
+          "On success: close modal, navigate to new incident detail page, show success toast",
+          "On error: show error message inline in modal, keep form state",
+          "Escape key and backdrop click close modal (with unsaved changes warning)",
+          "Accessible: focus trap, aria labels, keyboard navigation"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "API endpoint POST /api/v1/incidents already exists. Frontend API client createIncident() already exists. Just need the modal UI component."
+      },
+      {
+        "key": "OI-068",
+        "name": "Add Slack channel link to incident detail page",
+        "description": "Display the Slack channel link in the incident detail page properties panel so users can quickly jump to the Slack channel",
+        "acceptance_criteria": [
+          "Slack channel name displayed in PropertiesPanel with Slack icon",
+          "Channel name is a clickable link opening Slack channel in new tab",
+          "Link format: slack://channel?team={team_id}&id={channel_id} for desktop app",
+          "Fallback web URL: https://app.slack.com/client/{team_id}/{channel_id}",
+          "Shows 'No channel' or 'Slack not configured' when slack_channel_id is empty",
+          "Channel name prefixed with # symbol for visual consistency"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 2,
+        "implementation_notes": "Data already available in incident API response (slack_channel_id, slack_channel_name). Just need UI display in PropertiesPanel component."
+      },
+      {
+        "key": "OI-069",
+        "name": "Implement incident channel archival on resolution",
+        "description": "When an incident is resolved, automatically archive the Slack channel after a configurable delay to keep the workspace clean",
+        "acceptance_criteria": [
+          "When incident status changes to 'resolved', schedule channel archival",
+          "Final message posted before archival: 'This incident has been resolved. Channel will be archived.'",
+          "Configurable delay before archival (default: 24 hours) via SLACK_ARCHIVE_DELAY env var",
+          "Timeline entry: type=slack_channel_archived",
+          "Archival failure logged but does not affect incident status",
+          "Re-opening incident (resolved→acknowledged) cancels pending archival",
+          "Channel remains accessible (read-only) after archival"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 3,
+        "implementation_notes": "Use Redis delayed job or goroutine with timer. ArchiveChannel() already implemented in ChatService. For v0.2, simple goroutine with sleep is acceptable; Redis-backed scheduling in v0.3+."
+      },
+      {
+        "key": "OI-070",
+        "name": "Add Slack integration tests",
+        "description": "Write integration tests for the bidirectional Slack sync features using mock Slack API",
+        "acceptance_criteria": [
+          "Mock Socket Mode client for testing without real Slack",
+          "Test: button click → incident status updated",
+          "Test: slash command → incident created",
+          "Test: message in incident channel → timeline entry created",
+          "Test: status change via API → Slack message updated",
+          "Test: invalid button click → ephemeral error returned",
+          "Test: message from bot → ignored (no echo loop)",
+          "Test: channel archival on resolution",
+          "All tests pass in CI without Slack credentials"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Create MockChatService and MockSocketModeClient for testing. Tests should not require actual Slack API access."
+      },
+      {
+        "key": "OI-071",
+        "name": "Update documentation for v0.2 Slack features",
+        "description": "Update README, .env.example, and Slack app setup guide for new bidirectional features",
+        "acceptance_criteria": [
+          "README updated with v0.2 features (bidirectional sync, slash commands)",
+          ".env.example updated with SLACK_APP_TOKEN and SLACK_ARCHIVE_DELAY",
+          "Slack app setup guide: additional scopes needed (commands, im:history, channels:history)",
+          "Slack app setup guide: enable Socket Mode in app settings",
+          "Slack app setup guide: add slash command /incident",
+          "Slack app setup guide: subscribe to message events",
+          "Troubleshooting section for Socket Mode connection issues"
+        ],
+        "status": "To Do",
+        "priority": "Low",
+        "story_points": 2,
+        "implementation_notes": "SLACK_APP_TOKEN already in .env.example but documented as optional for Socket Mode. Now it becomes required for bidirectional sync."
+      }
+    ],
+    "total_story_points": 48,
+    "estimated_duration": "2-3 weeks",
+    "dependencies": {
+      "external": [
+        "Slack app must have Socket Mode enabled",
+        "SLACK_APP_TOKEN (xapp-...) required for Socket Mode",
+        "Additional Slack scopes: commands, channels:history, users:read"
+      ],
+      "internal": [
+        "Existing ChatService interface (v0.1 OI-EPIC-004)",
+        "Existing incident_service.go lifecycle methods (v0.1)",
+        "Existing SlackMessageBuilder (v0.1 OI-024)"
+      ]
+    }
+  }
+}

@@ -4,7 +4,7 @@
     "name": "Observability & Health",
     "objective": "Implement health checks, metrics endpoint, and structured logging for operational visibility",
     "definition_of_done": "Health and readiness endpoints functional, Prometheus metrics exposed, structured JSON logging throughout application",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-001",
     "tasks": [
       {
@@ -17,7 +17,7 @@
           "Response time under 10ms",
           "Suitable for Kubernetes liveness probe"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 1
       },
@@ -33,7 +33,7 @@
           "Timeout of 5 seconds per check",
           "Suitable for Kubernetes readiness probe"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 2
       },
@@ -49,7 +49,7 @@
           "Exposes database connection pool metrics",
           "Endpoint at /metrics"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -65,7 +65,7 @@
           "Log level configurable via LOG_LEVEL env var",
           "Sensitive data (tokens, passwords) never logged"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -80,7 +80,7 @@
           "Return X-Request-ID in response headers",
           "Pass request ID to downstream services (Slack, etc.)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 2
       }

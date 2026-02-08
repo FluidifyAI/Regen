@@ -4,7 +4,7 @@
     "name": "Incident REST API",
     "objective": "Implement REST API endpoints for incident CRUD operations and status transitions",
     "definition_of_done": "All v0.1 incident endpoints functional: list, get, create (manual), update (acknowledge/resolve), with proper validation and error responses",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-001",
     "tasks": [
       {
@@ -18,7 +18,7 @@
           "Incidents ordered by created_at DESC by default",
           "Each incident includes: id, incident_number, title, status, severity, slack_channel_name, created_at, acknowledged_at, resolved_at"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 3
       },
@@ -34,7 +34,7 @@
           "Includes slack_channel object with id, name, url",
           "Returns 404 if incident not found"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 3
       },
@@ -50,7 +50,7 @@
           "Returns created incident with 201 status",
           "Timeline entry: type=incident_created, content={trigger: 'manual'}"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -67,7 +67,7 @@
           "Returns updated incident",
           "Returns 400 for invalid status transitions"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5
       },
@@ -81,7 +81,7 @@
           "Entries ordered by timestamp ASC",
           "Each entry includes: id, timestamp, type, actor_type, actor_id, content"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 2
       },
@@ -96,7 +96,7 @@
           "Returns created entry with 201 status",
           "Timestamp is server-generated"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 2
       },
@@ -110,7 +110,7 @@
           "Message threaded under original incident message if possible",
           "Failure to post does not fail the status update"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -125,7 +125,7 @@
           "500 Internal Server Error logs full error, returns safe message",
           "Request ID included in all responses for tracing"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       }

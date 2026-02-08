@@ -198,7 +198,7 @@ func TestListIncidents(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
 
 			// Create test incidents
 			for _, incident := range tt.setupIncidents {
@@ -355,7 +355,7 @@ func TestGetIncident(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
 
 			// Create test incident if provided
 			if tt.setupIncident != nil {
@@ -502,7 +502,7 @@ func TestCreateIncident(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
 
 			// Create test router
 			router := gin.New()
@@ -720,7 +720,7 @@ func TestUpdateIncident(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
 
 			// Create test incident if provided
 			if tt.setupIncident != nil {
@@ -775,7 +775,7 @@ func TestIncidentStatusTransitions(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
 
 			// Create incident with initial status
 			incident := &models.Incident{
@@ -826,7 +826,7 @@ func TestIncidentStatusTransitions(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
 
 			// Create incident with initial status
 			incident := &models.Incident{
@@ -910,6 +910,7 @@ func setupIncidentTestDB(t *testing.T) (*gorm.DB, func()) {
 		summary TEXT,
 		slack_channel_id TEXT,
 		slack_channel_name TEXT,
+		slack_message_ts TEXT,
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		triggered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		acknowledged_at DATETIME,

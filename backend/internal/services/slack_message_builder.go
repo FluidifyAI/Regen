@@ -174,6 +174,111 @@ func blocksToInterfaces(blocks []slack.Block) []interface{} {
 	return result
 }
 
+// BuildIncidentUpdatedMessage rebuilds the incident message with status-aware buttons.
+// Used to update the original pinned message when status changes from any source.
+//
+// Button rules:
+//   - triggered: Acknowledge + Resolve
+//   - acknowledged: Resolve only
+//   - resolved/canceled: no buttons
+func (b *SlackMessageBuilder) BuildIncidentUpdatedMessage(incident *models.Incident) Message {
+	blocks := []slack.Block{
+		slack.NewHeaderBlock(
+			slack.NewTextBlockObject(
+				slack.PlainTextType,
+				fmt.Sprintf("%s INC-%d: %s",
+					getSeverityEmoji(incident.Severity),
+					incident.IncidentNumber,
+					incident.Title),
+				false, false,
+			),
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			nil,
+			[]*slack.TextBlockObject{
+				slack.NewTextBlockObject(slack.MarkdownType,
+					fmt.Sprintf("*Severity:* %s %s", getSeverityEmoji(incident.Severity), incident.Severity),
+					false, false),
+				slack.NewTextBlockObject(slack.MarkdownType,
+					fmt.Sprintf("*Status:* %s %s", getStatusEmoji(incident.Status), incident.Status),
+					false, false),
+				slack.NewTextBlockObject(slack.MarkdownType,
+					fmt.Sprintf("*Triggered:* <!date^%d^{date_short_pretty} at {time}|%s>",
+						incident.TriggeredAt.Unix(),
+						incident.TriggeredAt.Format("2006-01-02 15:04:05")),
+					false, false),
+			},
+			nil,
+		),
+		slack.NewDividerBlock(),
+	}
+
+	if incident.AcknowledgedAt != nil {
+		blocks = append(blocks,
+			slack.NewContextBlock("",
+				slack.NewTextBlockObject(slack.MarkdownType,
+					fmt.Sprintf("👀 Acknowledged <!date^%d^{date_short_pretty} at {time}|%s>",
+						incident.AcknowledgedAt.Unix(),
+						incident.AcknowledgedAt.Format("2006-01-02 15:04:05")),
+					false, false),
+			),
+		)
+	}
+	if incident.ResolvedAt != nil {
+		blocks = append(blocks,
+			slack.NewContextBlock("",
+				slack.NewTextBlockObject(slack.MarkdownType,
+					fmt.Sprintf("✅ Resolved <!date^%d^{date_short_pretty} at {time}|%s>",
+						incident.ResolvedAt.Unix(),
+						incident.ResolvedAt.Format("2006-01-02 15:04:05")),
+					false, false),
+			),
+		)
+	}
+
+	switch incident.Status {
+	case models.IncidentStatusTriggered:
+		blocks = append(blocks, slack.NewActionBlock(
+			"incident_actions",
+			slack.NewButtonBlockElement("acknowledge", incident.ID.String(),
+				slack.NewTextBlockObject(slack.PlainTextType, "👀 Acknowledge", false, false),
+			).WithStyle(slack.StylePrimary),
+			slack.NewButtonBlockElement("resolve", incident.ID.String(),
+				slack.NewTextBlockObject(slack.PlainTextType, "✅ Resolve", false, false),
+			).WithStyle(slack.StyleDanger),
+		))
+	case models.IncidentStatusAcknowledged:
+		blocks = append(blocks, slack.NewActionBlock(
+			"incident_actions",
+			slack.NewButtonBlockElement("resolve", incident.ID.String(),
+				slack.NewTextBlockObject(slack.PlainTextType, "✅ Resolve", false, false),
+			).WithStyle(slack.StyleDanger),
+		))
+	}
+
+	return Message{
+		Text:   fmt.Sprintf("INC-%d: %s [%s]", incident.IncidentNumber, incident.Title, incident.Status),
+		Blocks: blocksToInterfaces(blocks),
+	}
+}
+
+// getStatusEmoji returns an emoji for the given incident status.
+func getStatusEmoji(status models.IncidentStatus) string {
+	switch status {
+	case models.IncidentStatusTriggered:
+		return "🔴"
+	case models.IncidentStatusAcknowledged:
+		return "🟡"
+	case models.IncidentStatusResolved:
+		return "🟢"
+	case models.IncidentStatusCanceled:
+		return "⚫"
+	default:
+		return "⚪"
+	}
+}
+
 // BuildStatusUpdateMessage creates a message for incident status changes
 func (b *SlackMessageBuilder) BuildStatusUpdateMessage(
 	incident *models.Incident,

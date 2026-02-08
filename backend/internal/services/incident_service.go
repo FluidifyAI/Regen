@@ -61,12 +61,13 @@ type IncidentService interface {
 
 // incidentService implements IncidentService
 type incidentService struct {
-	incidentRepo   repository.IncidentRepository
-	timelineRepo   repository.TimelineRepository
-	alertRepo      repository.AlertRepository
-	chatService    ChatService          // Optional - can be nil if Slack not configured
-	messageBuilder *SlackMessageBuilder // Optional - can be nil if Slack not configured
-	db             *gorm.DB             // For transaction management
+	incidentRepo      repository.IncidentRepository
+	timelineRepo      repository.TimelineRepository
+	alertRepo         repository.AlertRepository
+	chatService       ChatService          // Optional - can be nil if Slack not configured
+	messageBuilder    *SlackMessageBuilder // Optional - can be nil if Slack not configured
+	db                *gorm.DB             // For transaction management
+	autoInviteUserIDs []string             // User IDs to auto-invite to incident channels
 }
 
 // NewIncidentService creates a new incident service
@@ -76,6 +77,7 @@ func NewIncidentService(
 	alertRepo repository.AlertRepository,
 	chatService ChatService, // Optional - pass nil if Slack not configured
 	db *gorm.DB,
+	autoInviteUserIDs []string,
 ) IncidentService {
 	var messageBuilder *SlackMessageBuilder
 	if chatService != nil {
@@ -83,12 +85,13 @@ func NewIncidentService(
 	}
 
 	return &incidentService{
-		incidentRepo:   incidentRepo,
-		timelineRepo:   timelineRepo,
-		alertRepo:      alertRepo,
-		chatService:    chatService,
-		messageBuilder: messageBuilder,
-		db:             db,
+		incidentRepo:      incidentRepo,
+		timelineRepo:      timelineRepo,
+		alertRepo:         alertRepo,
+		chatService:       chatService,
+		messageBuilder:    messageBuilder,
+		db:                db,
+		autoInviteUserIDs: autoInviteUserIDs,
 	}
 }
 
@@ -220,13 +223,59 @@ func (s *incidentService) CreateSlackChannelForIncident(incident *models.Inciden
 
 	// Post initial message
 	message := s.messageBuilder.BuildIncidentCreatedMessage(incident, alerts)
-	_, err = s.chatService.PostMessage(channel.ID, message)
+	slog.Info("posting initial message to slack channel",
+		"incident_id", incident.ID,
+		"channel_id", channel.ID,
+		"has_blocks", len(message.Blocks) > 0,
+		"block_count", len(message.Blocks),
+		"text", message.Text)
+
+	messageTS, err := s.chatService.PostMessage(channel.ID, message)
 	if err != nil {
 		slog.Error("failed to post initial message to slack channel",
 			"incident_id", incident.ID,
 			"channel_id", channel.ID,
 			"error", err)
 		// Continue - channel was created, message posting is non-critical
+	} else {
+		slog.Info("initial message posted to slack channel",
+			"incident_id", incident.ID,
+			"channel_id", channel.ID,
+			"message_ts", messageTS)
+	}
+
+	// Auto-invite users if configured
+	if len(s.autoInviteUserIDs) > 0 {
+		slog.Info("auto-inviting users to incident channel",
+			"incident_id", incident.ID,
+			"channel_id", channel.ID,
+			"user_count", len(s.autoInviteUserIDs))
+
+		err = s.chatService.InviteUsers(channel.ID, s.autoInviteUserIDs)
+		if err != nil {
+			slog.Error("failed to invite users",
+				"incident_id", incident.ID,
+				"error", err)
+
+			// Timeline entry for failure
+			s.createTimelineEntry(incident.ID, "user_invitation_failed", models.JSONB{
+				"channel_id": channel.ID,
+				"user_ids":   s.autoInviteUserIDs,
+				"error":      err.Error(),
+			})
+			// Continue - non-fatal
+		} else {
+			slog.Info("users invited successfully",
+				"incident_id", incident.ID,
+				"user_count", len(s.autoInviteUserIDs))
+
+			// Timeline entry for success
+			s.createTimelineEntry(incident.ID, "users_invited", models.JSONB{
+				"channel_id": channel.ID,
+				"user_ids":   s.autoInviteUserIDs,
+				"user_count": len(s.autoInviteUserIDs),
+			})
+		}
 	}
 
 	// Create timeline entry for success

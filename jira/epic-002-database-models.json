@@ -4,7 +4,7 @@
     "name": "Database & Models",
     "objective": "Implement PostgreSQL database layer with GORM, migrations, and core data models (Alert, Incident, TimelineEntry)",
     "definition_of_done": "All v0.1 models exist with migrations, immutable timestamp constraints enforced, and repository layer provides CRUD operations",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-001",
     "tasks": [
       {
@@ -18,7 +18,7 @@
           "Graceful connection handling on shutdown",
           "Connection retry logic on startup"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 3
       },
@@ -33,7 +33,7 @@
           "Migration status can be checked",
           "Migrations run automatically on application start in development"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 3
       },
@@ -48,7 +48,7 @@
           "received_at defaults to NOW() and is immutable",
           "Appropriate indexes on source, external_id, status, severity, received_at"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -65,7 +65,7 @@
           "Severity enum constraint: critical, high, medium, low",
           "Indexes on status, severity, created_at, incident_number"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -79,7 +79,7 @@
           "Foreign key constraints with CASCADE delete",
           "linked_at defaults to NOW()"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 2
       },
@@ -96,7 +96,7 @@
           "Foreign key to incidents with CASCADE delete",
           "Index on (incident_id, timestamp)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5
       },
@@ -112,7 +112,7 @@
           "Update(alert) - updates mutable fields only",
           "All methods return typed errors for not found, duplicate, etc."
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -129,7 +129,7 @@
           "LinkAlert(incidentID, alertID) - creates incident_alert record",
           "GetAlerts(incidentID) - retrieves linked alerts"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5
       },
@@ -143,7 +143,7 @@
           "No Update or Delete methods exist",
           "Bulk create for importing multiple entries"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 2
       }

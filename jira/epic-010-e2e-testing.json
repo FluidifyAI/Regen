@@ -4,7 +4,7 @@
     "name": "End-to-End Testing & Validation",
     "objective": "Validate the complete v0.1 flow works as specified",
     "definition_of_done": "Full flow tested: Prometheus alert -> Incident -> Slack -> UI -> Acknowledge/Resolve, with documented test results",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-001",
     "tasks": [
       {
@@ -19,7 +19,7 @@
           "Test: Duplicate alert updates existing",
           "Test: Invalid payload returns 400"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5
       },
@@ -36,7 +36,7 @@
           "Test: Resolve incident",
           "Test: Invalid status transition returns 400"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5
       },
@@ -51,7 +51,7 @@
           "Slack channel verification steps",
           "Cleanup procedure"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 2
       },
@@ -70,7 +70,7 @@
           "Resolve from UI updates status and posts to Slack",
           "All timestamps are server-generated"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       }

@@ -4,7 +4,7 @@
     "name": "Frontend - Incident Dashboard",
     "objective": "Build a React frontend matching incident.io's layout patterns: persistent dark left sidebar navigation, incidents table with filtering, two-panel incident detail with collapsible properties, and a home dashboard with active incident kanban board. Uses OpenIncident's blue-primary color scheme derived from the logo.",
     "definition_of_done": "User can navigate via persistent left sidebar, view a home dashboard with active incidents as kanban cards, browse a filterable incidents table, open incident details in two-panel layout (main content + collapsible properties panel), and acknowledge/resolve incidents via quick actions and property panel. All views use the OpenIncident design token system with blue primary brand color.",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-001",
     "ui_decisions": {
       "reference": "ui-decision/ folder (42 screenshots from incident.io)",
@@ -80,7 +80,7 @@
           "Docker-ready with nginx for production serving",
           "Project compiles and renders a blank shell page with no errors"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 3,
         "depends_on": []
@@ -98,10 +98,12 @@
           "Final image size under 30MB",
           "Container runs as non-root user"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 2,
-        "depends_on": ["OI-036"]
+        "depends_on": [
+          "OI-036"
+        ]
       },
       {
         "key": "OI-038",
@@ -117,10 +119,12 @@
           "Global fetch wrapper with: base URL from env, JSON Content-Type header, response interceptor that parses JSON and throws typed ApiError on non-2xx",
           "All functions return typed Promises (no any types)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 3,
-        "depends_on": ["OI-036"]
+        "depends_on": [
+          "OI-036"
+        ]
       },
       {
         "key": "OI-062",
@@ -137,10 +141,12 @@
           "All severity and status values rendered with consistent colored dot/icon + text pattern matching incident.io screenshots",
           "Dark mode NOT included in v0.1 (only the sidebar is dark; main content area is light)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 3,
-        "depends_on": ["OI-036"]
+        "depends_on": [
+          "OI-036"
+        ]
       },
       {
         "key": "OI-042",
@@ -153,10 +159,12 @@
           "MAIN CONTENT AREA: Fills remaining width calc(100vw - sidebar-width). Background #FFFFFF. No separate top header bar (page titles are within each page component). Smooth width transition when sidebar collapses/expands.",
           "LAYOUT COMPONENT: AppLayout component wraps all routes with sidebar on left and React Router <Outlet/> on right. Nested route structure: AppLayout > Home (/), Incidents list (/incidents), Incident detail (/incidents/:id)."
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 5,
-        "depends_on": ["OI-062"]
+        "depends_on": [
+          "OI-062"
+        ]
       },
       {
         "key": "OI-039",
@@ -169,10 +177,14 @@
           "TABLE BEHAVIOR: Rows have hover state (#F8FAFC background). Click anywhere on row navigates to /incidents/:id. Default sort: created_at DESC (newest first). Pagination at bottom: 'Showing X-Y of Z incidents', Previous/Next buttons, page size selector (25/50/100). Auto-refresh: poll GET /api/v1/incidents every 30 seconds, merge results without losing scroll position.",
           "DECLARE INCIDENT MODAL: Triggered by 'Declare incident' button. Fields: Title (required, text input), Severity (required, dropdown: Critical/High/Medium/Low, default Medium), Summary (optional, textarea). Buttons: 'Cancel' (secondary), 'Declare' (primary blue). On success: close modal, navigate to new incident detail page, show success toast. On error: show inline error message in modal."
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 8,
-        "depends_on": ["OI-038", "OI-042", "OI-062"]
+        "depends_on": [
+          "OI-038",
+          "OI-042",
+          "OI-062"
+        ]
       },
       {
         "key": "OI-040",
@@ -188,10 +200,14 @@
           "PROPERTIES PANEL (right side, 320px width, collapsible): Header 'Properties' with collapse button (tooltip 'Hide details'). Clicking collapses panel, main content expands to full width, small 'Show details' button appears at right edge. Panel background #FFFFFF with #E2E8F0 left border. Sections top to bottom: (1) Status: label + colored dot + text, clickable opens dropdown for valid transitions. (2) Severity: label + icon + text, clickable opens dropdown. (3) Declared at: label + calendar icon + date ('Jan 27 at 22:04'). (4) Duration: label + clock icon + calculated string. (5) Divider. (6) Roles section: Incident Lead (avatar+name or 'Unassigned'), Reporter (avatar+name from created_by), Active participants (avatar stack, v0.1: empty placeholder). (7) Divider. (8) Links section: 'Status page' / 'Related incidents' / 'Escalations' each with 'Add' link (all non-functional v0.1). (9) Divider. (10) Custom fields: 'None set' placeholder. (11) Collapsible 'Timestamps & durations': shows created_at, triggered_at, acknowledged_at, resolved_at formatted values.",
           "RESPONSIVE: Properties panel collapse state persisted in localStorage. On screens <1024px: panel defaults to collapsed. Main content minimum width: 480px."
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 13,
-        "depends_on": ["OI-038", "OI-042", "OI-062"]
+        "depends_on": [
+          "OI-038",
+          "OI-042",
+          "OI-062"
+        ]
       },
       {
         "key": "OI-041",
@@ -205,10 +221,12 @@
           "TOAST NOTIFICATION SYSTEM: Toast component positioned top-right of main content area. Variants: success (green left border), error (red left border), info (blue left border). Auto-dismiss after 4 seconds with fade-out. Icon + message text. Max 3 toasts stacked vertically.",
           "LOADING STATES: Buttons show spinner icon replacing normal icon during API calls. Dropdowns disabled during pending API calls. Double-submission prevention on all actions."
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5,
-        "depends_on": ["OI-040"]
+        "depends_on": [
+          "OI-040"
+        ]
       },
       {
         "key": "OI-063",
@@ -222,10 +240,14 @@
           "DATA LOADING: Fetches from GET /api/v1/incidents (filtered by status for Active tab, unfiltered for All tab). Auto-refresh every 30 seconds. Loading state: skeleton cards in each column.",
           "EMPTY STATE: When no active incidents: centered message with checkmark-circle icon + 'No active incidents' heading + 'When incidents are declared, they will appear here.' subtext."
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5,
-        "depends_on": ["OI-038", "OI-042", "OI-062"]
+        "depends_on": [
+          "OI-038",
+          "OI-042",
+          "OI-062"
+        ]
       },
       {
         "key": "OI-043",
@@ -238,10 +260,12 @@
           "GLOBAL ERROR BOUNDARY: React Error Boundary wrapping the app, catches rendering errors, renders full-page error state with 'Something unexpected happened' and 'Reload page' button.",
           "PAGE-LEVEL LOADING: Each page shows appropriate skeleton during initial data fetch. Subsequent 30-second polling refreshes do NOT show skeletons, they silently update data. Transition from skeleton to content is instant (no fade animation)."
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 3,
-        "depends_on": ["OI-062"]
+        "depends_on": [
+          "OI-062"
+        ]
       }
     ],
     "total_story_points": 50,

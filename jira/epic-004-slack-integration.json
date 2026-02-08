@@ -4,7 +4,7 @@
     "name": "Slack Integration",
     "objective": "Implement Slack channel creation and message posting for incidents using the ChatService interface pattern",
     "definition_of_done": "When an incident is created, a Slack channel is auto-created with naming convention inc-{number}-{slug}, and incident details are posted as the first message",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-001",
     "tasks": [
       {
@@ -17,7 +17,7 @@
           "Message struct with Text, Blocks, ThreadTS fields",
           "Interface documented with expected behavior"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 2
       },
@@ -32,7 +32,7 @@
           "Proper error handling for Slack API errors",
           "Rate limiting handled with exponential backoff"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 5
       },
@@ -48,7 +48,7 @@
           "Handles channel name collision by appending suffix",
           "Channel created as public by default"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -63,7 +63,7 @@
           "Action buttons: Acknowledge, Resolve (using Slack Block Kit)",
           "Message formatted using Slack Block Kit for rich display"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -79,7 +79,7 @@
           "Failure to create Slack channel does not fail incident creation",
           "Slack errors logged with incident context"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5
       },
@@ -95,7 +95,7 @@
           "Dead letter handling for permanently failed jobs",
           "Job status trackable"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5
       },
@@ -110,10 +110,11 @@
           "Application starts without Slack if SLACK_BOT_TOKEN not set (degraded mode)",
           "Log warning when running in degraded mode"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 2
       }
-    ]
+    ],
+    "completion_notes": "All tasks completed. Additional enhancement: Auto-invite users feature added (SLACK_AUTO_INVITE_USER_IDS env var) to automatically invite configured users to incident channels. Platform-agnostic implementation ready for Teams support in v0.8."
   }
 }

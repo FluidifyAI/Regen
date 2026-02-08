@@ -4,7 +4,7 @@
     "name": "Prometheus Webhook Ingestion",
     "objective": "Receive and process Prometheus Alertmanager webhooks, store alerts, and trigger incident creation",
     "definition_of_done": "Alertmanager can POST to /api/v1/webhooks/prometheus, alerts are stored with proper parsing, and critical/warning alerts auto-create incidents",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-001",
     "tasks": [
       {
@@ -17,7 +17,7 @@
           "JSON tags match Alertmanager field names exactly",
           "Time fields properly parse ISO8601 format"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 2
       },
@@ -32,7 +32,7 @@
           "Returns 200 with JSON response: {received: N, incidents_created: M}",
           "Logs receipt of webhook with alert count"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 3
       },
@@ -49,7 +49,7 @@
           "Uses fingerprint as external_id",
           "Sets source to 'prometheus'"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -63,7 +63,7 @@
           "Deduplication is atomic (no race conditions)",
           "Returns whether alert was created or updated"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -81,7 +81,7 @@
           "Alert is linked to created incident via incident_alerts",
           "Timeline entry created: type=incident_created, content={trigger: 'alert', alert_id: '...'}"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5
       },
@@ -95,7 +95,7 @@
           "Counter metric: openincident_alerts_processed_total{source='prometheus', status='firing|resolved'}",
           "Histogram metric: openincident_webhook_processing_duration_seconds"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 2
       }

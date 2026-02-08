@@ -4,7 +4,7 @@
     "name": "Documentation & Developer Experience",
     "objective": "Document setup, API, and development workflows for contributors and users",
     "definition_of_done": "README has complete setup instructions, API is documented, and developer can go from clone to running in under 30 minutes",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-001",
     "tasks": [
       {
@@ -19,7 +19,7 @@
           "Testing with sample Alertmanager payload",
           "Troubleshooting common issues"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -33,7 +33,7 @@
           "Required vs optional clearly marked",
           "Links to where to obtain values (Slack app, etc.)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 1
       },
@@ -48,7 +48,7 @@
           "Authentication requirements noted (none for v0.1)",
           "Alertmanager payload example included"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3
       },
@@ -63,7 +63,7 @@
           "PR process",
           "Commit message format (conventional commits)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 2
       },
@@ -77,7 +77,7 @@
           "curl commands to send to webhook",
           "Instructions in README or separate testing doc"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 1
       }

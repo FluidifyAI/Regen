@@ -482,6 +482,15 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 			if err := s.incidentRepo.UpdateStatus(id, params.Status); err != nil {
 				return err
 			}
+			// Sync in-memory object so the subsequent Update() call doesn't overwrite
+			incident.Status = params.Status
+			now := time.Now()
+			switch params.Status {
+			case models.IncidentStatusAcknowledged:
+				incident.AcknowledgedAt = &now
+			case models.IncidentStatusResolved, models.IncidentStatusCanceled:
+				incident.ResolvedAt = &now
+			}
 
 			// Audit log: Record status change with actor and IP
 			slog.Info("incident status changed",

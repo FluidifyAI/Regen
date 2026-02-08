@@ -13,8 +13,6 @@ import { GeneralError } from '../components/ui/ErrorState'
 import type { Alert } from '../api/types'
 
 type TabType = 'activity' | 'alerts'
-type StatusType = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
-type SeverityType = 'critical' | 'high' | 'medium' | 'low'
 
 /**
  * Incident detail page with two-panel layout
@@ -26,29 +24,10 @@ export function IncidentDetailPage() {
   const [activeTab, setActiveTab] = useState<TabType>('activity')
   const { toasts, dismissToast, success, error: showError } = useToast()
 
-  const { incident: fetchedIncident, loading, error, refetch } = useIncidentDetail(id || '')
+  const { incident, loading, error, refetch } = useIncidentDetail(id || '')
 
-  // Local state for optimistic updates
-  const [incident, setIncident] = useState(fetchedIncident)
-
-  // Sync local state with fetched data
-  if (fetchedIncident && incident?.id !== fetchedIncident.id) {
-    setIncident(fetchedIncident)
-  }
-
-  const handleStatusChange = (newStatus: StatusType) => {
-    if (incident) {
-      setIncident({ ...incident, status: newStatus })
-    }
-  }
-
-  const handleSeverityChange = (newSeverity: SeverityType) => {
-    if (incident) {
-      setIncident({ ...incident, severity: newSeverity })
-    }
-  }
-
-  if (loading) {
+  // Only show skeleton on initial load, not during refetch
+  if (loading && !incident) {
     return (
       <div className="flex h-full">
         {/* Content Area */}
@@ -107,16 +86,18 @@ export function IncidentDetailPage() {
                   <SeverityDropdown
                     incidentId={incident.id}
                     currentSeverity={incident.severity}
-                    onSeverityChange={handleSeverityChange}
+                    onSeverityChange={() => {}}
                     onSuccess={success}
                     onError={showError}
+                    onRefetch={refetch}
                   />
                   <StatusDropdown
                     incidentId={incident.id}
                     currentStatus={incident.status}
-                    onStatusChange={handleStatusChange}
+                    onStatusChange={() => {}}
                     onSuccess={success}
                     onError={showError}
+                    onRefetch={refetch}
                   />
                 </div>
                 <h1 className="text-2xl font-semibold text-text-primary mb-2">

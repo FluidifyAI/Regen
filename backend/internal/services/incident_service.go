@@ -49,6 +49,7 @@ type IncidentService interface {
 	// API operations
 	ListIncidents(filters repository.IncidentFilters, pagination repository.Pagination) ([]models.Incident, int64, error)
 	GetIncident(id uuid.UUID, number int) (*models.Incident, error)
+	GetIncidentBySlackChannelID(channelID string) (*models.Incident, error)
 	CreateIncident(params *CreateIncidentParams) (*models.Incident, error)
 	UpdateIncident(id uuid.UUID, params *UpdateIncidentParams) (*models.Incident, error)
 	GetIncidentAlerts(incidentID uuid.UUID) ([]models.Alert, error)
@@ -61,12 +62,13 @@ type IncidentService interface {
 
 // incidentService implements IncidentService
 type incidentService struct {
-	incidentRepo   repository.IncidentRepository
-	timelineRepo   repository.TimelineRepository
-	alertRepo      repository.AlertRepository
-	chatService    ChatService          // Optional - can be nil if Slack not configured
-	messageBuilder *SlackMessageBuilder // Optional - can be nil if Slack not configured
-	db             *gorm.DB             // For transaction management
+	incidentRepo      repository.IncidentRepository
+	timelineRepo      repository.TimelineRepository
+	alertRepo         repository.AlertRepository
+	chatService       ChatService          // Optional - can be nil if Slack not configured
+	messageBuilder    *SlackMessageBuilder // Optional - can be nil if Slack not configured
+	db                *gorm.DB             // For transaction management
+	autoInviteUserIDs []string             // User IDs to auto-invite to incident channels
 }
 
 // NewIncidentService creates a new incident service
@@ -76,6 +78,7 @@ func NewIncidentService(
 	alertRepo repository.AlertRepository,
 	chatService ChatService, // Optional - pass nil if Slack not configured
 	db *gorm.DB,
+	autoInviteUserIDs []string,
 ) IncidentService {
 	var messageBuilder *SlackMessageBuilder
 	if chatService != nil {
@@ -83,12 +86,13 @@ func NewIncidentService(
 	}
 
 	return &incidentService{
-		incidentRepo:   incidentRepo,
-		timelineRepo:   timelineRepo,
-		alertRepo:      alertRepo,
-		chatService:    chatService,
-		messageBuilder: messageBuilder,
-		db:             db,
+		incidentRepo:      incidentRepo,
+		timelineRepo:      timelineRepo,
+		alertRepo:         alertRepo,
+		chatService:       chatService,
+		messageBuilder:    messageBuilder,
+		db:                db,
+		autoInviteUserIDs: autoInviteUserIDs,
 	}
 }
 
@@ -220,13 +224,63 @@ func (s *incidentService) CreateSlackChannelForIncident(incident *models.Inciden
 
 	// Post initial message
 	message := s.messageBuilder.BuildIncidentCreatedMessage(incident, alerts)
-	_, err = s.chatService.PostMessage(channel.ID, message)
+	slog.Info("posting initial message to slack channel",
+		"incident_id", incident.ID,
+		"channel_id", channel.ID,
+		"has_blocks", len(message.Blocks) > 0,
+		"block_count", len(message.Blocks),
+		"text", message.Text)
+
+	messageTS, err := s.chatService.PostMessage(channel.ID, message)
 	if err != nil {
 		slog.Error("failed to post initial message to slack channel",
 			"incident_id", incident.ID,
 			"channel_id", channel.ID,
 			"error", err)
 		// Continue - channel was created, message posting is non-critical
+	} else {
+		slog.Info("initial message posted to slack channel",
+			"incident_id", incident.ID,
+			"channel_id", channel.ID,
+			"message_ts", messageTS)
+		// Store message_ts so status changes can update the pinned card
+		if storeErr := s.incidentRepo.UpdateSlackMessageTS(incident.ID, messageTS); storeErr != nil {
+			slog.Warn("failed to store slack message ts", "incident_id", incident.ID, "error", storeErr)
+		}
+	}
+
+	// Auto-invite users if configured
+	if len(s.autoInviteUserIDs) > 0 {
+		slog.Info("auto-inviting users to incident channel",
+			"incident_id", incident.ID,
+			"channel_id", channel.ID,
+			"user_count", len(s.autoInviteUserIDs))
+
+		err = s.chatService.InviteUsers(channel.ID, s.autoInviteUserIDs)
+		if err != nil {
+			slog.Error("failed to invite users",
+				"incident_id", incident.ID,
+				"error", err)
+
+			// Timeline entry for failure
+			s.createTimelineEntry(incident.ID, "user_invitation_failed", models.JSONB{
+				"channel_id": channel.ID,
+				"user_ids":   s.autoInviteUserIDs,
+				"error":      err.Error(),
+			})
+			// Continue - non-fatal
+		} else {
+			slog.Info("users invited successfully",
+				"incident_id", incident.ID,
+				"user_count", len(s.autoInviteUserIDs))
+
+			// Timeline entry for success
+			s.createTimelineEntry(incident.ID, "users_invited", models.JSONB{
+				"channel_id": channel.ID,
+				"user_ids":   s.autoInviteUserIDs,
+				"user_count": len(s.autoInviteUserIDs),
+			})
+		}
 	}
 
 	// Create timeline entry for success
@@ -333,6 +387,12 @@ func (s *incidentService) GetIncident(id uuid.UUID, number int) (*models.Inciden
 	return s.incidentRepo.GetByNumber(number)
 }
 
+// GetIncidentBySlackChannelID looks up an incident by its Slack channel ID.
+// Returns nil, nil if no incident is associated with that channel.
+func (s *incidentService) GetIncidentBySlackChannelID(channelID string) (*models.Incident, error) {
+	return s.incidentRepo.GetBySlackChannelID(channelID)
+}
+
 // CreateIncident creates a new incident manually (not from an alert)
 func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.Incident, error) {
 	// Generate slug
@@ -422,6 +482,15 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 			if err := s.incidentRepo.UpdateStatus(id, params.Status); err != nil {
 				return err
 			}
+			// Sync in-memory object so the subsequent Update() call doesn't overwrite
+			incident.Status = params.Status
+			now := time.Now()
+			switch params.Status {
+			case models.IncidentStatusAcknowledged:
+				incident.AcknowledgedAt = &now
+			case models.IncidentStatusResolved, models.IncidentStatusCanceled:
+				incident.ResolvedAt = &now
+			}
 
 			// Audit log: Record status change with actor and IP
 			slog.Info("incident status changed",
@@ -504,11 +573,34 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 		return nil, err
 	}
 
-	// Post Slack notification asynchronously
+	// Post Slack notification and optionally archive channel, asynchronously
 	if params.Status != "" && params.Status != previousStatus && s.chatService != nil {
 		go func() {
 			if err := s.PostStatusUpdateToSlack(incident, previousStatus, params.Status); err != nil {
 				slog.Error("failed to post slack notification", "error", err)
+			}
+
+			// Archive channel on terminal status (resolved or canceled)
+			isTerminal := params.Status == models.IncidentStatusResolved ||
+				params.Status == models.IncidentStatusCanceled
+			if isTerminal && incident.SlackChannelID != "" {
+				if err := s.chatService.ArchiveChannel(incident.SlackChannelID); err != nil {
+					slog.Error("failed to archive slack channel",
+						"incident_id", incident.ID,
+						"channel_id", incident.SlackChannelID,
+						"error", err)
+					s.createTimelineEntry(incident.ID, "slack_channel_archive_failed", models.JSONB{
+						"channel_id": incident.SlackChannelID,
+						"error":      err.Error(),
+					})
+				} else {
+					slog.Info("slack channel archived",
+						"incident_id", incident.ID,
+						"channel_id", incident.SlackChannelID)
+					s.createTimelineEntry(incident.ID, "slack_channel_archived", models.JSONB{
+						"channel_id": incident.SlackChannelID,
+					})
+				}
 			}
 		}()
 	}
@@ -560,9 +652,20 @@ func (s *incidentService) PostStatusUpdateToSlack(
 		return fmt.Errorf("incident has no slack channel")
 	}
 
-	message := s.messageBuilder.BuildStatusUpdateMessage(incident, previousStatus, newStatus)
+	// Update the pinned incident card (if we have its message_ts)
+	if incident.SlackMessageTS != "" {
+		updatedCard := s.messageBuilder.BuildIncidentUpdatedMessage(incident)
+		if err := s.chatService.UpdateMessage(incident.SlackChannelID, incident.SlackMessageTS, updatedCard); err != nil {
+			slog.Warn("failed to update pinned slack message",
+				"incident_id", incident.ID,
+				"message_ts", incident.SlackMessageTS,
+				"error", err)
+		}
+	}
 
-	_, err := s.chatService.PostMessage(incident.SlackChannelID, message)
+	// Also post a new status-change notification for visibility
+	notification := s.messageBuilder.BuildStatusUpdateMessage(incident, previousStatus, newStatus)
+	_, err := s.chatService.PostMessage(incident.SlackChannelID, notification)
 	if err != nil {
 		return fmt.Errorf("failed to post status update to slack: %w", err)
 	}

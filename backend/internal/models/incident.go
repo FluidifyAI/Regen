@@ -20,6 +20,7 @@ type Incident struct {
 	// Slack integration
 	SlackChannelID   string `gorm:"type:varchar(50)" json:"slack_channel_id,omitempty"`
 	SlackChannelName string `gorm:"type:varchar(100)" json:"slack_channel_name,omitempty"`
+	SlackMessageTS   string `gorm:"type:varchar(64)" json:"slack_message_ts,omitempty"`
 
 	// Timestamps (created_at and triggered_at are immutable)
 	CreatedAt      time.Time  `gorm:"not null;default:now()" json:"created_at"`

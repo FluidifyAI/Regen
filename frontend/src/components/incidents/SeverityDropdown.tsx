@@ -11,6 +11,7 @@ interface SeverityDropdownProps {
   onSeverityChange: (newSeverity: SeverityType) => void
   onSuccess: (message: string) => void
   onError: (message: string) => void
+  onRefetch: () => Promise<void>
 }
 
 const SEVERITY_OPTIONS: SeverityType[] = ['critical', 'high', 'medium', 'low']
@@ -25,6 +26,7 @@ export function SeverityDropdown({
   onSeverityChange,
   onSuccess,
   onError,
+  onRefetch,
 }: SeverityDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -33,19 +35,19 @@ export function SeverityDropdown({
     if (newSeverity === currentSeverity || isUpdating) return
 
     setIsOpen(false)
+    setIsUpdating(true)
 
     // Save previous severity for rollback
     const previousSeverity = currentSeverity
-
-    // Optimistic update
-    onSeverityChange(newSeverity)
-    setIsUpdating(true)
 
     try {
       // Make API call
       await updateIncident(incidentId, { severity: newSeverity })
 
-      // Show success toast
+      // Refetch to get the updated data from server
+      await onRefetch()
+
+      // Show success toast AFTER refetch completes
       onSuccess(`Severity updated to ${newSeverity}`)
     } catch (error) {
       // Rollback on error

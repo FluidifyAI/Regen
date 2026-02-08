@@ -30,7 +30,7 @@ interface UseIncidentDetailResult {
   incident: IncidentDetail | null
   loading: boolean
   error: string | null
-  refetch: () => void
+  refetch: () => Promise<void>
 }
 
 export function useIncidentDetail(id: string): UseIncidentDetailResult {

@@ -14,10 +14,12 @@ type IncidentRepository interface {
 	Create(incident *models.Incident) error
 	GetByID(id uuid.UUID) (*models.Incident, error)
 	GetByNumber(number int) (*models.Incident, error)
+	GetBySlackChannelID(channelID string) (*models.Incident, error)
 	List(filters IncidentFilters, pagination Pagination) ([]models.Incident, int64, error)
 	Update(incident *models.Incident) error
 	UpdateStatus(id uuid.UUID, status models.IncidentStatus) error
 	UpdateSlackChannel(id uuid.UUID, channelID, channelName string) error
+	UpdateSlackMessageTS(id uuid.UUID, messageTS string) error
 	LinkAlert(incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error
 	GetAlerts(incidentID uuid.UUID) ([]models.Alert, error)
 }
@@ -68,6 +70,18 @@ func (r *incidentRepository) GetByNumber(number int) (*models.Incident, error) {
 			return nil, &NotFoundError{Resource: "incident", ID: number}
 		}
 		return nil, &DatabaseError{Op: "get incident by number", Err: err}
+	}
+	return &incident, nil
+}
+
+// GetBySlackChannelID retrieves an incident by its Slack channel ID
+func (r *incidentRepository) GetBySlackChannelID(channelID string) (*models.Incident, error) {
+	var incident models.Incident
+	if err := r.db.Where("slack_channel_id = ?", channelID).First(&incident).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // Not found is not an error — caller checks nil
+		}
+		return nil, &DatabaseError{Op: "get incident by slack channel id", Err: err}
 	}
 	return &incident, nil
 }
@@ -179,6 +193,15 @@ func (r *incidentRepository) UpdateSlackChannel(id uuid.UUID, channelID, channel
 		return &DatabaseError{Op: "update incident slack channel", Err: err}
 	}
 
+	return nil
+}
+
+// UpdateSlackMessageTS stores the Slack message timestamp for the incident's pinned card.
+func (r *incidentRepository) UpdateSlackMessageTS(id uuid.UUID, messageTS string) error {
+	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).
+		Update("slack_message_ts", messageTS).Error; err != nil {
+		return &DatabaseError{Op: "update incident slack message ts", Err: err}
+	}
 	return nil
 }
 

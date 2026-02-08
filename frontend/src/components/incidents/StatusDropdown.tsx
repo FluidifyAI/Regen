@@ -11,6 +11,7 @@ interface StatusDropdownProps {
   onStatusChange: (newStatus: StatusType) => void
   onSuccess: (message: string) => void
   onError: (message: string) => void
+  onRefetch: () => Promise<void>
 }
 
 const STATUS_OPTIONS: StatusType[] = ['triggered', 'acknowledged', 'resolved', 'canceled']
@@ -25,6 +26,7 @@ export function StatusDropdown({
   onStatusChange,
   onSuccess,
   onError,
+  onRefetch,
 }: StatusDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -33,19 +35,19 @@ export function StatusDropdown({
     if (newStatus === currentStatus || isUpdating) return
 
     setIsOpen(false)
+    setIsUpdating(true)
 
     // Save previous status for rollback
     const previousStatus = currentStatus
-
-    // Optimistic update
-    onStatusChange(newStatus)
-    setIsUpdating(true)
 
     try {
       // Make API call
       await updateIncident(incidentId, { status: newStatus })
 
-      // Show success toast
+      // Refetch to get the updated data from server
+      await onRefetch()
+
+      // Show success toast AFTER refetch completes
       onSuccess(`Status updated to ${newStatus}`)
     } catch (error) {
       // Rollback on error

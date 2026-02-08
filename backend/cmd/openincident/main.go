@@ -86,7 +86,7 @@ func main() {
 	router := gin.New()
 
 	// Setup routes
-	api.SetupRoutes(router, database.DB)
+	api.SetupRoutes(router, database.DB, cfg)
 
 	// Create HTTP server
 	srv := &http.Server{

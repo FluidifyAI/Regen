@@ -217,6 +217,64 @@ func (s *slackService) ArchiveChannel(channelID string) error {
 	return nil
 }
 
+// InviteUsers invites users to a Slack channel with retry on rate limit.
+func (s *slackService) InviteUsers(channelID string, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil // No-op
+	}
+
+	if channelID == "" {
+		return fmt.Errorf("channel ID is required")
+	}
+
+	slog.Info("inviting users to slack channel",
+		"channel_id", channelID,
+		"user_count", len(userIDs),
+		"user_ids", userIDs)
+
+	// Retry with exponential backoff
+	for i := 0; i < 3; i++ {
+		_, err := s.client.InviteUsersToConversation(channelID, userIDs...)
+		if err == nil {
+			slog.Info("successfully invited users",
+				"channel_id", channelID,
+				"user_count", len(userIDs))
+			return nil
+		}
+
+		// Rate limit: retry with backoff
+		if isRateLimitError(err) {
+			backoff := time.Duration(1<<uint(i)) * time.Second
+			slog.Warn("rate limited, retrying",
+				"attempt", i+1,
+				"backoff_seconds", backoff.Seconds())
+			time.Sleep(backoff)
+			continue
+		}
+
+		// User not found: return descriptive error
+		if isUserNotFoundError(err) {
+			return fmt.Errorf("invalid user ID(s): %w (format: U01234ABCDE)", err)
+		}
+
+		// Permission error: return actionable message
+		if isPermissionError(err) {
+			return fmt.Errorf("missing 'users:read' or 'channels:manage' scope: %w", err)
+		}
+
+		// Already in channel: not an error
+		if isUserAlreadyInChannelError(err) {
+			slog.Info("user(s) already in channel", "channel_id", channelID)
+			return nil
+		}
+
+		// Non-recoverable error
+		return fmt.Errorf("failed to invite users: %w", err)
+	}
+
+	return fmt.Errorf("failed to invite users after retries")
+}
+
 // Helper functions
 
 // sanitizeChannelName converts a string into a valid Slack channel name.
@@ -282,10 +340,44 @@ func isRateLimitError(err error) bool {
 // platform-agnostic, but the Slack SDK expects []slack.Block.
 func convertToSlackBlocks(blocks []interface{}) []slack.Block {
 	result := make([]slack.Block, 0, len(blocks))
-	for _, block := range blocks {
+	for i, block := range blocks {
+		// Direct type assertion with logging
 		if slackBlock, ok := block.(slack.Block); ok {
 			result = append(result, slackBlock)
+		} else {
+			// Log failed conversions to detect issues
+			slog.Warn("failed to convert block to slack.Block",
+				"index", i,
+				"type", fmt.Sprintf("%T", block),
+				"value", block)
 		}
 	}
+
+	if len(result) != len(blocks) {
+		slog.Warn("some blocks failed to convert",
+			"total_blocks", len(blocks),
+			"converted", len(result),
+			"failed", len(blocks)-len(result))
+	}
+
 	return result
+}
+
+// isUserNotFoundError checks for invalid user IDs
+func isUserNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "user_not_found") ||
+		strings.Contains(errStr, "users_not_found") ||
+		strings.Contains(errStr, "invalid_users")
+}
+
+// isUserAlreadyInChannelError checks if user already in channel
+func isUserAlreadyInChannelError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "already_in_channel")
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/openincident/openincident/internal/api/handlers"
 	"github.com/openincident/openincident/internal/api/middleware"
+	"github.com/openincident/openincident/internal/config"
 	"github.com/openincident/openincident/internal/metrics"
 	"github.com/openincident/openincident/internal/repository"
 	"github.com/openincident/openincident/internal/services"
@@ -16,7 +17,7 @@ import (
 )
 
 // SetupRoutes configures all application routes
-func SetupRoutes(router *gin.Engine, db *gorm.DB) {
+func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	// Initialize repositories
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
@@ -50,7 +51,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	}
 
 	// Initialize services
-	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db)
+	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 
 	// Middleware

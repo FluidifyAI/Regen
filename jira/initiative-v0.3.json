@@ -1,0 +1,27 @@
+{
+  "initiative": {
+    "key": "OI-INIT-003",
+    "name": "OpenIncident v0.3 - Multi-Source Alerts, Grouping & Routing",
+    "description": "Extend alert ingestion beyond Prometheus to support Grafana, CloudWatch, and generic webhooks. Introduce a WebhookProvider abstraction so new sources can be added with minimal effort. Enhance alert deduplication for cross-source scenarios, add alert grouping rules (multiple alerts → one incident), and implement routing rules to direct alerts to the right teams and channels based on labels and metadata.",
+    "status": "To Do",
+    "target_release": "v0.3",
+    "prerequisites": ["OI-INIT-001", "OI-INIT-002"],
+    "epics": [
+      "OI-EPIC-012",
+      "OI-EPIC-013",
+      "OI-EPIC-014"
+    ],
+    "success_criteria": [
+      "Grafana webhook fires → alert stored with source='grafana', incident auto-created",
+      "CloudWatch SNS notification → alert stored with source='cloudwatch', incident auto-created",
+      "Generic webhook with user-defined schema → alert stored, incident auto-created if severity matches",
+      "Duplicate alerts from any source are properly deduplicated using (source, external_id)",
+      "Alert grouping rules combine related alerts into a single incident (e.g., same service + 5min window)",
+      "Routing rules direct alerts to specific Slack channels or teams based on labels",
+      "Existing Prometheus webhook continues to work identically (backwards compatible)",
+      "New webhook sources can be added by implementing a single WebhookProvider interface"
+    ],
+    "estimated_duration": "3-4 weeks",
+    "architecture_notes": "Introduces WebhookProvider adapter pattern (Strategy pattern) mirroring the existing ChatService abstraction. Each source implements ParsePayload() → []NormalizedAlert. AlertService gains a generic ProcessNormalizedAlerts() method. Grouping and routing engines sit between normalization and incident creation in the pipeline."
+  }
+}

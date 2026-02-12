@@ -1,0 +1,143 @@
+{
+  "epic": {
+    "key": "OI-EPIC-014",
+    "name": "Alert Routing Rules",
+    "objective": "Implement configurable routing rules that direct alerts to specific Slack channels, teams, or incident commanders based on alert labels, severity, and source metadata",
+    "definition_of_done": "Alerts are automatically routed to the correct Slack channel and/or assigned to the correct team based on matching routing rules. Rules are configurable via API and UI. Unmatched alerts use default behavior.",
+    "status": "To Do",
+    "initiative": "OI-INIT-003",
+    "release": "v0.3",
+    "prerequisites": ["OI-EPIC-012"],
+    "notes": "Routing rules determine WHERE an incident is handled (which channel, which team). This is distinct from grouping rules (which alerts belong together). Routing runs after grouping in the pipeline: Normalize → Group → Route → Create Incident.",
+    "tasks": [
+      {
+        "key": "OI-110",
+        "name": "Design routing rules data model",
+        "description": "Create the data model for routing rules that determine where alerts are directed based on configurable match criteria",
+        "acceptance_criteria": [
+          "RoutingRule model defined: id, name, description, enabled, priority, match_criteria (JSONB), actions (JSONB), created_at, updated_at",
+          "match_criteria supports: source (exact), severity (list), labels (exact/regex key-value pairs)",
+          "match_criteria supports AND/OR boolean logic for complex rules",
+          "actions supports: set_slack_channel (override default channel naming), set_severity (override alert severity), add_labels (enrich incident)",
+          "Actions support: notify_channel (post to an existing channel without creating new one)",
+          "Database migration: 000008_create_routing_rules_table",
+          "RoutingRuleRepository interface with CRUD + GetActiveRulesOrderedByPriority()",
+          "Seed default routing rule: critical alerts → auto-create incident (existing behavior)"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "Routing rules are evaluated in priority order; first match wins. Default 'catch-all' rule preserves existing behavior. Actions are additive — they enrich incident properties, not replace them."
+      },
+      {
+        "key": "OI-111",
+        "name": "Implement routing rules evaluation engine",
+        "description": "Build the routing engine that evaluates alerts against routing rules and returns the set of actions to apply during incident creation",
+        "acceptance_criteria": [
+          "RoutingEngine service with Evaluate(alert NormalizedAlert) (*RoutingDecision, error)",
+          "RoutingDecision contains: matched_rule_id, channel_override, severity_override, extra_labels, should_create_incident, notify_channels",
+          "Evaluation: iterate rules in priority order, evaluate match_criteria, return first match",
+          "Label matching supports: exact ('env=production'), regex ('service=api-.*'), exists ('has:team'), not-exists ('!has:silenced')",
+          "Severity matching supports: list ('critical,high') or single ('critical')",
+          "Source matching supports: exact ('prometheus') or list ('prometheus,grafana')",
+          "Unmatched alerts: return default RoutingDecision (create incident if severity warrants)",
+          "Performance: evaluation completes in <5ms for 50 rules",
+          "Rules cached in memory with invalidation on CRUD operations"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "The routing engine mirrors the pattern of the grouping engine but focuses on WHERE rather than HOW. Keep match criteria evaluation fast — use compiled regexes cached per rule."
+      },
+      {
+        "key": "OI-112",
+        "name": "Integrate routing engine into alert processing pipeline",
+        "description": "Wire the routing engine between grouping and incident creation so that routing decisions affect how incidents are created",
+        "acceptance_criteria": [
+          "Alert pipeline order: Normalize → Deduplicate → Group → Route → Create Incident",
+          "Routing decision applied during incident creation: channel naming, severity override, extra labels",
+          "channel_override: if set, incident Slack channel uses this name instead of default inc-{number}-{slug}",
+          "severity_override: if set, incident severity uses routing rule's severity instead of alert's",
+          "notify_channels: posts alert notification to specified channels (in addition to incident channel)",
+          "should_create_incident=false: alert stored but no incident created (suppress noisy alerts)",
+          "Timeline entry: type=routing_applied, content includes rule_name and actions taken",
+          "Backwards compatible: zero routing rules → existing behavior unchanged"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "The routing integration point is in ProcessNormalizedAlerts() after grouping evaluation. should_create_incident=false is powerful for silencing known-noisy alerts without discarding the data."
+      },
+      {
+        "key": "OI-113",
+        "name": "Routing rules CRUD API",
+        "description": "Create REST API endpoints for managing alert routing rules",
+        "acceptance_criteria": [
+          "GET /api/v1/routing-rules → list all routing rules ordered by priority",
+          "GET /api/v1/routing-rules/:id → get single rule with match criteria detail",
+          "POST /api/v1/routing-rules → create rule with validation",
+          "PATCH /api/v1/routing-rules/:id → update rule",
+          "DELETE /api/v1/routing-rules/:id → soft delete rule",
+          "POST /api/v1/routing-rules/test → test a rule against a sample alert payload (dry-run)",
+          "Validation: name required, match_criteria valid schema, actions valid schema",
+          "Priority uniqueness enforced (no two rules with same priority)",
+          "Cache invalidation on mutations"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "The /test endpoint is particularly valuable — users can verify their rules work before enabling them. Accepts a sample alert payload and returns the routing decision without actually processing it."
+      },
+      {
+        "key": "OI-114",
+        "name": "Routing rules management UI",
+        "description": "Build the frontend for managing routing rules with a visual rule builder",
+        "acceptance_criteria": [
+          "Settings > Routing Rules page: list all rules with drag-to-reorder priority",
+          "Each rule shows: name, match criteria summary, actions summary, enabled toggle",
+          "Create/edit rule form: name, match criteria builder (add conditions), actions builder",
+          "Match criteria builder: visual dropdowns for field (source, severity, label), operator (equals, regex, exists), value",
+          "Actions builder: checkboxes/dropdowns for channel override, severity override, suppress incident",
+          "Test rule button: input sample alert JSON, see routing decision result",
+          "Delete rule with confirmation dialog",
+          "Toast notifications for CRUD operations"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 8,
+        "implementation_notes": "The visual rule builder is the most complex UI in v0.3. Start with a simple form and iterate. Drag-to-reorder can use the same DnD library as the incident board (if present) or react-beautiful-dnd."
+      },
+      {
+        "key": "OI-115",
+        "name": "Integration tests for routing rules",
+        "description": "Comprehensive tests for routing engine, API, and pipeline integration",
+        "acceptance_criteria": [
+          "Test: alert matching routing rule → channel override applied to incident",
+          "Test: alert matching suppress rule → alert stored, no incident created",
+          "Test: alert matching severity override → incident created with overridden severity",
+          "Test: alert matching no rule → default behavior (existing incident creation logic)",
+          "Test: multiple rules → first match (highest priority) wins",
+          "Test: routing rules CRUD API endpoints",
+          "Test: /test endpoint returns correct dry-run result",
+          "Test: label regex matching (valid and invalid patterns)",
+          "Test: rule disable → alert not matched by disabled rule",
+          "All tests pass without external dependencies"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Include edge cases: empty match_criteria (matches all), invalid regex (returns error on create), concurrent rule evaluation."
+      }
+    ],
+    "total_story_points": 36,
+    "estimated_duration": "1.5-2 weeks",
+    "dependencies": {
+      "external": [],
+      "internal": [
+        "WebhookProvider interface and NormalizedAlert (OI-EPIC-012)",
+        "ProcessNormalizedAlerts() pipeline (OI-091)",
+        "Alert grouping engine (OI-EPIC-013, optional — routing works without grouping)"
+      ]
+    }
+  }
+}

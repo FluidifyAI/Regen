@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/models"
@@ -23,123 +22,70 @@ type ProcessingResult struct {
 
 // AlertService defines the interface for alert processing operations
 type AlertService interface {
+	// ProcessAlertmanagerPayload processes Prometheus Alertmanager webhooks (legacy method for v0.1 compatibility)
 	ProcessAlertmanagerPayload(payload *webhooks.AlertmanagerPayload) (*ProcessingResult, error)
+
+	// ProcessNormalizedAlerts processes alerts from any source after normalization (v0.3+)
+	ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert) (*ProcessingResult, error)
+
+	// SetGroupingEngine sets the grouping engine for alert deduplication and grouping (v0.3+)
+	SetGroupingEngine(engine GroupingEngine)
 }
 
 // alertService implements AlertService
 type alertService struct {
-	alertRepo   repository.AlertRepository
-	incidentSvc IncidentService
+	alertRepo      repository.AlertRepository
+	incidentSvc    IncidentService
+	groupingEngine GroupingEngine // Optional - can be nil if grouping disabled
 }
 
 // NewAlertService creates a new alert service
 func NewAlertService(alertRepo repository.AlertRepository, incidentSvc IncidentService) AlertService {
 	return &alertService{
-		alertRepo:   alertRepo,
-		incidentSvc: incidentSvc,
+		alertRepo:      alertRepo,
+		incidentSvc:    incidentSvc,
+		groupingEngine: nil, // Will be set via SetGroupingEngine if grouping enabled
 	}
 }
 
-// ProcessAlertmanagerPayload processes all alerts from an Alertmanager webhook
+// SetGroupingEngine sets the grouping engine (for v0.3+ grouping support)
+//
+// This is called after AlertService construction because GroupingEngine needs IncidentRepository,
+// which creates a circular dependency if passed to NewAlertService.
+func (s *alertService) SetGroupingEngine(engine GroupingEngine) {
+	s.groupingEngine = engine
+}
+
+// ProcessAlertmanagerPayload processes all alerts from an Alertmanager webhook (v0.1 legacy method).
+//
+// This method maintains backwards compatibility with existing Prometheus webhook handlers.
+// Internally, it delegates to ProcessNormalizedAlerts() after using PrometheusProvider to parse.
+//
+// The old flow was:
+//   Handler → ProcessAlertmanagerPayload() → normalizeAlert() → createOrUpdateAlert()
+//
+// The new flow (v0.3+) is:
+//   Handler → PrometheusProvider.ParsePayload() → ProcessNormalizedAlerts() → createOrUpdateAlert()
+//
+// This refactor uses the new flow while keeping the same public API for existing handlers.
 func (s *alertService) ProcessAlertmanagerPayload(payload *webhooks.AlertmanagerPayload) (*ProcessingResult, error) {
-	result := &ProcessingResult{
-		Received: len(payload.Alerts),
+	// Marshal payload back to JSON for PrometheusProvider
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal alertmanager payload: %w", err)
 	}
 
-	for _, amAlert := range payload.Alerts {
-		// Normalize the Alertmanager alert to our internal model
-		alert := s.normalizeAlert(&amAlert)
-
-		// Create or update the alert with deduplication
-		created, err := s.createOrUpdateAlert(alert)
-		if err != nil {
-			return nil, fmt.Errorf("failed to process alert %s: %w", amAlert.Fingerprint, err)
-		}
-
-		if created {
-			result.Created++
-
-			// Check if this alert should trigger an incident
-			if s.incidentSvc.ShouldCreateIncident(alert.Severity) {
-				_, err := s.incidentSvc.CreateIncidentFromAlert(alert)
-				if err != nil {
-					return nil, fmt.Errorf("failed to create incident for alert %s: %w", alert.ID, err)
-				}
-				result.IncidentsCreated++
-			}
-		} else {
-			result.Updated++
-		}
+	// Use PrometheusProvider to normalize the alerts
+	provider := &webhooks.PrometheusProvider{}
+	normalized, err := provider.ParsePayload(payloadBytes)
+	if err != nil {
+		return nil, err
 	}
 
-	return result, nil
+	// Delegate to the generic processing method
+	return s.ProcessNormalizedAlerts(normalized)
 }
 
-// normalizeAlert converts an Alertmanager alert to the internal Alert model
-func (s *alertService) normalizeAlert(amAlert *webhooks.AlertmanagerAlert) *models.Alert {
-	// Extract title from alertname label
-	title := amAlert.Labels["alertname"]
-	if title == "" {
-		title = "Unknown Alert"
-	}
-
-	// Extract description from annotations (prefer summary, fall back to description)
-	description := amAlert.Annotations["summary"]
-	if description == "" {
-		description = amAlert.Annotations["description"]
-	}
-
-	// Parse severity from labels (default to warning if not specified or invalid)
-	severity := parseSeverity(amAlert.Labels["severity"])
-
-	// Determine status
-	status := models.AlertStatusFiring
-	if amAlert.Status == "resolved" {
-		status = models.AlertStatusResolved
-	}
-
-	// Handle ended_at (only set if alert is resolved and has valid timestamp)
-	var endedAt *time.Time
-	if status == models.AlertStatusResolved && !amAlert.EndsAt.IsZero() {
-		// Alertmanager sends 0001-01-01 for firing alerts
-		if amAlert.EndsAt.Year() > 1900 {
-			endedAt = &amAlert.EndsAt
-		}
-	}
-
-	// Convert labels and annotations to JSONB
-	labels := make(models.JSONB)
-	for k, v := range amAlert.Labels {
-		labels[k] = v
-	}
-
-	annotations := make(models.JSONB)
-	for k, v := range amAlert.Annotations {
-		annotations[k] = v
-	}
-
-	// Store raw payload for debugging and future processing
-	rawPayload := make(models.JSONB)
-	if bytes, err := json.Marshal(amAlert); err == nil {
-		json.Unmarshal(bytes, &rawPayload)
-	}
-
-	return &models.Alert{
-		ID:          uuid.New(),
-		ExternalID:  amAlert.Fingerprint,
-		Source:      "prometheus",
-		Fingerprint: amAlert.Fingerprint,
-		Status:      status,
-		Severity:    severity,
-		Title:       title,
-		Description: description,
-		Labels:      labels,
-		Annotations: annotations,
-		RawPayload:  rawPayload,
-		StartedAt:   amAlert.StartsAt,
-		EndedAt:     endedAt,
-	}
-}
 
 // createOrUpdateAlert handles deduplication logic
 // Returns true if alert was created, false if updated
@@ -189,5 +135,139 @@ func parseSeverity(severity string) models.AlertSeverity {
 		return models.AlertSeverityInfo
 	default:
 		return models.AlertSeverityWarning // Default to warning for safety
+	}
+}
+
+// ProcessNormalizedAlerts processes alerts from any monitoring source (v0.3+).
+//
+// This is the generic alert processing pipeline that works with alerts from Prometheus,
+// Grafana, CloudWatch, Generic webhooks, or any future source.
+//
+// Pipeline (v0.3+ with grouping):
+//  1. Convert NormalizedAlert → models.Alert
+//  2. Deduplicate: Check (source, external_id) - create new or update existing
+//  3. If new alert and should create incident:
+//     a. Evaluate grouping rules (if grouping engine configured)
+//     b. Based on grouping decision:
+//        - Link to existing incident (if group match found)
+//        - Create new incident with group_key (if rule matched)
+//        - Create new incident without group_key (default behavior)
+//
+// The existing ProcessAlertmanagerPayload() delegates to this method after Prometheus-specific
+// parsing, ensuring backwards compatibility while enabling multi-source support.
+func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert) (*ProcessingResult, error) {
+	result := &ProcessingResult{
+		Received: len(alerts),
+	}
+
+	for _, normalized := range alerts {
+		// Convert NormalizedAlert to internal Alert model
+		alert := s.normalizedAlertToModel(&normalized)
+
+		// Create or update the alert with deduplication
+		created, err := s.createOrUpdateAlert(alert)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process alert %s from source %s: %w",
+				normalized.ExternalID, normalized.Source, err)
+		}
+
+		if created {
+			result.Created++
+
+			// Check if this alert should trigger an incident
+			if s.incidentSvc.ShouldCreateIncident(alert.Severity) {
+				// v0.3+: Use grouping engine if configured
+				if s.groupingEngine != nil {
+					decision, err := s.groupingEngine.EvaluateAlert(alert)
+					if err != nil {
+						return nil, fmt.Errorf("failed to evaluate grouping for alert %s: %w", alert.ID, err)
+					}
+
+					switch decision.Action {
+					case GroupActionLinkToExisting:
+						// Link alert to existing incident
+						if err := s.incidentSvc.LinkAlertToExistingIncident(alert, *decision.IncidentID); err != nil {
+							return nil, fmt.Errorf("failed to link alert to incident: %w", err)
+						}
+						// Note: Incident was already created, don't increment IncidentsCreated
+
+					case GroupActionCreateNew:
+						// Create new incident with group_key
+						_, err := s.incidentSvc.CreateIncidentFromAlertWithGrouping(alert, decision.GroupKey)
+						if err != nil {
+							return nil, fmt.Errorf("failed to create incident with grouping: %w", err)
+						}
+						result.IncidentsCreated++
+
+					case GroupActionDefault:
+						// No rule matched - use default behavior (create without group_key)
+						_, err := s.incidentSvc.CreateIncidentFromAlert(alert)
+						if err != nil {
+							return nil, fmt.Errorf("failed to create incident: %w", err)
+						}
+						result.IncidentsCreated++
+					}
+				} else {
+					// Grouping disabled - use v0.2 behavior (create without group_key)
+					_, err := s.incidentSvc.CreateIncidentFromAlert(alert)
+					if err != nil {
+						return nil, fmt.Errorf("failed to create incident for alert %s: %w", alert.ID, err)
+					}
+					result.IncidentsCreated++
+				}
+			}
+		} else {
+			result.Updated++
+		}
+	}
+
+	return result, nil
+}
+
+// normalizedAlertToModel converts a NormalizedAlert (from any source) to the internal Alert model.
+//
+// This conversion is source-agnostic - all field mapping was done by the WebhookProvider.
+// We simply copy fields from the normalized representation into the database model.
+func (s *alertService) normalizedAlertToModel(normalized *webhooks.NormalizedAlert) *models.Alert {
+	// Parse severity enum
+	severity := parseSeverity(normalized.Severity)
+
+	// Parse status
+	status := models.AlertStatusFiring
+	if normalized.Status == "resolved" {
+		status = models.AlertStatusResolved
+	}
+
+	// Convert string maps to JSONB
+	labels := make(models.JSONB)
+	for k, v := range normalized.Labels {
+		labels[k] = v
+	}
+
+	annotations := make(models.JSONB)
+	for k, v := range normalized.Annotations {
+		annotations[k] = v
+	}
+
+	// Convert RawPayload json.RawMessage to JSONB
+	rawPayload := make(models.JSONB)
+	if len(normalized.RawPayload) > 0 {
+		json.Unmarshal(normalized.RawPayload, &rawPayload)
+	}
+
+	return &models.Alert{
+		ID:          uuid.New(),
+		ExternalID:  normalized.ExternalID,
+		Source:      normalized.Source,
+		Fingerprint: normalized.ExternalID, // Use external_id as fingerprint (for Prometheus, this IS the fingerprint)
+		Status:      status,
+		Severity:    severity,
+		Title:       normalized.Title,
+		Description: normalized.Description,
+		Labels:      labels,
+		Annotations: annotations,
+		RawPayload:  rawPayload,
+		StartedAt:   normalized.StartedAt,
+		EndedAt:     normalized.EndedAt,
 	}
 }

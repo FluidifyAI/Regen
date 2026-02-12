@@ -5,41 +5,41 @@
     {
       "status": "firing",
       "labels": {
-        "alertname": "HighErrorRate",
+        "alertname": "HighErrorRateV2",
         "severity": "critical",
         "service": "api",
         "environment": "production",
-        "region": "us-east-1",
+        "region": "us-east-2",
         "team": "platform"
       },
       "annotations": {
-        "summary": "Error rate above 5%",
-        "description": "The API service is experiencing elevated error rates. Current rate: 8.3%. Threshold: 5%.",
+        "summary": "Error rate above 6%",
+        "description": "The API service is experiencing elevated error rates. Current rate: 8.7%. Threshold: 6%.",
         "runbook_url": "https://wiki.example.com/runbooks/high-error-rate",
         "dashboard_url": "https://grafana.example.com/d/api-errors"
       },
-      "startsAt": "2024-01-15T10:00:00Z",
+      "startsAt": "2024-01-15T10:05:00Z",
       "endsAt": "0001-01-01T00:00:00Z",
-      "generatorURL": "http://prometheus:9090/graph?g0.expr=rate(http_requests_total%7Bcode%3D~%225..%22%7D%5B5m%5D)%20%3E%200.05",
-      "fingerprint": "1234567890abcdef"
+      "generatorURL": "http://prometheus:9090/graph?g0.expr=rate(http_requests_total%7Bcode%3D~%225..%22%7D%5B5m%5D)%20%3E%200.06",
+      "fingerprint": "abcdef1234567890"
     }
   ],
   "groupLabels": {
-    "alertname": "HighErrorRate",
+    "alertname": "HighErrorRateV2",
     "service": "api"
   },
   "commonLabels": {
-    "alertname": "HighErrorRate",
+    "alertname": "HighErrorRateV2",
     "severity": "critical",
     "service": "api",
     "environment": "production"
   },
   "commonAnnotations": {
-    "summary": "Error rate above 5%",
-    "description": "The API service is experiencing elevated error rates. Current rate: 8.3%. Threshold: 5%."
+    "summary": "Error rate above 6%",
+    "description": "The API service is experiencing elevated error rates. Current rate: 8.7%. Threshold: 6%."
   },
   "externalURL": "http://alertmanager:9093",
   "version": "4",
-  "groupKey": "{}:{alertname=\"HighErrorRate\", service=\"api\"}",
+  "groupKey": "{}:{alertname=\"HighErrorRateV2\", service=\"api\", region=\"us-east-2\"}",
   "truncatedAlerts": 0
 }

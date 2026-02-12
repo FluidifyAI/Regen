@@ -37,6 +37,12 @@ type Incident struct {
 	Labels       JSONB `gorm:"type:jsonb;default:'{}'" json:"labels"`
 	CustomFields JSONB `gorm:"type:jsonb;default:'{}'" json:"custom_fields"`
 
+	// Grouping (v0.3+)
+	// GroupKey is a hash derived from alert labels according to grouping rules
+	// Alerts with the same group_key (within time window) are grouped into this incident
+	// NULL for manually created incidents or incidents created before v0.3
+	GroupKey *string `gorm:"type:varchar(64);index:idx_incidents_group_key_status_created" json:"group_key,omitempty"`
+
 	// Relationships (not in database, loaded via joins)
 	Alerts []Alert `gorm:"many2many:incident_alerts;" json:"alerts,omitempty"`
 	// TimelineEntries will be added when TimelineEntry model is created

@@ -1,0 +1,11 @@
+{
+  "Type": "Notification",
+  "MessageId": "f6e5d4c3-b2a1-0f1e-2d3c-4b5a6789cdef",
+  "TopicArn": "arn:aws:sns:us-east-1:123456789012:cloudwatch-alarms",
+  "Subject": "OK: \"HighCPU\" in US East (N. Virginia)",
+  "Message": "{\"AlarmName\":\"HighCPU\",\"AlarmDescription\":\"CPU utilization exceeds 80%\",\"NewStateValue\":\"OK\",\"NewStateReason\":\"Threshold Crossed: datapoint [45.0] was not greater than the threshold (80.0).\",\"StateChangeTime\":\"2024-01-01T12:30:00.000+0000\",\"Region\":\"US East (N. Virginia)\",\"AlarmArn\":\"arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighCPU\",\"OldStateValue\":\"ALARM\",\"Trigger\":{\"MetricName\":\"CPUUtilization\",\"Namespace\":\"AWS/EC2\",\"StatisticType\":\"Statistic\",\"Statistic\":\"Average\",\"Dimensions\":[{\"name\":\"InstanceId\",\"value\":\"i-0123456789abcdef0\"}],\"Period\":300,\"EvaluationPeriods\":2,\"ComparisonOperator\":\"GreaterThanThreshold\",\"Threshold\":80.0}}",
+  "Timestamp": "2024-01-01T12:30:00.000Z",
+  "SignatureVersion": "1",
+  "Signature": "test-signature-base64==",
+  "SigningCertURL": "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-test.pem"
+}

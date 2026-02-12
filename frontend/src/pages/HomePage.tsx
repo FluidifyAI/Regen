@@ -61,6 +61,9 @@ export function HomePage() {
     setActiveIncident(incident || null)
   }
 
+  const VALID_STATUSES = ['triggered', 'acknowledged', 'resolved'] as const
+  type DragStatus = (typeof VALID_STATUSES)[number]
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     setActiveIncident(null)
@@ -68,7 +71,19 @@ export function HomePage() {
     if (!over) return
 
     const incidentId = active.id as string
-    const newStatus = over.id as 'triggered' | 'acknowledged' | 'resolved'
+    const overId = over.id as string
+
+    // Resolve target status: over.id is either a column ID (status string)
+    // or an incident card ID (UUID) when dropped onto another card
+    let newStatus: DragStatus
+    if (VALID_STATUSES.includes(overId as DragStatus)) {
+      newStatus = overId as DragStatus
+    } else {
+      // Dropped on a card — find which column that card belongs to
+      const targetCard = incidents.find((i) => i.id === overId)
+      if (!targetCard) return
+      newStatus = targetCard.status as DragStatus
+    }
 
     // Find the incident being dragged
     const incident = incidents.find((i) => i.id === incidentId)

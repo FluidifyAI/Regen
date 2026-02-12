@@ -1,0 +1,207 @@
+{
+  "epic": {
+    "key": "OI-EPIC-012",
+    "name": "Webhook Provider Abstraction & Multi-Source Ingestion",
+    "objective": "Create a WebhookProvider interface that normalizes alerts from any monitoring source, refactor existing Prometheus ingestion to use it, and implement Grafana, CloudWatch, and Generic webhook providers",
+    "definition_of_done": "All four webhook endpoints accept payloads, store alerts with correct source, and auto-create incidents. Adding a new source requires only implementing the WebhookProvider interface.",
+    "status": "To Do",
+    "initiative": "OI-INIT-003",
+    "release": "v0.3",
+    "prerequisites": ["OI-EPIC-003"],
+    "notes": "v0.1 built Prometheus webhook with ProcessAlertmanagerPayload() tightly coupled to Alertmanager format. This epic decouples the pipeline by introducing NormalizedAlert as the internal interchange format. The existing Prometheus flow is refactored but behavior remains identical (backwards compatible).",
+    "tasks": [
+      {
+        "key": "OI-090",
+        "name": "Design WebhookProvider interface and NormalizedAlert type",
+        "description": "Create the core abstraction that all webhook sources will implement. NormalizedAlert is the canonical internal representation that the AlertService processes, regardless of source.",
+        "acceptance_criteria": [
+          "WebhookProvider interface defined with ParsePayload(body []byte) ([]NormalizedAlert, error)",
+          "WebhookProvider interface includes ValidatePayload(body []byte, headers http.Header) error for signature/auth checks",
+          "WebhookProvider interface includes Source() string returning the source identifier",
+          "NormalizedAlert struct defined with: ExternalID, Source, Status, Severity, Title, Description, Labels (map[string]string), Annotations (map[string]string), RawPayload (json.RawMessage), StartedAt, EndedAt",
+          "NormalizedAlert includes a Fingerprint() method deriving deduplication key from source + external_id",
+          "Types defined in backend/internal/models/webhooks/provider.go",
+          "Comprehensive godoc comments on interface contract"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 3,
+        "implementation_notes": "This is the keystone type — every subsequent task depends on it. Keep NormalizedAlert flat and simple; source-specific metadata goes in Labels/Annotations/RawPayload."
+      },
+      {
+        "key": "OI-091",
+        "name": "Refactor AlertService to accept NormalizedAlerts",
+        "description": "Add a generic ProcessNormalizedAlerts() method to AlertService that handles any source. The existing ProcessAlertmanagerPayload() delegates to this method after Prometheus-specific parsing.",
+        "acceptance_criteria": [
+          "AlertService interface gains ProcessNormalizedAlerts(alerts []NormalizedAlert) (*ProcessingResult, error)",
+          "ProcessNormalizedAlerts handles: alert creation/update, deduplication, incident auto-creation",
+          "Existing ProcessAlertmanagerPayload() refactored to: parse → normalize → call ProcessNormalizedAlerts()",
+          "All existing Prometheus webhook tests continue to pass without modification",
+          "ProcessingResult includes per-source counts: {source: string, created: int, updated: int, incidents_created: int}",
+          "Deduplication logic unchanged: (source, external_id) composite key"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 5,
+        "implementation_notes": "Critical refactor — must not break existing Prometheus flow. Run full test suite after every change. The normalizeAlert() private method is extracted and moved to the Prometheus provider."
+      },
+      {
+        "key": "OI-092",
+        "name": "Refactor Prometheus webhook to WebhookProvider pattern",
+        "description": "Convert the existing Prometheus-specific parsing into a PrometheusProvider that implements WebhookProvider. This is a pure refactor — behavior must be identical.",
+        "acceptance_criteria": [
+          "PrometheusProvider struct implements WebhookProvider interface",
+          "PrometheusProvider.ParsePayload() converts AlertmanagerPayload → []NormalizedAlert",
+          "PrometheusProvider.ValidatePayload() is a no-op (Prometheus uses webhook URL secrecy, no signing)",
+          "PrometheusProvider.Source() returns 'prometheus'",
+          "Existing prometheus_webhook.go handler delegates to generic webhook handler with PrometheusProvider",
+          "All existing integration tests pass without modification",
+          "Provider defined in backend/internal/models/webhooks/prometheus.go (extends existing file)",
+          "No behavior change — this is a structural refactor only"
+        ],
+        "status": "To Do",
+        "priority": "Highest",
+        "story_points": 3,
+        "implementation_notes": "Move normalizeAlert() logic from alert_service.go into PrometheusProvider.ParsePayload(). The handler becomes a thin wrapper: parse JSON → provider.ParsePayload() → alertService.ProcessNormalizedAlerts()."
+      },
+      {
+        "key": "OI-093",
+        "name": "Implement Grafana webhook provider",
+        "description": "Create a GrafanaProvider that handles Grafana Alerting webhook payloads (Grafana 9+ Unified Alerting format) and normalizes them into NormalizedAlerts",
+        "acceptance_criteria": [
+          "GrafanaProvider implements WebhookProvider interface",
+          "Handles Grafana Unified Alerting webhook format (POST JSON with alerts array)",
+          "Maps Grafana fields: title→Title, message→Description, status (alerting/resolved/no_data)→Status",
+          "Maps Grafana severity: alerting→warning (default), severity label override if present",
+          "ExternalID derived from Grafana alert fingerprint or orgId+dashboardId+panelId+alertId combo",
+          "Labels extracted from Grafana labels object, annotations from annotations object",
+          "RawPayload stores complete Grafana webhook JSON",
+          "POST /api/v1/webhooks/grafana endpoint registered and functional",
+          "Grafana 'no_data' state mapped to severity='info' (no incident auto-created)",
+          "Provider defined in backend/internal/models/webhooks/grafana.go"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "Grafana Unified Alerting (v9+) uses a different webhook format than legacy Grafana alerts. Focus on the modern format. Grafana payloads include orgId, dashboardId, panelId which together form a unique alert identity."
+      },
+      {
+        "key": "OI-094",
+        "name": "Implement CloudWatch webhook provider (SNS)",
+        "description": "Create a CloudWatchProvider that handles AWS CloudWatch Alarm notifications delivered via SNS HTTP/HTTPS subscriptions",
+        "acceptance_criteria": [
+          "CloudWatchProvider implements WebhookProvider interface",
+          "Handles SNS notification wrapper: extracts CloudWatch alarm payload from SNS Message field",
+          "Handles SNS SubscriptionConfirmation messages by auto-confirming (GET SubscribeURL)",
+          "Maps CloudWatch fields: AlarmName→Title, AlarmDescription+StateChangeReason→Description",
+          "Maps CloudWatch states: ALARM→firing, OK→resolved, INSUFFICIENT_DATA→firing with severity=info",
+          "Maps trigger severity from ComparisonOperator and Threshold context",
+          "ExternalID derived from AlarmArn (globally unique in AWS)",
+          "Labels include: region, namespace, metric_name, dimensions",
+          "RawPayload stores complete SNS envelope with CloudWatch payload",
+          "POST /api/v1/webhooks/cloudwatch endpoint registered and functional",
+          "ValidatePayload() verifies SNS message signature using AWS certificate",
+          "Provider defined in backend/internal/models/webhooks/cloudwatch.go"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "CloudWatch alarms arrive wrapped in SNS notifications. Must handle two message types: SubscriptionConfirmation (one-time setup) and Notification (alarm state change). SNS signature verification is important for security — AWS publishes the signing certificate URL in the message."
+      },
+      {
+        "key": "OI-095",
+        "name": "Implement Generic webhook provider",
+        "description": "Create a GenericProvider that accepts a simplified, well-documented JSON schema for any monitoring tool that doesn't have a dedicated provider",
+        "acceptance_criteria": [
+          "GenericProvider implements WebhookProvider interface",
+          "Accepts a documented JSON schema: {alerts: [{title, description, severity, status, external_id, labels, started_at}]}",
+          "All fields optional except title; defaults: severity=warning, status=firing, external_id=SHA256(title+labels)",
+          "If external_id not provided, auto-generated from SHA256 hash of title + sorted labels for deduplication",
+          "ValidatePayload() supports optional HMAC-SHA256 signature via X-Webhook-Secret header",
+          "POST /api/v1/webhooks/generic endpoint registered and functional",
+          "Comprehensive documentation of the generic schema published at GET /api/v1/webhooks/generic/schema",
+          "Provider defined in backend/internal/models/webhooks/generic.go",
+          "Example payloads documented for Datadog, New Relic, custom scripts"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "The generic webhook is the 'escape hatch' for any monitoring tool. Keep the schema simple and well-documented. Users can use curl or any HTTP client to send alerts. The schema endpoint helps with discoverability."
+      },
+      {
+        "key": "OI-096",
+        "name": "Create unified webhook handler and register all routes",
+        "description": "Create a generic WebhookHandler that works with any WebhookProvider, eliminating per-source handler boilerplate. Register all four webhook routes.",
+        "acceptance_criteria": [
+          "GenericWebhookHandler struct wraps: WebhookProvider + AlertService",
+          "Handler flow: ReadBody → ValidatePayload → ParsePayload → ProcessNormalizedAlerts → Response",
+          "Consistent error responses across all providers (400 for parse errors, 401 for auth failures, 500 for internal)",
+          "Consistent success response: {received: N, created: N, updated: N, incidents_created: N, source: string}",
+          "All four routes registered in routes.go: /prometheus, /grafana, /cloudwatch, /generic",
+          "Request logging middleware: source, alert_count, processing_time_ms, status_code",
+          "Prometheus metrics updated: openincident_webhooks_received_total{source=...}",
+          "Max payload size enforced per provider (default 1MB, configurable)"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3,
+        "implementation_notes": "This handler eliminates the per-source handler files. The Prometheus-specific handler can be replaced by the generic handler wired with PrometheusProvider. Keep the existing /prometheus URL — do not break existing Alertmanager configs."
+      },
+      {
+        "key": "OI-097",
+        "name": "Integration tests for all webhook providers",
+        "description": "Comprehensive integration tests for Grafana, CloudWatch, and Generic webhook endpoints using realistic payload samples",
+        "acceptance_criteria": [
+          "Test suite for each provider: Grafana, CloudWatch, Generic",
+          "Each suite tests: valid payload → alert created + incident created",
+          "Each suite tests: resolved payload → alert updated, no new incident",
+          "Each suite tests: duplicate payload → deduplication (update, not create)",
+          "Each suite tests: malformed payload → 400 error response",
+          "CloudWatch: test SNS SubscriptionConfirmation handling",
+          "CloudWatch: test SNS signature validation (valid and invalid)",
+          "Generic: test HMAC-SHA256 signature verification",
+          "Generic: test auto-generated external_id deduplication",
+          "Cross-source test: same alert from Prometheus and Grafana → two separate alerts (different source)",
+          "Realistic sample payloads stored in docs/examples/ for each source",
+          "All tests pass without external service dependencies (mocked HTTP)"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "Use the same test pattern as prometheus_webhook_test.go: in-memory SQLite, full HTTP handler stack. Store sample payloads as testdata fixtures."
+      },
+      {
+        "key": "OI-098",
+        "name": "Webhook provider documentation and example payloads",
+        "description": "Document all webhook endpoints, payload formats, and setup instructions for each monitoring source",
+        "acceptance_criteria": [
+          "docs/webhooks.md created with setup guide for each source",
+          "Grafana section: alerting contact point configuration, webhook URL, example payload",
+          "CloudWatch section: SNS topic setup, subscription creation, IAM permissions, example payload",
+          "Generic section: schema reference, HMAC signing, curl examples",
+          "docs/examples/ updated with sample payloads: grafana-firing.json, cloudwatch-alarm.json, generic-alert.json",
+          "docs/API.md updated with all four webhook endpoints",
+          "README.md updated with multi-source support in features section"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 3,
+        "implementation_notes": "Good documentation is critical for adoption. Users need step-by-step guides for connecting their monitoring tools to OpenIncident."
+      }
+    ],
+    "total_story_points": 43,
+    "estimated_duration": "2 weeks",
+    "dependencies": {
+      "external": [
+        "Grafana 9+ Unified Alerting webhook format documentation",
+        "AWS SNS message format and signature verification documentation",
+        "AWS SDK for Go (SNS signature verification)"
+      ],
+      "internal": [
+        "Existing AlertService (v0.1 OI-EPIC-003)",
+        "Existing alert deduplication via (source, external_id)",
+        "Existing prometheus_webhook.go handler and tests"
+      ]
+    }
+  }
+}

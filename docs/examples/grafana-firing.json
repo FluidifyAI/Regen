@@ -1,0 +1,36 @@
+{
+  "receiver": "webhook",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "High CPU Usage",
+        "severity": "critical",
+        "instance": "web-01",
+        "service": "api-gateway",
+        "env": "production"
+      },
+      "annotations": {
+        "summary": "CPU utilization is above 90%",
+        "description": "The API gateway server web-01 has been running at >90% CPU for 5 minutes"
+      },
+      "startsAt": "2024-01-01T12:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "https://grafana.example.com/alerting/grafana/abc123/view",
+      "fingerprint": "a1b2c3d4e5f6",
+      "values": {
+        "A": 95.2
+      },
+      "valueString": "[ var='A' labels={instance=web-01} value=95.2 ]"
+    }
+  ],
+  "groupLabels": {
+    "alertname": "High CPU Usage"
+  },
+  "commonLabels": {
+    "env": "production"
+  },
+  "commonAnnotations": {},
+  "externalURL": "https://grafana.example.com"
+}

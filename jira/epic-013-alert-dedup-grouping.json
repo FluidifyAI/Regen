@@ -1,0 +1,153 @@
+{
+  "epic": {
+    "key": "OI-EPIC-013",
+    "name": "Enhanced Alert Deduplication & Grouping Rules",
+    "objective": "Enhance alert deduplication for multi-source environments and implement alert grouping rules that combine related alerts into a single incident based on configurable criteria (service, time window, labels)",
+    "definition_of_done": "Related alerts are automatically grouped into a single incident based on configurable rules. Cross-source deduplication handles alerts from multiple monitoring tools for the same underlying issue. Grouped alerts are visible on the incident detail page.",
+    "status": "To Do",
+    "initiative": "OI-INIT-003",
+    "release": "v0.3",
+    "prerequisites": ["OI-EPIC-012"],
+    "notes": "v0.1 deduplication uses (source, external_id) which only handles exact duplicates from the same source. v0.3 needs: (1) grouping rules that link related-but-different alerts to one incident, and (2) cross-source awareness so an alert from Prometheus and Grafana about the same service don't create two incidents.",
+    "tasks": [
+      {
+        "key": "OI-100",
+        "name": "Design alert grouping rules data model",
+        "description": "Create the data model for alert grouping rules that define when multiple alerts should be combined into a single incident",
+        "acceptance_criteria": [
+          "GroupingRule model defined: id, name, description, enabled, priority, match_labels (JSONB), time_window (duration), created_at, updated_at",
+          "match_labels supports exact match and regex match on alert labels (e.g., {service: 'api-*', env: 'production'})",
+          "time_window defines the window in which matching alerts are grouped (default: 5 minutes)",
+          "Database migration created: 000007_create_grouping_rules_table",
+          "GroupingRuleRepository interface with CRUD operations",
+          "Seed default grouping rule: group by alertname label within 5-minute window"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "Grouping rules work similarly to Alertmanager's group_by config but stored in DB for runtime configuration. Priority determines evaluation order when multiple rules match."
+      },
+      {
+        "key": "OI-101",
+        "name": "Implement alert grouping engine",
+        "description": "Build the core grouping engine that evaluates incoming alerts against grouping rules and determines whether to create a new incident or link to an existing one",
+        "acceptance_criteria": [
+          "GroupingEngine service created with EvaluateAlert(alert NormalizedAlert) (*Incident, bool, error)",
+          "Returns existing incident if alert matches an open incident's grouping criteria",
+          "Returns nil if no matching group found (caller should create new incident)",
+          "Matching logic: check each enabled rule in priority order",
+          "For each rule: match labels against alert labels using exact/regex matching",
+          "If labels match: look for open incident created within rule's time_window with same grouping key",
+          "Grouping key derived from matched label values (e.g., 'service=api-gateway,env=prod')",
+          "Performance: grouping evaluation completes in <10ms for 100 rules",
+          "Thread-safe: concurrent webhook calls don't create duplicate incidents for the same group"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "The grouping engine sits between alert normalization and incident creation in the pipeline. Use a database-level advisory lock on the grouping key to prevent race conditions. Cache active grouping rules with short TTL."
+      },
+      {
+        "key": "OI-102",
+        "name": "Integrate grouping engine into alert processing pipeline",
+        "description": "Wire the grouping engine into ProcessNormalizedAlerts() so that incoming alerts are evaluated against grouping rules before incident creation",
+        "acceptance_criteria": [
+          "ProcessNormalizedAlerts() calls groupingEngine.EvaluateAlert() before creating incident",
+          "If grouping returns existing incident: link alert to that incident instead of creating new",
+          "Timeline entry created when alert grouped: type=alert_linked, content includes grouping_rule_name",
+          "If no grouping match: existing behavior (create new incident if severity warrants)",
+          "Grouped alerts appear in incident detail page under 'Linked Alerts' section",
+          "ProcessingResult updated with grouped_count in addition to created/updated",
+          "Grouping disabled gracefully if no rules configured (falls through to existing behavior)"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "Must maintain backwards compatibility. With zero grouping rules configured, the system should behave identically to v0.2."
+      },
+      {
+        "key": "OI-103",
+        "name": "Implement cross-source alert correlation",
+        "description": "Add the ability to correlate alerts from different sources that refer to the same underlying issue, preventing duplicate incidents",
+        "acceptance_criteria": [
+          "Correlation based on configurable label matching across sources (e.g., host, service, instance)",
+          "Correlation labels configurable in grouping rules: cross_source_labels field",
+          "When alert from source A matches open incident from source B on correlation labels → link to same incident",
+          "Timeline entry: type=cross_source_correlation, content includes both source names",
+          "Cross-source correlation is opt-in (not enabled by default to avoid false positives)",
+          "Example: Prometheus alert (host=web-01) and CloudWatch alarm (InstanceId=i-xxx, tag:Name=web-01) correlated via host/Name mapping"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Cross-source correlation is inherently fuzzy because different monitoring tools use different label names for the same concept. Start with exact label value matching after optional label name remapping."
+      },
+      {
+        "key": "OI-104",
+        "name": "Grouping rules CRUD API",
+        "description": "Create REST API endpoints for managing alert grouping rules",
+        "acceptance_criteria": [
+          "GET /api/v1/grouping-rules → list all grouping rules",
+          "GET /api/v1/grouping-rules/:id → get single rule",
+          "POST /api/v1/grouping-rules → create rule with validation",
+          "PATCH /api/v1/grouping-rules/:id → update rule",
+          "DELETE /api/v1/grouping-rules/:id → delete rule (soft delete)",
+          "Validation: name required, time_window > 0, match_labels valid JSON",
+          "Audit: created_at, updated_at tracked",
+          "Cache invalidation on create/update/delete"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Standard CRUD following existing patterns in handlers/ and repository/. Use the same handler/service/repository layering as incidents."
+      },
+      {
+        "key": "OI-105",
+        "name": "Grouped alerts UI on incident detail page",
+        "description": "Display linked/grouped alerts on the incident detail page and add a grouping rules management page",
+        "acceptance_criteria": [
+          "Incident detail page shows 'Linked Alerts' section with all grouped alerts",
+          "Each alert shows: source icon, title, severity badge, status, received_at",
+          "Alerts sorted by received_at (newest first)",
+          "Click on alert expands to show labels and raw payload preview",
+          "Source icons differentiated: Prometheus (flame), Grafana (eye), CloudWatch (AWS logo), Generic (webhook icon)",
+          "Settings page: grouping rules list with enable/disable toggle",
+          "Settings page: create/edit grouping rule form"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "API endpoint GET /api/v1/incidents/:id/alerts already exists from v0.1. Focus on the UI display. Source icons can be simple SVG or emoji initially."
+      },
+      {
+        "key": "OI-106",
+        "name": "Integration tests for grouping and cross-source correlation",
+        "description": "Comprehensive tests for alert grouping rules engine and cross-source correlation",
+        "acceptance_criteria": [
+          "Test: two alerts with same label within time window → grouped into one incident",
+          "Test: two alerts with same label outside time window → two separate incidents",
+          "Test: alert matches no grouping rule → creates new incident (existing behavior)",
+          "Test: cross-source correlation links Prometheus + Grafana alerts to same incident",
+          "Test: grouping rule disabled → alerts not grouped by that rule",
+          "Test: concurrent alerts within same group → no duplicate incidents (race condition test)",
+          "Test: grouping rules CRUD API endpoints",
+          "All tests pass without external dependencies"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Concurrency test is critical — use Go's testing race detector and parallel goroutines to verify advisory lock behavior."
+      }
+    ],
+    "total_story_points": 38,
+    "estimated_duration": "1.5-2 weeks",
+    "dependencies": {
+      "external": [],
+      "internal": [
+        "WebhookProvider interface and NormalizedAlert (OI-EPIC-012)",
+        "ProcessNormalizedAlerts() method (OI-091)",
+        "Existing incident_alerts join table"
+      ]
+    }
+  }
+}

@@ -17,6 +17,7 @@ type IncidentResponse struct {
 	Status         string            `json:"status"`
 	Severity       string            `json:"severity"`
 	Summary        string            `json:"summary,omitempty"`
+	GroupKey       *string           `json:"group_key,omitempty"`
 	SlackChannel   *SlackChannelInfo `json:"slack_channel,omitempty"`
 	CreatedAt      time.Time         `json:"created_at"`
 	TriggeredAt    time.Time         `json:"triggered_at"`
@@ -43,11 +44,13 @@ type IncidentDetailResponse struct {
 
 // AlertSummary is a minimal alert representation for incident details
 type AlertSummary struct {
-	ID         uuid.UUID `json:"id"`
-	Title      string    `json:"title"`
-	Severity   string    `json:"severity"`
-	Status     string    `json:"status"`
-	ReceivedAt time.Time `json:"received_at"`
+	ID         uuid.UUID              `json:"id"`
+	Title      string                 `json:"title"`
+	Source     string                 `json:"source"`
+	Severity   string                 `json:"severity"`
+	Status     string                 `json:"status"`
+	Labels     map[string]interface{} `json:"labels,omitempty"`
+	ReceivedAt time.Time              `json:"received_at"`
 }
 
 // TimelineEntrySummary is a minimal timeline entry for incident details
@@ -70,6 +73,7 @@ func ToIncidentResponse(incident *models.Incident) IncidentResponse {
 		Status:         string(incident.Status),
 		Severity:       string(incident.Severity),
 		Summary:        incident.Summary,
+		GroupKey:       incident.GroupKey,
 		CreatedAt:      incident.CreatedAt,
 		TriggeredAt:    incident.TriggeredAt,
 		AcknowledgedAt: incident.AcknowledgedAt,

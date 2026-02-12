@@ -1,0 +1,17 @@
+{
+  "alerts": [
+    {
+      "title": "High Error Rate",
+      "description": "Error rate has returned to normal",
+      "severity": "critical",
+      "status": "resolved",
+      "external_id": "custom-error-rate-123",
+      "labels": {
+        "service": "api-gateway",
+        "env": "production"
+      },
+      "started_at": "2024-01-01T12:00:00Z",
+      "ended_at": "2024-01-01T12:15:00Z"
+    }
+  ]
+}

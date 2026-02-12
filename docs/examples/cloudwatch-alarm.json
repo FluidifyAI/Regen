@@ -1,0 +1,12 @@
+{
+  "Type": "Notification",
+  "MessageId": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+  "TopicArn": "arn:aws:sns:us-east-1:123456789012:cloudwatch-alarms",
+  "Subject": "ALARM: \"HighCPU\" in US East (N. Virginia)",
+  "Message": "{\"AlarmName\":\"HighCPU\",\"AlarmDescription\":\"CPU utilization exceeds 80%\",\"NewStateValue\":\"ALARM\",\"NewStateReason\":\"Threshold Crossed: 1 datapoint [95.2] was greater than the threshold (80.0).\",\"StateChangeTime\":\"2024-01-01T12:00:00.000+0000\",\"Region\":\"US East (N. Virginia)\",\"AlarmArn\":\"arn:aws:cloudwatch:us-east-1:123456789012:alarm:HighCPU\",\"OldStateValue\":\"OK\",\"Trigger\":{\"MetricName\":\"CPUUtilization\",\"Namespace\":\"AWS/EC2\",\"StatisticType\":\"Statistic\",\"Statistic\":\"Average\",\"Dimensions\":[{\"name\":\"InstanceId\",\"value\":\"i-0123456789abcdef0\"}],\"Period\":300,\"EvaluationPeriods\":2,\"ComparisonOperator\":\"GreaterThanThreshold\",\"Threshold\":80.0,\"TreatMissingData\":\"notBreaching\"}}",
+  "Timestamp": "2024-01-01T12:00:00.000Z",
+  "SignatureVersion": "1",
+  "Signature": "test-signature-base64==",
+  "SigningCertURL": "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-test.pem",
+  "UnsubscribeURL": "https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-east-1:123456789012:test:abc123"
+}

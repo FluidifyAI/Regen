@@ -10,6 +10,7 @@ import (
 	"github.com/openincident/openincident/internal/api/middleware"
 	"github.com/openincident/openincident/internal/config"
 	"github.com/openincident/openincident/internal/metrics"
+	"github.com/openincident/openincident/internal/models/webhooks"
 	"github.com/openincident/openincident/internal/repository"
 	"github.com/openincident/openincident/internal/services"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -22,6 +23,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
 	timelineRepo := repository.NewTimelineRepository(db)
+	groupingRuleRepo := repository.NewGroupingRuleRepository(db)
 
 	// Initialize Slack service (optional - graceful degradation if not configured)
 	var chatService services.ChatService
@@ -50,9 +52,14 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		slog.Warn("SLACK_BOT_TOKEN not set - running in degraded mode without slack integration")
 	}
 
+	// Initialize grouping engine (for alert deduplication and grouping)
+	groupingEngine := services.NewGroupingEngine(groupingRuleRepo, incidentRepo, db)
+	slog.Info("grouping engine initialized")
+
 	// Initialize services
 	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
+	alertSvc.SetGroupingEngine(groupingEngine)
 
 	// Start Slack Socket Mode event handler (bidirectional sync)
 	// Requires SLACK_APP_TOKEN in addition to SLACK_BOT_TOKEN
@@ -92,16 +99,37 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	v1 := router.Group("/api/v1")
 	{
 		// Webhooks (with 1MB body size limit)
-		webhooks := v1.Group("/webhooks")
-		webhooks.Use(middleware.BodySizeLimit(middleware.WebhookMaxBodySize))
+		webhooksGroup := v1.Group("/webhooks")
+		webhooksGroup.Use(middleware.BodySizeLimit(middleware.WebhookMaxBodySize))
 		{
-			// Prometheus Alertmanager webhook (v0.1)
-			webhooks.POST("/prometheus", handlers.PrometheusWebhook(alertSvc))
+			// v0.1: Prometheus Alertmanager webhook (legacy handler for backwards compatibility)
+			webhooksGroup.POST("/prometheus", handlers.PrometheusWebhook(alertSvc))
 
-			// Future webhooks (to be implemented in v0.3)
-			webhooks.POST("/grafana", func(c *gin.Context) {
-				c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
-			})
+			// v0.3: Multi-source webhooks using unified handler with WebhookProvider interface
+			// Each webhook route uses the same handler with a different provider implementation
+
+			// Grafana Unified Alerting (v9+) webhook
+			// Example: curl -X POST http://localhost:8080/api/v1/webhooks/grafana -d @grafana-payload.json
+			grafanaHandler := handlers.NewWebhookHandler(&webhooks.GrafanaProvider{}, alertSvc)
+			webhooksGroup.POST("/grafana", grafanaHandler.Handle)
+
+			// CloudWatch alarms via SNS (handles subscription confirmation automatically)
+			// Example: Configure SNS topic subscription with this endpoint URL
+			cloudwatchHandler := handlers.NewWebhookHandler(&webhooks.CloudWatchProvider{}, alertSvc)
+			webhooksGroup.POST("/cloudwatch", cloudwatchHandler.Handle)
+
+			// Generic webhook with optional HMAC authentication
+			// Supports any custom monitoring tool or script
+			// Example: curl -X POST http://localhost:8080/api/v1/webhooks/generic \
+			//            -H "Content-Type: application/json" \
+			//            -d '{"alerts":[{"title":"High CPU on web-01"}]}'
+			webhookSecret := os.Getenv("WEBHOOK_SECRET") // Optional HMAC secret
+			genericHandler := handlers.NewWebhookHandler(&webhooks.GenericProvider{WebhookSecret: webhookSecret}, alertSvc)
+			webhooksGroup.POST("/generic", genericHandler.Handle)
+
+			// Generic webhook JSON Schema endpoint (self-documenting API)
+			// Example: curl http://localhost:8080/api/v1/webhooks/generic/schema
+			webhooksGroup.GET("/generic/schema", genericHandler.HandleSchema)
 		}
 
 		// Incidents
@@ -116,5 +144,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		v1.GET("/alerts", func(c *gin.Context) {
 			c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
 		})
+
+		// Grouping Rules (v0.3)
+		v1.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))
+		v1.GET("/grouping-rules/:id", handlers.GetGroupingRule(groupingRuleRepo))
+		onRuleMutate := func() { groupingEngine.RefreshRules() }
+		v1.POST("/grouping-rules", handlers.CreateGroupingRule(groupingRuleRepo, onRuleMutate))
+		v1.PUT("/grouping-rules/:id", handlers.UpdateGroupingRule(groupingRuleRepo, onRuleMutate))
+		v1.DELETE("/grouping-rules/:id", handlers.DeleteGroupingRule(groupingRuleRepo, onRuleMutate))
 	}
 }

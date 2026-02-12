@@ -1,6 +1,8 @@
 package services
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -43,6 +45,8 @@ type CreateTimelineEntryParams struct {
 type IncidentService interface {
 	// Alert-triggered incident creation
 	CreateIncidentFromAlert(alert *models.Alert) (*models.Incident, error)
+	CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string) (*models.Incident, error)
+	LinkAlertToExistingIncident(alert *models.Alert, incidentID uuid.UUID) error
 	ShouldCreateIncident(severity models.AlertSeverity) bool
 	CreateSlackChannelForIncident(incident *models.Incident, alerts []models.Alert) error
 
@@ -183,6 +187,216 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert) (*models.
 	}
 
 	return incident, nil
+}
+
+// CreateIncidentFromAlertWithGrouping creates an incident from an alert with grouping support (v0.3+)
+//
+// This method is called when a grouping rule matches and no existing incident is found.
+// It uses PostgreSQL advisory locks to prevent race conditions when concurrent webhooks
+// with the same group_key try to create incidents.
+func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string) (*models.Incident, error) {
+	// Map alert severity to incident severity
+	incidentSeverity := mapAlertSeverityToIncident(alert.Severity)
+
+	// Generate slug from title
+	slug := generateSlug(alert.Title)
+
+	// Create incident object with group_key
+	incident := &models.Incident{
+		ID:            uuid.New(),
+		Title:         alert.Title,
+		Slug:          slug,
+		Status:        models.IncidentStatusTriggered,
+		Severity:      incidentSeverity,
+		Summary:       alert.Description,
+		CreatedByType: "system",
+		CreatedByID:   "alertmanager",
+		TriggeredAt:   time.Now(),
+		Labels:        make(models.JSONB),
+		CustomFields:  make(models.JSONB),
+		GroupKey:      &groupKey, // Set group_key for alert grouping
+	}
+
+	// Execute all operations in a transaction with advisory lock
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Step 0: Acquire advisory lock for this group_key to prevent race conditions
+		// The lock is automatically released at the end of the transaction
+		lockID := hashGroupKeyForLock(groupKey)
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", lockID).Error; err != nil {
+			return fmt.Errorf("failed to acquire advisory lock: %w", err)
+		}
+
+		// Double-check: Another concurrent request might have created the incident while we waited for the lock
+		var existingIncident models.Incident
+		err := tx.Where("group_key = ?", groupKey).
+			Where("status IN (?)", []string{"triggered", "acknowledged"}).
+			First(&existingIncident).Error
+
+		if err == nil {
+			// Found existing incident - link alert to it instead of creating new
+			slog.Info("incident already exists for group_key (race condition avoided)",
+				"group_key", groupKey,
+				"incident_id", existingIncident.ID)
+			return s.linkAlertToIncidentInTx(tx, alert, &existingIncident)
+		} else if err != gorm.ErrRecordNotFound {
+			return fmt.Errorf("failed to check for existing incident: %w", err)
+		}
+
+		// No existing incident found - proceed with creation
+
+		// Step 1: Create the incident
+		if err := tx.Create(incident).Error; err != nil {
+			return fmt.Errorf("failed to create incident: %w", err)
+		}
+
+		// Step 2: Link the alert to the incident (within transaction)
+		link := map[string]interface{}{
+			"incident_id":    incident.ID,
+			"alert_id":       alert.ID,
+			"linked_by_type": "system",
+			"linked_by_id":   "alertmanager",
+		}
+		if err := tx.Table("incident_alerts").Create(link).Error; err != nil {
+			return fmt.Errorf("failed to link alert to incident: %w", err)
+		}
+
+		// Step 3: Create timeline entry for incident creation
+		timelineEntry := &models.TimelineEntry{
+			ID:         uuid.New(),
+			IncidentID: incident.ID,
+			Timestamp:  time.Now(),
+			Type:       "incident_created",
+			ActorType:  "system",
+			ActorID:    "alertmanager",
+			Content: models.JSONB{
+				"trigger":   "alert",
+				"alert_id":  alert.ID.String(),
+				"source":    alert.Source,
+				"group_key": groupKey,
+			},
+		}
+
+		// Create timeline entry within transaction
+		if err := tx.Create(timelineEntry).Error; err != nil {
+			return fmt.Errorf("failed to create timeline entry: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	// Create Slack channel asynchronously (non-blocking)
+	if s.chatService != nil {
+		go func() {
+			alerts := []models.Alert{*alert}
+			if err := s.CreateSlackChannelForIncident(incident, alerts); err != nil {
+				slog.Error("failed to create slack channel",
+					"incident_id", incident.ID,
+					"incident_number", incident.IncidentNumber,
+					"error", err)
+			}
+		}()
+	}
+
+	return incident, nil
+}
+
+// LinkAlertToExistingIncident links an alert to an existing incident (for grouped alerts)
+//
+// This is called when the grouping engine finds an existing incident with the same group_key.
+// It creates a timeline entry for the alert linkage and posts a Slack notification.
+func (s *incidentService) LinkAlertToExistingIncident(alert *models.Alert, incidentID uuid.UUID) error {
+	// Execute in transaction
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		return s.linkAlertToIncidentInTx(tx, alert, &models.Incident{ID: incidentID})
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to link alert to incident: %w", err)
+	}
+
+	// Post Slack notification asynchronously (non-blocking)
+	if s.chatService != nil {
+		go func() {
+			incident, err := s.incidentRepo.GetByID(incidentID)
+			if err != nil {
+				slog.Error("failed to get incident for slack notification",
+					"incident_id", incidentID,
+					"error", err)
+				return
+			}
+
+			if incident.SlackChannelID == "" {
+				// Channel not created yet (might be in progress)
+				return
+			}
+
+			// Post alert notification to existing channel
+			message := s.messageBuilder.BuildAlertLinkedMessage(alert, incident)
+			_, err = s.chatService.PostMessage(incident.SlackChannelID, message)
+			if err != nil {
+				slog.Error("failed to post alert linked message to slack",
+					"incident_id", incidentID,
+					"alert_id", alert.ID,
+					"error", err)
+			}
+		}()
+	}
+
+	return nil
+}
+
+// linkAlertToIncidentInTx links an alert to an incident within a transaction
+func (s *incidentService) linkAlertToIncidentInTx(tx *gorm.DB, alert *models.Alert, incident *models.Incident) error {
+	// Link the alert (within transaction)
+	link := map[string]interface{}{
+		"incident_id":    incident.ID,
+		"alert_id":       alert.ID,
+		"linked_by_type": "system",
+		"linked_by_id":   "alertmanager",
+	}
+	if err := tx.Table("incident_alerts").Create(link).Error; err != nil {
+		return fmt.Errorf("failed to link alert: %w", err)
+	}
+
+	// Create timeline entry (within transaction)
+	timelineEntry := &models.TimelineEntry{
+		ID:         uuid.New(),
+		IncidentID: incident.ID,
+		Timestamp:  time.Now(),
+		Type:       "alert_linked",
+		ActorType:  "system",
+		ActorID:    "alertmanager",
+		Content: models.JSONB{
+			"alert_id": alert.ID.String(),
+			"source":   alert.Source,
+			"title":    alert.Title,
+			"severity": string(alert.Severity),
+		},
+	}
+
+	if err := tx.Create(timelineEntry).Error; err != nil {
+		return fmt.Errorf("failed to create timeline entry: %w", err)
+	}
+
+	return nil
+}
+
+// hashGroupKeyForLock generates a numeric hash for PostgreSQL advisory locks
+func hashGroupKeyForLock(groupKey string) int64 {
+	// Simple hash function for advisory lock ID
+	// Same as in grouping_engine.go
+	var hash int64
+	for i, c := range groupKey {
+		hash = hash*31 + int64(c)
+		if i >= 8 { // Use first 8 characters for hash
+			break
+		}
+	}
+	return hash
 }
 
 // CreateSlackChannelForIncident creates a Slack channel for an incident and posts the initial message.
@@ -335,10 +549,11 @@ func mapAlertSeverityToIncident(alertSeverity models.AlertSeverity) models.Incid
 	}
 }
 
-// generateSlug creates a URL-safe slug from a title
+// generateSlug creates a URL-safe slug from a title with a random suffix for uniqueness.
 // - Converts to lowercase
 // - Replaces spaces and special characters with hyphens
 // - Removes consecutive hyphens
+// - Appends a 4-char random hex suffix
 // - Truncates to 50 characters max
 func generateSlug(title string) string {
 	// Convert to lowercase
@@ -359,19 +574,29 @@ func generateSlug(title string) string {
 	// Trim hyphens from start and end
 	slug = strings.Trim(slug, "-")
 
-	// Truncate to 50 characters
-	if len(slug) > 50 {
-		slug = slug[:50]
-		// Remove trailing hyphen if truncation created one
-		slug = strings.TrimRight(slug, "-")
-	}
-
 	// If slug is empty after sanitization, use a default
 	if slug == "" {
 		slug = "incident"
 	}
 
+	// Append random suffix to ensure uniqueness across same-title incidents
+	suffix := randomHex(4)
+	slug = slug + "-" + suffix
+
+	// Truncate to 50 characters (after adding suffix)
+	if len(slug) > 50 {
+		slug = slug[:50]
+		slug = strings.TrimRight(slug, "-")
+	}
+
 	return slug
+}
+
+// randomHex returns n random bytes encoded as a hex string (2n chars).
+func randomHex(n int) string {
+	b := make([]byte, n)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // ListIncidents retrieves incidents with filtering and pagination
@@ -620,6 +845,7 @@ func (s *incidentService) GetIncidentTimeline(incidentID uuid.UUID, pagination r
 }
 
 // CreateTimelineEntry creates a new timeline entry (e.g., user note)
+// For user-created notes, also posts the message to the incident's Slack channel
 func (s *incidentService) CreateTimelineEntry(params *CreateTimelineEntryParams) (*models.TimelineEntry, error) {
 	entry := &models.TimelineEntry{
 		ID:         uuid.New(),
@@ -635,7 +861,42 @@ func (s *incidentService) CreateTimelineEntry(params *CreateTimelineEntryParams)
 		return nil, err
 	}
 
+	// Post user notes to Slack channel for bidirectional sync
+	if params.Type == "message" && s.chatService != nil {
+		go s.postTimelineNoteToSlack(params.IncidentID, params.Content)
+	}
+
 	return entry, nil
+}
+
+// postTimelineNoteToSlack posts a user-created note to the incident's Slack channel.
+// Runs asynchronously so it doesn't block the API response.
+func (s *incidentService) postTimelineNoteToSlack(incidentID uuid.UUID, content models.JSONB) {
+	incident, err := s.incidentRepo.GetByID(incidentID)
+	if err != nil || incident.SlackChannelID == "" {
+		return
+	}
+
+	// Extract message text from content
+	messageText := ""
+	if msg, ok := content["message"].(string); ok {
+		messageText = msg
+	} else if text, ok := content["text"].(string); ok {
+		messageText = text
+	}
+	if messageText == "" {
+		return
+	}
+
+	slackMessage := Message{
+		Text: fmt.Sprintf(":memo: *Note from web UI:*\n%s", messageText),
+	}
+
+	if _, err := s.chatService.PostMessage(incident.SlackChannelID, slackMessage); err != nil {
+		slog.Warn("failed to post timeline note to slack",
+			"incident_id", incidentID,
+			"error", err)
+	}
 }
 
 // PostStatusUpdateToSlack posts a status update message to the incident's Slack channel

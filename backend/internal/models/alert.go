@@ -64,6 +64,43 @@ func (j *JSONB) Scan(value interface{}) error {
 	return nil
 }
 
+// JSONBArray is a custom type for PostgreSQL JSONB array fields
+type JSONBArray []string
+
+// Value implements the driver.Valuer interface for JSONBArray
+func (j JSONBArray) Value() (driver.Value, error) {
+	if j == nil {
+		return nil, nil
+	}
+	return json.Marshal(j)
+}
+
+// Scan implements the sql.Scanner interface for JSONBArray
+func (j *JSONBArray) Scan(value interface{}) error {
+	if value == nil {
+		*j = nil
+		return nil
+	}
+
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return errors.New("failed to unmarshal JSONBArray value: unsupported type")
+	}
+
+	var result []string
+	if err := json.Unmarshal(bytes, &result); err != nil {
+		return err
+	}
+
+	*j = result
+	return nil
+}
+
 // Alert represents an alert from a monitoring system
 type Alert struct {
 	ID          uuid.UUID     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`

@@ -1,0 +1,21 @@
+{
+  "alerts": [
+    {
+      "title": "High Error Rate",
+      "description": "Error rate exceeded 5% on api-gateway",
+      "severity": "critical",
+      "status": "firing",
+      "external_id": "custom-error-rate-123",
+      "labels": {
+        "service": "api-gateway",
+        "env": "production",
+        "team": "backend"
+      },
+      "annotations": {
+        "runbook_url": "https://wiki.example.com/runbooks/error-rate",
+        "dashboard_url": "https://grafana.example.com/d/api-dashboard"
+      },
+      "started_at": "2024-01-01T12:00:00Z"
+    }
+  ]
+}

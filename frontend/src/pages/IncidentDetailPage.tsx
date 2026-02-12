@@ -1,16 +1,15 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ChevronRight, AlertCircle } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { useIncidentDetail } from '../hooks/useIncidentDetail'
 import { Timeline } from '../components/incidents/Timeline'
 import { PropertiesPanel } from '../components/layout/PropertiesPanel'
 import { StatusDropdown } from '../components/incidents/StatusDropdown'
 import { SeverityDropdown } from '../components/incidents/SeverityDropdown'
 import { AddTimelineEntry } from '../components/incidents/AddTimelineEntry'
-import { Badge } from '../components/ui/Badge'
+import { GroupedAlerts } from '../components/incidents/GroupedAlerts'
 import { ToastContainer, useToast } from '../components/ui/Toast'
 import { GeneralError } from '../components/ui/ErrorState'
-import type { Alert } from '../api/types'
 
 type TabType = 'activity' | 'alerts'
 
@@ -141,7 +140,9 @@ export function IncidentDetailPage() {
                 <Timeline entries={incident.timeline} />
               </div>
             )}
-            {activeTab === 'alerts' && <AlertsList alerts={incident.alerts} />}
+            {activeTab === 'alerts' && (
+              <GroupedAlerts alerts={incident.alerts} incident={incident} />
+            )}
           </div>
         </div>
       </div>
@@ -190,56 +191,6 @@ function TabButton({
   )
 }
 
-/**
- * Alerts list component
- */
-function AlertsList({ alerts }: { alerts: Alert[] }) {
-  if (alerts.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-sm text-text-tertiary">No alerts linked to this incident</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      {alerts.map((alert) => (
-        <div
-          key={alert.id}
-          className="border border-border rounded-lg p-4 hover:bg-surface-secondary transition-colors"
-        >
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-severity-critical" />
-              <span className="text-sm font-medium text-text-primary">
-                {alert.title}
-              </span>
-            </div>
-            <Badge
-              variant={alert.severity as 'critical' | 'high' | 'medium' | 'low'}
-              type="severity"
-            >
-              {alert.severity}
-            </Badge>
-          </div>
-          <p className="text-sm text-text-secondary mb-3">{alert.description}</p>
-          <div className="flex items-center gap-4 text-xs text-text-tertiary">
-            <span>Source: {alert.source}</span>
-            <span>•</span>
-            <span>{formatDateTime(alert.started_at)}</span>
-            {alert.ended_at && (
-              <>
-                <span>•</span>
-                <span className="text-status-resolved">Resolved</span>
-              </>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
 
 /**
  * Loading skeleton
@@ -279,16 +230,3 @@ function SkeletonLoader() {
   )
 }
 
-/**
- * Format timestamp as date and time
- */
-function formatDateTime(timestamp: string): string {
-  const date = new Date(timestamp)
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-}

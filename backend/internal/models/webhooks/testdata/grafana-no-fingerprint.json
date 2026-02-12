@@ -1,0 +1,25 @@
+{
+  "receiver": "webhook",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "Database Connection Failed",
+        "severity": "warning"
+      },
+      "annotations": {
+        "summary": "Cannot connect to PostgreSQL"
+      },
+      "startsAt": "2024-01-01T12:00:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "https://grafana.example.com/alerting/grafana/xyz789/view",
+      "orgId": 1,
+      "ruleUID": "rule-uid-123"
+    }
+  ],
+  "groupLabels": {},
+  "commonLabels": {},
+  "commonAnnotations": {},
+  "externalURL": "https://grafana.example.com"
+}

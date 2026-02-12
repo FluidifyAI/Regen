@@ -1,0 +1,7 @@
+{
+  "alerts": [
+    {
+      "title": "High CPU on web-01"
+    }
+  ]
+}

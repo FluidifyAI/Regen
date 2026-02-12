@@ -1,4 +1,4 @@
-import { MessageSquare, AlertCircle, CheckCircle, XCircle, UserPlus, Bell } from 'lucide-react'
+import { MessageSquare, AlertCircle, CheckCircle, XCircle, UserPlus, Bell, Hash } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
 import type { TimelineEntry } from '../../api/types'
 
@@ -117,6 +117,13 @@ function EntryContent({ entry }: { entry: TimelineEntry }) {
         </div>
       )
 
+    case 'slack_message':
+      return (
+        <div className="text-sm text-text-primary whitespace-pre-wrap">
+          {content.text || content.message || 'No message'}
+        </div>
+      )
+
     case 'alert_linked':
       return (
         <div className="text-sm text-text-secondary">
@@ -198,6 +205,13 @@ function getEntryMetadata(entry: TimelineEntry): {
         label: 'posted',
       }
 
+    case 'slack_message':
+      return {
+        icon: Hash,
+        color: 'border-brand-primary',
+        label: 'posted in Slack',
+      }
+
     case 'alert_linked':
       return {
         icon: Bell,
@@ -230,6 +244,10 @@ function getActorName(entry: TimelineEntry): string {
   }
   if (entry.actor_type === 'slack_bot') {
     return 'Slack Bot'
+  }
+  if (entry.actor_type === 'slack_user') {
+    const content = entry.content as Record<string, string>
+    return content.author_name || entry.actor_id || 'Slack User'
   }
   return entry.actor_id || 'Unknown User'
 }

@@ -177,6 +177,47 @@ func blocksToInterfaces(blocks []slack.Block) []interface{} {
 // BuildIncidentUpdatedMessage rebuilds the incident message with status-aware buttons.
 // Used to update the original pinned message when status changes from any source.
 //
+// BuildAlertLinkedMessage creates a message for when an alert is linked to an existing incident.
+// This is used for grouped alerts (v0.3+) to notify that a new alert has been added to the incident.
+func (b *SlackMessageBuilder) BuildAlertLinkedMessage(alert *models.Alert, incident *models.Incident) Message {
+	alertSeverityEmoji := getAlertSeverityEmoji(alert.Severity)
+
+	blocks := []slack.Block{
+		slack.NewSectionBlock(
+			slack.NewTextBlockObject(
+				slack.MarkdownType,
+				fmt.Sprintf(":link: *New alert linked to this incident*\n\n%s *%s* (%s) · `%s`\n_%s_",
+					alertSeverityEmoji,
+					alert.Title,
+					alert.Severity,
+					alert.Source,
+					alert.Description),
+				false,
+				false,
+			),
+			nil,
+			nil,
+		),
+	}
+
+	// Build fallback text for notifications
+	text := fmt.Sprintf("New alert linked: %s (%s) - %s",
+		alert.Title,
+		alert.Severity,
+		alert.Description)
+
+	// Convert []slack.Block to []interface{}
+	interfaceBlocks := make([]interface{}, len(blocks))
+	for i, block := range blocks {
+		interfaceBlocks[i] = block
+	}
+
+	return Message{
+		Text:   text,
+		Blocks: interfaceBlocks,
+	}
+}
+
 // Button rules:
 //   - triggered: Acknowledge + Resolve
 //   - acknowledged: Resolve only

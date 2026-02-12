@@ -10,6 +10,7 @@ export interface Incident {
   summary: string
   slack_channel_id?: string
   slack_channel_name?: string
+  group_key?: string  // SHA256 hash for grouped incidents
   created_at: string
   triggered_at: string
   acknowledged_at?: string

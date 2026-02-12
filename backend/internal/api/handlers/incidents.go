@@ -119,8 +119,10 @@ func GetIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 			resp.Alerts[i] = dto.AlertSummary{
 				ID:         alert.ID,
 				Title:      alert.Title,
+				Source:     alert.Source,
 				Severity:   string(alert.Severity),
 				Status:     string(alert.Status),
+				Labels:     alert.Labels,
 				ReceivedAt: alert.ReceivedAt,
 			}
 		}

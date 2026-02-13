@@ -107,6 +107,42 @@ export interface ListAlertsParams {
   page?: number
 }
 
+// Routing Rules
+
+export interface RoutingRule {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+  priority: number
+  match_criteria: Record<string, unknown>
+  actions: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateRoutingRuleRequest {
+  name: string
+  description?: string
+  enabled?: boolean
+  priority: number
+  match_criteria: Record<string, unknown>
+  actions: Record<string, unknown>
+}
+
+export interface UpdateRoutingRuleRequest {
+  name?: string
+  description?: string
+  enabled?: boolean
+  priority?: number
+  match_criteria?: Record<string, unknown>
+  actions?: Record<string, unknown>
+}
+
+export interface ListRoutingRulesParams {
+  enabled?: 'true' | 'false'
+}
+
 // Type guards and utilities
 
 export function isApiError(error: unknown): error is ApiError {

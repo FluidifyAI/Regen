@@ -60,6 +60,10 @@ type ScheduleRepository interface {
 	// GetOverridesInWindow returns all overrides for a schedule that overlap [from, to).
 	// Used by GetTimeline to collect all overrides in the requested window.
 	GetOverridesInWindow(scheduleID uuid.UUID, from, to time.Time) ([]models.ScheduleOverride, error)
+
+	// ListUpcomingOverrides returns all overrides for a schedule whose end_time is in the future,
+	// ordered by start_time ASC. Used by the UI override management table.
+	ListUpcomingOverrides(scheduleID uuid.UUID) ([]models.ScheduleOverride, error)
 }
 
 // scheduleRepository implements ScheduleRepository.
@@ -250,6 +254,18 @@ func (r *scheduleRepository) GetOverridesInWindow(scheduleID uuid.UUID, from, to
 		Find(&overrides).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to get overrides in window: %w", err)
+	}
+	return overrides, nil
+}
+
+func (r *scheduleRepository) ListUpcomingOverrides(scheduleID uuid.UUID) ([]models.ScheduleOverride, error) {
+	var overrides []models.ScheduleOverride
+	err := r.db.
+		Where("schedule_id = ? AND end_time > NOW()", scheduleID).
+		Order("start_time ASC").
+		Find(&overrides).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to list upcoming overrides: %w", err)
 	}
 	return overrides, nil
 }

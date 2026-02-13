@@ -143,6 +143,93 @@ export interface ListRoutingRulesParams {
   enabled?: 'true' | 'false'
 }
 
+// Schedules (v0.4)
+
+export interface Schedule {
+  id: string
+  name: string
+  description: string
+  timezone: string
+  notification_channel: string
+  created_at: string
+  updated_at: string
+  layers?: ScheduleLayer[]
+}
+
+export interface ScheduleLayer {
+  id: string
+  schedule_id: string
+  name: string
+  order_index: number
+  rotation_type: 'daily' | 'weekly' | 'custom'
+  rotation_start: string
+  shift_duration_seconds: number
+  created_at: string
+  participants?: ScheduleParticipant[]
+}
+
+export interface ScheduleParticipant {
+  id: string
+  layer_id: string
+  user_name: string
+  order_index: number
+  created_at: string
+}
+
+export interface ScheduleOverride {
+  id: string
+  schedule_id: string
+  override_user: string
+  start_time: string
+  end_time: string
+  created_by: string
+  created_at: string
+}
+
+export interface OnCallResponse {
+  schedule_id: string
+  at: string
+  user_name: string
+  is_override: boolean
+}
+
+export interface TimelineSegment {
+  start: string
+  end: string
+  user_name: string
+  is_override: boolean
+}
+
+export interface CreateScheduleRequest {
+  name: string
+  description?: string
+  timezone?: string
+  notification_channel?: string
+}
+
+export interface UpdateScheduleRequest {
+  name?: string
+  description?: string
+  timezone?: string
+  notification_channel?: string
+}
+
+export interface CreateLayerRequest {
+  name: string
+  order_index?: number
+  rotation_type: 'daily' | 'weekly' | 'custom'
+  rotation_start?: string
+  shift_duration_seconds?: number
+  participants?: Array<{ user_name: string; order_index: number }>
+}
+
+export interface CreateOverrideRequest {
+  override_user: string
+  start_time: string
+  end_time: string
+  created_by?: string
+}
+
 // Type guards and utilities
 
 export function isApiError(error: unknown): error is ApiError {

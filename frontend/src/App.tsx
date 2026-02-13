@@ -3,6 +3,7 @@ import { AppLayout } from './components/layout/AppLayout'
 import { HomePage } from './pages/HomePage'
 import { IncidentsListPage } from './pages/IncidentsListPage'
 import { IncidentDetailPage } from './pages/IncidentDetailPage'
+import { RoutingRulesPage } from './pages/RoutingRulesPage'
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/incidents" element={<IncidentsListPage />} />
           <Route path="/incidents/:id" element={<IncidentDetailPage />} />
+          <Route path="/routing-rules" element={<RoutingRulesPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

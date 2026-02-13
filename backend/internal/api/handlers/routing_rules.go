@@ -11,25 +11,23 @@ import (
 	"github.com/openincident/openincident/internal/repository"
 )
 
-// ListGroupingRules handles GET /api/v1/grouping-rules
-func ListGroupingRules(ruleRepo repository.GroupingRuleRepository) gin.HandlerFunc {
+// ListRoutingRules handles GET /api/v1/routing-rules
+func ListRoutingRules(ruleRepo repository.RoutingRuleRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Parse query parameter: enabled filter (optional)
 		enabledFilter := c.Query("enabled")
 
-		var rules []models.GroupingRule
+		var rules []models.RoutingRule
 		var err error
 
 		switch enabledFilter {
 		case "true":
 			rules, err = ruleRepo.GetEnabled()
 		case "false":
-			// Get all rules and filter out enabled ones
 			allRules, getAllErr := ruleRepo.GetAll()
 			if getAllErr != nil {
 				err = getAllErr
 			} else {
-				rules = []models.GroupingRule{}
+				rules = []models.RoutingRule{}
 				for _, rule := range allRules {
 					if !rule.Enabled {
 						rules = append(rules, rule)
@@ -37,12 +35,11 @@ func ListGroupingRules(ruleRepo repository.GroupingRuleRepository) gin.HandlerFu
 				}
 			}
 		default:
-			// Get all rules
 			rules, err = ruleRepo.GetAll()
 		}
 
 		if err != nil {
-			slog.Error("failed to list grouping rules",
+			slog.Error("failed to list routing rules",
 				"error", err,
 				"request_id", c.GetString("request_id"),
 			)
@@ -50,10 +47,9 @@ func ListGroupingRules(ruleRepo repository.GroupingRuleRepository) gin.HandlerFu
 			return
 		}
 
-		// Convert to response DTOs
-		responses := make([]dto.GroupingRuleResponse, len(rules))
+		responses := make([]dto.RoutingRuleResponse, len(rules))
 		for i, rule := range rules {
-			responses[i] = dto.ToGroupingRuleResponse(&rule)
+			responses[i] = dto.ToRoutingRuleResponse(&rule)
 		}
 
 		c.JSON(http.StatusOK, gin.H{
@@ -63,28 +59,24 @@ func ListGroupingRules(ruleRepo repository.GroupingRuleRepository) gin.HandlerFu
 	}
 }
 
-// GetGroupingRule handles GET /api/v1/grouping-rules/:id
-func GetGroupingRule(ruleRepo repository.GroupingRuleRepository) gin.HandlerFunc {
+// GetRoutingRule handles GET /api/v1/routing-rules/:id
+func GetRoutingRule(ruleRepo repository.RoutingRuleRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		idParam := c.Param("id")
-
-		// Parse UUID
-		id, err := uuid.Parse(idParam)
+		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			dto.BadRequest(c, "Invalid grouping rule ID", map[string]interface{}{
+			dto.BadRequest(c, "Invalid routing rule ID", map[string]interface{}{
 				"id": "must be a valid UUID",
 			})
 			return
 		}
 
-		// Fetch rule
 		rule, err := ruleRepo.GetByID(id)
 		if err != nil {
 			if isNotFound(err) {
-				dto.NotFound(c, "grouping_rule", idParam)
+				dto.NotFound(c, "routing_rule", id.String())
 				return
 			}
-			slog.Error("failed to get grouping rule",
+			slog.Error("failed to get routing rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -93,21 +85,20 @@ func GetGroupingRule(ruleRepo repository.GroupingRuleRepository) gin.HandlerFunc
 			return
 		}
 
-		c.JSON(http.StatusOK, dto.ToGroupingRuleResponse(rule))
+		c.JSON(http.StatusOK, dto.ToRoutingRuleResponse(rule))
 	}
 }
 
-// CreateGroupingRule handles POST /api/v1/grouping-rules
-// onRuleMutate is called after successful creation to invalidate caches (e.g., grouping engine)
-func CreateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate func()) gin.HandlerFunc {
+// CreateRoutingRule handles POST /api/v1/routing-rules
+// onRuleMutate is called after successful creation to invalidate the routing engine cache.
+func CreateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate func()) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req dto.CreateGroupingRuleRequest
+		var req dto.CreateRoutingRuleRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			dto.ValidationError(c, err)
 			return
 		}
 
-		// Check for priority conflicts
 		conflict, err := ruleRepo.CheckPriorityConflict(req.Priority, uuid.Nil)
 		if err != nil {
 			slog.Error("failed to check priority conflict",
@@ -119,18 +110,17 @@ func CreateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			return
 		}
 		if conflict != nil {
-			dto.Conflict(c, "grouping rule priority already in use", map[string]interface{}{
-				"priority":       req.Priority,
-				"conflicting_id": conflict.ID,
+			dto.Conflict(c, "routing rule priority already in use", map[string]interface{}{
+				"priority":         req.Priority,
+				"conflicting_id":   conflict.ID,
 				"conflicting_name": conflict.Name,
 			})
 			return
 		}
 
-		// Convert to model and create
 		rule := req.ToModel()
 		if err := ruleRepo.Create(rule); err != nil {
-			slog.Error("failed to create grouping rule",
+			slog.Error("failed to create routing rule",
 				"error", err,
 				"name", req.Name,
 				"priority", req.Priority,
@@ -140,7 +130,7 @@ func CreateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			return
 		}
 
-		slog.Info("grouping rule created",
+		slog.Info("routing rule created",
 			"id", rule.ID,
 			"name", rule.Name,
 			"priority", rule.Priority,
@@ -148,45 +138,39 @@ func CreateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			"request_id", c.GetString("request_id"),
 		)
 
-		// Invalidate grouping engine cache so new rule takes effect immediately
 		if onRuleMutate != nil {
 			onRuleMutate()
 		}
 
-		c.JSON(http.StatusCreated, dto.ToGroupingRuleResponse(rule))
+		c.JSON(http.StatusCreated, dto.ToRoutingRuleResponse(rule))
 	}
 }
 
-// UpdateGroupingRule handles PUT /api/v1/grouping-rules/:id
-// onRuleMutate is called after successful update to invalidate caches
-func UpdateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate func()) gin.HandlerFunc {
+// UpdateRoutingRule handles PATCH /api/v1/routing-rules/:id
+// onRuleMutate is called after successful update to invalidate the routing engine cache.
+func UpdateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate func()) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		idParam := c.Param("id")
-
-		// Parse UUID
-		id, err := uuid.Parse(idParam)
+		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			dto.BadRequest(c, "Invalid grouping rule ID", map[string]interface{}{
+			dto.BadRequest(c, "Invalid routing rule ID", map[string]interface{}{
 				"id": "must be a valid UUID",
 			})
 			return
 		}
 
-		// Parse request body
-		var req dto.UpdateGroupingRuleRequest
+		var req dto.UpdateRoutingRuleRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			dto.ValidationError(c, err)
 			return
 		}
 
-		// Fetch existing rule
 		rule, err := ruleRepo.GetByID(id)
 		if err != nil {
 			if isNotFound(err) {
-				dto.NotFound(c, "grouping_rule", idParam)
+				dto.NotFound(c, "routing_rule", id.String())
 				return
 			}
-			slog.Error("failed to get grouping rule",
+			slog.Error("failed to get routing rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -195,7 +179,6 @@ func UpdateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			return
 		}
 
-		// Check for priority conflicts if priority is being changed
 		if req.Priority != nil && *req.Priority != rule.Priority {
 			conflict, err := ruleRepo.CheckPriorityConflict(*req.Priority, id)
 			if err != nil {
@@ -208,7 +191,7 @@ func UpdateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 				return
 			}
 			if conflict != nil {
-				dto.Conflict(c, "grouping rule priority already in use", map[string]interface{}{
+				dto.Conflict(c, "routing rule priority already in use", map[string]interface{}{
 					"priority":         *req.Priority,
 					"conflicting_id":   conflict.ID,
 					"conflicting_name": conflict.Name,
@@ -217,12 +200,10 @@ func UpdateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			}
 		}
 
-		// Apply updates
 		req.ApplyTo(rule)
 
-		// Save changes
 		if err := ruleRepo.Update(rule); err != nil {
-			slog.Error("failed to update grouping rule",
+			slog.Error("failed to update routing rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -231,7 +212,7 @@ func UpdateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			return
 		}
 
-		slog.Info("grouping rule updated",
+		slog.Info("routing rule updated",
 			"id", rule.ID,
 			"name", rule.Name,
 			"priority", rule.Priority,
@@ -239,38 +220,32 @@ func UpdateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			"request_id", c.GetString("request_id"),
 		)
 
-		// Invalidate grouping engine cache so changes take effect immediately
 		if onRuleMutate != nil {
 			onRuleMutate()
 		}
 
-		c.JSON(http.StatusOK, dto.ToGroupingRuleResponse(rule))
+		c.JSON(http.StatusOK, dto.ToRoutingRuleResponse(rule))
 	}
 }
 
-// DeleteGroupingRule handles DELETE /api/v1/grouping-rules/:id
-// onRuleMutate is called after successful deletion to invalidate caches
-func DeleteGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate func()) gin.HandlerFunc {
+// DeleteRoutingRule handles DELETE /api/v1/routing-rules/:id
+// onRuleMutate is called after successful deletion to invalidate the routing engine cache.
+func DeleteRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate func()) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		idParam := c.Param("id")
-
-		// Parse UUID
-		id, err := uuid.Parse(idParam)
+		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			dto.BadRequest(c, "Invalid grouping rule ID", map[string]interface{}{
+			dto.BadRequest(c, "Invalid routing rule ID", map[string]interface{}{
 				"id": "must be a valid UUID",
 			})
 			return
 		}
 
-		// Check if rule exists
-		_, err = ruleRepo.GetByID(id)
-		if err != nil {
+		if err := ruleRepo.Delete(id); err != nil {
 			if isNotFound(err) {
-				dto.NotFound(c, "grouping_rule", idParam)
+				dto.NotFound(c, "routing_rule", id.String())
 				return
 			}
-			slog.Error("failed to get grouping rule",
+			slog.Error("failed to delete routing rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -279,23 +254,11 @@ func DeleteGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			return
 		}
 
-		// Delete rule
-		if err := ruleRepo.Delete(id); err != nil {
-			slog.Error("failed to delete grouping rule",
-				"error", err,
-				"id", id,
-				"request_id", c.GetString("request_id"),
-			)
-			dto.InternalError(c, err)
-			return
-		}
-
-		slog.Info("grouping rule deleted",
+		slog.Info("routing rule deleted",
 			"id", id,
 			"request_id", c.GetString("request_id"),
 		)
 
-		// Invalidate grouping engine cache
 		if onRuleMutate != nil {
 			onRuleMutate()
 		}
@@ -303,3 +266,4 @@ func DeleteGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 		c.JSON(http.StatusNoContent, nil)
 	}
 }
+

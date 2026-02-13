@@ -33,6 +33,12 @@ export interface Alert {
   started_at: string
   ended_at?: string
   received_at: string
+  // Escalation fields (v0.5)
+  escalation_policy_id?: string
+  acknowledgment_status?: 'pending' | 'acknowledged' | 'completed'
+  acknowledged_by?: string
+  acknowledged_at?: string
+  acknowledged_via?: string
 }
 
 export interface TimelineEntry {
@@ -228,6 +234,62 @@ export interface CreateOverrideRequest {
   start_time: string
   end_time: string
   created_by?: string
+}
+
+// Escalation Policies (v0.5)
+
+export type EscalationTargetType = 'schedule' | 'users' | 'both'
+
+export interface EscalationTier {
+  id: string
+  policy_id: string
+  tier_index: number
+  timeout_seconds: number
+  target_type: EscalationTargetType
+  schedule_id?: string
+  user_names: string[]
+  created_at: string
+}
+
+export interface EscalationPolicy {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+  tiers: EscalationTier[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateEscalationPolicyRequest {
+  name: string
+  description?: string
+  enabled?: boolean
+}
+
+export interface UpdateEscalationPolicyRequest {
+  name?: string
+  description?: string
+  enabled?: boolean
+}
+
+export interface CreateEscalationTierRequest {
+  timeout_seconds: number
+  target_type: EscalationTargetType
+  schedule_id?: string
+  user_names?: string[]
+}
+
+export interface UpdateEscalationTierRequest {
+  timeout_seconds?: number
+  target_type?: EscalationTargetType
+  schedule_id?: string
+  user_names?: string[]
+}
+
+export interface ListEscalationPoliciesResponse {
+  data: EscalationPolicy[]
+  total: number
 }
 
 // Type guards and utilities

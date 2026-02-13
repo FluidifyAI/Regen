@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/models"
 	"github.com/openincident/openincident/internal/repository"
 )
@@ -24,6 +25,10 @@ type RoutingDecision struct {
 
 	// RuleName is the name of the rule that matched (empty if no rule matched)
 	RuleName string
+
+	// EscalationPolicyID is the escalation policy to trigger for this alert (nil = no escalation).
+	// Set from the "escalation_policy_id" key in the matching rule's actions JSONB.
+	EscalationPolicyID *uuid.UUID
 }
 
 // RoutingEngine evaluates alerts against routing rules to determine incident routing behavior
@@ -246,6 +251,19 @@ func (r *routingEngine) buildDecision(rule *models.RoutingRule) *RoutingDecision
 	if override, ok := actions["channel_override"]; ok {
 		if s, ok := override.(string); ok {
 			decision.ChannelOverride = s
+		}
+	}
+
+	if policyIDVal, ok := actions["escalation_policy_id"]; ok {
+		if s, ok := policyIDVal.(string); ok {
+			if id, err := uuid.Parse(s); err == nil {
+				decision.EscalationPolicyID = &id
+			} else {
+				slog.Warn("routing rule has invalid escalation_policy_id; ignoring",
+					"value", s,
+					"rule", rule.Name,
+				)
+			}
 		}
 	}
 

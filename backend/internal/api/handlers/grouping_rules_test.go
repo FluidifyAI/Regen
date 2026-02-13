@@ -41,9 +41,10 @@ func setupGroupingRulesRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 	{
 		v1.GET("/grouping-rules", handlers.ListGroupingRules(ruleRepo))
 		v1.GET("/grouping-rules/:id", handlers.GetGroupingRule(ruleRepo))
-		v1.POST("/grouping-rules", handlers.CreateGroupingRule(ruleRepo))
-		v1.PUT("/grouping-rules/:id", handlers.UpdateGroupingRule(ruleRepo))
-		v1.DELETE("/grouping-rules/:id", handlers.DeleteGroupingRule(ruleRepo))
+		onRuleMutate := func() {} // no-op for tests
+		v1.POST("/grouping-rules", handlers.CreateGroupingRule(ruleRepo, onRuleMutate))
+		v1.PUT("/grouping-rules/:id", handlers.UpdateGroupingRule(ruleRepo, onRuleMutate))
+		v1.DELETE("/grouping-rules/:id", handlers.DeleteGroupingRule(ruleRepo, onRuleMutate))
 	}
 
 	return router

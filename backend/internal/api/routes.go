@@ -61,6 +61,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	routingEngine := services.NewRoutingEngine(routingRuleRepo)
 	slog.Info("routing engine initialized")
 
+	// Initialize schedule evaluator (for on-call schedule evaluation)
+	scheduleRepo := repository.NewScheduleRepository(db)
+	scheduleEvaluator := services.NewScheduleEvaluator(scheduleRepo)
+	slog.Info("schedule evaluator initialized")
+
 	// Initialize services
 	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
@@ -166,5 +171,21 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		v1.POST("/routing-rules", handlers.CreateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
 		v1.PATCH("/routing-rules/:id", handlers.UpdateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
 		v1.DELETE("/routing-rules/:id", handlers.DeleteRoutingRule(routingRuleRepo, onRoutingRuleMutate))
+
+		// Schedules (v0.4)
+		v1.GET("/schedules", handlers.ListSchedules(scheduleRepo))
+		v1.POST("/schedules", handlers.CreateSchedule(scheduleRepo))
+		v1.GET("/schedules/:id", handlers.GetSchedule(scheduleRepo))
+		v1.PATCH("/schedules/:id", handlers.UpdateSchedule(scheduleRepo))
+		v1.DELETE("/schedules/:id", handlers.DeleteSchedule(scheduleRepo))
+
+		v1.POST("/schedules/:id/layers", handlers.CreateLayer(scheduleRepo))
+		v1.DELETE("/schedules/:id/layers/:layer_id", handlers.DeleteLayer(scheduleRepo))
+
+		v1.GET("/schedules/:id/oncall", handlers.GetOnCall(scheduleRepo, scheduleEvaluator))
+		v1.GET("/schedules/:id/oncall/timeline", handlers.GetOnCallTimeline(scheduleEvaluator))
+
+		v1.POST("/schedules/:id/overrides", handlers.CreateOverride(scheduleRepo))
+		v1.DELETE("/schedules/:id/overrides/:override_id", handlers.DeleteOverride(scheduleRepo))
 	}
 }

@@ -79,6 +79,21 @@ type ChatService interface {
 	//
 	// Thread-safe: Yes
 	InviteUsers(channelID string, userIDs []string) error
+
+	// SendDirectMessage sends a direct message to a user by their display name or email.
+	// The implementation is responsible for resolving the username to a platform user ID
+	// and opening a DM conversation.
+	//
+	// Parameters:
+	//   - username: Display name or email of the recipient (as stored in ScheduleParticipant.UserName)
+	//   - message: The message to send
+	//
+	// Returns:
+	//   - Error if lookup, DM open, or send fails
+	//   - Graceful no-op (returns nil) if Slack is not configured
+	//
+	// Thread-safe: Yes
+	SendDirectMessage(username string, message Message) error
 }
 
 // Channel represents a chat channel with platform-specific details.

@@ -275,6 +275,60 @@ func (s *slackService) InviteUsers(channelID string, userIDs []string) error {
 	return fmt.Errorf("failed to invite users after retries")
 }
 
+// SendDirectMessage sends a Slack DM to a user identified by display name or email.
+// It tries users.lookupByEmail first (most reliable), then falls back to scanning
+// users.list for a matching display name or real name.
+// Once the user ID is found, it opens a DM channel and posts the message.
+func (s *slackService) SendDirectMessage(username string, message Message) error {
+	userID, err := s.lookupUserID(username)
+	if err != nil {
+		return fmt.Errorf("failed to look up user %q: %w", username, err)
+	}
+
+	// Open (or reuse) the DM channel for this user
+	channel, _, _, err := s.client.OpenConversation(&slack.OpenConversationParameters{
+		Users: []string{userID},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to open DM with user %q (%s): %w", username, userID, err)
+	}
+
+	_, err = s.PostMessage(channel.ID, message)
+	if err != nil {
+		return fmt.Errorf("failed to send DM to user %q: %w", username, err)
+	}
+	return nil
+}
+
+// lookupUserID resolves a participant username (display name or email) to a Slack user ID.
+// Tries email lookup first, then linear scan of users.list.
+func (s *slackService) lookupUserID(username string) (string, error) {
+	// Try email lookup first (most reliable and rate-limit friendly)
+	if strings.Contains(username, "@") {
+		user, err := s.client.GetUserByEmail(username)
+		if err == nil {
+			return user.ID, nil
+		}
+		slog.Debug("email lookup failed, falling back to display name search",
+			"username", username, "error", err)
+	}
+
+	// Fall back to scanning users.list for display name or real name match
+	users, err := s.client.GetUsers()
+	if err != nil {
+		return "", fmt.Errorf("failed to list users: %w", err)
+	}
+	lowerTarget := strings.ToLower(username)
+	for _, u := range users {
+		if strings.ToLower(u.Name) == lowerTarget ||
+			strings.ToLower(u.RealName) == lowerTarget ||
+			strings.ToLower(u.Profile.DisplayName) == lowerTarget {
+			return u.ID, nil
+		}
+	}
+	return "", fmt.Errorf("user %q not found in workspace", username)
+}
+
 // Helper functions
 
 // sanitizeChannelName converts a string into a valid Slack channel name.

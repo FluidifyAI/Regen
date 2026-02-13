@@ -24,6 +24,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	incidentRepo := repository.NewIncidentRepository(db)
 	timelineRepo := repository.NewTimelineRepository(db)
 	groupingRuleRepo := repository.NewGroupingRuleRepository(db)
+	routingRuleRepo := repository.NewRoutingRuleRepository(db)
 
 	// Initialize Slack service (optional - graceful degradation if not configured)
 	var chatService services.ChatService
@@ -56,10 +57,15 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	groupingEngine := services.NewGroupingEngine(groupingRuleRepo, incidentRepo, db)
 	slog.Info("grouping engine initialized")
 
+	// Initialize routing engine (for alert routing decisions)
+	routingEngine := services.NewRoutingEngine(routingRuleRepo)
+	slog.Info("routing engine initialized")
+
 	// Initialize services
 	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 	alertSvc.SetGroupingEngine(groupingEngine)
+	alertSvc.SetRoutingEngine(routingEngine)
 
 	// Start Slack Socket Mode event handler (bidirectional sync)
 	// Requires SLACK_APP_TOKEN in addition to SLACK_BOT_TOKEN
@@ -148,9 +154,17 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		// Grouping Rules (v0.3)
 		v1.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))
 		v1.GET("/grouping-rules/:id", handlers.GetGroupingRule(groupingRuleRepo))
-		onRuleMutate := func() { groupingEngine.RefreshRules() }
-		v1.POST("/grouping-rules", handlers.CreateGroupingRule(groupingRuleRepo, onRuleMutate))
-		v1.PUT("/grouping-rules/:id", handlers.UpdateGroupingRule(groupingRuleRepo, onRuleMutate))
-		v1.DELETE("/grouping-rules/:id", handlers.DeleteGroupingRule(groupingRuleRepo, onRuleMutate))
+		onGroupingRuleMutate := func() { groupingEngine.RefreshRules() }
+		v1.POST("/grouping-rules", handlers.CreateGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
+		v1.PUT("/grouping-rules/:id", handlers.UpdateGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
+		v1.DELETE("/grouping-rules/:id", handlers.DeleteGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
+
+		// Routing Rules (v0.3)
+		v1.GET("/routing-rules", handlers.ListRoutingRules(routingRuleRepo))
+		v1.GET("/routing-rules/:id", handlers.GetRoutingRule(routingRuleRepo))
+		onRoutingRuleMutate := func() { routingEngine.RefreshRules() }
+		v1.POST("/routing-rules", handlers.CreateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
+		v1.PATCH("/routing-rules/:id", handlers.UpdateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
+		v1.DELETE("/routing-rules/:id", handlers.DeleteRoutingRule(routingRuleRepo, onRoutingRuleMutate))
 	}
 }

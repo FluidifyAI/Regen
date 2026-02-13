@@ -30,6 +30,9 @@ type AlertService interface {
 
 	// SetGroupingEngine sets the grouping engine for alert deduplication and grouping (v0.3+)
 	SetGroupingEngine(engine GroupingEngine)
+
+	// SetRoutingEngine sets the routing engine for alert routing decisions (v0.3+)
+	SetRoutingEngine(engine RoutingEngine)
 }
 
 // alertService implements AlertService
@@ -37,6 +40,7 @@ type alertService struct {
 	alertRepo      repository.AlertRepository
 	incidentSvc    IncidentService
 	groupingEngine GroupingEngine // Optional - can be nil if grouping disabled
+	routingEngine  RoutingEngine  // Optional - can be nil if routing disabled
 }
 
 // NewAlertService creates a new alert service
@@ -54,6 +58,11 @@ func NewAlertService(alertRepo repository.AlertRepository, incidentSvc IncidentS
 // which creates a circular dependency if passed to NewAlertService.
 func (s *alertService) SetGroupingEngine(engine GroupingEngine) {
 	s.groupingEngine = engine
+}
+
+// SetRoutingEngine sets the routing engine (for v0.3+ routing support)
+func (s *alertService) SetRoutingEngine(engine RoutingEngine) {
+	s.routingEngine = engine
 }
 
 // ProcessAlertmanagerPayload processes all alerts from an Alertmanager webhook (v0.1 legacy method).
@@ -174,7 +183,30 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 		if created {
 			result.Created++
 
-			// Check if this alert should trigger an incident
+			// v0.3+: Evaluate routing rules to determine incident behavior
+			routingDecision := &RoutingDecision{}
+			if s.routingEngine != nil {
+				rd, err := s.routingEngine.EvaluateAlert(alert)
+				if err != nil {
+					return nil, fmt.Errorf("failed to evaluate routing for alert %s: %w", alert.ID, err)
+				}
+				routingDecision = rd
+			}
+
+			// If routing says suppress, skip incident creation entirely
+			if routingDecision.Suppress {
+				continue
+			}
+
+			// Apply severity override before incident creation.
+			// NOTE: The alert is already persisted with the original monitoring-tool
+			// severity (intentional — preserves the raw audit record). The override
+			// only affects which severity the resulting incident is created at.
+			if routingDecision.SeverityOverride != "" {
+				alert.Severity = parseSeverity(routingDecision.SeverityOverride)
+			}
+
+			// Check if this alert should trigger an incident (uses possibly-overridden severity)
 			if s.incidentSvc.ShouldCreateIncident(alert.Severity) {
 				// v0.3+: Use grouping engine if configured
 				if s.groupingEngine != nil {
@@ -200,7 +232,7 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 						result.IncidentsCreated++
 
 					case GroupActionDefault:
-						// No rule matched - use default behavior (create without group_key)
+						// No grouping rule matched — use default behavior
 						_, err := s.incidentSvc.CreateIncidentFromAlert(alert)
 						if err != nil {
 							return nil, fmt.Errorf("failed to create incident: %w", err)

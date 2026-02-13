@@ -11,6 +11,7 @@ import {
   Settings,
   Bell,
   Shield,
+  GitFork,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
 
@@ -89,6 +90,13 @@ export function Sidebar() {
           icon: Flame,
           href: '/incidents',
           matchPaths: ['/incidents', '/incidents/'],
+        },
+        {
+          id: 'routing-rules',
+          label: 'Routing Rules',
+          icon: GitFork,
+          href: '/routing-rules',
+          matchPaths: ['/routing-rules'],
         },
         {
           id: 'oncall',

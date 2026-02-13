@@ -16,6 +16,7 @@ import (
 	"github.com/openincident/openincident/internal/database"
 	"github.com/openincident/openincident/internal/metrics"
 	"github.com/openincident/openincident/internal/redis"
+	"github.com/openincident/openincident/internal/worker"
 )
 
 func main() {
@@ -88,6 +89,13 @@ func main() {
 	// Setup routes
 	api.SetupRoutes(router, database.DB, cfg)
 
+	// Create application context for graceful shutdown of background workers
+	appCtx, appCancel := context.WithCancel(context.Background())
+	defer appCancel()
+
+	// Start background workers
+	worker.StartAll(appCtx, database.DB, cfg)
+
 	// Create HTTP server
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -126,11 +134,14 @@ func main() {
 
 	slog.Info("shutting down server...")
 
-	// Graceful shutdown with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Cancel application context to stop background workers
+	appCancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	// Graceful shutdown with timeout for HTTP server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("server forced to shutdown", "error", err)
 	}
 

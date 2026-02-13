@@ -1,0 +1,50 @@
+{
+  "epic": {
+    "key": "OI-EPIC-017",
+    "name": "Slack Shift Handoff Notifications",
+    "objective": "Automatically notify the incoming and outgoing on-call users via Slack DM when a shift handoff occurs, and post a summary to a configurable channel.",
+    "definition_of_done": "At every scheduled shift boundary, the incoming on-call user receives a Slack DM with upcoming shift details, and the outgoing user receives a handoff summary.",
+    "status": "To Do",
+    "initiative": "OI-INIT-004",
+    "release": "v0.4",
+    "prerequisites": ["OI-EPIC-015"],
+    "tasks": [
+      {
+        "key": "OI-123",
+        "name": "Shift notification worker",
+        "description": "Background worker that watches for upcoming shift handoffs and sends notifications at the right time",
+        "acceptance_criteria": [
+          "ShiftNotifier worker starts at application boot alongside the Slack socket-mode handler",
+          "On startup and every 1 minute: query all schedules, compute next handoff time for each layer",
+          "When current time crosses a handoff boundary: send DM to incoming user, send DM to outgoing user",
+          "Deduplication: track last-notified handoff timestamp per layer to avoid duplicate sends on restart",
+          "Graceful shutdown: worker stops cleanly on SIGTERM",
+          "Unit tests: next handoff computation, dedup logic"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "Use a simple ticker (1-minute poll) rather than scheduling exact timers — simpler and resilient to restarts. Store last_notified_handoff per layer in the DB (or in-memory with a grace window). No Redis needed. The worker shares the ChatService interface so it works without Slack configured (graceful no-op)."
+      },
+      {
+        "key": "OI-124",
+        "name": "Shift notification Slack messages",
+        "description": "Format and send Slack DMs for shift handoffs",
+        "acceptance_criteria": [
+          "Outgoing user DM: 'Your on-call shift for [Schedule Name] has ended. [Incoming User] is now on call.'",
+          "Incoming user DM: 'You are now on call for [Schedule Name] until [end_time]. Good luck!'",
+          "If schedule has a notification_channel configured: post a shift-change summary to that channel",
+          "Messages use Slack Block Kit for clean formatting",
+          "User lookup: map participant user_name to Slack user ID via users.lookupByEmail or users.list",
+          "Graceful fallback: if user lookup fails, log warning and skip DM (don't crash)"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Add optional notification_channel field to Schedule model (migration addendum or separate migration). User lookup can be cached for the duration of the worker's run to avoid rate limits. Block Kit message: header with schedule name, section with shift window, context with 'Powered by OpenIncident'."
+      }
+    ],
+    "total_story_points": 13,
+    "estimated_duration": "1 week"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "initiative": {
+    "key": "OI-INIT-004",
+    "name": "OpenIncident v0.4 - On-Call Scheduling & Rotations",
+    "description": "Introduce on-call scheduling as a first-class feature. Users can define schedules with layer-based rotations (daily, weekly, custom), create overrides, query who is currently on call, and receive Slack notifications when shifts change. This is the foundation for escalation policies in v0.5.",
+    "status": "To Do",
+    "target_release": "v0.4",
+    "prerequisites": ["OI-INIT-003"],
+    "epics": [
+      "OI-EPIC-015",
+      "OI-EPIC-016",
+      "OI-EPIC-017"
+    ],
+    "success_criteria": [
+      "User can create a schedule with one or more rotation layers (daily or weekly)",
+      "GET /api/v1/schedules/:id/oncall returns the correct on-call user for the current time",
+      "Schedule overrides allow one-off coverage changes without modifying the base rotation",
+      "Calendar UI renders the current rotation visually with upcoming shifts",
+      "Slack notifications posted when a shift handoff occurs",
+      "Existing alert/incident flow unaffected"
+    ],
+    "estimated_duration": "3 weeks",
+    "architecture_notes": "Schedule evaluation is time-based: given a timestamp, walk rotation layers in order-index priority to find the on-call user. Overrides shadow the base rotation for their time window. A background worker (or cron job) fires Slack shift notifications at handoff times. No Redis dependency for schedule evaluation — pure in-memory computation from DB records."
+  }
+}

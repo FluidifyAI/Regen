@@ -1,0 +1,83 @@
+{
+  "epic": {
+    "key": "OI-EPIC-016",
+    "name": "On-Call Calendar UI",
+    "objective": "Build the frontend for viewing and managing on-call schedules, including a calendar view of upcoming shifts and override management.",
+    "definition_of_done": "Users can view who is currently on call, see upcoming shifts in a calendar, and create overrides — all from the web UI.",
+    "status": "To Do",
+    "initiative": "OI-INIT-004",
+    "release": "v0.4",
+    "prerequisites": ["OI-EPIC-015"],
+    "tasks": [
+      {
+        "key": "OI-119",
+        "name": "On-call schedules list and detail pages",
+        "description": "Schedule list page and schedule detail page showing current on-call user and layer configuration",
+        "acceptance_criteria": [
+          "GET /on-call → SchedulesPage: list all schedules with current on-call user badge",
+          "GET /on-call/:id → ScheduleDetailPage: name, timezone, layers list, current on-call user prominently displayed",
+          "Layer card: shows rotation type, participants in order, current shift highlighted",
+          "Sidebar nav item: Calendar icon, label 'On-call', path /on-call",
+          "Empty state for no schedules with CTA to create first schedule",
+          "Loading skeleton and error states"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "Follow existing page patterns (IncidentsListPage, RoutingRulesPage). Add useSchedules and useSchedule hooks. The 'current on-call' badge calls GET /api/v1/schedules/:id/oncall."
+      },
+      {
+        "key": "OI-120",
+        "name": "Shift calendar view",
+        "description": "Calendar component that renders the on-call timeline for the next 4 weeks",
+        "acceptance_criteria": [
+          "Calendar renders a 2-week or 4-week grid (week rows, day columns)",
+          "Each day cell shows the on-call user(s) for that day derived from /oncall/timeline",
+          "Color-coded by participant (consistent hash → color)",
+          "Navigate forward/back by week",
+          "Overrides visually distinct from base rotation (striped or different shade)",
+          "Responsive: collapses to list view on mobile"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 8,
+        "implementation_notes": "Build a simple custom calendar grid rather than importing a heavy library. Use the /oncall/timeline endpoint with ?from=&to= to fetch the rendered schedule. Color assignment: stable hash of user_name → HSL hue."
+      },
+      {
+        "key": "OI-121",
+        "name": "Override management UI",
+        "description": "UI for creating and deleting schedule overrides",
+        "acceptance_criteria": [
+          "Override button on ScheduleDetailPage opens OverrideModal",
+          "OverrideModal fields: override_user (text input), start_time (datetime-local), end_time (datetime-local)",
+          "Validation: end_time > start_time, user required",
+          "Created override immediately reflected in calendar view",
+          "Delete override button on each override entry with confirmation",
+          "Toast notifications for create/delete"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Follow the same inline modal pattern as RoutingRulesPage. Override list shown below the calendar on ScheduleDetailPage."
+      },
+      {
+        "key": "OI-122",
+        "name": "Schedule create/edit UI",
+        "description": "Forms for creating schedules and managing rotation layers",
+        "acceptance_criteria": [
+          "Create Schedule modal: name, description, timezone (searchable dropdown of IANA zones)",
+          "Add Layer form on ScheduleDetailPage: name, rotation_type, rotation_start, shift_duration, participants (ordered list with add/remove)",
+          "Participants can be added as free-text Slack user IDs or display names",
+          "Edit schedule metadata (name, description, timezone)",
+          "Delete schedule with confirmation (warns if active)"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Timezone dropdown: use a hardcoded list of ~50 common IANA zones for v0.4 simplicity rather than shipping the full tz database to the frontend."
+      }
+    ],
+    "total_story_points": 23,
+    "estimated_duration": "1 week"
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "epic": {
+    "key": "OI-EPIC-015",
+    "name": "Schedule & Rotation Data Model + API",
+    "objective": "Define the core data models for on-call schedules, rotation layers, and overrides. Implement full CRUD API and the schedule evaluation logic (who is on call at a given time).",
+    "definition_of_done": "Users can create schedules with rotation layers and overrides via the REST API. The /oncall endpoint returns the correct on-call user for any given timestamp.",
+    "status": "To Do",
+    "initiative": "OI-INIT-004",
+    "release": "v0.4",
+    "prerequisites": [],
+    "tasks": [
+      {
+        "key": "OI-116",
+        "name": "Design schedule and rotation data models",
+        "description": "Create database migrations and Go models for Schedule, ScheduleLayer, ScheduleOverride, and ScheduleParticipant",
+        "acceptance_criteria": [
+          "Schedule model: id, name, description, timezone (IANA string), created_at, updated_at",
+          "ScheduleLayer model: id, schedule_id, name, order_index, rotation_type (daily/weekly/custom), rotation_start (timestamp), shift_duration_seconds, created_at",
+          "ScheduleParticipant model: id, layer_id, user_id (or user_name for v0.4 simplicity), order_index",
+          "ScheduleOverride model: id, schedule_id, start_time, end_time, override_user_id (or user_name), created_by, created_at",
+          "Database migrations (000010_create_schedules, 000011_create_schedule_layers, 000012_create_schedule_overrides)",
+          "ScheduleRepository: CRUD for schedules, layers, overrides, participants",
+          "All timestamps stored in UTC; timezone only used for display"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "Keep user references as plain strings (user_name / slack_user_id) for v0.4 — no User model yet. A User model with auth comes in enterprise tier. shift_duration_seconds allows sub-day rotations for future flexibility."
+      },
+      {
+        "key": "OI-117",
+        "name": "Implement schedule evaluation engine",
+        "description": "Build the logic to compute who is on call for a given schedule at any point in time",
+        "acceptance_criteria": [
+          "ScheduleEvaluator.WhoIsOnCall(scheduleID, at time.Time) (string, error) returns on-call user",
+          "Evaluation order: check overrides first (exact time window match), then base rotation layers by order_index",
+          "Layer evaluation: given rotation_start, shift_duration_seconds, and participants list, compute the current participant via modulo arithmetic",
+          "Returns empty string (no one on call) if schedule has no layers/participants",
+          "Unit tests: daily rotation, weekly rotation, override shadows base rotation, multiple layers (first non-empty wins)",
+          "Handles edge cases: participant list empty, shift_duration zero, timezone conversion"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "The core algorithm: elapsed = at - rotation_start; shift_index = (elapsed / shift_duration) % len(participants); on_call = participants[shift_index]. Override check: if any override covers `at`, return override_user. No caching needed — evaluation is O(layers × participants) and fast."
+      },
+      {
+        "key": "OI-118",
+        "name": "Schedules CRUD API",
+        "description": "REST API endpoints for managing schedules, layers, participants, and overrides",
+        "acceptance_criteria": [
+          "GET /api/v1/schedules → list all schedules",
+          "GET /api/v1/schedules/:id → get schedule with layers and participants",
+          "POST /api/v1/schedules → create schedule",
+          "PATCH /api/v1/schedules/:id → update schedule metadata",
+          "DELETE /api/v1/schedules/:id → delete schedule (cascades layers/overrides)",
+          "POST /api/v1/schedules/:id/layers → add rotation layer",
+          "DELETE /api/v1/schedules/:id/layers/:layer_id → remove layer",
+          "GET /api/v1/schedules/:id/oncall → who is on call now (optional ?at= timestamp)",
+          "GET /api/v1/schedules/:id/oncall/timeline → on-call timeline for a date range (?from=&to=)",
+          "POST /api/v1/schedules/:id/overrides → create override",
+          "DELETE /api/v1/schedules/:id/overrides/:override_id → delete override",
+          "Validation: timezone must be valid IANA zone, end_time > start_time for overrides"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "The /oncall/timeline endpoint is used by the calendar UI to render upcoming shifts. It should return an array of {start, end, user} segments for the requested window. Keep pagination simple — max 30 days per request."
+      }
+    ],
+    "total_story_points": 18,
+    "estimated_duration": "1 week"
+  }
+}

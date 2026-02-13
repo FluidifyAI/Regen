@@ -3,7 +3,7 @@
     "key": "OI-INIT-003",
     "name": "OpenIncident v0.3 - Multi-Source Alerts, Grouping & Routing",
     "description": "Extend alert ingestion beyond Prometheus to support Grafana, CloudWatch, and generic webhooks. Introduce a WebhookProvider abstraction so new sources can be added with minimal effort. Enhance alert deduplication for cross-source scenarios, add alert grouping rules (multiple alerts → one incident), and implement routing rules to direct alerts to the right teams and channels based on labels and metadata.",
-    "status": "To Do",
+    "status": "Done",
     "target_release": "v0.3",
     "prerequisites": ["OI-INIT-001", "OI-INIT-002"],
     "epics": [

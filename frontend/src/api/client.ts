@@ -28,6 +28,14 @@ class ApiClient {
     try {
       const response = await fetch(url, config)
 
+      // Handle 204 No Content - no body to parse
+      if (response.status === 204) {
+        if (import.meta.env.DEV) {
+          console.log(`[API] ${options.method || 'GET'} ${endpoint} → 204 No Content`)
+        }
+        return undefined as T
+      }
+
       // Parse JSON response
       const data = await response.json()
 

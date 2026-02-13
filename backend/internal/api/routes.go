@@ -25,6 +25,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	timelineRepo := repository.NewTimelineRepository(db)
 	groupingRuleRepo := repository.NewGroupingRuleRepository(db)
 	routingRuleRepo := repository.NewRoutingRuleRepository(db)
+	escalationPolicyRepo := repository.NewEscalationPolicyRepository(db)
 
 	// Initialize Slack service (optional - graceful degradation if not configured)
 	var chatService services.ChatService
@@ -66,11 +67,16 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	scheduleEvaluator := services.NewScheduleEvaluator(scheduleRepo)
 	slog.Info("schedule evaluator initialized")
 
+	// Initialize escalation engine (v0.5+)
+	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, nil)
+	slog.Info("escalation engine initialized")
+
 	// Initialize services
 	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 	alertSvc.SetGroupingEngine(groupingEngine)
 	alertSvc.SetRoutingEngine(routingEngine)
+	alertSvc.SetEscalationEngine(escalationEngine)
 
 	// Start Slack Socket Mode event handler (bidirectional sync)
 	// Requires SLACK_APP_TOKEN in addition to SLACK_BOT_TOKEN
@@ -151,10 +157,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		v1.GET("/incidents/:id/timeline", handlers.GetIncidentTimeline(incidentSvc))
 		v1.POST("/incidents/:id/timeline", handlers.CreateTimelineEntry(incidentSvc))
 
-		// Alerts (to be implemented)
+		// Alerts
 		v1.GET("/alerts", func(c *gin.Context) {
 			c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
 		})
+		v1.POST("/alerts/:id/acknowledge", handlers.AcknowledgeAlert(alertRepo, escalationEngine, incidentRepo, timelineRepo))
 
 		// Grouping Rules (v0.3)
 		v1.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))
@@ -188,5 +195,16 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		v1.GET("/schedules/:id/overrides", handlers.ListOverrides(scheduleRepo))
 		v1.POST("/schedules/:id/overrides", handlers.CreateOverride(scheduleRepo))
 		v1.DELETE("/schedules/:id/overrides/:override_id", handlers.DeleteOverride(scheduleRepo))
+
+		// Escalation Policies (v0.5)
+		v1.GET("/escalation-policies", handlers.ListEscalationPolicies(escalationPolicyRepo))
+		v1.POST("/escalation-policies", handlers.CreateEscalationPolicy(escalationPolicyRepo))
+		v1.GET("/escalation-policies/:id", handlers.GetEscalationPolicy(escalationPolicyRepo))
+		v1.PATCH("/escalation-policies/:id", handlers.UpdateEscalationPolicy(escalationPolicyRepo))
+		v1.DELETE("/escalation-policies/:id", handlers.DeleteEscalationPolicy(escalationPolicyRepo))
+
+		v1.POST("/escalation-policies/:id/tiers", handlers.CreateEscalationTier(escalationPolicyRepo))
+		v1.PATCH("/escalation-policies/:id/tiers/:tier_id", handlers.UpdateEscalationTier(escalationPolicyRepo))
+		v1.DELETE("/escalation-policies/:id/tiers/:tier_id", handlers.DeleteEscalationTier(escalationPolicyRepo))
 	}
 }

@@ -118,6 +118,14 @@ type Alert struct {
 	EndedAt     *time.Time    `gorm:"type:timestamptz" json:"ended_at"`
 	ReceivedAt  time.Time     `gorm:"type:timestamptz;not null;default:now()" json:"received_at"`
 	CreatedAt   time.Time     `gorm:"type:timestamptz;not null;default:now()" json:"created_at"`
+
+	// EscalationPolicyID links this alert to the escalation policy assigned by
+	// the routing engine.  Nil means no escalation is configured for this alert.
+	EscalationPolicyID *uuid.UUID `gorm:"type:uuid;index" json:"escalation_policy_id,omitempty"`
+
+	// AcknowledgmentStatus is the alert-level ack state driven by the escalation
+	// engine. Denormalized from escalation_states for fast querying without a join.
+	AcknowledgmentStatus AcknowledgmentStatus `gorm:"type:varchar(50);not null;default:'pending'" json:"acknowledgment_status"`
 }
 
 // TableName specifies the table name for the Alert model

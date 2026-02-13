@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/google/uuid"
@@ -33,14 +34,18 @@ type AlertService interface {
 
 	// SetRoutingEngine sets the routing engine for alert routing decisions (v0.3+)
 	SetRoutingEngine(engine RoutingEngine)
+
+	// SetEscalationEngine sets the escalation engine for alert escalation (v0.5+)
+	SetEscalationEngine(engine EscalationEngine)
 }
 
 // alertService implements AlertService
 type alertService struct {
-	alertRepo      repository.AlertRepository
-	incidentSvc    IncidentService
-	groupingEngine GroupingEngine // Optional - can be nil if grouping disabled
-	routingEngine  RoutingEngine  // Optional - can be nil if routing disabled
+	alertRepo         repository.AlertRepository
+	incidentSvc       IncidentService
+	groupingEngine    GroupingEngine    // Optional - can be nil if grouping disabled
+	routingEngine     RoutingEngine     // Optional - can be nil if routing disabled
+	escalationEngine  EscalationEngine  // Optional - can be nil if escalation disabled
 }
 
 // NewAlertService creates a new alert service
@@ -63,6 +68,11 @@ func (s *alertService) SetGroupingEngine(engine GroupingEngine) {
 // SetRoutingEngine sets the routing engine (for v0.3+ routing support)
 func (s *alertService) SetRoutingEngine(engine RoutingEngine) {
 	s.routingEngine = engine
+}
+
+// SetEscalationEngine sets the escalation engine (for v0.5+ escalation support)
+func (s *alertService) SetEscalationEngine(engine EscalationEngine) {
+	s.escalationEngine = engine
 }
 
 // ProcessAlertmanagerPayload processes all alerts from an Alertmanager webhook (v0.1 legacy method).
@@ -193,9 +203,24 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 				routingDecision = rd
 			}
 
-			// If routing says suppress, skip incident creation entirely
+			// If routing says suppress, skip incident creation entirely.
+			// Escalation must also not trigger for suppressed alerts.
 			if routingDecision.Suppress {
 				continue
+			}
+
+			// v0.5+: Trigger escalation policy if the routing rule assigned one.
+			// We persist the policy ID to the alert row so that the frontend can
+			// show the escalation status card and link back to the policy.
+			if s.escalationEngine != nil && routingDecision.EscalationPolicyID != nil {
+				alert.EscalationPolicyID = routingDecision.EscalationPolicyID
+				if err := s.alertRepo.Update(alert); err != nil {
+					slog.Error("failed to persist escalation_policy_id on alert", "alert_id", alert.ID, "err", err)
+				}
+				if err := s.escalationEngine.TriggerEscalation(alert); err != nil {
+					// Log and continue — escalation failure must not block incident creation.
+					slog.Error("failed to trigger escalation for alert", "alert_id", alert.ID, "err", err)
+				}
 			}
 
 			// Apply severity override before incident creation.

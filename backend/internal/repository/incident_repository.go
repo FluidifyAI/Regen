@@ -22,6 +22,7 @@ type IncidentRepository interface {
 	UpdateSlackMessageTS(id uuid.UUID, messageTS string) error
 	LinkAlert(incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error
 	GetAlerts(incidentID uuid.UUID) ([]models.Alert, error)
+	GetIncidentByAlertID(alertID uuid.UUID) (*models.Incident, error)
 }
 
 // IncidentFilters holds filter options for listing incidents
@@ -241,4 +242,21 @@ func (r *incidentRepository) GetAlerts(incidentID uuid.UUID) ([]models.Alert, er
 	}
 
 	return alerts, nil
+}
+
+// GetIncidentByAlertID finds the incident that a given alert is linked to.
+// Returns NotFoundError if the alert is not linked to any incident.
+func (r *incidentRepository) GetIncidentByAlertID(alertID uuid.UUID) (*models.Incident, error) {
+	var incident models.Incident
+	err := r.db.
+		Joins("JOIN incident_alerts ON incident_alerts.incident_id = incidents.id").
+		Where("incident_alerts.alert_id = ?", alertID).
+		First(&incident).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &NotFoundError{Resource: "incident", ID: alertID.String()}
+		}
+		return nil, &DatabaseError{Op: "get incident by alert id", Err: err}
+	}
+	return &incident, nil
 }

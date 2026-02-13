@@ -12,6 +12,7 @@ import {
   Bell,
   Shield,
   GitFork,
+  GitBranch,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
 
@@ -104,6 +105,13 @@ export function Sidebar() {
           icon: Phone,
           href: '/on-call',
           matchPaths: ['/on-call'],
+        },
+        {
+          id: 'escalation-policies',
+          label: 'Escalation',
+          icon: GitBranch,
+          href: '/escalation-policies',
+          matchPaths: ['/escalation-policies'],
         },
       ],
     },

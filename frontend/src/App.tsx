@@ -6,6 +6,9 @@ import { IncidentDetailPage } from './pages/IncidentDetailPage'
 import { RoutingRulesPage } from './pages/RoutingRulesPage'
 import { SchedulesPage } from './pages/SchedulesPage'
 import { ScheduleDetailPage } from './pages/ScheduleDetailPage'
+import { EscalationPoliciesPage } from './pages/EscalationPoliciesPage'
+import { EscalationPolicyDetailPage } from './pages/EscalationPolicyDetailPage'
+import { AlertDetailPage } from './pages/AlertDetailPage'
 
 function App() {
   return (
@@ -18,6 +21,9 @@ function App() {
           <Route path="/routing-rules" element={<RoutingRulesPage />} />
           <Route path="/on-call" element={<SchedulesPage />} />
           <Route path="/on-call/:id" element={<ScheduleDetailPage />} />
+          <Route path="/escalation-policies" element={<EscalationPoliciesPage />} />
+          <Route path="/escalation-policies/:id" element={<EscalationPolicyDetailPage />} />
+          <Route path="/alerts/:id" element={<AlertDetailPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

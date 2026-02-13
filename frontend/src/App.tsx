@@ -4,6 +4,8 @@ import { HomePage } from './pages/HomePage'
 import { IncidentsListPage } from './pages/IncidentsListPage'
 import { IncidentDetailPage } from './pages/IncidentDetailPage'
 import { RoutingRulesPage } from './pages/RoutingRulesPage'
+import { SchedulesPage } from './pages/SchedulesPage'
+import { ScheduleDetailPage } from './pages/ScheduleDetailPage'
 
 function App() {
   return (
@@ -14,6 +16,8 @@ function App() {
           <Route path="/incidents" element={<IncidentsListPage />} />
           <Route path="/incidents/:id" element={<IncidentDetailPage />} />
           <Route path="/routing-rules" element={<RoutingRulesPage />} />
+          <Route path="/on-call" element={<SchedulesPage />} />
+          <Route path="/on-call/:id" element={<ScheduleDetailPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

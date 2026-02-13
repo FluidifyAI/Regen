@@ -185,6 +185,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		v1.GET("/schedules/:id/oncall", handlers.GetOnCall(scheduleRepo, scheduleEvaluator))
 		v1.GET("/schedules/:id/oncall/timeline", handlers.GetOnCallTimeline(scheduleEvaluator))
 
+		v1.GET("/schedules/:id/overrides", handlers.ListOverrides(scheduleRepo))
 		v1.POST("/schedules/:id/overrides", handlers.CreateOverride(scheduleRepo))
 		v1.DELETE("/schedules/:id/overrides/:override_id", handlers.DeleteOverride(scheduleRepo))
 	}

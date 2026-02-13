@@ -342,6 +342,41 @@ func CreateOverride(repo repository.ScheduleRepository) gin.HandlerFunc {
 	}
 }
 
+// ListOverrides handles GET /api/v1/schedules/:id/overrides
+// Returns all upcoming overrides (end_time > now) ordered by start_time ASC.
+func ListOverrides(repo repository.ScheduleRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scheduleID, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid schedule ID", map[string]interface{}{"id": "must be a valid UUID"})
+			return
+		}
+		if _, err := repo.GetByID(scheduleID); err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "schedule", scheduleID.String())
+				return
+			}
+			dto.InternalError(c, err)
+			return
+		}
+		overrides, err := repo.ListUpcomingOverrides(scheduleID)
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "schedule", scheduleID.String())
+				return
+			}
+			slog.Error("failed to list overrides", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+		responses := make([]dto.OverrideResponse, len(overrides))
+		for i := range overrides {
+			responses[i] = dto.ToOverrideResponse(&overrides[i])
+		}
+		c.JSON(http.StatusOK, gin.H{"data": responses, "total": len(responses)})
+	}
+}
+
 // DeleteOverride handles DELETE /api/v1/schedules/:id/overrides/:override_id
 func DeleteOverride(repo repository.ScheduleRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {

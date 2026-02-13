@@ -4,21 +4,34 @@
     "name": "On-Call Calendar UI",
     "objective": "Build the frontend for viewing and managing on-call schedules, including a calendar view of upcoming shifts and override management.",
     "definition_of_done": "Users can view who is currently on call, see upcoming shifts in a calendar, and create overrides — all from the web UI.",
-    "status": "To Do",
+    "status": "In Progress",
     "initiative": "OI-INIT-004",
     "release": "v0.4",
     "prerequisites": ["OI-EPIC-015"],
+    "design_decisions": {
+      "current_oncall_badge": "Both: small badge in list view + prominent card at top of detail page",
+      "empty_state_action": "Inline modal (matches RoutingRulesPage pattern)",
+      "current_shift_highlight": "Bold name + background color + icon",
+      "calendar_default_span": "2-week (4-week toggle deferred to future release)",
+      "mobile_view": "Simple vertical list: date + on-call user",
+      "color_assignment": "On-the-fly HSL generation from stable hash of user_name (no storage)",
+      "override_list_order": "Chronological (upcoming first)",
+      "override_created_by": "Text input v0.4; auto-populate from auth in v0.9",
+      "timezone_dropdown": "Top 30 by population + UTC, alphabetical",
+      "participants_validation": "Any string accepted (no validation); Slack user picker deferred to v0.6",
+      "active_schedule_definition": "Any schedule with at least one layer"
+    },
     "tasks": [
       {
         "key": "OI-119",
         "name": "On-call schedules list and detail pages",
         "description": "Schedule list page and schedule detail page showing current on-call user and layer configuration",
         "acceptance_criteria": [
-          "GET /on-call → SchedulesPage: list all schedules with current on-call user badge",
-          "GET /on-call/:id → ScheduleDetailPage: name, timezone, layers list, current on-call user prominently displayed",
-          "Layer card: shows rotation type, participants in order, current shift highlighted",
-          "Sidebar nav item: Calendar icon, label 'On-call', path /on-call",
-          "Empty state for no schedules with CTA to create first schedule",
+          "GET /on-call → SchedulesPage: list all schedules with current on-call user badge (small colored badge)",
+          "GET /on-call/:id → ScheduleDetailPage: prominent current on-call card at top, name, timezone, layers list",
+          "Layer card: shows rotation type, participants in order, current shift user bold + highlighted + icon",
+          "Sidebar nav item: Calendar icon, label 'On-call', path /on-call (replaces disabled placeholder)",
+          "Empty state for no schedules with CTA to create first schedule (inline modal)",
           "Loading skeleton and error states"
         ],
         "status": "To Do",
@@ -29,52 +42,80 @@
       {
         "key": "OI-120",
         "name": "Shift calendar view",
-        "description": "Calendar component that renders the on-call timeline for the next 4 weeks",
+        "description": "2-week calendar grid embedded in ScheduleDetailPage showing on-call timeline",
         "acceptance_criteria": [
-          "Calendar renders a 2-week or 4-week grid (week rows, day columns)",
-          "Each day cell shows the on-call user(s) for that day derived from /oncall/timeline",
-          "Color-coded by participant (consistent hash → color)",
+          "Calendar renders a 2-week grid (week rows, day columns) by default",
+          "Each day cell shows the on-call user for that day derived from /oncall/timeline",
+          "Color-coded by participant: stable hash of user_name → HSL hue, generated on-the-fly",
           "Navigate forward/back by week",
-          "Overrides visually distinct from base rotation (striped or different shade)",
-          "Responsive: collapses to list view on mobile"
+          "Overrides visually distinct from base rotation (striped background or different shade)",
+          "Responsive: collapses to vertical date+user list on mobile (<768px)"
         ],
         "status": "To Do",
         "priority": "Medium",
         "story_points": 8,
-        "implementation_notes": "Build a simple custom calendar grid rather than importing a heavy library. Use the /oncall/timeline endpoint with ?from=&to= to fetch the rendered schedule. Color assignment: stable hash of user_name → HSL hue."
+        "implementation_notes": "Build a simple custom calendar grid — no external calendar library. Use /oncall/timeline with ?from=&to= to fetch the rendered schedule. Color: djb2 hash of user_name → hue in HSL(hue, 65%, 55%)."
       },
       {
         "key": "OI-121",
         "name": "Override management UI",
-        "description": "UI for creating and deleting schedule overrides",
+        "description": "UI for creating and deleting schedule overrides on ScheduleDetailPage",
         "acceptance_criteria": [
           "Override button on ScheduleDetailPage opens OverrideModal",
-          "OverrideModal fields: override_user (text input), start_time (datetime-local), end_time (datetime-local)",
-          "Validation: end_time > start_time, user required",
-          "Created override immediately reflected in calendar view",
-          "Delete override button on each override entry with confirmation",
-          "Toast notifications for create/delete"
+          "OverrideModal fields: override_user (text input), created_by (text input), start_time (datetime-local), end_time (datetime-local)",
+          "Validation: end_time > start_time, override_user required",
+          "Created override immediately reflected in calendar view (refetch timeline)",
+          "Overrides table below calendar, chronological (upcoming first)",
+          "Delete override button per row with window.confirm confirmation",
+          "Toast notifications for create/delete success/failure"
         ],
         "status": "To Do",
         "priority": "Medium",
         "story_points": 5,
-        "implementation_notes": "Follow the same inline modal pattern as RoutingRulesPage. Override list shown below the calendar on ScheduleDetailPage."
+        "implementation_notes": "Follow inline modal pattern from RoutingRulesPage. created_by is text input in v0.4; will auto-populate from auth session in v0.9 (SSO). Toast: use existing Toast component."
       },
       {
         "key": "OI-122",
         "name": "Schedule create/edit UI",
         "description": "Forms for creating schedules and managing rotation layers",
         "acceptance_criteria": [
-          "Create Schedule modal: name, description, timezone (searchable dropdown of IANA zones)",
-          "Add Layer form on ScheduleDetailPage: name, rotation_type, rotation_start, shift_duration, participants (ordered list with add/remove)",
-          "Participants can be added as free-text Slack user IDs or display names",
-          "Edit schedule metadata (name, description, timezone)",
-          "Delete schedule with confirmation (warns if active)"
+          "Create Schedule button opens modal: name (required), description (optional), timezone (dropdown of top 30 IANA zones + UTC, alphabetical)",
+          "Add Layer panel on ScheduleDetailPage: name, rotation_type (daily/weekly/custom), rotation_start (datetime-local), shift_duration (number + unit for custom), participants (ordered list with add/remove, free-text)",
+          "Edit schedule metadata via Edit button: name, description, timezone",
+          "Delete schedule with window.confirm; warn if schedule has layers ('This schedule has active layers.')",
+          "New schedule navigates to detail page after creation"
         ],
         "status": "To Do",
         "priority": "Medium",
         "story_points": 5,
-        "implementation_notes": "Timezone dropdown: use a hardcoded list of ~50 common IANA zones for v0.4 simplicity rather than shipping the full tz database to the frontend."
+        "implementation_notes": "Timezone list: top 30 by population + UTC. Participants: any free-text string; no validation. Slack user picker deferred to v0.6. shift_duration input: number field + select (hours/days) converted to seconds on submit."
+      }
+    ],
+    "deferred_items": [
+      {
+        "item": "4-week calendar toggle",
+        "deferred_to": "v0.5 polish sprint",
+        "reason": "2-week covers most use cases; toggle adds complexity for diminishing return in v0.4"
+      },
+      {
+        "item": "Slack user picker for participants",
+        "deferred_to": "v0.6 (AI + Slack deep integration)",
+        "reason": "Requires Slack user list API; free-text works fine for v0.4"
+      },
+      {
+        "item": "Auto-populate created_by from auth session",
+        "deferred_to": "v0.9 (SSO/Auth)",
+        "reason": "No auth system exists yet; text input is sufficient placeholder"
+      },
+      {
+        "item": "Schedule search/filter on list page",
+        "deferred_to": "v0.5",
+        "reason": "Low volume in v0.4; filter adds complexity"
+      },
+      {
+        "item": "Layer reordering (drag-and-drop)",
+        "deferred_to": "v0.5",
+        "reason": "Order index can be set at creation; reordering is a nice-to-have"
       }
     ],
     "total_story_points": 23,

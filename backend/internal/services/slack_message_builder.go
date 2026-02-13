@@ -378,3 +378,99 @@ func (b *SlackMessageBuilder) BuildStatusUpdateMessage(
 		Blocks: blocksToInterfaces(blocks),
 	}
 }
+
+// BuildShiftHandoffIncomingMessage creates a DM for the user who is starting their on-call shift.
+func (b *SlackMessageBuilder) BuildShiftHandoffIncomingMessage(
+	scheduleName, layerName string,
+	shiftEnd time.Time,
+) Message {
+	text := fmt.Sprintf("You are now on call for %s until %s. Good luck!",
+		scheduleName, shiftEnd.Format("Mon Jan 2 15:04 MST"))
+
+	blocks := []slack.Block{
+		slack.NewHeaderBlock(
+			slack.NewTextBlockObject(slack.PlainTextType, "📟 You're now on call", false, false),
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType,
+				fmt.Sprintf("*Schedule:* %s\n*Layer:* %s\n*Shift ends:* <!date^%d^{date_long_pretty} at {time}|%s>",
+					scheduleName, layerName,
+					shiftEnd.Unix(), shiftEnd.Format("Mon Jan 2 15:04 MST")),
+				false, false),
+			nil, nil,
+		),
+		slack.NewContextBlock("",
+			slack.NewTextBlockObject(slack.MarkdownType,
+				"Powered by <https://github.com/openincident/openincident|OpenIncident>",
+				false, false),
+		),
+	}
+	return Message{Text: text, Blocks: blocksToInterfaces(blocks)}
+}
+
+// BuildShiftHandoffOutgoingMessage creates a DM for the user whose on-call shift has ended.
+func (b *SlackMessageBuilder) BuildShiftHandoffOutgoingMessage(
+	scheduleName, layerName, incomingUser string,
+) Message {
+	text := fmt.Sprintf("Your on-call shift for %s has ended. %s is now on call.",
+		scheduleName, incomingUser)
+
+	blocks := []slack.Block{
+		slack.NewHeaderBlock(
+			slack.NewTextBlockObject(slack.PlainTextType, "✅ Your on-call shift has ended", false, false),
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType,
+				fmt.Sprintf("*Schedule:* %s\n*Layer:* %s\n*Now on call:* %s",
+					scheduleName, layerName, incomingUser),
+				false, false),
+			nil, nil,
+		),
+		slack.NewContextBlock("",
+			slack.NewTextBlockObject(slack.MarkdownType,
+				"Powered by <https://github.com/openincident/openincident|OpenIncident>",
+				false, false),
+		),
+	}
+	return Message{Text: text, Blocks: blocksToInterfaces(blocks)}
+}
+
+// BuildShiftChannelNotification creates a channel post announcing a shift handoff.
+// Posted to schedule.NotificationChannel when configured.
+func (b *SlackMessageBuilder) BuildShiftChannelNotification(
+	scheduleName, layerName, outgoingUser, incomingUser string,
+	shiftEnd time.Time,
+) Message {
+	text := fmt.Sprintf("🔄 Shift change: %s → %s on call for %s",
+		outgoingUser, incomingUser, scheduleName)
+
+	blocks := []slack.Block{
+		slack.NewHeaderBlock(
+			slack.NewTextBlockObject(slack.PlainTextType, "🔄 On-call shift change", false, false),
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			nil,
+			[]*slack.TextBlockObject{
+				slack.NewTextBlockObject(slack.MarkdownType,
+					fmt.Sprintf("*Schedule:* %s", scheduleName), false, false),
+				slack.NewTextBlockObject(slack.MarkdownType,
+					fmt.Sprintf("*Layer:* %s", layerName), false, false),
+				slack.NewTextBlockObject(slack.MarkdownType,
+					fmt.Sprintf("*Outgoing:* %s", outgoingUser), false, false),
+				slack.NewTextBlockObject(slack.MarkdownType,
+					fmt.Sprintf("*Incoming:* %s", incomingUser), false, false),
+			},
+			nil,
+		),
+		slack.NewContextBlock("",
+			slack.NewTextBlockObject(slack.MarkdownType,
+				fmt.Sprintf("Next handoff <!date^%d^{date_short_pretty} at {time}|%s> · Powered by <https://github.com/openincident/openincident|OpenIncident>",
+					shiftEnd.Unix(), shiftEnd.Format("Mon Jan 2 15:04 MST")),
+				false, false),
+		),
+	}
+	return Message{Text: text, Blocks: blocksToInterfaces(blocks)}
+}

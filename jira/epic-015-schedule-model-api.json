@@ -4,7 +4,7 @@
     "name": "Schedule & Rotation Data Model + API",
     "objective": "Define the core data models for on-call schedules, rotation layers, and overrides. Implement full CRUD API and the schedule evaluation logic (who is on call at a given time).",
     "definition_of_done": "Users can create schedules with rotation layers and overrides via the REST API. The /oncall endpoint returns the correct on-call user for any given timestamp.",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-004",
     "release": "v0.4",
     "prerequisites": [],
@@ -22,7 +22,7 @@
           "ScheduleRepository: CRUD for schedules, layers, overrides, participants",
           "All timestamps stored in UTC; timezone only used for display"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5,
         "implementation_notes": "Keep user references as plain strings (user_name / slack_user_id) for v0.4 — no User model yet. A User model with auth comes in enterprise tier. shift_duration_seconds allows sub-day rotations for future flexibility."
@@ -39,7 +39,7 @@
           "Unit tests: daily rotation, weekly rotation, override shadows base rotation, multiple layers (first non-empty wins)",
           "Handles edge cases: participant list empty, shift_duration zero, timezone conversion"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5,
         "implementation_notes": "The core algorithm: elapsed = at - rotation_start; shift_index = (elapsed / shift_duration) % len(participants); on_call = participants[shift_index]. Override check: if any override covers `at`, return override_user. No caching needed — evaluation is O(layers × participants) and fast."
@@ -62,7 +62,7 @@
           "DELETE /api/v1/schedules/:id/overrides/:override_id → delete override",
           "Validation: timezone must be valid IANA zone, end_time > start_time for overrides"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 8,
         "implementation_notes": "The /oncall/timeline endpoint is used by the calendar UI to render upcoming shifts. It should return an array of {start, end, user} segments for the requested window. Keep pagination simple — max 30 days per request."

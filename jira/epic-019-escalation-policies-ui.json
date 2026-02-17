@@ -4,7 +4,7 @@
     "name": "Escalation Policies UI & Visualization",
     "objective": "Build the frontend for creating, managing, and visualizing escalation policies, including a flowchart-style policy viewer and integration with routing rules.",
     "definition_of_done": "Users can create escalation policies with multiple tiers via the web UI, visualize escalation flow as a diagram, assign policies to routing rules, and see escalation status on the alert detail page.",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-005",
     "release": "v0.5",
     "prerequisites": ["OI-EPIC-018"],
@@ -32,7 +32,7 @@
           "Policy enabled toggle: PATCH /api/v1/escalation-policies/:id with { enabled: true/false }",
           "Loading states and error handling"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5,
         "implementation_notes": "Follow existing patterns (SchedulesPage, RoutingRulesPage). Add useEscalationPolicies and useEscalationPolicy hooks in api/escalation.ts. Flowchart visualization deferred to OI-132. Tier target details: if target_type='schedule', show schedule.name via join; if 'users', show comma-separated user_names."
@@ -50,7 +50,7 @@
           "Responsive: vertical flow on all screen sizes (no horizontal scroll needed)",
           "Color-coded boxes: tier 0 (blue), tier 1 (orange), tier 2+ (gray)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 8,
         "implementation_notes": "Build custom flowchart component using SVG or HTML+CSS (no external flowchart library). Use flexbox column layout with arrows as pseudo-elements or SVG paths. Each tier is a card with icon (Schedule: Calendar, Users: User icon), target name, and timeout badge. Future enhancement: drag-to-reorder tiers (deferred to v0.6)."
@@ -69,7 +69,7 @@
           "Delete tier: trash icon on tier card → window.confirm → DELETE /api/v1/escalation-policies/:id/tiers/:tier_id → refetch policy",
           "Delete policy: delete button with warning if policy is assigned to routing rules"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 8,
         "implementation_notes": "Follow inline modal pattern. Timeout: default unit 'minutes', convert to seconds (minutes * 60, hours * 3600). Schedule dropdown: useSchedules hook, map to { value: schedule.id, label: schedule.name }. User input: text input, split by comma on submit, trim whitespace. Edit tier: PATCH /api/v1/escalation-policies/:id/tiers/:tier_id with updated fields."
@@ -86,7 +86,7 @@
           "Edit routing rule: pre-populate escalation policy dropdown with existing value",
           "Validation: escalation policy must exist (frontend validates via fetched list)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 5,
         "implementation_notes": "Modify RoutingRulesPage RuleModal component. Add escalation_policy_id to actions JSONB in RoutingRule model (backend already supports arbitrary actions fields). Frontend: useEscalationPolicies hook fetches policies for dropdown. Actions summary: if actions.escalation_policy_id, fetch policy name and display 'Escalate: {name}'."
@@ -104,7 +104,7 @@
           "Acknowledgment confirmation toast: 'Alert acknowledged successfully'",
           "Error handling: if acknowledge fails, show error toast with API message"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 5,
         "implementation_notes": "Extend GET /api/v1/alerts/:id response to include escalation_state (policy_id, current_tier_index, last_notified_at, acknowledged_at, acknowledged_by, acknowledged_via). Frontend: AlertDetailPage component (create if doesn't exist). Acknowledgment button: POST with { user_name: 'web-user', acknowledged_via: 'api' } (user_name hardcoded in v0.5, replaced with auth.user in v0.9)."
@@ -121,7 +121,7 @@
           "acknowledgeAlert function in api/alerts.ts: POST /api/v1/alerts/:id/acknowledge",
           "Error handling and loading states for all API calls"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3,
         "implementation_notes": "Follow existing api/ patterns. Types: export interface EscalationPolicy { id: string; name: string; description: string; enabled: boolean; tiers: EscalationTier[]; created_at: string; updated_at: string }. Tier: { id: string; policy_id: string; tier_index: number; timeout_seconds: number; target_type: 'schedule'|'users'|'both'; schedule_id?: string; user_ids?: string[]; }. State: { id, alert_id, policy_id, current_tier_index, last_notified_at, acknowledged_at, acknowledged_by, acknowledged_via }."

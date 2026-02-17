@@ -3,7 +3,7 @@
     "key": "OI-INIT-005",
     "name": "OpenIncident v0.5 - Escalation Policies & Alert Lifecycle",
     "description": "Implement multi-tier escalation policies that automatically notify on-call users and escalate to backup responders when alerts are unacknowledged. Users can define escalation chains with timeout rules, fallback responders, and repeat cycles. This completes the core alerting → on-call → escalation flow, matching PagerDuty's core functionality while remaining open-source and self-hosted.",
-    "status": "To Do",
+    "status": "In Progress",
     "target_release": "v0.5",
     "prerequisites": ["OI-INIT-004"],
     "epics": [

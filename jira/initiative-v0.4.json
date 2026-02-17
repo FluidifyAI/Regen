@@ -3,7 +3,7 @@
     "key": "OI-INIT-004",
     "name": "OpenIncident v0.4 - On-Call Scheduling & Rotations",
     "description": "Introduce on-call scheduling as a first-class feature. Users can define schedules with layer-based rotations (daily, weekly, custom), create overrides, query who is currently on call, and receive Slack notifications when shifts change. This is the foundation for escalation policies in v0.5.",
-    "status": "To Do",
+    "status": "Done",
     "target_release": "v0.4",
     "prerequisites": ["OI-INIT-003"],
     "epics": [

@@ -4,7 +4,7 @@
     "name": "PagerDuty Schedule & Policy Import Tool",
     "objective": "Build a migration tool that imports on-call schedules and escalation policies from PagerDuty via API, creating equivalent OpenIncident configurations with a detailed validation report.",
     "definition_of_done": "Users can provide a PagerDuty API key and import their schedules and escalation policies into OpenIncident. The tool generates a report showing what was imported, what was skipped, and any manual adjustments needed.",
-    "status": "To Do",
+    "status": "In Progress",
     "initiative": "OI-INIT-005",
     "release": "v0.5",
     "prerequisites": ["OI-EPIC-018", "OI-EPIC-019"],

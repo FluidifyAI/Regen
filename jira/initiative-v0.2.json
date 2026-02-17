@@ -3,7 +3,7 @@
     "key": "OI-INIT-002",
     "name": "OpenIncident v0.2 - Incident Lifecycle & Bidirectional Slack",
     "description": "Complete the incident lifecycle with full bidirectional Slack integration: users can acknowledge/resolve incidents from Slack buttons, create incidents via /incident slash command, Slack messages sync to the incident timeline, and incidents can be created from the web UI. Builds on v0.1 foundation where status workflow, timeline, and one-way Slack posting are already implemented.",
-    "status": "To Do",
+    "status": "Done",
     "target_release": "v0.2",
     "prerequisites": ["OI-INIT-001"],
     "epics": [

@@ -15,7 +15,3 @@ func NewRootCmd() *cobra.Command {
 	return root
 }
 
-// newImportCmd stub — replaced in Task 10
-func newImportCmd() *cobra.Command {
-	return &cobra.Command{Use: "import", Short: "Import data from external services (not yet implemented)"}
-}

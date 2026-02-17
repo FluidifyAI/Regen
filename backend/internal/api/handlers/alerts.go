@@ -76,6 +76,7 @@ func AcknowledgeAlert(
 		// Return 204 No Content — the acknowledgment timestamp is written by the
 		// repository inside a transaction; fabricating time.Now() here would drift
 		// from the persisted value and break audit correctness.
-		c.Status(http.StatusNoContent)
+		// AbortWithStatus flushes the header immediately (needed in test contexts).
+		c.AbortWithStatus(http.StatusNoContent)
 	}
 }

@@ -1,0 +1,155 @@
+{
+  "epic": {
+    "key": "OI-EPIC-020",
+    "name": "PagerDuty Schedule & Policy Import Tool",
+    "objective": "Build a migration tool that imports on-call schedules and escalation policies from PagerDuty via API, creating equivalent OpenIncident configurations with a detailed validation report.",
+    "definition_of_done": "Users can provide a PagerDuty API key and import their schedules and escalation policies into OpenIncident. The tool generates a report showing what was imported, what was skipped, and any manual adjustments needed.",
+    "status": "To Do",
+    "initiative": "OI-INIT-005",
+    "release": "v0.5",
+    "prerequisites": ["OI-EPIC-018", "OI-EPIC-019"],
+    "notes": "This is a migration accelerator to reduce friction for PagerDuty users switching to OpenIncident. The tool is a one-time import CLI command, not a continuous sync. PagerDuty API docs: https://developer.pagerduty.com/api-reference/. The import focuses on schedules and escalation policies only; incidents and alerts are NOT imported (those are ephemeral). Users continue operations in OpenIncident post-import.",
+    "tasks": [
+      {
+        "key": "OI-137",
+        "name": "PagerDuty API client for schedules and policies",
+        "description": "Build Go client for PagerDuty REST API to fetch schedules, escalation policies, users, and teams",
+        "acceptance_criteria": [
+          "PagerDutyClient struct with API token authentication (via PAGERDUTY_API_KEY env var)",
+          "ListSchedules() → fetch all schedules with pagination (PagerDuty limit 100/page)",
+          "GetSchedule(id) → fetch schedule details including layers, rotation times, users",
+          "ListEscalationPolicies() → fetch all policies",
+          "GetEscalationPolicy(id) → fetch policy details including rules, targets, delays",
+          "ListUsers() → fetch all users (for user ID → name/email mapping)",
+          "HTTP client with retry logic (exponential backoff) for PagerDuty rate limits (960 req/min)",
+          "Error handling: invalid API key, network errors, rate limit exceeded",
+          "Unit tests with mock PagerDuty API responses (use httptest.NewServer)"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "PagerDuty API base URL: https://api.pagerduty.com. Authentication: header 'Authorization: Token token={api_key}'. Pagination: include[]=users for schedule details. Response models: PDSchedule, PDLayer, PDEscalationPolicy, PDEscalationRule. Store in internal/integrations/pagerduty/client.go. Retry: 3 attempts with 1s, 2s, 4s backoff. Accept header: 'application/vnd.pagerduty+json;version=2'."
+      },
+      {
+        "key": "OI-138",
+        "name": "Schedule import logic and mapping",
+        "description": "Convert PagerDuty schedule format to OpenIncident schedule models and persist to database",
+        "acceptance_criteria": [
+          "ImportSchedules(pdSchedules) → creates OpenIncident Schedule records with equivalent configuration",
+          "Schedule mapping: PD schedule.name → OI name, PD schedule.time_zone → OI timezone, PD schedule.description → OI description",
+          "Layer mapping: PD layer.rotation_type (daily/weekly) → OI rotation_type, PD layer.start → OI rotation_start, PD layer.rotation_turn_length_seconds → OI shift_duration_seconds",
+          "Participant mapping: PD users[].email → OI participants.user_name (email preferred, fallback to PD user.name)",
+          "Handle PagerDuty layer restrictions (start/end dates) → create OpenIncident overrides for gaps",
+          "Validation: if PD rotation_type unsupported (e.g., 'custom' with complex rules), skip layer and log warning",
+          "Import report: { schedules_imported: N, schedules_skipped: M, layers_imported: X, layers_skipped: Y, warnings: [...] }",
+          "Idempotency: if schedule with same name exists, skip (or overwrite with --force flag)"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "PagerDuty rotation_type: 'daily', 'weekly', 'custom'. Only daily/weekly map cleanly. PD 'custom' with handoff_day/handoff_time requires complex logic; skip and warn user. PD layer.users array → OI participants with order_index matching PD order. If PD user has no email, use user.summary (display name). Import report stored in JSON file: pagerduty_import_report.json."
+      },
+      {
+        "key": "OI-139",
+        "name": "Escalation policy import logic and mapping",
+        "description": "Convert PagerDuty escalation policies to OpenIncident format with tier and target mapping",
+        "acceptance_criteria": [
+          "ImportEscalationPolicies(pdPolicies) → creates OpenIncident EscalationPolicy and EscalationTier records",
+          "Policy mapping: PD policy.name → OI name, PD policy.description → OI description",
+          "Rule mapping: PD escalation_rules (ordered) → OI tiers with tier_index = rule order",
+          "Target mapping: PD rule.targets (schedule/user) → OI target_type, schedule_id or user_ids",
+          "Delay mapping: PD escalation_delay_in_minutes → OI timeout_seconds (minutes * 60)",
+          "If PD rule has multiple targets (e.g., notify schedule AND team), create OI tier with target_type='both'",
+          "Validation: if PD target is unsupported (e.g., 'service'), skip and log warning",
+          "Import report: { policies_imported: N, policies_skipped: M, tiers_imported: X, warnings: [...] }",
+          "Link imported policies to routing rules: create default rule 'Imported from PagerDuty' → imported policy"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "PD escalation_rules[].targets: type='schedule_reference'|'user_reference'|'team_reference'. Map schedule_reference → OI schedule lookup by name (must match imported schedule). Map user_reference → user_ids via email lookup. Map team_reference → skip (OpenIncident has no Teams model yet; deferred to v0.6). If PD policy has repeat_enabled=true, set OI policy to repeat (default behavior)."
+      },
+      {
+        "key": "OI-140",
+        "name": "CLI command for PagerDuty import",
+        "description": "Command-line interface for running the PagerDuty import with progress reporting and dry-run mode",
+        "acceptance_criteria": [
+          "CLI command: `openincident import pagerduty --api-key=<key>` or PAGERDUTY_API_KEY env var",
+          "Flags: --dry-run (preview import without writing to DB), --force (overwrite existing schedules/policies), --output-report=<path> (default: pagerduty_import_report.json)",
+          "Progress reporting: 'Fetching PagerDuty schedules... Found 12 schedules. Importing...' with spinner or progress bar",
+          "Import executes in transaction: if any step fails, rollback all changes (atomicity)",
+          "Dry-run mode: fetch from PagerDuty, validate mappings, generate report, but do not persist",
+          "Report output: JSON file with { summary: { schedules_imported, policies_imported }, warnings: [], errors: [] }",
+          "Exit codes: 0 (success), 1 (validation errors), 2 (API errors)"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "CLI uses cobra library (already in project). Command path: cmd/openincident/import_pagerduty.go. Progress: use github.com/briandowns/spinner or simple fmt.Printf. Transaction: wrap import in db.Transaction(). Dry-run: skip db writes, still call validation logic. Report: json.MarshalIndent to file. Document in README.md under 'Migration from PagerDuty'."
+      },
+      {
+        "key": "OI-141",
+        "name": "Import validation and conflict resolution",
+        "description": "Validation logic to detect conflicts, unsupported features, and data quality issues before import",
+        "acceptance_criteria": [
+          "Validate PagerDuty API key: test with GET /users/me, return error if invalid",
+          "Detect name conflicts: if OpenIncident schedule/policy with same name exists, log warning and skip (or overwrite with --force)",
+          "Validate schedule layers: if PD layer uses unsupported rotation (e.g., hourly, custom complex rules), skip layer and warn",
+          "Validate escalation targets: if target references missing schedule or user, skip tier and warn",
+          "Check for orphaned references: if PD policy references deleted schedule, warn and skip policy",
+          "Report summary includes: 'X of Y schedules imported', 'M schedules skipped due to conflicts', 'N layers skipped (unsupported rotation)'",
+          "User-friendly warnings: 'Schedule \"Primary On-Call\" uses custom rotation with complex rules — skipped. Manual creation required.'",
+          "Post-import verification: query imported schedules/policies, compare counts with PagerDuty totals"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Validation runs before import transaction. Create Validator struct with ValidateSchedule(pdSchedule), ValidateEscalationPolicy(pdPolicy) methods. Collect warnings/errors in []ValidationIssue. If critical errors (e.g., invalid API key, DB connection failure), abort import. If non-critical warnings (e.g., unsupported layer), skip item and continue. Post-import: SELECT COUNT(*) from schedules, escalation_policies, compare with report."
+      },
+      {
+        "key": "OI-142",
+        "name": "Documentation and import guide",
+        "description": "User-facing documentation for the PagerDuty import process with examples and troubleshooting",
+        "acceptance_criteria": [
+          "docs/PAGERDUTY_IMPORT.md created with step-by-step guide",
+          "Prerequisites: PagerDuty API key (how to generate), OpenIncident v0.5+ installed",
+          "Import steps: 1) Export PagerDuty data, 2) Run dry-run, 3) Review report, 4) Run import, 5) Verify",
+          "Example commands: dry-run, force overwrite, custom report path",
+          "Troubleshooting section: invalid API key, name conflicts, unsupported rotations, target resolution failures",
+          "Manual migration steps for unsupported features (e.g., custom rotation rules)",
+          "Link from main README.md under 'Migration' section",
+          "Screenshots: import report JSON, OpenIncident UI showing imported schedules"
+        ],
+        "status": "To Do",
+        "priority": "Low",
+        "story_points": 3,
+        "implementation_notes": "Guide targets non-technical users (EM/SRE, not just developers). Emphasize dry-run first. Include sample report JSON with annotations explaining each field. Troubleshooting: 'If rotation_type is custom, manually recreate layer in OpenIncident UI.' Link to PagerDuty API key generation: https://support.pagerduty.com/docs/api-access-keys."
+      }
+    ],
+    "total_story_points": 34,
+    "estimated_duration": "1.5 weeks",
+    "dependencies": {
+      "external": [
+        "PagerDuty REST API v2 (https://api.pagerduty.com)",
+        "Valid PagerDuty API key with read permissions"
+      ],
+      "internal": [
+        "Schedule repository CRUD (OI-116)",
+        "Escalation policy repository CRUD (OI-125)",
+        "ScheduleEvaluator for validation (OI-117)"
+      ]
+    },
+    "limitations": {
+      "not_imported": [
+        "PagerDuty incidents and alerts (ephemeral, not migrated)",
+        "PagerDuty services (no OpenIncident equivalent yet; deferred to Service Catalog in v1.x)",
+        "PagerDuty integrations (webhooks, email, etc. — user reconfigures in OpenIncident)",
+        "Historical escalation logs (only current configuration imported)"
+      ],
+      "partially_supported": [
+        "Custom rotation rules (complex PD rotations may require manual setup)",
+        "Team targets in escalation policies (OpenIncident has no Teams model in v0.5)"
+      ]
+    }
+  }
+}

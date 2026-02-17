@@ -1,0 +1,25 @@
+{
+  "initiative": {
+    "key": "OI-INIT-005",
+    "name": "OpenIncident v0.5 - Escalation Policies & Alert Lifecycle",
+    "description": "Implement multi-tier escalation policies that automatically notify on-call users and escalate to backup responders when alerts are unacknowledged. Users can define escalation chains with timeout rules, fallback responders, and repeat cycles. This completes the core alerting → on-call → escalation flow, matching PagerDuty's core functionality while remaining open-source and self-hosted.",
+    "status": "To Do",
+    "target_release": "v0.5",
+    "prerequisites": ["OI-INIT-004"],
+    "epics": [
+      "OI-EPIC-018",
+      "OI-EPIC-019",
+      "OI-EPIC-020"
+    ],
+    "success_criteria": [
+      "When a critical alert arrives and is unacknowledged, it escalates through defined tiers with configurable timeouts",
+      "Escalation policies can target schedules, specific users, or both in multi-tier chains",
+      "Escalation state is tracked per alert with full audit trail (who was notified when, who acknowledged)",
+      "Escalation UI visualizes the policy flow: Tier 1 (oncall-primary, 5min) → Tier 2 (oncall-backup, 10min) → Repeat",
+      "PagerDuty schedule import tool migrates schedules and policies to OpenIncident with validation report",
+      "Alerts routed via escalation policies trigger Slack DMs and track acknowledgment state"
+    ],
+    "estimated_duration": "3 weeks",
+    "architecture_notes": "Escalation evaluation is event-driven: alert fires → trigger escalation → background worker polls escalation state → fires notifications at tier timeouts → marks acknowledged when user responds. EscalationPolicy has ordered tiers with targets (schedule_id or user_ids) and timeout_seconds. EscalationState tracks current_tier and last_notified_at per alert. Worker runs every 30s checking for timed-out tiers. Acknowledgment can come from Slack interactive button, API call, or CLI command. No complex queueing needed — polling is sufficient at expected scale (<10k alerts/day)."
+  }
+}

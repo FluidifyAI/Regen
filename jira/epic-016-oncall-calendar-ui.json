@@ -5,7 +5,7 @@
     "name": "On-Call Calendar UI",
     "objective": "Build the frontend for viewing and managing on-call schedules, including a calendar view of upcoming shifts and override management.",
     "definition_of_done": "Users can view who is currently on call, see upcoming shifts in a calendar, and create overrides — all from the web UI.",
-    "status": "In Progress",
+    "status": "Done",
     "initiative": "OI-INIT-004",
     "release": "v0.4",
     "prerequisites": ["OI-EPIC-015"],
@@ -35,7 +35,7 @@
           "Empty state for no schedules with CTA to create first schedule (inline modal)",
           "Loading skeleton and error states"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5,
         "implementation_notes": "Follow existing page patterns (IncidentsListPage, RoutingRulesPage). Add useSchedules and useSchedule hooks. The 'current on-call' badge calls GET /api/v1/schedules/:id/oncall."
@@ -52,7 +52,7 @@
           "Overrides visually distinct from base rotation (striped background or different shade)",
           "Responsive: collapses to vertical date+user list on mobile (<768px)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 8,
         "implementation_notes": "Build a simple custom calendar grid — no external calendar library. Use /oncall/timeline with ?from=&to= to fetch the rendered schedule. Color: djb2 hash of user_name → hue in HSL(hue, 65%, 55%)."
@@ -70,7 +70,7 @@
           "Delete override button per row with window.confirm confirmation",
           "Toast notifications for create/delete success/failure"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 5,
         "implementation_notes": "Follow inline modal pattern from RoutingRulesPage. created_by is text input in v0.4; will auto-populate from auth session in v0.9 (SSO). Toast: use existing Toast component."
@@ -86,7 +86,7 @@
           "Delete schedule with window.confirm; warn if schedule has layers ('This schedule has active layers.')",
           "New schedule navigates to detail page after creation"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 5,
         "implementation_notes": "Timezone list: top 30 by population + UTC. Participants: any free-text string; no validation. Slack user picker deferred to v0.6. shift_duration input: number field + select (hours/days) converted to seconds on submit."

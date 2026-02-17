@@ -4,7 +4,7 @@
     "name": "Webhook Provider Abstraction & Multi-Source Ingestion",
     "objective": "Create a WebhookProvider interface that normalizes alerts from any monitoring source, refactor existing Prometheus ingestion to use it, and implement Grafana, CloudWatch, and Generic webhook providers",
     "definition_of_done": "All four webhook endpoints accept payloads, store alerts with correct source, and auto-create incidents. Adding a new source requires only implementing the WebhookProvider interface.",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-003",
     "release": "v0.3",
     "prerequisites": ["OI-EPIC-003"],
@@ -23,7 +23,7 @@
           "Types defined in backend/internal/models/webhooks/provider.go",
           "Comprehensive godoc comments on interface contract"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 3,
         "implementation_notes": "This is the keystone type — every subsequent task depends on it. Keep NormalizedAlert flat and simple; source-specific metadata goes in Labels/Annotations/RawPayload."
@@ -40,7 +40,7 @@
           "ProcessingResult includes per-source counts: {source: string, created: int, updated: int, incidents_created: int}",
           "Deduplication logic unchanged: (source, external_id) composite key"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 5,
         "implementation_notes": "Critical refactor — must not break existing Prometheus flow. Run full test suite after every change. The normalizeAlert() private method is extracted and moved to the Prometheus provider."
@@ -59,7 +59,7 @@
           "Provider defined in backend/internal/models/webhooks/prometheus.go (extends existing file)",
           "No behavior change — this is a structural refactor only"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Highest",
         "story_points": 3,
         "implementation_notes": "Move normalizeAlert() logic from alert_service.go into PrometheusProvider.ParsePayload(). The handler becomes a thin wrapper: parse JSON → provider.ParsePayload() → alertService.ProcessNormalizedAlerts()."
@@ -80,7 +80,7 @@
           "Grafana 'no_data' state mapped to severity='info' (no incident auto-created)",
           "Provider defined in backend/internal/models/webhooks/grafana.go"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5,
         "implementation_notes": "Grafana Unified Alerting (v9+) uses a different webhook format than legacy Grafana alerts. Focus on the modern format. Grafana payloads include orgId, dashboardId, panelId which together form a unique alert identity."
@@ -103,7 +103,7 @@
           "ValidatePayload() verifies SNS message signature using AWS certificate",
           "Provider defined in backend/internal/models/webhooks/cloudwatch.go"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 8,
         "implementation_notes": "CloudWatch alarms arrive wrapped in SNS notifications. Must handle two message types: SubscriptionConfirmation (one-time setup) and Notification (alarm state change). SNS signature verification is important for security — AWS publishes the signing certificate URL in the message."
@@ -123,7 +123,7 @@
           "Provider defined in backend/internal/models/webhooks/generic.go",
           "Example payloads documented for Datadog, New Relic, custom scripts"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5,
         "implementation_notes": "The generic webhook is the 'escape hatch' for any monitoring tool. Keep the schema simple and well-documented. Users can use curl or any HTTP client to send alerts. The schema endpoint helps with discoverability."
@@ -142,7 +142,7 @@
           "Prometheus metrics updated: openincident_webhooks_received_total{source=...}",
           "Max payload size enforced per provider (default 1MB, configurable)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 3,
         "implementation_notes": "This handler eliminates the per-source handler files. The Prometheus-specific handler can be replaced by the generic handler wired with PrometheusProvider. Keep the existing /prometheus URL — do not break existing Alertmanager configs."
@@ -165,7 +165,7 @@
           "Realistic sample payloads stored in docs/examples/ for each source",
           "All tests pass without external service dependencies (mocked HTTP)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 8,
         "implementation_notes": "Use the same test pattern as prometheus_webhook_test.go: in-memory SQLite, full HTTP handler stack. Store sample payloads as testdata fixtures."
@@ -183,7 +183,7 @@
           "docs/API.md updated with all four webhook endpoints",
           "README.md updated with multi-source support in features section"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 3,
         "implementation_notes": "Good documentation is critical for adoption. Users need step-by-step guides for connecting their monitoring tools to OpenIncident."

@@ -4,7 +4,7 @@
     "name": "Enhanced Alert Deduplication & Grouping Rules",
     "objective": "Enhance alert deduplication for multi-source environments and implement alert grouping rules that combine related alerts into a single incident based on configurable criteria (service, time window, labels)",
     "definition_of_done": "Related alerts are automatically grouped into a single incident based on configurable rules. Cross-source deduplication handles alerts from multiple monitoring tools for the same underlying issue. Grouped alerts are visible on the incident detail page.",
-    "status": "To Do",
+    "status": "Done",
     "initiative": "OI-INIT-003",
     "release": "v0.3",
     "prerequisites": ["OI-EPIC-012"],
@@ -22,7 +22,7 @@
           "GroupingRuleRepository interface with CRUD operations",
           "Seed default grouping rule: group by alertname label within 5-minute window"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5,
         "implementation_notes": "Grouping rules work similarly to Alertmanager's group_by config but stored in DB for runtime configuration. Priority determines evaluation order when multiple rules match."
@@ -42,7 +42,7 @@
           "Performance: grouping evaluation completes in <10ms for 100 rules",
           "Thread-safe: concurrent webhook calls don't create duplicate incidents for the same group"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 8,
         "implementation_notes": "The grouping engine sits between alert normalization and incident creation in the pipeline. Use a database-level advisory lock on the grouping key to prevent race conditions. Cache active grouping rules with short TTL."
@@ -60,7 +60,7 @@
           "ProcessingResult updated with grouped_count in addition to created/updated",
           "Grouping disabled gracefully if no rules configured (falls through to existing behavior)"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "High",
         "story_points": 5,
         "implementation_notes": "Must maintain backwards compatibility. With zero grouping rules configured, the system should behave identically to v0.2."
@@ -77,7 +77,7 @@
           "Cross-source correlation is opt-in (not enabled by default to avoid false positives)",
           "Example: Prometheus alert (host=web-01) and CloudWatch alarm (InstanceId=i-xxx, tag:Name=web-01) correlated via host/Name mapping"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 5,
         "implementation_notes": "Cross-source correlation is inherently fuzzy because different monitoring tools use different label names for the same concept. Start with exact label value matching after optional label name remapping."
@@ -96,7 +96,7 @@
           "Audit: created_at, updated_at tracked",
           "Cache invalidation on create/update/delete"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 5,
         "implementation_notes": "Standard CRUD following existing patterns in handlers/ and repository/. Use the same handler/service/repository layering as incidents."
@@ -114,7 +114,7 @@
           "Settings page: grouping rules list with enable/disable toggle",
           "Settings page: create/edit grouping rule form"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 5,
         "implementation_notes": "API endpoint GET /api/v1/incidents/:id/alerts already exists from v0.1. Focus on the UI display. Source icons can be simple SVG or emoji initially."
@@ -133,7 +133,7 @@
           "Test: grouping rules CRUD API endpoints",
           "All tests pass without external dependencies"
         ],
-        "status": "To Do",
+        "status": "Done",
         "priority": "Medium",
         "story_points": 5,
         "implementation_notes": "Concurrency test is critical — use Go's testing race detector and parallel goroutines to verify advisory lock behavior."

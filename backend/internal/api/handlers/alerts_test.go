@@ -94,14 +94,11 @@ func TestAcknowledgeAlert_Success(t *testing.T) {
 
 	AcknowledgeAlert(alertRepo, engine, nil, nil)(c)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	// Handler returns 204 No Content — the acknowledged_at timestamp is written
+	// inside the repository transaction; we don't fabricate it in the response.
+	assert.Equal(t, http.StatusNoContent, w.Code)
 	assert.True(t, acknowledged)
-
-	var resp map[string]interface{}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "user-alice", resp["acknowledged_by"])
-	assert.Equal(t, "api", resp["acknowledged_via"])
-	assert.NotEmpty(t, resp["acknowledged_at"])
+	assert.Empty(t, w.Body.Bytes())
 }
 
 func TestAcknowledgeAlert_AlertNotFound(t *testing.T) {
@@ -223,6 +220,6 @@ func TestAcknowledgeAlert_DefaultViaIsAPI(t *testing.T) {
 
 	AcknowledgeAlert(alertRepo, engine, nil, nil)(c)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusNoContent, w.Code)
 	assert.Equal(t, models.AcknowledgmentViaAPI, capturedVia)
 }

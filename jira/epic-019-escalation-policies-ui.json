@@ -1,0 +1,155 @@
+{
+  "epic": {
+    "key": "OI-EPIC-019",
+    "name": "Escalation Policies UI & Visualization",
+    "objective": "Build the frontend for creating, managing, and visualizing escalation policies, including a flowchart-style policy viewer and integration with routing rules.",
+    "definition_of_done": "Users can create escalation policies with multiple tiers via the web UI, visualize escalation flow as a diagram, assign policies to routing rules, and see escalation status on the alert detail page.",
+    "status": "To Do",
+    "initiative": "OI-INIT-005",
+    "release": "v0.5",
+    "prerequisites": ["OI-EPIC-018"],
+    "design_decisions": {
+      "policy_visualization": "Vertical flowchart: Tier 0 (box with schedule/users, timeout) → Arrow → Tier 1 → ... → Repeat indicator",
+      "tier_target_selector": "Dropdown: 'Schedule' | 'Users' | 'Both' → conditional input (schedule picker OR user multi-input)",
+      "timeout_input": "Number input + unit dropdown (minutes/hours) for UX, converted to seconds on submit",
+      "policy_list_view": "Table with columns: Name, Tiers (count), Enabled, Actions (edit/delete/duplicate)",
+      "routing_rule_integration": "Add 'Escalation Policy' dropdown to routing rule actions form",
+      "alert_detail_escalation_status": "Collapsible section: 'Escalation Timeline' showing tier notifications and acknowledgment",
+      "acknowledgment_button": "Prominent 'Acknowledge Alert' button on alert detail page (calls POST /api/v1/alerts/:id/acknowledge)",
+      "user_input_format": "Comma-separated user_name list (email or display name), no validation in v0.5"
+    },
+    "tasks": [
+      {
+        "key": "OI-131",
+        "name": "Escalation policies list and detail pages",
+        "description": "List page for all escalation policies and detail page showing policy configuration",
+        "acceptance_criteria": [
+          "GET /escalation-policies → EscalationPoliciesPage: table with name, tier count, enabled badge, actions",
+          "Empty state: 'No escalation policies yet' with CTA to create first policy",
+          "GET /escalation-policies/:id → EscalationPolicyDetailPage: policy metadata, tier list, flowchart visualization",
+          "Sidebar nav item: AlertTriangle icon, label 'Escalation', path /escalation-policies",
+          "Tier list: each tier shows tier_index, target_type, target details (schedule name or user_name list), timeout (human-readable)",
+          "Policy enabled toggle: PATCH /api/v1/escalation-policies/:id with { enabled: true/false }",
+          "Loading states and error handling"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "Follow existing patterns (SchedulesPage, RoutingRulesPage). Add useEscalationPolicies and useEscalationPolicy hooks in api/escalation.ts. Flowchart visualization deferred to OI-132. Tier target details: if target_type='schedule', show schedule.name via join; if 'users', show comma-separated user_names."
+      },
+      {
+        "key": "OI-132",
+        "name": "Policy flowchart visualization",
+        "description": "Interactive flowchart showing escalation policy tiers as a vertical flow diagram",
+        "acceptance_criteria": [
+          "Flowchart component on EscalationPolicyDetailPage: vertical boxes connected by arrows",
+          "Each tier box shows: tier index, target (schedule/users), timeout duration",
+          "Arrow labels indicate 'If unacknowledged after [timeout]'",
+          "Final tier has 'Repeat from Tier 0' indicator (or 'Stop' if no-repeat configured)",
+          "Click tier box → opens edit tier modal (deferred to OI-133)",
+          "Responsive: vertical flow on all screen sizes (no horizontal scroll needed)",
+          "Color-coded boxes: tier 0 (blue), tier 1 (orange), tier 2+ (gray)"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 8,
+        "implementation_notes": "Build custom flowchart component using SVG or HTML+CSS (no external flowchart library). Use flexbox column layout with arrows as pseudo-elements or SVG paths. Each tier is a card with icon (Schedule: Calendar, Users: User icon), target name, and timeout badge. Future enhancement: drag-to-reorder tiers (deferred to v0.6)."
+      },
+      {
+        "key": "OI-133",
+        "name": "Escalation policy create/edit UI",
+        "description": "Forms for creating policies and managing tiers",
+        "acceptance_criteria": [
+          "Create Policy button opens modal: name (required), description (optional), enabled checkbox (default true)",
+          "Created policy navigates to detail page with 'Add Tier' panel",
+          "Add Tier panel: tier_index (auto-incremented), timeout (number + minutes/hours dropdown), target_type (dropdown: Schedule/Users/Both)",
+          "Conditional inputs: if 'Schedule', show schedule dropdown (fetched from GET /api/v1/schedules); if 'Users', show text input (comma-separated); if 'Both', show both",
+          "Validation: timeout > 0, target_type required, appropriate target selected",
+          "Edit tier: click tier in flowchart → opens modal pre-filled with tier data → PATCH updates tier",
+          "Delete tier: trash icon on tier card → window.confirm → DELETE /api/v1/escalation-policies/:id/tiers/:tier_id → refetch policy",
+          "Delete policy: delete button with warning if policy is assigned to routing rules"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "Follow inline modal pattern. Timeout: default unit 'minutes', convert to seconds (minutes * 60, hours * 3600). Schedule dropdown: useSchedules hook, map to { value: schedule.id, label: schedule.name }. User input: text input, split by comma on submit, trim whitespace. Edit tier: PATCH /api/v1/escalation-policies/:id/tiers/:tier_id with updated fields."
+      },
+      {
+        "key": "OI-134",
+        "name": "Routing rules integration for escalation policies",
+        "description": "Extend routing rules UI to allow assigning escalation policies to routing actions",
+        "acceptance_criteria": [
+          "Routing rule actions form: add 'Escalation Policy' field (dropdown, optional)",
+          "Dropdown options: fetch from GET /api/v1/escalation-policies, show policy name",
+          "When routing rule matches alert, if escalation_policy_id is set, backend triggers escalation (Epic 018 handles logic)",
+          "Routing rule table: show escalation policy name in 'Actions' column summary (e.g., 'Escalate: Default Escalation')",
+          "Edit routing rule: pre-populate escalation policy dropdown with existing value",
+          "Validation: escalation policy must exist (frontend validates via fetched list)"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Modify RoutingRulesPage RuleModal component. Add escalation_policy_id to actions JSONB in RoutingRule model (backend already supports arbitrary actions fields). Frontend: useEscalationPolicies hook fetches policies for dropdown. Actions summary: if actions.escalation_policy_id, fetch policy name and display 'Escalate: {name}'."
+      },
+      {
+        "key": "OI-135",
+        "name": "Alert acknowledgment UI",
+        "description": "Alert detail page showing escalation status and acknowledgment button",
+        "acceptance_criteria": [
+          "Alert detail page: add 'Escalation Status' collapsible section (collapsed by default)",
+          "Escalation status shows: policy name, current tier, time since last notification, tier timeline (tier 0 notified at X, tier 1 notified at Y)",
+          "If unacknowledged: prominent 'Acknowledge Alert' button → POST /api/v1/alerts/:id/acknowledge → refetch alert",
+          "If acknowledged: show 'Acknowledged by [user_name] at [timestamp] via [slack/api]' badge (green, checkmark icon)",
+          "If escalation not triggered (no policy): section hidden or shows 'No escalation policy assigned'",
+          "Acknowledgment confirmation toast: 'Alert acknowledged successfully'",
+          "Error handling: if acknowledge fails, show error toast with API message"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Extend GET /api/v1/alerts/:id response to include escalation_state (policy_id, current_tier_index, last_notified_at, acknowledged_at, acknowledged_by, acknowledged_via). Frontend: AlertDetailPage component (create if doesn't exist). Acknowledgment button: POST with { user_name: 'web-user', acknowledged_via: 'api' } (user_name hardcoded in v0.5, replaced with auth.user in v0.9)."
+      },
+      {
+        "key": "OI-136",
+        "name": "Escalation policies API client and types",
+        "description": "Frontend API client for escalation policies CRUD operations and TypeScript types",
+        "acceptance_criteria": [
+          "frontend/src/api/escalation.ts: listEscalationPolicies, getEscalationPolicy, createEscalationPolicy, updateEscalationPolicy, deleteEscalationPolicy",
+          "frontend/src/api/escalation.ts: createTier, updateTier, deleteTier",
+          "TypeScript types: EscalationPolicy, EscalationTier, EscalationState (matching backend DTOs)",
+          "useEscalationPolicies and useEscalationPolicy hooks using react-query",
+          "acknowledgeAlert function in api/alerts.ts: POST /api/v1/alerts/:id/acknowledge",
+          "Error handling and loading states for all API calls"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 3,
+        "implementation_notes": "Follow existing api/ patterns. Types: export interface EscalationPolicy { id: string; name: string; description: string; enabled: boolean; tiers: EscalationTier[]; created_at: string; updated_at: string }. Tier: { id: string; policy_id: string; tier_index: number; timeout_seconds: number; target_type: 'schedule'|'users'|'both'; schedule_id?: string; user_ids?: string[]; }. State: { id, alert_id, policy_id, current_tier_index, last_notified_at, acknowledged_at, acknowledged_by, acknowledged_via }."
+      }
+    ],
+    "deferred_items": [
+      {
+        "item": "Drag-to-reorder tiers in flowchart",
+        "deferred_to": "v0.6 polish sprint",
+        "reason": "Tiers can be created in correct order; reordering is nice-to-have"
+      },
+      {
+        "item": "Slack user picker for user targets",
+        "deferred_to": "v0.6 (Slack deep integration)",
+        "reason": "Free-text comma-separated input works for v0.5; picker requires Slack API integration"
+      },
+      {
+        "item": "Policy repeat vs stop toggle",
+        "deferred_to": "v0.6",
+        "reason": "Default repeat behavior covers 95% of use cases"
+      },
+      {
+        "item": "Escalation analytics dashboard (MTTA by policy)",
+        "deferred_to": "Post-v1.0 Analytics",
+        "reason": "Requires metrics aggregation infrastructure"
+      }
+    ],
+    "total_story_points": 34,
+    "estimated_duration": "1.5 weeks"
+  }
+}

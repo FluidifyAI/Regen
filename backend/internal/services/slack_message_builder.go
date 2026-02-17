@@ -474,3 +474,53 @@ func (b *SlackMessageBuilder) BuildShiftChannelNotification(
 	}
 	return Message{Text: text, Blocks: blocksToInterfaces(blocks)}
 }
+
+// BuildEscalationDMMessage creates the Slack DM sent to an on-call user when an
+// alert escalates to their tier. Includes an "Acknowledge" interactive button
+// whose action_id encodes the alert ID so the Slack event handler can route it
+// to POST /api/v1/alerts/:id/acknowledge.
+//
+// tierIndex is 0-based; the display shows "Tier N" where N = tierIndex+1.
+func (b *SlackMessageBuilder) BuildEscalationDMMessage(alert *models.Alert, tierIndex int) Message {
+	severityEmoji := map[models.AlertSeverity]string{
+		models.AlertSeverityCritical: "🔴",
+		models.AlertSeverityWarning:  "🟡",
+		models.AlertSeverityInfo:     "🔵",
+	}
+	emoji := severityEmoji[alert.Severity]
+	if emoji == "" {
+		emoji = "⚠️"
+	}
+
+	text := fmt.Sprintf("%s [Tier %d] You're being paged: %s", emoji, tierIndex+1, alert.Title)
+
+	blocks := []slack.Block{
+		slack.NewHeaderBlock(
+			slack.NewTextBlockObject(slack.PlainTextType,
+				fmt.Sprintf("%s You're being paged (Tier %d)", emoji, tierIndex+1),
+				false, false),
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType,
+				fmt.Sprintf("*Alert:* %s\n*Severity:* %s\n*Source:* %s\n*Tier:* %d of escalation policy",
+					alert.Title, string(alert.Severity), alert.Source, tierIndex+1),
+				false, false),
+			nil, nil,
+		),
+		slack.NewActionBlock("",
+			slack.NewButtonBlockElement(
+				fmt.Sprintf("acknowledge_%s", alert.ID.String()),
+				alert.ID.String(),
+				slack.NewTextBlockObject(slack.PlainTextType, "✅ Acknowledge", false, false),
+			),
+		),
+		slack.NewContextBlock("",
+			slack.NewTextBlockObject(slack.MarkdownType,
+				"Powered by <https://github.com/openincident/openincident|OpenIncident>",
+				false, false),
+		),
+	}
+
+	return Message{Text: text, Blocks: blocksToInterfaces(blocks)}
+}

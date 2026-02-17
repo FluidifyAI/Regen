@@ -217,7 +217,7 @@ function RuleModal({ isOpen, rule, onClose, onSaved }: RuleModalProps) {
                 placeholder={'{\n  "create_incident": true\n}'}
               />
               <p className="mt-1 text-xs text-text-tertiary">
-                Keys: <code>create_incident</code>, <code>suppress</code>, <code>severity_override</code>, <code>channel_override</code>
+                Keys: <code>create_incident</code>, <code>suppress</code>, <code>severity_override</code>, <code>channel_override</code>, <code>escalation_policy_id</code>
               </p>
             </div>
           </div>
@@ -281,6 +281,7 @@ export function RoutingRulesPage() {
     if (actions.create_incident) parts.push('Create incident')
     if (actions.severity_override) parts.push(`Severity → ${actions.severity_override}`)
     if (actions.channel_override) parts.push(`Channel → ${actions.channel_override}`)
+    if (actions.escalation_policy_id) parts.push(`Escalation → ${String(actions.escalation_policy_id).slice(0, 8)}…`)
     return parts.length > 0 ? parts.join(', ') : 'No action'
   }
 

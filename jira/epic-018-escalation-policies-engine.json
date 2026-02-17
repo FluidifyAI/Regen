@@ -1,0 +1,139 @@
+{
+  "epic": {
+    "key": "OI-EPIC-018",
+    "name": "Escalation Policies Data Model + Engine",
+    "objective": "Design and implement the escalation policy system that automatically notifies on-call users when alerts fire and escalates to backup tiers when unacknowledged, with full state tracking and audit trail.",
+    "definition_of_done": "Critical alerts trigger escalation policies that notify on-call users via Slack DM. If unacknowledged within the tier timeout, the alert escalates to the next tier. Users can acknowledge alerts via Slack button or API. All escalation events are recorded in the timeline.",
+    "status": "To Do",
+    "initiative": "OI-INIT-005",
+    "release": "v0.5",
+    "prerequisites": ["OI-EPIC-015", "OI-EPIC-017"],
+    "notes": "Escalation policies bridge schedules and alerts. They define WHO gets notified WHEN an alert is unhandled. The escalation engine is event-driven with a polling worker (similar to shift notifier). Acknowledgment state is tracked per alert to prevent duplicate notifications. This epic focuses on backend; Epic 019 builds the UI.",
+    "tasks": [
+      {
+        "key": "OI-125",
+        "name": "Design escalation policy and state data models",
+        "description": "Create database migrations and Go models for EscalationPolicy, EscalationTier, EscalationState, and AcknowledgmentEvent",
+        "acceptance_criteria": [
+          "EscalationPolicy model: id, name, description, enabled, created_at, updated_at",
+          "EscalationTier model: id, policy_id, tier_index (0-based), timeout_seconds, target_type (schedule/user/both), schedule_id (nullable), user_ids (JSONB array), created_at",
+          "EscalationState model: id, alert_id, policy_id, current_tier_index, last_notified_at, acknowledged_at, acknowledged_by (user_name), acknowledged_via (slack/api/cli), created_at",
+          "Alert model extension: add escalation_policy_id (nullable FK), acknowledgment_status (pending/acknowledged/timed_out)",
+          "Database migrations: 000013_create_escalation_policies, 000014_create_escalation_tiers, 000015_create_escalation_states",
+          "EscalationRepository: CRUD for policies and tiers, GetPoliciesForRouting, GetActiveEscalations, RecordAcknowledgment",
+          "Unique constraint: (policy_id, tier_index) to prevent duplicate tier orderings",
+          "Cascade delete: deleting policy removes all tiers and states"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "target_type enum: 'schedule' (notify current on-call from schedule_id), 'users' (notify all in user_ids list), 'both' (notify schedule AND users). timeout_seconds: how long to wait before escalating to next tier. tier_index starts at 0. If current_tier_index exceeds max tier, policy repeats from tier 0 (configurable in v0.6). acknowledged_via tracks whether ack came from Slack button, REST API, or CLI for audit purposes."
+      },
+      {
+        "key": "OI-126",
+        "name": "Implement escalation engine and state manager",
+        "description": "Build the core escalation evaluation logic that determines when to notify users and when to escalate to the next tier",
+        "acceptance_criteria": [
+          "EscalationEngine.TriggerEscalation(alert) creates EscalationState, sets current_tier=0, fires notifications to tier 0 targets",
+          "EscalationEngine.EvaluateEscalations() polls all active (unacknowledged) escalation states, checks timeouts, advances to next tier if timed out",
+          "Notification targets resolved via ScheduleEvaluator.WhoIsOnCall (for schedule targets) and direct user_ids (for user targets)",
+          "EscalationEngine.AcknowledgeAlert(alertID, userName, via) marks state as acknowledged, records timestamp, stops further escalation",
+          "If alert resolves (EndedAt != nil), escalation state is marked 'completed' and removed from active polling",
+          "Unit tests: single-tier policy, multi-tier escalation, timeout advancing, acknowledgment stops escalation, schedule + user targeting",
+          "Graceful handling: if schedule has no on-call user, skip tier and advance immediately (log warning)",
+          "Thread-safe: EvaluateEscalations can be called concurrently without race conditions"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "EscalationEngine is a service with ScheduleEvaluator and ChatService dependencies. TriggerEscalation is called from the alert processing pipeline (after routing, before incident creation). EvaluateEscalations is called by the worker every 30s. Use a simple SELECT query to fetch states WHERE acknowledged_at IS NULL AND last_notified_at + timeout < NOW() to find timed-out tiers. No complex queue needed. State transitions: pending → tier0_notified → tier1_notified → ... → acknowledged."
+      },
+      {
+        "key": "OI-127",
+        "name": "Integrate escalation policies into alert routing",
+        "description": "Wire escalation policies into the alert processing pipeline and routing rules engine",
+        "acceptance_criteria": [
+          "RoutingRule model extension: add escalation_policy_id field to actions (nullable)",
+          "Routing engine: if routing decision includes escalation_policy_id, link alert to policy and call TriggerEscalation",
+          "Default routing rule updated: critical/warning alerts → default escalation policy (targets primary on-call schedule)",
+          "Alert processing pipeline: Normalize → Dedupe → Route → [escalation?] → Group → CreateIncident",
+          "Escalation runs in parallel to incident creation (non-blocking)",
+          "If routing rule suppresses alert, escalation does NOT trigger",
+          "Migration: add default escalation policy (ID: 1, Name: 'Default Escalation', Tier 0: primary schedule, 5min timeout, Tier 1: backup schedule, 10min timeout)"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 5,
+        "implementation_notes": "Extend RoutingDecision struct with EscalationPolicyID field. Add escalation_policy_id to routing_rules.actions JSONB. Update routing rules UI (Epic 019) to allow selecting escalation policy. Default policy assumes schedule IDs 1 (primary) and 2 (backup) exist; seed after v0.4 schedule creation or make creation idempotent."
+      },
+      {
+        "key": "OI-128",
+        "name": "Build escalation worker and notification sender",
+        "description": "Background worker that polls escalation states and sends Slack DM notifications with acknowledgment buttons",
+        "acceptance_criteria": [
+          "EscalationWorker starts at application boot alongside ShiftNotifier",
+          "Worker polls EscalationEngine.EvaluateEscalations() every 30 seconds",
+          "When tier times out, worker sends Slack DM to all targets in next tier with alert details + 'Acknowledge' button",
+          "Slack message includes: alert title, severity, labels, time since firing, current tier, 'Acknowledge' interactive button",
+          "Interactive button callback triggers AcknowledgeAlert API endpoint with user info from Slack payload",
+          "Worker stops gracefully on context cancellation (SIGTERM)",
+          "If ChatService is nil (Slack not configured), worker runs but skips DM sends (logs warning)",
+          "Unit tests: timeout detection, notification sending, acknowledgment handling"
+        ],
+        "status": "To Do",
+        "priority": "High",
+        "story_points": 8,
+        "implementation_notes": "Reuse worker.StartAll pattern. Add NewEscalationWorker to worker package. Use Slack Block Kit interactive buttons (actions block with button element). Button callback hits /api/v1/alerts/:id/acknowledge with Slack user ID in payload. Map Slack user ID → user_name for audit. Polling interval: 30s is sufficient (tier timeouts are typically 5-15 minutes, so 30s latency is acceptable)."
+      },
+      {
+        "key": "OI-129",
+        "name": "Escalation acknowledgment API and timeline integration",
+        "description": "REST API for acknowledging alerts and recording acknowledgment events in incident timelines",
+        "acceptance_criteria": [
+          "POST /api/v1/alerts/:id/acknowledge → marks alert as acknowledged, records who/when/via",
+          "Request body: { user_name, acknowledged_via } (acknowledged_via: slack/api/cli)",
+          "Response: { acknowledged_at, acknowledged_by, current_tier } for confirmation",
+          "Timeline entry created: type='alert_acknowledged', actor=user_name, content={ alert_id, tier, via }",
+          "If alert is linked to incident, acknowledgment shows in incident timeline",
+          "Idempotent: acknowledging already-acknowledged alert returns 200 with existing ack details (no duplicate timeline entry)",
+          "Validation: alert must exist, cannot acknowledge resolved alerts (return 400)",
+          "API test coverage: acknowledge pending alert, acknowledge already-acknowledged, acknowledge non-existent alert"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Endpoint: POST /api/v1/alerts/:id/acknowledge. Handler: AcknowledgeAlert(). Calls EscalationEngine.AcknowledgeAlert, creates timeline entry if alert.incident_id is set. acknowledged_via is used for analytics (track whether users prefer Slack vs API). User authentication not enforced in v0.5 (no auth system yet); user_name is trusted from request."
+      },
+      {
+        "key": "OI-130",
+        "name": "Escalation policies integration tests",
+        "description": "End-to-end tests for the full escalation flow from alert ingestion to acknowledgment",
+        "acceptance_criteria": [
+          "Test: critical alert → triggers escalation policy → tier 0 notified → no ack → tier 1 notified → acknowledged → escalation stops",
+          "Test: alert with no escalation policy → no escalation state created",
+          "Test: alert acknowledged at tier 0 → tier 1 never triggered",
+          "Test: alert resolves before acknowledgment → escalation marked completed, no further notifications",
+          "Test: schedule target has no on-call user → tier skipped, next tier triggered immediately",
+          "Test: Slack interactive button callback → alert marked acknowledged, timeline entry created",
+          "Mock ChatService for DM send verification",
+          "Coverage: escalation_engine.go, escalation_worker.go, handlers/alerts.go acknowledgment endpoint"
+        ],
+        "status": "To Do",
+        "priority": "Medium",
+        "story_points": 5,
+        "implementation_notes": "Use testify suite. Create real DB fixtures for policies, schedules, alerts. Mock time.Now for deterministic timeout testing. Mock Slack client for button interaction simulation. Verify timeline entries exist with correct actor/content."
+      }
+    ],
+    "total_story_points": 36,
+    "estimated_duration": "2 weeks",
+    "dependencies": {
+      "external": [],
+      "internal": [
+        "Schedule evaluation engine (OI-117)",
+        "Shift notifier worker pattern (OI-123)",
+        "Routing engine (OI-111)",
+        "ChatService interface (OI-062)"
+      ]
+    }
+  }
+}

@@ -17,14 +17,14 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config) {
 	scheduleRepo := repository.NewScheduleRepository(db)
 	scheduleEvaluator := services.NewScheduleEvaluator(scheduleRepo)
 
-	// ChatService is optional — if Slack is not configured, the worker runs
+	// ChatService is optional — if Slack is not configured, the workers run
 	// but all DM sends become graceful no-ops.
 	var chatService services.ChatService
 	if cfg.SlackBotToken != "" {
 		var err error
 		chatService, err = services.NewSlackService(cfg.SlackBotToken)
 		if err != nil {
-			slog.Warn("failed to initialize slack for shift notifier (will skip notifications)",
+			slog.Warn("failed to initialize slack for workers (will skip notifications)",
 				"error", err)
 		}
 	}
@@ -32,6 +32,15 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config) {
 	// Start the shift notifier
 	notifier := NewShiftNotifier(scheduleRepo, scheduleEvaluator, chatService)
 	go notifier.Run(ctx)
+
+	// Start the escalation worker.
+	// Build the escalation engine here with the worker as its notifier so that
+	// the engine can immediately send DMs when a tier fires.
+	escalationPolicyRepo := repository.NewEscalationPolicyRepository(db)
+	escalationWorker := NewEscalationWorker(chatService)
+	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, escalationWorker)
+	escalationWorker.SetEngine(escalationEngine)
+	go escalationWorker.Run(ctx)
 
 	slog.Info("background workers started")
 }

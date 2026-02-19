@@ -158,6 +158,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 
 		// Alerts
 		v1.GET("/alerts", handlers.ListAlerts(alertRepo))
+		v1.GET("/alerts/:id", handlers.GetAlert(alertRepo))
 		v1.POST("/alerts/:id/acknowledge", handlers.AcknowledgeAlert(alertRepo, escalationEngine, incidentRepo, timelineRepo))
 
 		// Grouping Rules (v0.3)

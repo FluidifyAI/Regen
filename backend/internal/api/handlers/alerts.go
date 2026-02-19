@@ -54,6 +54,36 @@ func ListAlerts(alertRepo repository.AlertRepository) gin.HandlerFunc {
 	}
 }
 
+// GetAlert handles GET /api/v1/alerts/:id.
+func GetAlert(alertRepo repository.AlertRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid alert ID", map[string]interface{}{
+				"id": "must be a valid UUID",
+			})
+			return
+		}
+
+		alert, err := alertRepo.GetByID(id)
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "alert", id.String())
+				return
+			}
+			slog.Error("failed to get alert",
+				"alert_id", id,
+				"error", err,
+				"request_id", c.GetString("request_id"),
+			)
+			dto.InternalError(c, err)
+			return
+		}
+
+		c.JSON(http.StatusOK, dto.ToAlertResponse(alert))
+	}
+}
+
 // acknowledgeAlertRequest is the request body for POST /api/v1/alerts/:id/acknowledge
 type acknowledgeAlertRequest struct {
 	UserName        string `json:"user_name"        binding:"required"`

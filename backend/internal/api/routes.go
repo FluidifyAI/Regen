@@ -2,7 +2,6 @@ package api
 
 import (
 	"log/slog"
-	"net/http"
 	"os"
 
 	"github.com/gin-gonic/gin"
@@ -158,9 +157,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		v1.POST("/incidents/:id/timeline", handlers.CreateTimelineEntry(incidentSvc))
 
 		// Alerts
-		v1.GET("/alerts", func(c *gin.Context) {
-			c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
-		})
+		v1.GET("/alerts", handlers.ListAlerts(alertRepo))
 		v1.POST("/alerts/:id/acknowledge", handlers.AcknowledgeAlert(alertRepo, escalationEngine, incidentRepo, timelineRepo))
 
 		// Grouping Rules (v0.3)

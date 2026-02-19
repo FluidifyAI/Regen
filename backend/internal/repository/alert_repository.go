@@ -124,10 +124,11 @@ func (r *alertRepository) List(filters AlertFilters, pagination Pagination) ([]m
 func (r *alertRepository) Update(alert *models.Alert) error {
 	// Only allow updating specific mutable fields
 	updates := map[string]interface{}{
-		"status":      alert.Status,
-		"title":       alert.Title,
-		"description": alert.Description,
-		"ended_at":    alert.EndedAt,
+		"status":               alert.Status,
+		"title":                alert.Title,
+		"description":          alert.Description,
+		"ended_at":             alert.EndedAt,
+		"escalation_policy_id": alert.EscalationPolicyID,
 	}
 
 	if err := r.db.Model(alert).Updates(updates).Error; err != nil {

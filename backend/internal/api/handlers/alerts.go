@@ -12,6 +12,78 @@ import (
 	"github.com/openincident/openincident/internal/services"
 )
 
+// ListAlerts handles GET /api/v1/alerts.
+//
+// Returns a paginated list of alerts, optionally filtered by source, status, and severity.
+func ListAlerts(alertRepo repository.AlertRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var filters dto.AlertFilters
+		if err := c.ShouldBindQuery(&filters); err != nil {
+			dto.ValidationError(c, err)
+			return
+		}
+
+		var pagination dto.PaginationParams
+		if err := c.ShouldBindQuery(&pagination); err != nil {
+			dto.ValidationError(c, err)
+			return
+		}
+		pagination.Normalize()
+
+		alerts, total, err := alertRepo.List(filters.ToRepository(), pagination.ToRepository())
+		if err != nil {
+			slog.Error("failed to list alerts",
+				"error", err,
+				"request_id", c.GetString("request_id"),
+			)
+			dto.InternalError(c, err)
+			return
+		}
+
+		responses := make([]dto.AlertResponse, len(alerts))
+		for i := range alerts {
+			responses[i] = dto.ToAlertResponse(&alerts[i])
+		}
+
+		c.JSON(http.StatusOK, dto.PaginatedResponse{
+			Data:   responses,
+			Total:  total,
+			Limit:  pagination.PageSize,
+			Offset: (pagination.Page - 1) * pagination.PageSize,
+		})
+	}
+}
+
+// GetAlert handles GET /api/v1/alerts/:id.
+func GetAlert(alertRepo repository.AlertRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid alert ID", map[string]interface{}{
+				"id": "must be a valid UUID",
+			})
+			return
+		}
+
+		alert, err := alertRepo.GetByID(id)
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "alert", id.String())
+				return
+			}
+			slog.Error("failed to get alert",
+				"alert_id", id,
+				"error", err,
+				"request_id", c.GetString("request_id"),
+			)
+			dto.InternalError(c, err)
+			return
+		}
+
+		c.JSON(http.StatusOK, dto.ToAlertResponse(alert))
+	}
+}
+
 // acknowledgeAlertRequest is the request body for POST /api/v1/alerts/:id/acknowledge
 type acknowledgeAlertRequest struct {
 	UserName        string `json:"user_name"        binding:"required"`

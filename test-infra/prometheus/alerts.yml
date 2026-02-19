@@ -1,0 +1,39 @@
+groups:
+  - name: test-alerts
+    rules:
+      # Fires immediately — useful for testing the full alert→incident→Slack pipeline.
+      - alert: AlwaysFiring
+        expr: vector(1)
+        for: 0m
+        labels:
+          severity: warning
+          service: test
+          team: platform
+        annotations:
+          summary: "Always-firing test alert"
+          description: "This alert always fires. Used for end-to-end testing."
+
+      # Fires when CPU usage exceeds 80% for 1 minute.
+      # Useful for real-world threshold testing.
+      - alert: HighCPU
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 80
+        for: 1m
+        labels:
+          severity: critical
+          service: node
+          team: infra
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value | humanize }}% (threshold: 80%)"
+
+      # Fires when a scrape target goes down.
+      - alert: InstanceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: monitoring
+          team: infra
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "{{ $labels.job }}/{{ $labels.instance }} has been down for more than 1 minute."

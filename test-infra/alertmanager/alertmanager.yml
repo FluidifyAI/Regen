@@ -1,0 +1,17 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ["alertname", "severity"]
+  group_wait: 10s        # Short for testing (default is 30s)
+  group_interval: 5m
+  repeat_interval: 5m    # Re-fire after 5 min for deduplication testing
+  receiver: openincident-webhook
+
+receivers:
+  - name: openincident-webhook
+    webhook_configs:
+      - url: "http://host.docker.internal:8080/api/v1/webhooks/prometheus"
+        send_resolved: true
+
+inhibit_rules: []

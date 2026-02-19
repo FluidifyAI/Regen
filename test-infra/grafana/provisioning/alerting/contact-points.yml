@@ -1,0 +1,12 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: OpenIncident
+    receivers:
+      - uid: openincident-webhook
+        type: webhook
+        settings:
+          url: "http://host.docker.internal:8080/api/v1/webhooks/grafana"
+          httpMethod: POST
+        disableResolveMessage: false

@@ -505,7 +505,9 @@ func setupTestDB(t *testing.T) (*gorm.DB, func()) {
 		started_at DATETIME NOT NULL,
 		ended_at DATETIME,
 		received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		escalation_policy_id TEXT,
+		acknowledgment_status TEXT NOT NULL DEFAULT 'pending'
 	)`)
 	require.NoError(t, err, "Failed to create alerts table")
 
@@ -521,9 +523,15 @@ func setupTestDB(t *testing.T) (*gorm.DB, func()) {
 		status TEXT NOT NULL DEFAULT 'triggered',
 		severity TEXT NOT NULL DEFAULT 'medium',
 		summary TEXT,
+		group_key TEXT,
 		slack_channel_id TEXT,
 		slack_channel_name TEXT,
 		slack_message_ts TEXT,
+		teams_channel_id TEXT,
+		teams_channel_name TEXT,
+		teams_activity_id TEXT,
+		ai_summary TEXT,
+		ai_summary_generated_at DATETIME,
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		triggered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		acknowledged_at DATETIME,

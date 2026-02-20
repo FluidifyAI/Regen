@@ -93,6 +93,8 @@ func (m *mockIncidentService) GenerateAISummary(_ *models.Incident) (string, err
 func (m *mockIncidentService) GenerateHandoffDigest(_ *models.Incident) (string, error) {
 	return "", nil
 }
+func (m *mockIncidentService) AcknowledgeIncident(_ uuid.UUID, _, _ string) error { return nil }
+func (m *mockIncidentService) ResolveIncident(_ uuid.UUID, _, _ string) error     { return nil }
 
 var _ IncidentService = &mockIncidentService{}
 

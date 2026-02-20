@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(go vet:*)"
+      "Bash(go vet:*)",
+      "Bash(./openincident:*)",
+      "Bash(go build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

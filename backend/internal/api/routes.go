@@ -71,12 +71,16 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	slog.Info("escalation engine initialized")
 
 	// Initialize AI service (v0.6+) — noop if OPENAI_API_KEY is not set
-	aiSvc := services.NewAIService(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIMaxTokens)
+	aiSvc := services.NewAIService(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIMaxTokens, cfg.OpenAIPostMortemMaxTokens)
 	if aiSvc.IsEnabled() {
 		slog.Info("AI service enabled", "model", cfg.OpenAIModel)
 	} else {
 		slog.Warn("AI service disabled — set OPENAI_API_KEY to enable AI features")
 	}
+
+	// Post-mortem repositories (v0.7+)
+	postMortemTemplateRepo := repository.NewPostMortemTemplateRepository(db)
+	pmRepo := repository.NewPostMortemRepository(db)
 
 	// Initialize services
 	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
@@ -85,6 +89,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	alertSvc.SetGroupingEngine(groupingEngine)
 	alertSvc.SetRoutingEngine(routingEngine)
 	alertSvc.SetEscalationEngine(escalationEngine)
+
+	// Post-mortem service (v0.7+)
+	postMortemSvc := services.NewPostMortemService(pmRepo, postMortemTemplateRepo, incidentSvc, aiSvc)
 
 	// Start Slack Socket Mode event handler (bidirectional sync)
 	// Requires SLACK_APP_TOKEN in addition to SLACK_BOT_TOKEN
@@ -174,6 +181,22 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		v1.POST("/incidents/:id/summarize", handlers.SummarizeIncident(incidentSvc, aiSvc))
 		v1.POST("/incidents/:id/handoff-digest", handlers.GenerateHandoffDigest(incidentSvc, aiSvc))
 		v1.GET("/settings/ai", handlers.GetAISettings(aiSvc))
+
+		// Post-Mortem Templates (v0.7+)
+		v1.GET("/post-mortem-templates", handlers.ListPostMortemTemplates(postMortemSvc))
+		v1.POST("/post-mortem-templates", handlers.CreatePostMortemTemplate(postMortemSvc))
+		v1.GET("/post-mortem-templates/:id", handlers.GetPostMortemTemplate(postMortemSvc))
+		v1.PATCH("/post-mortem-templates/:id", handlers.UpdatePostMortemTemplate(postMortemSvc))
+		v1.DELETE("/post-mortem-templates/:id", handlers.DeletePostMortemTemplate(postMortemSvc))
+
+		// Post-Mortems (v0.7+)
+		v1.GET("/incidents/:id/postmortem", handlers.GetPostMortem(incidentSvc, postMortemSvc))
+		v1.POST("/incidents/:id/postmortem/generate", handlers.GeneratePostMortem(incidentSvc, postMortemSvc, aiSvc))
+		v1.PATCH("/incidents/:id/postmortem", handlers.UpdatePostMortem(incidentSvc, postMortemSvc))
+		v1.GET("/incidents/:id/postmortem/export", handlers.ExportPostMortem(incidentSvc, postMortemSvc))
+		v1.POST("/incidents/:id/postmortem/action-items", handlers.CreateActionItem(incidentSvc, postMortemSvc))
+		v1.PATCH("/incidents/:id/postmortem/action-items/:itemId", handlers.UpdateActionItem(incidentSvc, postMortemSvc))
+		v1.DELETE("/incidents/:id/postmortem/action-items/:itemId", handlers.DeleteActionItem(incidentSvc, postMortemSvc))
 
 		// Grouping Rules (v0.3)
 		v1.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))

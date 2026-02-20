@@ -21,14 +21,18 @@ const graphBaseURL = "https://graph.microsoft.com/v1.0"
 //   - ChannelMessage.Send (post messages)
 //   - TeamMember.Read.All (list members for invites)
 type TeamsService struct {
+	ctx        context.Context // application lifecycle context; cancels in-flight calls on shutdown
 	teamID     string
+	botUserID  string // AAD object ID of the bot; required for direct messages
 	httpClient *http.Client
 }
 
 // NewTeamsService creates a TeamsService authenticated via client credentials (app-only).
+// ctx is the application lifecycle context — cancelled on shutdown, which cancels in-flight Graph calls.
 // appID, appPassword, tenantID come from an Azure App Registration.
 // teamID is the GUID of the Team where incident channels will be created.
-func NewTeamsService(appID, appPassword, tenantID, teamID string) (*TeamsService, error) {
+// botUserID is the AAD object ID of the bot user, required for sending direct messages.
+func NewTeamsService(ctx context.Context, appID, appPassword, tenantID, teamID, botUserID string) (*TeamsService, error) {
 	cfg := clientcredentials.Config{
 		ClientID:     appID,
 		ClientSecret: appPassword,
@@ -39,16 +43,14 @@ func NewTeamsService(appID, appPassword, tenantID, teamID string) (*TeamsService
 	httpClient.Timeout = 30 * time.Second
 
 	// Validate credentials by fetching team info
-	svc := &TeamsService{teamID: teamID, httpClient: httpClient}
+	svc := &TeamsService{ctx: ctx, teamID: teamID, botUserID: botUserID, httpClient: httpClient}
 	if _, err := svc.getTeam(); err != nil {
 		return nil, fmt.Errorf("teams: credential validation failed (check TEAMS_* env vars and app permissions): %w", err)
 	}
 	return svc, nil
 }
 
-// ─── ChatService implementation ───────────────────────────────────────────────
-// Methods use context.Background() internally so TeamsService implements the
-// context-free ChatService interface while still supporting cancellable HTTP calls.
+// ─── ChatService implementation ────────────────────────────────────────────────
 
 func (s *TeamsService) CreateChannel(name, description string) (*Channel, error) {
 	body := map[string]interface{}{
@@ -73,45 +75,26 @@ func (s *TeamsService) CreateChannel(name, description string) (*Channel, error)
 }
 
 func (s *TeamsService) PostMessage(channelID string, msg Message) (string, error) {
-	var body map[string]interface{}
-	if len(msg.Blocks) > 0 {
-		// Adaptive Card attachment
-		body = map[string]interface{}{
-			"body": map[string]string{
-				"contentType": "html",
-				"content":     "<attachment id=\"0\"></attachment>",
-			},
-			"attachments": []map[string]interface{}{
-				{
-					"id":          "0",
-					"contentType": "application/vnd.microsoft.card.adaptive",
-					"content":     msg.Blocks[0], // caller passes the card JSON
-				},
-			},
-		}
-	} else {
-		body = map[string]interface{}{
-			"body": map[string]string{
-				"contentType": "text",
-				"content":     msg.Text,
-			},
-		}
-	}
-
 	var result struct {
 		ID string `json:"id"`
 	}
 	url := fmt.Sprintf("%s/teams/%s/channels/%s/messages", graphBaseURL, s.teamID, channelID)
-	if err := s.graphPost(url, body, &result); err != nil {
+	if err := s.graphPost(url, buildGraphMessageBody(msg), &result); err != nil {
 		return "", fmt.Errorf("teams: post message to channel %s: %w", channelID, err)
 	}
 	return result.ID, nil
 }
 
 func (s *TeamsService) UpdateMessage(channelID, messageID string, msg Message) error {
-	var body map[string]interface{}
+	url := fmt.Sprintf("%s/teams/%s/channels/%s/messages/%s", graphBaseURL, s.teamID, channelID, messageID)
+	return s.graphPatch(url, buildGraphMessageBody(msg))
+}
+
+// buildGraphMessageBody converts a Message into the Graph API request body format.
+// Adaptive Cards are sent as HTML attachment references; plain text is sent as-is.
+func buildGraphMessageBody(msg Message) map[string]interface{} {
 	if len(msg.Blocks) > 0 {
-		body = map[string]interface{}{
+		return map[string]interface{}{
 			"body": map[string]string{
 				"contentType": "html",
 				"content":     "<attachment id=\"0\"></attachment>",
@@ -124,17 +107,13 @@ func (s *TeamsService) UpdateMessage(channelID, messageID string, msg Message) e
 				},
 			},
 		}
-	} else {
-		body = map[string]interface{}{
-			"body": map[string]string{
-				"contentType": "text",
-				"content":     msg.Text,
-			},
-		}
 	}
-
-	url := fmt.Sprintf("%s/teams/%s/channels/%s/messages/%s", graphBaseURL, s.teamID, channelID, messageID)
-	return s.graphPatch(url, body)
+	return map[string]interface{}{
+		"body": map[string]string{
+			"contentType": "text",
+			"content":     msg.Text,
+		},
+	}
 }
 
 func (s *TeamsService) ArchiveChannel(channelID string) error {
@@ -213,15 +192,25 @@ func (s *TeamsService) getTeam() (map[string]interface{}, error) {
 }
 
 func (s *TeamsService) createOrGetChat(userID string) (string, error) {
+	// Graph POST /chats (oneOnOne) is idempotent — returns the existing chat if one already exists.
+	// Both the target user AND the bot must be listed as members; omitting the bot returns a 400.
+	members := []map[string]interface{}{
+		{
+			"@odata.type":     "#microsoft.graph.aadUserConversationMember",
+			"roles":           []string{"owner"},
+			"user@odata.bind": fmt.Sprintf("https://graph.microsoft.com/v1.0/users('%s')", userID),
+		},
+	}
+	if s.botUserID != "" {
+		members = append(members, map[string]interface{}{
+			"@odata.type":     "#microsoft.graph.aadUserConversationMember",
+			"roles":           []string{"owner"},
+			"user@odata.bind": fmt.Sprintf("https://graph.microsoft.com/v1.0/users('%s')", s.botUserID),
+		})
+	}
 	body := map[string]interface{}{
 		"chatType": "oneOnOne",
-		"members": []map[string]interface{}{
-			{
-				"@odata.type":     "#microsoft.graph.aadUserConversationMember",
-				"roles":           []string{"owner"},
-				"user@odata.bind": fmt.Sprintf("https://graph.microsoft.com/v1.0/users('%s')", userID),
-			},
-		},
+		"members":  members,
 	}
 	var result struct {
 		ID string `json:"id"`
@@ -233,7 +222,7 @@ func (s *TeamsService) createOrGetChat(userID string) (string, error) {
 }
 
 func (s *TeamsService) graphGet(url string, out interface{}) error {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(s.ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
@@ -246,7 +235,7 @@ func (s *TeamsService) graphPost(url string, body interface{}, out interface{}) 
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(s.ctx, http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -263,7 +252,7 @@ func (s *TeamsService) graphPatch(url string, body interface{}) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPatch, url, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(s.ctx, http.MethodPatch, url, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}

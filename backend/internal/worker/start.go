@@ -11,14 +11,13 @@ import (
 )
 
 // StartAll starts all background workers.
-// Should be called from main.go with the application lifecycle context.
-func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config) {
+// teamsSvc is constructed once in serve.go and shared with the API router.
+func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService) {
 	// Initialize dependencies for the shift notifier
 	scheduleRepo := repository.NewScheduleRepository(db)
 	scheduleEvaluator := services.NewScheduleEvaluator(scheduleRepo)
 
-	// ChatService is optional — if Slack is not configured, the workers run
-	// but all DM sends become graceful no-ops.
+	// Slack is optional — workers run but DM sends become no-ops when unconfigured.
 	var chatService services.ChatService
 	if cfg.SlackBotToken != "" {
 		var err error
@@ -29,26 +28,14 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config) {
 		}
 	}
 
-	// TeamsService is also optional — initialize if configured (v0.8+).
-	// When both Slack and Teams are configured, both receive notifications.
-	var teamsChatService services.ChatService
-	if cfg.TeamsAppID != "" {
-		teamsSvc, err := services.NewTeamsService(cfg.TeamsAppID, cfg.TeamsAppPassword, cfg.TeamsTenantID, cfg.TeamsTeamID)
-		if err != nil {
-			slog.Warn("failed to initialize teams for workers (will skip teams notifications)", "error", err)
-		} else {
-			teamsChatService = teamsSvc
-		}
-	}
-
 	// Build a multi-provider chat service that fans out to Slack and/or Teams.
 	// The shift notifier and escalation worker use this for on-call DMs.
 	activeChatServices := make([]services.ChatService, 0, 2)
 	if chatService != nil {
 		activeChatServices = append(activeChatServices, chatService)
 	}
-	if teamsChatService != nil {
-		activeChatServices = append(activeChatServices, teamsChatService)
+	if teamsSvc != nil {
+		activeChatServices = append(activeChatServices, teamsSvc)
 	}
 	var workerChatService services.ChatService
 	switch len(activeChatServices) {

@@ -41,6 +41,7 @@ type Config struct {
 	TeamsAppPassword string
 	TeamsTenantID    string
 	TeamsTeamID      string // ID of the Team where incident channels are created
+	TeamsBotUserID   string // AAD object ID of the bot user; required for direct messages
 }
 
 // Load reads configuration from environment variables
@@ -79,6 +80,7 @@ func Load() (*Config, error) {
 		TeamsAppPassword: getEnv("TEAMS_APP_PASSWORD", ""),
 		TeamsTenantID:    getEnv("TEAMS_TENANT_ID", ""),
 		TeamsTeamID:      getEnv("TEAMS_TEAM_ID", ""),
+		TeamsBotUserID:   getEnv("TEAMS_BOT_USER_ID", ""),
 	}
 
 	// Validate required configuration

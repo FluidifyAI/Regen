@@ -200,10 +200,20 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert) (*models.
 		return nil, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	// Create Slack + Teams channels asynchronously (non-blocking)
-	s.launchChannelCreation(incident, []models.Alert{*alert})
+	// Reload to pick up DB-assigned fields (e.g. incident_number) and get a fresh pointer
+	// that is not shared with the caller, avoiding data races in the channel-creation goroutine.
+	reloadedIncident, err := s.incidentRepo.GetByID(incident.ID)
+	if err != nil {
+		slog.Error("failed to reload incident after creation; proceeding with partial struct",
+			"incident_id", incident.ID, "error", err)
+		s.launchChannelCreation(incident, []models.Alert{*alert})
+		return incident, nil
+	}
 
-	return incident, nil
+	// Create Slack + Teams channels asynchronously (non-blocking)
+	s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
+
+	return reloadedIncident, nil
 }
 
 // CreateIncidentFromAlertWithGrouping creates an incident from an alert with grouping support (v0.3+)
@@ -233,6 +243,10 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		CustomFields:  make(models.JSONB),
 		GroupKey:      &groupKey, // Set group_key for alert grouping
 	}
+
+	// Track whether a new incident was created vs. an existing one reused (race-condition path).
+	// Channel creation must only run for genuinely new incidents.
+	var newIncidentCreated bool
 
 	// Execute all operations in a transaction with advisory lock
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -265,6 +279,7 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		if err := tx.Create(incident).Error; err != nil {
 			return fmt.Errorf("failed to create incident: %w", err)
 		}
+		newIncidentCreated = true
 
 		// Step 2: Link the alert to the incident (within transaction)
 		link := map[string]interface{}{
@@ -305,8 +320,18 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		return nil, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	// Create Slack + Teams channels asynchronously (non-blocking)
-	s.launchChannelCreation(incident, []models.Alert{*alert})
+	if newIncidentCreated {
+		// Reload to get DB-assigned fields and a fresh pointer for the goroutine.
+		reloadedIncident, err := s.incidentRepo.GetByID(incident.ID)
+		if err != nil {
+			slog.Error("failed to reload incident after creation; proceeding with partial struct",
+				"incident_id", incident.ID, "error", err)
+			s.launchChannelCreation(incident, []models.Alert{*alert})
+			return incident, nil
+		}
+		s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
+		return reloadedIncident, nil
+	}
 
 	return incident, nil
 }

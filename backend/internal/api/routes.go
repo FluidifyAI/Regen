@@ -16,8 +16,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// SetupRoutes configures all application routes
-func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
+// SetupRoutes configures all application routes.
+// teamsSvc may be nil when Teams integration is disabled.
+func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService) {
 	// Initialize repositories
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
@@ -93,20 +94,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	// Post-mortem service (v0.7+)
 	postMortemSvc := services.NewPostMortemService(pmRepo, postMortemTemplateRepo, incidentSvc, aiSvc)
 
-	// Initialize Teams service (v0.8+) — optional, graceful degradation if not configured
-	var teamsSvc *services.TeamsService
-	if cfg.TeamsAppID != "" {
-		var err error
-		teamsSvc, err = services.NewTeamsService(cfg.TeamsAppID, cfg.TeamsAppPassword, cfg.TeamsTenantID, cfg.TeamsTeamID)
-		if err != nil {
-			slog.Error("teams service initialization failed", "error", err)
-			slog.Warn("continuing without Teams integration — check TEAMS_* env vars and Azure app permissions")
-		} else {
-			services.SetTeamsService(incidentSvc, teamsSvc)
-			slog.Info("Teams integration enabled")
-		}
-	} else {
-		slog.Warn("TEAMS_APP_ID not set — Teams integration disabled")
+	// Wire Teams service into incident service (v0.8+).
+	// teamsSvc is constructed once in serve.go and injected here.
+	if teamsSvc != nil {
+		services.SetTeamsService(incidentSvc, teamsSvc)
 	}
 
 	// Start Slack Socket Mode event handler (bidirectional sync)

@@ -13,6 +13,7 @@ import {
   Shield,
   GitFork,
   GitBranch,
+  FileText,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
 
@@ -112,6 +113,13 @@ export function Sidebar() {
           icon: GitBranch,
           href: '/escalation-policies',
           matchPaths: ['/escalation-policies'],
+        },
+        {
+          id: 'post-mortem-templates',
+          label: 'PM Templates',
+          icon: FileText,
+          href: '/post-mortem-templates',
+          matchPaths: ['/post-mortem-templates'],
         },
       ],
     },

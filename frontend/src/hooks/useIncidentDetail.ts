@@ -24,6 +24,9 @@ interface IncidentDetail {
   commander_id?: string
   alerts: Alert[]
   timeline: TimelineEntry[]
+  // AI Summarization (v0.6+)
+  ai_summary?: string
+  ai_summary_generated_at?: string
 }
 
 interface UseIncidentDetailResult {

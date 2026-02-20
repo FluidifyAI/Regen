@@ -18,6 +18,32 @@ export interface Incident {
   created_by_type: string
   created_by_id?: string
   commander_id?: string
+
+  // AI Summarization (v0.6+)
+  ai_summary?: string
+  ai_summary_generated_at?: string
+}
+
+// AI response types (v0.6+)
+export interface AISummaryResponse {
+  incident_id: string
+  summary: string
+  generated_at: string
+  model: string
+  context_sources: string[]
+}
+
+export interface HandoffDigestResponse {
+  incident_id: string
+  incident_title: string
+  status: string
+  severity: string
+  digest: string
+  generated_at: string
+}
+
+export interface AISettingsResponse {
+  enabled: boolean
 }
 
 export interface Alert {

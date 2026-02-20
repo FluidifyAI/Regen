@@ -318,6 +318,84 @@ export interface ListEscalationPoliciesResponse {
   total: number
 }
 
+// Post-Mortem Templates (v0.7+)
+
+export interface PostMortemTemplate {
+  id: string
+  name: string
+  description: string
+  sections: string[]
+  is_built_in: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CreatePostMortemTemplateRequest {
+  name: string
+  description?: string
+  sections: string[]
+}
+
+export interface UpdatePostMortemTemplateRequest {
+  name?: string
+  description?: string
+  sections?: string[]
+}
+
+// Post-Mortems (v0.7+)
+
+export type PostMortemStatus = 'draft' | 'published'
+export type ActionItemStatus = 'open' | 'in_progress' | 'closed'
+
+export interface ActionItem {
+  id: string
+  post_mortem_id: string
+  title: string
+  owner?: string
+  due_date?: string
+  status: ActionItemStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface PostMortem {
+  id: string
+  incident_id: string
+  template_id?: string
+  template_name: string
+  status: PostMortemStatus
+  content: string
+  generated_by: string
+  generated_at?: string
+  published_at?: string
+  created_by_id: string
+  created_at: string
+  updated_at: string
+  action_items: ActionItem[]
+}
+
+export interface GeneratePostMortemRequest {
+  template_id?: string
+}
+
+export interface UpdatePostMortemRequest {
+  content?: string
+  status?: PostMortemStatus
+}
+
+export interface CreateActionItemRequest {
+  title: string
+  owner?: string
+  due_date?: string
+}
+
+export interface UpdateActionItemRequest {
+  title?: string
+  owner?: string
+  due_date?: string
+  status?: ActionItemStatus
+}
+
 // Type guards and utilities
 
 export function isApiError(error: unknown): error is ApiError {

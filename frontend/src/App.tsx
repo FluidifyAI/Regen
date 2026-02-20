@@ -9,6 +9,7 @@ import { ScheduleDetailPage } from './pages/ScheduleDetailPage'
 import { EscalationPoliciesPage } from './pages/EscalationPoliciesPage'
 import { EscalationPolicyDetailPage } from './pages/EscalationPolicyDetailPage'
 import { AlertDetailPage } from './pages/AlertDetailPage'
+import { PostMortemTemplatesPage } from './pages/PostMortemTemplatesPage'
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="/escalation-policies" element={<EscalationPoliciesPage />} />
           <Route path="/escalation-policies/:id" element={<EscalationPolicyDetailPage />} />
           <Route path="/alerts/:id" element={<AlertDetailPage />} />
+          <Route path="/post-mortem-templates" element={<PostMortemTemplatesPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

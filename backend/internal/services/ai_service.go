@@ -25,22 +25,31 @@ type AIService interface {
 	// GenerateHandoffDigest generates a structured shift handoff document.
 	// Suitable for posting to Slack or displaying in the UI at shift change.
 	GenerateHandoffDigest(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert) (string, error)
+
+	// GeneratePostMortem generates a full post-mortem document in Markdown.
+	// sections is the ordered list of section names from the chosen template.
+	// Uses a higher token budget than summary generation.
+	GeneratePostMortem(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) (string, error)
 }
 
 // NewAIService creates an AIService backed by OpenAI, or a noop if apiKey is empty.
-func NewAIService(apiKey, model string, maxTokens int) AIService {
+// postMortemMaxTokens sets a higher token budget used exclusively for post-mortem
+// generation, which produces much longer structured documents than summaries.
+func NewAIService(apiKey, model string, maxTokens, postMortemMaxTokens int) AIService {
 	if apiKey == "" {
 		return &noopAIService{}
 	}
 	return &aiService{
-		client: openai.New(apiKey, model, maxTokens),
+		client:           openai.New(apiKey, model, maxTokens),
+		postMortemClient: openai.New(apiKey, model, postMortemMaxTokens),
 	}
 }
 
 // ─── Real implementation ──────────────────────────────────────────────────────
 
 type aiService struct {
-	client *openai.Client
+	client           *openai.Client // summary / handoff (1 000 tokens)
+	postMortemClient *openai.Client // post-mortem (3 000 tokens)
 }
 
 func (s *aiService) IsEnabled() bool { return true }
@@ -61,6 +70,14 @@ func (s *aiService) GenerateHandoffDigest(ctx context.Context, incident *models.
 	return s.client.Complete(ctx, messages)
 }
 
+func (s *aiService) GeneratePostMortem(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) (string, error) {
+	messages := []openai.ChatMessage{
+		{Role: "system", Content: postMortemSystemPrompt},
+		{Role: "user", Content: buildPostMortemPrompt(incident, timeline, alerts, sections)},
+	}
+	return s.postMortemClient.Complete(ctx, messages)
+}
+
 // ─── Noop implementation (AI not configured) ─────────────────────────────────
 
 type noopAIService struct{}
@@ -70,6 +87,9 @@ func (n *noopAIService) GenerateSummary(_ context.Context, _ *models.Incident, _
 	return "", fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
 }
 func (n *noopAIService) GenerateHandoffDigest(_ context.Context, _ *models.Incident, _ []models.TimelineEntry, _ []models.Alert) (string, error) {
+	return "", fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
+}
+func (n *noopAIService) GeneratePostMortem(_ context.Context, _ *models.Incident, _ []models.TimelineEntry, _ []models.Alert, _ []string) (string, error) {
 	return "", fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
 }
 
@@ -166,6 +186,68 @@ func buildHandoffPrompt(incident *models.Incident, timeline []models.TimelineEnt
 			start = len(timeline) - 15
 		}
 		for _, e := range timeline[start:] {
+			content := extractTimelineText(e)
+			fmt.Fprintf(&b, "  [%s] %s: %s\n", e.Timestamp.Format("15:04"), e.Type, content)
+		}
+	}
+
+	return b.String()
+}
+
+// ─── Post-mortem prompt ───────────────────────────────────────────────────────
+
+// postMortemSystemPrompt instructs the model to produce structured Markdown.
+// Unlike the summary prompt, markdown formatting is explicitly encouraged here
+// since post-mortems are documents intended for export and long-term reference.
+const postMortemSystemPrompt = `You are an expert incident management assistant drafting post-mortem reports. Write in structured Markdown using the section headers provided. Adopt a blameless, fact-based tone. Be precise and technical. Avoid speculation — if information is not available, say so briefly. Use bullet points within sections where appropriate.`
+
+func buildPostMortemPrompt(incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) string {
+	var b strings.Builder
+
+	// Instruct the model to use exactly the requested sections
+	fmt.Fprintf(&b, "Draft a post-mortem report. Use ONLY these Markdown sections in this order:\n")
+	for _, s := range sections {
+		fmt.Fprintf(&b, "## %s\n", s)
+	}
+	fmt.Fprintf(&b, "\n")
+
+	// Incident metadata
+	fmt.Fprintf(&b, "INCIDENT: INC-%d — %s\n", incident.IncidentNumber, incident.Title)
+	fmt.Fprintf(&b, "Status: %s | Severity: %s\n", incident.Status, incident.Severity)
+	fmt.Fprintf(&b, "Triggered: %s\n", incident.TriggeredAt.Format(time.RFC3339))
+	if incident.AcknowledgedAt != nil {
+		fmt.Fprintf(&b, "Acknowledged: %s\n", incident.AcknowledgedAt.Format(time.RFC3339))
+	}
+	if incident.ResolvedAt != nil {
+		duration := incident.ResolvedAt.Sub(incident.TriggeredAt)
+		fmt.Fprintf(&b, "Resolved: %s (duration: %s)\n",
+			incident.ResolvedAt.Format(time.RFC3339),
+			duration.Round(time.Minute),
+		)
+	}
+	if incident.Summary != "" {
+		fmt.Fprintf(&b, "Manual summary: %s\n", incident.Summary)
+	}
+	if incident.AISummary != nil {
+		fmt.Fprintf(&b, "AI summary: %s\n", *incident.AISummary)
+	}
+
+	// Alerts (all of them — post-mortems benefit from the full picture)
+	if len(alerts) > 0 {
+		fmt.Fprintf(&b, "\nTRIGGERING ALERTS (%d):\n", len(alerts))
+		for i, a := range alerts {
+			if i >= 10 {
+				fmt.Fprintf(&b, "  ... and %d more\n", len(alerts)-10)
+				break
+			}
+			fmt.Fprintf(&b, "  - [%s/%s] %s: %s\n", a.Source, a.Severity, a.Title, a.Description)
+		}
+	}
+
+	// Full timeline (post-mortems need the complete picture, not a summary cap)
+	if len(timeline) > 0 {
+		fmt.Fprintf(&b, "\nFULL TIMELINE (%d entries):\n", len(timeline))
+		for _, e := range timeline {
 			content := extractTimelineText(e)
 			fmt.Fprintf(&b, "  [%s] %s: %s\n", e.Timestamp.Format("15:04"), e.Type, content)
 		}

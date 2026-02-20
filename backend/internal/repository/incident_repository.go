@@ -23,6 +23,7 @@ type IncidentRepository interface {
 	LinkAlert(incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error
 	GetAlerts(incidentID uuid.UUID) ([]models.Alert, error)
 	GetIncidentByAlertID(alertID uuid.UUID) (*models.Incident, error)
+	UpdateAISummary(id uuid.UUID, summary string, generatedAt time.Time) error
 }
 
 // IncidentFilters holds filter options for listing incidents
@@ -202,6 +203,17 @@ func (r *incidentRepository) UpdateSlackMessageTS(id uuid.UUID, messageTS string
 	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).
 		Update("slack_message_ts", messageTS).Error; err != nil {
 		return &DatabaseError{Op: "update incident slack message ts", Err: err}
+	}
+	return nil
+}
+
+// UpdateAISummary persists an AI-generated summary and its generation timestamp.
+func (r *incidentRepository) UpdateAISummary(id uuid.UUID, summary string, generatedAt time.Time) error {
+	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"ai_summary":              summary,
+		"ai_summary_generated_at": generatedAt,
+	}).Error; err != nil {
+		return &DatabaseError{Op: "update incident ai summary", Err: err}
 	}
 	return nil
 }

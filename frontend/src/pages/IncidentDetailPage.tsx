@@ -8,10 +8,12 @@ import { StatusDropdown } from '../components/incidents/StatusDropdown'
 import { SeverityDropdown } from '../components/incidents/SeverityDropdown'
 import { AddTimelineEntry } from '../components/incidents/AddTimelineEntry'
 import { GroupedAlerts } from '../components/incidents/GroupedAlerts'
+import { AISummaryPanel } from '../components/incidents/AISummaryPanel'
+import { HandoffDigest } from '../components/incidents/HandoffDigest'
 import { ToastContainer, useToast } from '../components/ui/Toast'
 import { GeneralError } from '../components/ui/ErrorState'
 
-type TabType = 'activity' | 'alerts'
+type TabType = 'activity' | 'alerts' | 'ai'
 
 /**
  * Incident detail page with two-panel layout
@@ -124,6 +126,12 @@ export function IncidentDetailPage() {
                 label="Alerts"
                 count={incident.alerts.length}
               />
+              <TabButton
+                active={activeTab === 'ai'}
+                onClick={() => setActiveTab('ai')}
+                label="AI"
+                count={incident.ai_summary ? 1 : 0}
+              />
             </div>
           </div>
 
@@ -142,6 +150,20 @@ export function IncidentDetailPage() {
             )}
             {activeTab === 'alerts' && (
               <GroupedAlerts alerts={incident.alerts} incident={incident} />
+            )}
+            {activeTab === 'ai' && (
+              <div className="space-y-4">
+                <AISummaryPanel
+                  incidentId={incident.id}
+                  existingSummary={incident.ai_summary}
+                  existingSummaryGeneratedAt={incident.ai_summary_generated_at}
+                  onSummaryGenerated={refetch}
+                />
+                <HandoffDigest
+                  incidentId={incident.id}
+                  aiEnabled={true}
+                />
+              </div>
             )}
           </div>
         </div>

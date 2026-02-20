@@ -87,6 +87,12 @@ func (m *mockIncidentService) CreateTimelineEntry(params *CreateTimelineEntryPar
 func (m *mockIncidentService) PostStatusUpdateToSlack(incident *models.Incident, previousStatus, newStatus models.IncidentStatus) error {
 	return nil
 }
+func (m *mockIncidentService) GenerateAISummary(_ *models.Incident) (string, error) {
+	return "", nil
+}
+func (m *mockIncidentService) GenerateHandoffDigest(_ *models.Incident) (string, error) {
+	return "", nil
+}
 
 var _ IncidentService = &mockIncidentService{}
 

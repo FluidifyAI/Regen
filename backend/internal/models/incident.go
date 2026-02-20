@@ -43,6 +43,12 @@ type Incident struct {
 	// NULL for manually created incidents or incidents created before v0.3
 	GroupKey *string `gorm:"type:varchar(64);index:idx_incidents_group_key_status_created" json:"group_key,omitempty"`
 
+	// AI Summarization (v0.6+)
+	// AISummary is an on-demand AI-generated summary, distinct from the manual Summary field.
+	// AISummaryGeneratedAt records when the summary was last regenerated.
+	AISummary            *string    `gorm:"type:text" json:"ai_summary,omitempty"`
+	AISummaryGeneratedAt *time.Time `gorm:"type:timestamptz" json:"ai_summary_generated_at,omitempty"`
+
 	// Relationships (not in database, loaded via joins)
 	Alerts []Alert `gorm:"many2many:incident_alerts;" json:"alerts,omitempty"`
 	// TimelineEntries will be added when TimelineEntry model is created

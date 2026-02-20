@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -62,6 +63,12 @@ type IncidentService interface {
 
 	// Slack notifications
 	PostStatusUpdateToSlack(incident *models.Incident, previousStatus, newStatus models.IncidentStatus) error
+
+	// AI features (v0.6+)
+	// GenerateAISummary generates an AI summary for an incident and persists it.
+	GenerateAISummary(incident *models.Incident) (string, error)
+	// GenerateHandoffDigest generates a shift handoff digest for an incident (not persisted).
+	GenerateHandoffDigest(incident *models.Incident) (string, error)
 }
 
 // incidentService implements IncidentService
@@ -73,6 +80,7 @@ type incidentService struct {
 	messageBuilder    *SlackMessageBuilder // Optional - can be nil if Slack not configured
 	db                *gorm.DB             // For transaction management
 	autoInviteUserIDs []string             // User IDs to auto-invite to incident channels
+	aiService         AIService            // Optional - can be nil if OpenAI not configured
 }
 
 // NewIncidentService creates a new incident service
@@ -97,6 +105,14 @@ func NewIncidentService(
 		messageBuilder:    messageBuilder,
 		db:                db,
 		autoInviteUserIDs: autoInviteUserIDs,
+	}
+}
+
+// SetAIService wires the optional AI service into the incident service.
+// Called by routes.go after construction to avoid changing the constructor signature.
+func SetAIService(svc IncidentService, ai AIService) {
+	if is, ok := svc.(*incidentService); ok {
+		is.aiService = ai
 	}
 }
 
@@ -940,4 +956,84 @@ func (s *incidentService) PostStatusUpdateToSlack(
 	)
 
 	return nil
+}
+
+// ─── AI features (v0.6+) ──────────────────────────────────────────────────────
+
+// GenerateAISummary generates an AI-powered summary for the incident, including
+// timeline, alerts, and Slack thread context. Persists the result to the database.
+func (s *incidentService) GenerateAISummary(incident *models.Incident) (string, error) {
+	if !s.aiService.IsEnabled() {
+		return "", fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
+	}
+
+	// Gather context: timeline
+	timeline, _, err := s.GetIncidentTimeline(incident.ID, repository.Pagination{Page: 1, PageSize: 100})
+	if err != nil {
+		slog.Warn("failed to fetch timeline for AI summary, continuing without it",
+			"incident_id", incident.ID, "error", err)
+		timeline = []models.TimelineEntry{}
+	}
+
+	// Gather context: alerts
+	alerts, err := s.GetIncidentAlerts(incident.ID)
+	if err != nil {
+		slog.Warn("failed to fetch alerts for AI summary, continuing without them",
+			"incident_id", incident.ID, "error", err)
+		alerts = []models.Alert{}
+	}
+
+	// Gather context: Slack thread (best-effort, non-blocking)
+	var slackMessages []string
+	if s.chatService != nil && incident.SlackChannelID != "" && incident.SlackMessageTS != "" {
+		msgs, err := s.chatService.GetThreadMessages(incident.SlackChannelID, incident.SlackMessageTS)
+		if err != nil {
+			slog.Warn("failed to fetch slack thread for AI summary, continuing without it",
+				"incident_id", incident.ID, "error", err)
+		} else {
+			slackMessages = msgs
+		}
+	}
+
+	summary, err := s.aiService.GenerateSummary(context.Background(), incident, timeline, alerts, slackMessages)
+	if err != nil {
+		return "", fmt.Errorf("generate AI summary: %w", err)
+	}
+
+	// Persist the summary
+	generatedAt := time.Now()
+	if err := s.incidentRepo.UpdateAISummary(incident.ID, summary, generatedAt); err != nil {
+		slog.Error("failed to persist AI summary", "incident_id", incident.ID, "error", err)
+		// Return summary anyway — don't fail the request just because persistence failed
+	}
+
+	return summary, nil
+}
+
+// GenerateHandoffDigest generates a shift handoff digest for the incident.
+// The digest is not persisted — it is returned for display/posting.
+func (s *incidentService) GenerateHandoffDigest(incident *models.Incident) (string, error) {
+	if !s.aiService.IsEnabled() {
+		return "", fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
+	}
+
+	timeline, _, err := s.GetIncidentTimeline(incident.ID, repository.Pagination{Page: 1, PageSize: 100})
+	if err != nil {
+		slog.Warn("failed to fetch timeline for handoff digest, continuing without it",
+			"incident_id", incident.ID, "error", err)
+		timeline = []models.TimelineEntry{}
+	}
+
+	alerts, err := s.GetIncidentAlerts(incident.ID)
+	if err != nil {
+		slog.Warn("failed to fetch alerts for handoff digest, continuing without them",
+			"incident_id", incident.ID, "error", err)
+		alerts = []models.Alert{}
+	}
+
+	digest, err := s.aiService.GenerateHandoffDigest(context.Background(), incident, timeline, alerts)
+	if err != nil {
+		return "", fmt.Errorf("generate handoff digest: %w", err)
+	}
+	return digest, nil
 }

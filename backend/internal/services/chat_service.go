@@ -94,6 +94,21 @@ type ChatService interface {
 	//
 	// Thread-safe: Yes
 	SendDirectMessage(username string, message Message) error
+
+	// GetThreadMessages fetches the plain-text messages from a channel thread.
+	// Used to provide Slack conversation context to the AI summarizer.
+	//
+	// Parameters:
+	//   - channelID: The platform-specific channel identifier
+	//   - threadTS: The parent message timestamp identifying the thread
+	//
+	// Returns:
+	//   - Slice of plain-text message strings (author + text, one per message)
+	//   - Empty slice (not error) if the thread is empty or has no text messages
+	//   - Error only for auth/network failures
+	//
+	// Thread-safe: Yes
+	GetThreadMessages(channelID, threadTS string) ([]string, error)
 }
 
 // Channel represents a chat channel with platform-specific details.

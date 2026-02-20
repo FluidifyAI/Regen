@@ -30,8 +30,10 @@ type Config struct {
 	SlackAppToken          string
 	SlackAutoInviteUserIDs []string
 
-	// OpenAI
-	OpenAIAPIKey string
+	// OpenAI (optional — AI features disabled if APIKey is empty)
+	OpenAIAPIKey    string
+	OpenAIModel     string `default:"gpt-4o-mini"`
+	OpenAIMaxTokens int    `default:"1000"`
 }
 
 // Load reads configuration from environment variables
@@ -60,7 +62,9 @@ func Load() (*Config, error) {
 		SlackAutoInviteUserIDs: getEnvAsSlice("SLACK_AUTO_INVITE_USER_IDS", []string{}),
 
 		// OpenAI
-		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
+		OpenAIAPIKey:    getEnv("OPENAI_API_KEY", ""),
+		OpenAIModel:     getEnv("OPENAI_MODEL", "gpt-4o-mini"),
+		OpenAIMaxTokens: getEnvAsInt("OPENAI_MAX_TOKENS", 1000),
 	}
 
 	// Validate required configuration

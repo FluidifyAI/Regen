@@ -91,6 +91,9 @@ func (m *mockChatService) InviteUsers(channelID string, userIDs []string) error 
 	return m.InviteUsersFn(channelID, userIDs)
 }
 func (m *mockChatService) SendDirectMessage(username string, message Message) error { return nil }
+func (m *mockChatService) GetThreadMessages(channelID, threadTS string) ([]string, error) {
+	return []string{}, nil
+}
 
 // ----------------------------------------------------------------------------
 // Test DB helper (mirrors handler test setup)

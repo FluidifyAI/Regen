@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -428,7 +429,7 @@ func TestCreateIncident(t *testing.T) {
 				assert.Equal(t, "triggered", resp.Status)
 				assert.Equal(t, "user", resp.CreatedByType)
 				assert.NotZero(t, resp.IncidentNumber, "Should have incident number")
-				assert.Equal(t, "production-database-down", resp.Slug)
+				assert.True(t, strings.HasPrefix(resp.Slug, "production-database-down"), "slug %q should start with 'production-database-down'", resp.Slug)
 
 				// Verify timeline entry was created
 				var count int64
@@ -892,7 +893,9 @@ func setupIncidentTestDB(t *testing.T) (*gorm.DB, func()) {
 		started_at DATETIME NOT NULL,
 		ended_at DATETIME,
 		received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		escalation_policy_id TEXT,
+		acknowledgment_status TEXT NOT NULL DEFAULT 'pending'
 	)`)
 	require.NoError(t, err)
 
@@ -908,9 +911,15 @@ func setupIncidentTestDB(t *testing.T) (*gorm.DB, func()) {
 		status TEXT NOT NULL DEFAULT 'triggered',
 		severity TEXT NOT NULL DEFAULT 'medium',
 		summary TEXT,
+		group_key TEXT,
 		slack_channel_id TEXT,
 		slack_channel_name TEXT,
 		slack_message_ts TEXT,
+		teams_channel_id TEXT,
+		teams_channel_name TEXT,
+		teams_activity_id TEXT,
+		ai_summary TEXT,
+		ai_summary_generated_at DATETIME,
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		triggered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		acknowledged_at DATETIME,

@@ -305,17 +305,27 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 ### Phase 4: Enterprise (v0.8–v1.0)
 
 **v0.8 — Teams Integration (Weeks 21–23)**
-- [ ] Teams channel creation
-- [ ] Teams bot
-- [ ] Bidirectional sync
-- [ ] Teams notifications
+- [x] Teams channel auto-creation (parallel to Slack, async goroutine)
+- [x] Teams bot commands (`@Bot ack`, `resolve`, `new`, `status`)
+- [x] Adaptive Card posted on incident creation and status change
+- [x] `MultiChatService` fan-out for DMs (shift notifier, escalation worker)
+- [ ] Initial card post blocked by `ChannelMessage.Send` (delegated-only permission) — deferred to v0.9
 
-**v0.9 — Enterprise Features (Weeks 24–26)**
+**v0.9 — Enterprise Features + Teams Hardening (Weeks 24–26)**
+
+*Enterprise:*
 - [ ] SSO/SAML
 - [ ] RBAC
 - [ ] Audit log export
 - [ ] SCIM provisioning
 - [ ] Retention policies
+
+*Teams Integration Hardening (backlog from v0.8):*
+- [ ] Replace Graph API message posting with **Incoming Webhooks** per channel (workaround for delegated-only `ChannelMessage.Send`)
+- [ ] Sync UI timeline notes → Teams channel (parity with Slack's `postTimelineNoteToSlack`)
+- [ ] Sync Teams `@Bot` replies → UI timeline (inbound parity with Slack Socket Mode)
+- [ ] Proper channel archive on resolve (Graph API limitation: standard channels can't be archived; evaluate private channel model)
+- [ ] Auto-invite specific users to Teams channel (currently no-op for standard channels; needs private channel or DM fallback)
 
 **v1.0 — Production Ready (Weeks 27–28)**
 - [ ] Kubernetes Helm chart

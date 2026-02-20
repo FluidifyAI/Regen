@@ -54,6 +54,11 @@ services:
       - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
       - SLACK_AUTO_INVITE_USER_IDS=${SLACK_AUTO_INVITE_USER_IDS}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TEAMS_APP_ID=${TEAMS_APP_ID}
+      - TEAMS_APP_PASSWORD=${TEAMS_APP_PASSWORD}
+      - TEAMS_TENANT_ID=${TEAMS_TENANT_ID}
+      - TEAMS_TEAM_ID=${TEAMS_TEAM_ID}
+      - TEAMS_BOT_USER_ID=${TEAMS_BOT_USER_ID}
     volumes:
       - ./backend:/app
       - go_modules:/go/pkg/mod

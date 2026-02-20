@@ -10,6 +10,9 @@ export interface Incident {
   summary: string
   slack_channel_id?: string
   slack_channel_name?: string
+  // Teams integration (v0.8+)
+  teams_channel_id?: string
+  teams_channel_name?: string
   group_key?: string  // SHA256 hash for grouped incidents
   created_at: string
   triggered_at: string
@@ -43,6 +46,10 @@ export interface HandoffDigestResponse {
 }
 
 export interface AISettingsResponse {
+  enabled: boolean
+}
+
+export interface TeamsSettingsResponse {
   enabled: boolean
 }
 

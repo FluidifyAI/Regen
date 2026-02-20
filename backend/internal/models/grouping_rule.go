@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // GroupingRule defines how alerts should be grouped into a single incident.
@@ -32,7 +33,7 @@ type GroupingRule struct {
 
 	// Enabled controls whether this rule is active
 	// Disabled rules are skipped during alert processing
-	Enabled bool `gorm:"not null;default:true" json:"enabled"`
+	Enabled bool `gorm:"not null" json:"enabled"`
 
 	// Priority determines evaluation order (lower number = higher priority)
 	// Rules are evaluated in ascending priority order until one matches
@@ -96,6 +97,16 @@ type GroupingRule struct {
 // TableName specifies the database table name
 func (GroupingRule) TableName() string {
 	return "grouping_rules"
+}
+
+// BeforeCreate generates a UUID for new grouping rules when none is set.
+// This ensures compatibility with both PostgreSQL (which uses gen_random_uuid() as default)
+// and SQLite (used in tests, which does not support that function).
+func (gr *GroupingRule) BeforeCreate(tx *gorm.DB) error {
+	if gr.ID == uuid.Nil {
+		gr.ID = uuid.New()
+	}
+	return nil
 }
 
 // GroupKey generates a unique key for grouping alerts based on this rule.

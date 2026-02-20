@@ -10,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/api/handlers"
-	"github.com/openincident/openincident/internal/models"
 	"github.com/openincident/openincident/internal/repository"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/sqlite"
@@ -22,8 +21,21 @@ func setupGroupingRulesTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	assert.NoError(t, err)
 
-	// Run migrations
-	err = db.AutoMigrate(&models.GroupingRule{})
+	// Create table manually (AutoMigrate generates PostgreSQL-specific DDL that SQLite rejects)
+	sqlDB, err := db.DB()
+	assert.NoError(t, err)
+	_, err = sqlDB.Exec(`CREATE TABLE grouping_rules (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		description TEXT DEFAULT '',
+		enabled INTEGER NOT NULL DEFAULT 1,
+		priority INTEGER NOT NULL,
+		match_labels TEXT NOT NULL DEFAULT '{}',
+		time_window_seconds INTEGER NOT NULL DEFAULT 300,
+		cross_source_labels TEXT DEFAULT '[]',
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`)
 	assert.NoError(t, err)
 
 	return db
@@ -145,7 +157,8 @@ func TestCreateGroupingRule_PriorityConflict(t *testing.T) {
 
 	var response map[string]interface{}
 	json.Unmarshal(w2.Body.Bytes(), &response)
-	assert.Contains(t, response["error"], "priority already in use")
+	errMap := response["error"].(map[string]interface{})
+	assert.Contains(t, errMap["message"], "priority already in use")
 }
 
 func TestListGroupingRules(t *testing.T) {

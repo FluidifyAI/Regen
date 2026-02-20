@@ -31,10 +31,17 @@ type Config struct {
 	SlackAutoInviteUserIDs []string
 
 	// OpenAI (optional — AI features disabled if APIKey is empty)
-	OpenAIAPIKey               string
-	OpenAIModel                string `default:"gpt-4o-mini"`
-	OpenAIMaxTokens            int    `default:"1000"`
-	OpenAIPostMortemMaxTokens  int    `default:"3000"`
+	OpenAIAPIKey              string
+	OpenAIModel               string `default:"gpt-4o-mini"`
+	OpenAIMaxTokens           int    `default:"1000"`
+	OpenAIPostMortemMaxTokens int    `default:"3000"`
+
+	// Microsoft Teams (optional — Teams features disabled if AppID is empty)
+	TeamsAppID       string
+	TeamsAppPassword string
+	TeamsTenantID    string
+	TeamsTeamID      string // ID of the Team where incident channels are created
+	TeamsBotUserID   string // AAD object ID of the bot user; required for direct messages
 }
 
 // Load reads configuration from environment variables
@@ -67,6 +74,13 @@ func Load() (*Config, error) {
 		OpenAIModel:               getEnv("OPENAI_MODEL", "gpt-4o-mini"),
 		OpenAIMaxTokens:           getEnvAsInt("OPENAI_MAX_TOKENS", 1000),
 		OpenAIPostMortemMaxTokens: getEnvAsInt("OPENAI_POSTMORTEM_MAX_TOKENS", 3000),
+
+		// Microsoft Teams
+		TeamsAppID:       getEnv("TEAMS_APP_ID", ""),
+		TeamsAppPassword: getEnv("TEAMS_APP_PASSWORD", ""),
+		TeamsTenantID:    getEnv("TEAMS_TENANT_ID", ""),
+		TeamsTeamID:      getEnv("TEAMS_TEAM_ID", ""),
+		TeamsBotUserID:   getEnv("TEAMS_BOT_USER_ID", ""),
 	}
 
 	// Validate required configuration

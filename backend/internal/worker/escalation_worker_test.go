@@ -55,6 +55,9 @@ func (m *mockChatForWorker) SendDirectMessage(username string, msg services.Mess
 	m.dms = append(m.dms, sentDM{username: username, message: msg})
 	return nil
 }
+func (m *mockChatForWorker) GetThreadMessages(channelID, threadTS string) ([]string, error) {
+	return nil, nil
+}
 
 var _ services.ChatService = &mockChatForWorker{}
 

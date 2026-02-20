@@ -15,11 +15,14 @@ type IncidentRepository interface {
 	GetByID(id uuid.UUID) (*models.Incident, error)
 	GetByNumber(number int) (*models.Incident, error)
 	GetBySlackChannelID(channelID string) (*models.Incident, error)
+	GetByTeamsChannelID(channelID string) (*models.Incident, error)
 	List(filters IncidentFilters, pagination Pagination) ([]models.Incident, int64, error)
 	Update(incident *models.Incident) error
 	UpdateStatus(id uuid.UUID, status models.IncidentStatus) error
 	UpdateSlackChannel(id uuid.UUID, channelID, channelName string) error
 	UpdateSlackMessageTS(id uuid.UUID, messageTS string) error
+	UpdateTeamsChannel(id uuid.UUID, channelID, channelName string) error
+	UpdateTeamsActivityID(id uuid.UUID, activityID string) error
 	LinkAlert(incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error
 	GetAlerts(incidentID uuid.UUID) ([]models.Alert, error)
 	GetIncidentByAlertID(alertID uuid.UUID) (*models.Incident, error)
@@ -139,6 +142,9 @@ func (r *incidentRepository) Update(incident *models.Incident) error {
 		"summary":            incident.Summary,
 		"slack_channel_id":   incident.SlackChannelID,
 		"slack_channel_name": incident.SlackChannelName,
+		"teams_channel_id":   incident.TeamsChannelID,
+		"teams_channel_name": incident.TeamsChannelName,
+		"teams_activity_id":  incident.TeamsActivityID,
 		"acknowledged_at":    incident.AcknowledgedAt,
 		"resolved_at":        incident.ResolvedAt,
 		"commander_id":       incident.CommanderID,
@@ -203,6 +209,39 @@ func (r *incidentRepository) UpdateSlackMessageTS(id uuid.UUID, messageTS string
 	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).
 		Update("slack_message_ts", messageTS).Error; err != nil {
 		return &DatabaseError{Op: "update incident slack message ts", Err: err}
+	}
+	return nil
+}
+
+// GetByTeamsChannelID retrieves an incident by its Teams channel ID.
+// Returns nil (not an error) when not found — caller checks nil.
+func (r *incidentRepository) GetByTeamsChannelID(channelID string) (*models.Incident, error) {
+	var incident models.Incident
+	if err := r.db.Where("teams_channel_id = ?", channelID).First(&incident).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, &DatabaseError{Op: "get incident by teams channel id", Err: err}
+	}
+	return &incident, nil
+}
+
+// UpdateTeamsChannel stores the Teams channel ID and name for an incident.
+func (r *incidentRepository) UpdateTeamsChannel(id uuid.UUID, channelID, channelName string) error {
+	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"teams_channel_id":   channelID,
+		"teams_channel_name": channelName,
+	}).Error; err != nil {
+		return &DatabaseError{Op: "update incident teams channel", Err: err}
+	}
+	return nil
+}
+
+// UpdateTeamsActivityID stores the Teams root activity ID (used to update the incident card).
+func (r *incidentRepository) UpdateTeamsActivityID(id uuid.UUID, activityID string) error {
+	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).
+		Update("teams_activity_id", activityID).Error; err != nil {
+		return &DatabaseError{Op: "update incident teams activity id", Err: err}
 	}
 	return nil
 }

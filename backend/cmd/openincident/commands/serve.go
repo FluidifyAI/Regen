@@ -16,6 +16,7 @@ import (
 	"github.com/openincident/openincident/internal/database"
 	"github.com/openincident/openincident/internal/metrics"
 	"github.com/openincident/openincident/internal/redis"
+	"github.com/openincident/openincident/internal/services"
 	"github.com/openincident/openincident/internal/worker"
 	"github.com/spf13/cobra"
 )
@@ -72,16 +73,34 @@ func runServe(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// Create the application lifecycle context before any service that needs it.
+	// Cancelled on SIGTERM, which propagates to all in-flight Graph API calls.
+	appCtx, appCancel := context.WithCancel(context.Background())
+	defer appCancel()
+
+	// Initialize TeamsService once — shared by API routes and background workers.
+	// Constructing it twice wastes two OAuth2 token sources and two startup validation calls.
+	var teamsSvc *services.TeamsService
+	if cfg.TeamsAppID != "" {
+		var err error
+		teamsSvc, err = services.NewTeamsService(appCtx, cfg.TeamsAppID, cfg.TeamsAppPassword, cfg.TeamsTenantID, cfg.TeamsTeamID, cfg.TeamsBotUserID)
+		if err != nil {
+			slog.Error("teams service initialization failed", "error", err)
+			slog.Warn("continuing without Teams integration — check TEAMS_* env vars and Azure app permissions")
+		} else {
+			slog.Info("Teams integration enabled")
+		}
+	} else {
+		slog.Warn("TEAMS_APP_ID not set — Teams integration disabled")
+	}
+
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
-	api.SetupRoutes(router, database.DB, cfg)
+	api.SetupRoutes(router, database.DB, cfg, teamsSvc)
 
-	appCtx, appCancel := context.WithCancel(context.Background())
-	defer appCancel()
-
-	worker.StartAll(appCtx, database.DB, cfg)
+	worker.StartAll(appCtx, database.DB, cfg, teamsSvc)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

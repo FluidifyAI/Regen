@@ -57,6 +57,8 @@ type IncidentService interface {
 	GetIncidentBySlackChannelID(channelID string) (*models.Incident, error)
 	CreateIncident(params *CreateIncidentParams) (*models.Incident, error)
 	UpdateIncident(id uuid.UUID, params *UpdateIncidentParams) (*models.Incident, error)
+	AcknowledgeIncident(id uuid.UUID, actorType, actorID string) error
+	ResolveIncident(id uuid.UUID, actorType, actorID string) error
 	GetIncidentAlerts(incidentID uuid.UUID) ([]models.Alert, error)
 	GetIncidentTimeline(incidentID uuid.UUID, pagination repository.Pagination) ([]models.TimelineEntry, int64, error)
 	CreateTimelineEntry(params *CreateTimelineEntryParams) (*models.TimelineEntry, error)
@@ -78,6 +80,7 @@ type incidentService struct {
 	alertRepo         repository.AlertRepository
 	chatService       ChatService          // Optional - can be nil if Slack not configured
 	messageBuilder    *SlackMessageBuilder // Optional - can be nil if Slack not configured
+	teamsSvc          *TeamsService        // Optional - can be nil if Teams not configured (v0.8+)
 	db                *gorm.DB             // For transaction management
 	autoInviteUserIDs []string             // User IDs to auto-invite to incident channels
 	aiService         AIService            // Optional - can be nil if OpenAI not configured
@@ -113,6 +116,14 @@ func NewIncidentService(
 func SetAIService(svc IncidentService, ai AIService) {
 	if is, ok := svc.(*incidentService); ok {
 		is.aiService = ai
+	}
+}
+
+// SetTeamsService wires the optional Teams service into the incident service (v0.8+).
+// Called by routes.go after construction when TEAMS_APP_ID is configured.
+func SetTeamsService(svc IncidentService, teams *TeamsService) {
+	if is, ok := svc.(*incidentService); ok {
+		is.teamsSvc = teams
 	}
 }
 
@@ -189,20 +200,20 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert) (*models.
 		return nil, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	// Create Slack channel asynchronously (non-blocking)
-	if s.chatService != nil {
-		go func() {
-			alerts := []models.Alert{*alert}
-			if err := s.CreateSlackChannelForIncident(incident, alerts); err != nil {
-				slog.Error("failed to create slack channel",
-					"incident_id", incident.ID,
-					"incident_number", incident.IncidentNumber,
-					"error", err)
-			}
-		}()
+	// Reload to pick up DB-assigned fields (e.g. incident_number) and get a fresh pointer
+	// that is not shared with the caller, avoiding data races in the channel-creation goroutine.
+	reloadedIncident, err := s.incidentRepo.GetByID(incident.ID)
+	if err != nil {
+		slog.Error("failed to reload incident after creation; proceeding with partial struct",
+			"incident_id", incident.ID, "error", err)
+		s.launchChannelCreation(incident, []models.Alert{*alert})
+		return incident, nil
 	}
 
-	return incident, nil
+	// Create Slack + Teams channels asynchronously (non-blocking)
+	s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
+
+	return reloadedIncident, nil
 }
 
 // CreateIncidentFromAlertWithGrouping creates an incident from an alert with grouping support (v0.3+)
@@ -232,6 +243,10 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		CustomFields:  make(models.JSONB),
 		GroupKey:      &groupKey, // Set group_key for alert grouping
 	}
+
+	// Track whether a new incident was created vs. an existing one reused (race-condition path).
+	// Channel creation must only run for genuinely new incidents.
+	var newIncidentCreated bool
 
 	// Execute all operations in a transaction with advisory lock
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -264,6 +279,7 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		if err := tx.Create(incident).Error; err != nil {
 			return fmt.Errorf("failed to create incident: %w", err)
 		}
+		newIncidentCreated = true
 
 		// Step 2: Link the alert to the incident (within transaction)
 		link := map[string]interface{}{
@@ -304,17 +320,17 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		return nil, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	// Create Slack channel asynchronously (non-blocking)
-	if s.chatService != nil {
-		go func() {
-			alerts := []models.Alert{*alert}
-			if err := s.CreateSlackChannelForIncident(incident, alerts); err != nil {
-				slog.Error("failed to create slack channel",
-					"incident_id", incident.ID,
-					"incident_number", incident.IncidentNumber,
-					"error", err)
-			}
-		}()
+	if newIncidentCreated {
+		// Reload to get DB-assigned fields and a fresh pointer for the goroutine.
+		reloadedIncident, err := s.incidentRepo.GetByID(incident.ID)
+		if err != nil {
+			slog.Error("failed to reload incident after creation; proceeding with partial struct",
+				"incident_id", incident.ID, "error", err)
+			s.launchChannelCreation(incident, []models.Alert{*alert})
+			return incident, nil
+		}
+		s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
+		return reloadedIncident, nil
 	}
 
 	return incident, nil
@@ -691,16 +707,8 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 		return nil, fmt.Errorf("failed to reload incident after creation: %w", err)
 	}
 
-	// Create Slack channel asynchronously
-	if s.chatService != nil {
-		go func() {
-			if err := s.CreateSlackChannelForIncident(reloadedIncident, []models.Alert{}); err != nil {
-				slog.Error("failed to create slack channel",
-					"incident_id", reloadedIncident.ID,
-					"error", err)
-			}
-		}()
-	}
+	// Create Slack + Teams channels asynchronously
+	s.launchChannelCreation(reloadedIncident, []models.Alert{})
 
 	return reloadedIncident, nil
 }
@@ -814,8 +822,10 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 		return nil, err
 	}
 
+	statusChanged := params.Status != "" && params.Status != previousStatus
+
 	// Post Slack notification and optionally archive channel, asynchronously
-	if params.Status != "" && params.Status != previousStatus && s.chatService != nil {
+	if statusChanged && s.chatService != nil {
 		go func() {
 			if err := s.PostStatusUpdateToSlack(incident, previousStatus, params.Status); err != nil {
 				slog.Error("failed to post slack notification", "error", err)
@@ -844,6 +854,11 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 				}
 			}
 		}()
+	}
+
+	// Post Teams notification and optionally archive Teams channel, asynchronously (v0.8+)
+	if statusChanged && s.teamsSvc != nil {
+		go s.postStatusUpdateToTeams(incident, previousStatus, params.Status, params.UpdatedBy)
 	}
 
 	// Fetch updated incident
@@ -1036,4 +1051,166 @@ func (s *incidentService) GenerateHandoffDigest(incident *models.Incident) (stri
 		return "", fmt.Errorf("generate handoff digest: %w", err)
 	}
 	return digest, nil
+}
+
+// ─── Bot command helpers (v0.8+) ──────────────────────────────────────────────
+
+// AcknowledgeIncident transitions an incident to "acknowledged".
+// Used by the Teams and Slack bots so they can acknowledge via simple commands.
+func (s *incidentService) AcknowledgeIncident(id uuid.UUID, actorType, actorID string) error {
+	incident, err := s.incidentRepo.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if err := s.incidentRepo.UpdateStatus(id, models.IncidentStatusAcknowledged); err != nil {
+		return err
+	}
+	s.createTimelineEntry(id, models.TimelineTypeStatusChanged, models.JSONB{
+		"previous_status": string(incident.Status),
+		"new_status":      string(models.IncidentStatusAcknowledged),
+		"actor":           actorID,
+	})
+	return nil
+}
+
+// ResolveIncident transitions an incident to "resolved".
+// Used by the Teams and Slack bots so they can resolve via simple commands.
+func (s *incidentService) ResolveIncident(id uuid.UUID, actorType, actorID string) error {
+	incident, err := s.incidentRepo.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if err := s.incidentRepo.UpdateStatus(id, models.IncidentStatusResolved); err != nil {
+		return err
+	}
+	s.createTimelineEntry(id, models.TimelineTypeStatusChanged, models.JSONB{
+		"previous_status": string(incident.Status),
+		"new_status":      string(models.IncidentStatusResolved),
+		"actor":           actorID,
+	})
+	// Trigger Teams channel archive asynchronously
+	if s.teamsSvc != nil && incident.TeamsChannelID != nil {
+		go func() {
+			if err := s.teamsSvc.ArchiveChannel(*incident.TeamsChannelID); err != nil {
+				slog.Warn("teams: failed to archive channel on resolve", "incident_id", id, "error", err)
+			}
+		}()
+	}
+	return nil
+}
+
+// ─── Teams channel management (v0.8+) ────────────────────────────────────────
+
+// createTeamsChannelForIncident creates a Teams channel for an incident, posts the initial
+// Adaptive Card, and stores the channel ID in the database. Runs asynchronously.
+func (s *incidentService) createTeamsChannelForIncident(incident *models.Incident, alerts []models.Alert) error {
+	channelName := formatIncidentChannelName(incident.IncidentNumber, incident.Slug)
+	description := fmt.Sprintf("Incident #%d: %s", incident.IncidentNumber, incident.Title)
+
+	slog.Info("creating teams channel for incident",
+		"incident_id", incident.ID,
+		"incident_number", incident.IncidentNumber,
+		"channel_name", channelName)
+
+	channel, err := s.teamsSvc.CreateChannel(channelName, description)
+	if err != nil {
+		s.createTimelineEntry(incident.ID, "teams_channel_creation_failed", models.JSONB{
+			"error":        err.Error(),
+			"channel_name": channelName,
+		})
+		return fmt.Errorf("failed to create teams channel: %w", err)
+	}
+
+	if err := s.incidentRepo.UpdateTeamsChannel(incident.ID, channel.ID, channel.Name); err != nil {
+		slog.Error("failed to update incident with teams channel",
+			"incident_id", incident.ID, "channel_id", channel.ID, "error", err)
+	}
+
+	// Post initial Adaptive Card
+	card := teamsIncidentCard(incident)
+	msg := Message{Blocks: []interface{}{card}}
+	activityID, err := s.teamsSvc.PostMessage(channel.ID, msg)
+	if err != nil {
+		slog.Error("failed to post initial teams card",
+			"incident_id", incident.ID, "channel_id", channel.ID, "error", err)
+	} else if activityID != "" {
+		if storeErr := s.incidentRepo.UpdateTeamsActivityID(incident.ID, activityID); storeErr != nil {
+			slog.Warn("failed to store teams activity id", "incident_id", incident.ID, "error", storeErr)
+		}
+	}
+
+	s.createTimelineEntry(incident.ID, "teams_channel_created", models.JSONB{
+		"channel_id":   channel.ID,
+		"channel_name": channel.Name,
+		"channel_url":  channel.URL,
+	})
+
+	slog.Info("teams channel created for incident",
+		"incident_id", incident.ID,
+		"incident_number", incident.IncidentNumber,
+		"channel_id", channel.ID,
+		"channel_name", channel.Name)
+
+	return nil
+}
+
+// launchChannelCreation spawns goroutines to create Slack and/or Teams channels for a new incident.
+// Extracted to avoid repeating the same two-goroutine block in every CreateIncident* variant.
+func (s *incidentService) launchChannelCreation(incident *models.Incident, alerts []models.Alert) {
+	if s.chatService != nil {
+		go func() {
+			if err := s.CreateSlackChannelForIncident(incident, alerts); err != nil {
+				slog.Error("failed to create slack channel",
+					"incident_id", incident.ID,
+					"incident_number", incident.IncidentNumber,
+					"error", err)
+			}
+		}()
+	}
+	if s.teamsSvc != nil {
+		go func() {
+			if err := s.createTeamsChannelForIncident(incident, alerts); err != nil {
+				slog.Error("failed to create teams channel",
+					"incident_id", incident.ID,
+					"incident_number", incident.IncidentNumber,
+					"error", err)
+			}
+		}()
+	}
+}
+
+// postStatusUpdateToTeams posts a status change notification to the Teams channel
+// and updates the root Adaptive Card. Runs asynchronously.
+func (s *incidentService) postStatusUpdateToTeams(incident *models.Incident, previousStatus, newStatus models.IncidentStatus, updatedBy string) {
+	if incident.TeamsChannelID == nil {
+		return
+	}
+	channelID := *incident.TeamsChannelID
+
+	// Update the root card if we have its activity ID
+	if incident.TeamsActivityID != nil {
+		updatedCard := teamsIncidentCard(incident)
+		msg := Message{Blocks: []interface{}{updatedCard}}
+		if err := s.teamsSvc.UpdateMessage(channelID, *incident.TeamsActivityID, msg); err != nil {
+			slog.Warn("teams: failed to update root card on status change",
+				"incident_id", incident.ID, "error", err)
+		}
+	}
+
+	// Post a visible notification
+	statusCard := teamsStatusUpdateCard(incident, updatedBy)
+	notifMsg := Message{Blocks: []interface{}{statusCard}}
+	if _, err := s.teamsSvc.PostMessage(channelID, notifMsg); err != nil {
+		slog.Error("teams: failed to post status update notification",
+			"incident_id", incident.ID, "error", err)
+		return
+	}
+
+	// Archive on terminal status
+	isTerminal := newStatus == models.IncidentStatusResolved || newStatus == models.IncidentStatusCanceled
+	if isTerminal {
+		if err := s.teamsSvc.ArchiveChannel(channelID); err != nil {
+			slog.Warn("teams: failed to archive channel", "incident_id", incident.ID, "error", err)
+		}
+	}
 }

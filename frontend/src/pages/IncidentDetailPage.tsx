@@ -10,10 +10,11 @@ import { AddTimelineEntry } from '../components/incidents/AddTimelineEntry'
 import { GroupedAlerts } from '../components/incidents/GroupedAlerts'
 import { AISummaryPanel } from '../components/incidents/AISummaryPanel'
 import { HandoffDigest } from '../components/incidents/HandoffDigest'
+import { PostMortemPanel } from '../components/incidents/PostMortemPanel'
 import { ToastContainer, useToast } from '../components/ui/Toast'
 import { GeneralError } from '../components/ui/ErrorState'
 
-type TabType = 'activity' | 'alerts' | 'ai'
+type TabType = 'activity' | 'alerts' | 'ai' | 'postmortem'
 
 /**
  * Incident detail page with two-panel layout
@@ -132,6 +133,12 @@ export function IncidentDetailPage() {
                 label="AI"
                 count={incident.ai_summary ? 1 : 0}
               />
+              <TabButton
+                active={activeTab === 'postmortem'}
+                onClick={() => setActiveTab('postmortem')}
+                label="Post-Mortem"
+                count={0}
+              />
             </div>
           </div>
 
@@ -164,6 +171,9 @@ export function IncidentDetailPage() {
                   aiEnabled={true}
                 />
               </div>
+            )}
+            {activeTab === 'postmortem' && (
+              <PostMortemPanel incidentId={incident.id} />
             )}
           </div>
         </div>

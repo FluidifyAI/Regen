@@ -29,15 +29,44 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config) {
 		}
 	}
 
+	// TeamsService is also optional — initialize if configured (v0.8+).
+	// When both Slack and Teams are configured, both receive notifications.
+	var teamsChatService services.ChatService
+	if cfg.TeamsAppID != "" {
+		teamsSvc, err := services.NewTeamsService(cfg.TeamsAppID, cfg.TeamsAppPassword, cfg.TeamsTenantID, cfg.TeamsTeamID)
+		if err != nil {
+			slog.Warn("failed to initialize teams for workers (will skip teams notifications)", "error", err)
+		} else {
+			teamsChatService = teamsSvc
+		}
+	}
+
+	// Build a multi-provider chat service that fans out to Slack and/or Teams.
+	// The shift notifier and escalation worker use this for on-call DMs.
+	activeChatServices := make([]services.ChatService, 0, 2)
+	if chatService != nil {
+		activeChatServices = append(activeChatServices, chatService)
+	}
+	if teamsChatService != nil {
+		activeChatServices = append(activeChatServices, teamsChatService)
+	}
+	var workerChatService services.ChatService
+	switch len(activeChatServices) {
+	case 1:
+		workerChatService = activeChatServices[0]
+	case 2:
+		workerChatService = services.NewMultiChatService(activeChatServices...)
+	}
+
 	// Start the shift notifier
-	notifier := NewShiftNotifier(scheduleRepo, scheduleEvaluator, chatService)
+	notifier := NewShiftNotifier(scheduleRepo, scheduleEvaluator, workerChatService)
 	go notifier.Run(ctx)
 
 	// Start the escalation worker.
 	// Build the escalation engine here with the worker as its notifier so that
 	// the engine can immediately send DMs when a tier fires.
 	escalationPolicyRepo := repository.NewEscalationPolicyRepository(db)
-	escalationWorker := NewEscalationWorker(chatService)
+	escalationWorker := NewEscalationWorker(workerChatService)
 	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, escalationWorker)
 	escalationWorker.SetEngine(escalationEngine)
 	go escalationWorker.Run(ctx)

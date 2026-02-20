@@ -22,6 +22,13 @@ type Incident struct {
 	SlackChannelName string `gorm:"type:varchar(100)" json:"slack_channel_name,omitempty"`
 	SlackMessageTS   string `gorm:"type:varchar(64)" json:"slack_message_ts,omitempty"`
 
+	// Teams integration (v0.8+)
+	// TeamsChannelID is the channel ID in the format "19:xxx@thread.tacv2"
+	// TeamsActivityID is the ID of the root adaptive card posted in the channel (used for updates)
+	TeamsChannelID   *string `gorm:"type:varchar(255)" json:"teams_channel_id,omitempty"`
+	TeamsChannelName *string `gorm:"type:varchar(255)" json:"teams_channel_name,omitempty"`
+	TeamsActivityID  *string `gorm:"type:varchar(1024)" json:"teams_activity_id,omitempty"`
+
 	// Timestamps (created_at and triggered_at are immutable)
 	CreatedAt      time.Time  `gorm:"not null;default:now()" json:"created_at"`
 	TriggeredAt    time.Time  `gorm:"not null;default:now();index:idx_incidents_triggered_at" json:"triggered_at"`

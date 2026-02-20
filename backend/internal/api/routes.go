@@ -93,6 +93,22 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	// Post-mortem service (v0.7+)
 	postMortemSvc := services.NewPostMortemService(pmRepo, postMortemTemplateRepo, incidentSvc, aiSvc)
 
+	// Initialize Teams service (v0.8+) — optional, graceful degradation if not configured
+	var teamsSvc *services.TeamsService
+	if cfg.TeamsAppID != "" {
+		var err error
+		teamsSvc, err = services.NewTeamsService(cfg.TeamsAppID, cfg.TeamsAppPassword, cfg.TeamsTenantID, cfg.TeamsTeamID)
+		if err != nil {
+			slog.Error("teams service initialization failed", "error", err)
+			slog.Warn("continuing without Teams integration — check TEAMS_* env vars and Azure app permissions")
+		} else {
+			services.SetTeamsService(incidentSvc, teamsSvc)
+			slog.Info("Teams integration enabled")
+		}
+	} else {
+		slog.Warn("TEAMS_APP_ID not set — Teams integration disabled")
+	}
+
 	// Start Slack Socket Mode event handler (bidirectional sync)
 	// Requires SLACK_APP_TOKEN in addition to SLACK_BOT_TOKEN
 	if cfg.SlackAppToken != "" && chatService != nil {
@@ -162,6 +178,15 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 			// Generic webhook JSON Schema endpoint (self-documenting API)
 			// Example: curl http://localhost:8080/api/v1/webhooks/generic/schema
 			webhooksGroup.GET("/generic/schema", genericHandler.HandleSchema)
+
+			// Teams Bot Framework webhook (v0.8+)
+			// Microsoft routes all bot messages here. Protected by Bot Framework JWT auth.
+			// Configure this URL as the bot endpoint in your Azure Bot registration.
+			if teamsSvc != nil {
+				teamsEventHandler := services.NewTeamsEventHandler(cfg.TeamsAppID, incidentSvc, incidentRepo, teamsSvc)
+				teamsGroup := webhooksGroup.Group("/teams", middleware.TeamsAuth(cfg.TeamsAppID))
+				teamsGroup.POST("", handlers.TeamsWebhook(teamsEventHandler))
+			}
 		}
 
 		// Incidents
@@ -181,6 +206,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		v1.POST("/incidents/:id/summarize", handlers.SummarizeIncident(incidentSvc, aiSvc))
 		v1.POST("/incidents/:id/handoff-digest", handlers.GenerateHandoffDigest(incidentSvc, aiSvc))
 		v1.GET("/settings/ai", handlers.GetAISettings(aiSvc))
+		v1.GET("/settings/teams", handlers.GetTeamsSettings(teamsSvc))
 
 		// Post-Mortem Templates (v0.7+)
 		v1.GET("/post-mortem-templates", handlers.ListPostMortemTemplates(postMortemSvc))

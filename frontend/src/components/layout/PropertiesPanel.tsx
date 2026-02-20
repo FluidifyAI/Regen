@@ -15,6 +15,8 @@ interface Incident {
   summary: string
   slack_channel_id?: string
   slack_channel_name?: string
+  teams_channel_id?: string
+  teams_channel_name?: string
   created_at: string
   triggered_at: string
   acknowledged_at?: string
@@ -121,6 +123,24 @@ export function PropertiesPanel({ incident }: PropertiesPanelProps) {
                   className="text-sm text-brand-primary hover:underline inline-flex items-center gap-1"
                 >
                   #{incident.slack_channel_name}
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </PropertySection>
+          )}
+
+          {/* Teams Channel (v0.8+) */}
+          {incident.teams_channel_name && (
+            <PropertySection title="Teams Channel">
+              <div className="flex items-center gap-2">
+                <Hash className="w-4 h-4 text-text-tertiary" />
+                <a
+                  href={`https://teams.microsoft.com/l/channel/${encodeURIComponent(incident.teams_channel_id ?? '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-brand-primary hover:underline inline-flex items-center gap-1"
+                >
+                  #{incident.teams_channel_name}
                   <ExternalLink className="w-3 h-3" />
                 </a>
               </div>

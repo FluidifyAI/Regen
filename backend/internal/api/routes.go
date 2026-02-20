@@ -70,8 +70,17 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, nil)
 	slog.Info("escalation engine initialized")
 
+	// Initialize AI service (v0.6+) — noop if OPENAI_API_KEY is not set
+	aiSvc := services.NewAIService(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIMaxTokens)
+	if aiSvc.IsEnabled() {
+		slog.Info("AI service enabled", "model", cfg.OpenAIModel)
+	} else {
+		slog.Warn("AI service disabled — set OPENAI_API_KEY to enable AI features")
+	}
+
 	// Initialize services
 	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
+	services.SetAIService(incidentSvc, aiSvc)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 	alertSvc.SetGroupingEngine(groupingEngine)
 	alertSvc.SetRoutingEngine(routingEngine)
@@ -160,6 +169,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		v1.GET("/alerts", handlers.ListAlerts(alertRepo))
 		v1.GET("/alerts/:id", handlers.GetAlert(alertRepo))
 		v1.POST("/alerts/:id/acknowledge", handlers.AcknowledgeAlert(alertRepo, escalationEngine, incidentRepo, timelineRepo))
+
+		// AI (v0.6+)
+		v1.POST("/incidents/:id/summarize", handlers.SummarizeIncident(incidentSvc, aiSvc))
+		v1.POST("/incidents/:id/handoff-digest", handlers.GenerateHandoffDigest(incidentSvc, aiSvc))
+		v1.GET("/settings/ai", handlers.GetAISettings(aiSvc))
 
 		// Grouping Rules (v0.3)
 		v1.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))

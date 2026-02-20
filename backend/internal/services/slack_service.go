@@ -300,6 +300,44 @@ func (s *slackService) SendDirectMessage(username string, message Message) error
 	return nil
 }
 
+// GetThreadMessages fetches plain-text messages from a Slack thread for AI context.
+// Bot messages and empty messages are excluded. Returns empty slice (not error) when
+// the thread has no usable content.
+func (s *slackService) GetThreadMessages(channelID, threadTS string) ([]string, error) {
+	if channelID == "" || threadTS == "" {
+		return []string{}, nil
+	}
+
+	params := &slack.GetConversationRepliesParameters{
+		ChannelID: channelID,
+		Timestamp: threadTS,
+		Limit:     200,
+	}
+
+	msgs, _, _, err := s.client.GetConversationReplies(params)
+	if err != nil {
+		return nil, fmt.Errorf("fetch thread messages: %w", err)
+	}
+
+	result := make([]string, 0, len(msgs))
+	for _, msg := range msgs {
+		// Skip bot messages and empty text
+		if msg.BotID != "" || strings.TrimSpace(msg.Text) == "" {
+			continue
+		}
+		username := msg.Username
+		if username == "" {
+			username = msg.User
+		}
+		if username == "" {
+			result = append(result, msg.Text)
+		} else {
+			result = append(result, fmt.Sprintf("[%s]: %s", username, msg.Text))
+		}
+	}
+	return result, nil
+}
+
 // lookupUserID resolves a participant username (display name or email) to a Slack user ID.
 // Tries email lookup first, then linear scan of users.list.
 func (s *slackService) lookupUserID(username string) (string, error) {

@@ -59,6 +59,13 @@ services:
       - TEAMS_TENANT_ID=${TEAMS_TENANT_ID}
       - TEAMS_TEAM_ID=${TEAMS_TEAM_ID}
       - TEAMS_BOT_USER_ID=${TEAMS_BOT_USER_ID}
+      # SAML SSO (optional — leave unset to run in open mode)
+      - SAML_IDP_METADATA_URL=${SAML_IDP_METADATA_URL}
+      - SAML_BASE_URL=${SAML_BASE_URL:-http://localhost:8080}
+      - SAML_ENTITY_ID=${SAML_ENTITY_ID}
+      - SAML_CERT_FILE=${SAML_CERT_FILE}
+      - SAML_KEY_FILE=${SAML_KEY_FILE}
+      - SAML_ALLOW_IDP_INITIATED=${SAML_ALLOW_IDP_INITIATED:-false}
     volumes:
       - ./backend:/app
       - go_modules:/go/pkg/mod
@@ -71,6 +78,24 @@ services:
         condition: service_healthy
     networks:
       - openincident
+
+  # mock-idp: Local SAML IdP for SSO development/testing.
+  # Enable by uncommenting and setting env vars in your .env:
+  #   SAML_IDP_METADATA_URL=http://localhost:8082/simplesaml/saml2/idp/metadata.php
+  #   SAML_BASE_URL=http://localhost:8080
+  #   SAML_ALLOW_IDP_INITIATED=true
+  # Default test credentials: user1 / user1password
+  #
+  # mock-idp:
+  #   image: kristophjunge/test-saml-idp
+  #   container_name: openincident-mock-idp
+  #   ports:
+  #     - "8082:80"
+  #   environment:
+  #     - SIMPLESAMLPHP_SP_ENTITY_ID=http://localhost:8080/saml/metadata
+  #     - SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE=http://localhost:8080/saml/acs
+  #   networks:
+  #     - openincident
 
   # web:
   #   # Frontend service will be implemented in Epic-006

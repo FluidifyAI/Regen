@@ -252,18 +252,28 @@ Every action is logged. Timestamps are server-generated and immutable. This isn'
 
 **Timeline**: Weeks 21–28
 
-**v0.8 — Teams Integration (Weeks 21–23)**
-- Microsoft Teams channel creation
-- Teams bot for incident interaction
-- Bidirectional sync (like Slack)
-- Teams-native notifications
+**v0.8 — Teams Integration (Weeks 21–23)** ✅ shipped
+- Teams channel auto-creation in parallel with Slack (async goroutines)
+- Teams bot commands: `@Bot ack`, `resolve`, `new`, `status`
+- Adaptive Cards on incident creation and status change
+- `MultiChatService` fan-out for DMs (shift notifier, escalation worker)
+- **Known limitation:** `ChannelMessage.Send` is a delegated-only Graph API permission — initial card post is blocked. Deferred to v0.9 via Incoming Webhooks.
 
-**v0.9 — Enterprise Features (Weeks 24–26)**
-- SSO/SAML integration
-- RBAC (role-based access control)
-- Audit log export
-- SCIM user provisioning
-- Data retention policies
+**v0.9 — Enterprise Features + Teams Hardening (Weeks 24–26)**
+
+*Enterprise:*
+- [ ] SSO/SAML integration
+- [ ] RBAC (role-based access control)
+- [ ] Audit log export
+- [ ] SCIM user provisioning
+- [ ] Data retention policies
+
+*Teams Integration Hardening (backlog from v0.8):*
+- [ ] Replace Graph API message posting with **Incoming Webhooks** per channel (standard workaround for delegated-only `ChannelMessage.Send`; webhook URL stored at channel creation time)
+- [ ] Sync UI timeline notes → Teams channel (parity with Slack's bidirectional note sync)
+- [ ] Sync Teams `@Bot` replies → UI timeline (inbound parity with Slack Socket Mode)
+- [ ] Proper channel archive on resolve (Graph API cannot archive standard channels; evaluate private channel model or rename convention)
+- [ ] Auto-invite specific users to Teams channel (no-op for standard channels; needs private channel model or DM fallback)
 
 **v1.0 — Production Ready (Weeks 27–28)**
 - Kubernetes Helm chart
@@ -384,6 +394,18 @@ If "OpenIncident" has trademark issues:
 - **OnCallHub**
 - **IncidentForge**
 - **PageFree** (cheeky PagerDuty reference)
+
+---
+
+## Known Limitations & Integration Notes
+
+| Area | Limitation | Planned Fix |
+|------|-----------|-------------|
+| Teams message posting | `ChannelMessage.Send` is delegated-only in Microsoft Graph API — cannot be granted to an app registration | Use Incoming Webhooks per channel (v0.9) |
+| Teams channel archive | Graph API cannot archive standard channels | Rename to `[RESOLVED] inc-N-...` as best-effort today; evaluate private channel model in v0.9 |
+| Teams user invites | Standard channels visible to all Team members — explicit invites are a no-op | Private channel model or DM fallback in v0.9 |
+| Teams timeline sync | UI notes sync to Slack only today | Add Teams fan-out in v0.9 |
+| AI provider | OpenAI only | Interface already abstracted; local LLM (Ollama) planned post-v1.0 |
 
 ---
 

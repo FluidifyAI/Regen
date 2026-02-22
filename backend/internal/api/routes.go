@@ -2,8 +2,10 @@ package api
 
 import (
 	"log/slog"
+	"net/http"
 	"os"
 
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gin-gonic/gin"
 	"github.com/openincident/openincident/internal/api/handlers"
 	"github.com/openincident/openincident/internal/api/middleware"
@@ -18,7 +20,8 @@ import (
 
 // SetupRoutes configures all application routes.
 // teamsSvc may be nil when Teams integration is disabled.
-func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService) {
+// samlMiddleware may be nil when SSO is not configured (all routes open).
+func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware) {
 	// Initialize repositories
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
@@ -127,14 +130,37 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	router.Use(middleware.Logger())
 	router.Use(metrics.Middleware()) // Prometheus metrics
 
-	// Health check endpoints
+	// Health check endpoints (always open — liveness/readiness probes)
 	router.GET("/health", handlers.Health(db))
 	router.GET("/ready", handlers.Ready(db))
 
-	// Metrics endpoint
+	// Metrics endpoint (always open — scraped by Prometheus via network policy)
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
+	// Auth endpoints (always open — these ARE the login flow)
+	if samlMiddleware != nil {
+		// crewjam/saml's ServeHTTP handles /saml/metadata and /saml/acs internally,
+		// but falls through to its inner (nil) handler for all other paths.
+		// We dispatch /saml/login to HandleStartAuthFlow ourselves — we can't
+		// register it as a separate Gin route alongside the *action wildcard
+		// (httprouter conflict), so we intercept inside the handler instead.
+		samlHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/saml/login" || r.URL.Path == "/saml/login/" {
+				samlMiddleware.HandleStartAuthFlow(w, r)
+				return
+			}
+			samlMiddleware.ServeHTTP(w, r)
+		})
+		router.Any("/saml/*action", gin.WrapH(samlHandler))
+		slog.Info("SAML SSO routes registered", "login", "/saml/login", "metadata", "/saml/metadata")
+	} else {
+		slog.Warn("SAML SSO disabled — set SAML_IDP_METADATA_URL to enable authentication")
+	}
+	router.GET("/auth/logout", handlers.Logout(samlMiddleware))
+
 	// API v1 routes
+	// Webhooks are machine-to-machine and intentionally excluded from RequireAuth.
+	// All other /api/v1 routes require a valid SAML session (no-op when SSO disabled).
 	v1 := router.Group("/api/v1")
 	{
 		// Webhooks (with 1MB body size limit)
@@ -180,83 +206,89 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			}
 		}
 
+		// Auth identity endpoint
+		v1.GET("/auth/me", middleware.RequireAuth(samlMiddleware), handlers.GetCurrentUser())
+
+		// Protected routes — require SAML session (no-op when SSO disabled)
+		protected := v1.Group("", middleware.RequireAuth(samlMiddleware))
+
 		// Incidents
-		v1.GET("/incidents", handlers.ListIncidents(incidentSvc))
-		v1.GET("/incidents/:id", handlers.GetIncident(incidentSvc))
-		v1.POST("/incidents", handlers.CreateIncident(incidentSvc))
-		v1.PATCH("/incidents/:id", handlers.UpdateIncident(incidentSvc))
-		v1.GET("/incidents/:id/timeline", handlers.GetIncidentTimeline(incidentSvc))
-		v1.POST("/incidents/:id/timeline", handlers.CreateTimelineEntry(incidentSvc))
+		protected.GET("/incidents", handlers.ListIncidents(incidentSvc))
+		protected.GET("/incidents/:id", handlers.GetIncident(incidentSvc))
+		protected.POST("/incidents", handlers.CreateIncident(incidentSvc))
+		protected.PATCH("/incidents/:id", handlers.UpdateIncident(incidentSvc))
+		protected.GET("/incidents/:id/timeline", handlers.GetIncidentTimeline(incidentSvc))
+		protected.POST("/incidents/:id/timeline", handlers.CreateTimelineEntry(incidentSvc))
 
 		// Alerts
-		v1.GET("/alerts", handlers.ListAlerts(alertRepo))
-		v1.GET("/alerts/:id", handlers.GetAlert(alertRepo))
-		v1.POST("/alerts/:id/acknowledge", handlers.AcknowledgeAlert(alertRepo, escalationEngine, incidentRepo, timelineRepo))
+		protected.GET("/alerts", handlers.ListAlerts(alertRepo))
+		protected.GET("/alerts/:id", handlers.GetAlert(alertRepo))
+		protected.POST("/alerts/:id/acknowledge", handlers.AcknowledgeAlert(alertRepo, escalationEngine, incidentRepo, timelineRepo))
 
 		// AI (v0.6+)
-		v1.POST("/incidents/:id/summarize", handlers.SummarizeIncident(incidentSvc, aiSvc))
-		v1.POST("/incidents/:id/handoff-digest", handlers.GenerateHandoffDigest(incidentSvc, aiSvc))
-		v1.GET("/settings/ai", handlers.GetAISettings(aiSvc))
-		v1.GET("/settings/teams", handlers.GetTeamsSettings(teamsSvc))
+		protected.POST("/incidents/:id/summarize", handlers.SummarizeIncident(incidentSvc, aiSvc))
+		protected.POST("/incidents/:id/handoff-digest", handlers.GenerateHandoffDigest(incidentSvc, aiSvc))
+		protected.GET("/settings/ai", handlers.GetAISettings(aiSvc))
+		protected.GET("/settings/teams", handlers.GetTeamsSettings(teamsSvc))
 
 		// Post-Mortem Templates (v0.7+)
-		v1.GET("/post-mortem-templates", handlers.ListPostMortemTemplates(postMortemSvc))
-		v1.POST("/post-mortem-templates", handlers.CreatePostMortemTemplate(postMortemSvc))
-		v1.GET("/post-mortem-templates/:id", handlers.GetPostMortemTemplate(postMortemSvc))
-		v1.PATCH("/post-mortem-templates/:id", handlers.UpdatePostMortemTemplate(postMortemSvc))
-		v1.DELETE("/post-mortem-templates/:id", handlers.DeletePostMortemTemplate(postMortemSvc))
+		protected.GET("/post-mortem-templates", handlers.ListPostMortemTemplates(postMortemSvc))
+		protected.POST("/post-mortem-templates", handlers.CreatePostMortemTemplate(postMortemSvc))
+		protected.GET("/post-mortem-templates/:id", handlers.GetPostMortemTemplate(postMortemSvc))
+		protected.PATCH("/post-mortem-templates/:id", handlers.UpdatePostMortemTemplate(postMortemSvc))
+		protected.DELETE("/post-mortem-templates/:id", handlers.DeletePostMortemTemplate(postMortemSvc))
 
 		// Post-Mortems (v0.7+)
-		v1.GET("/incidents/:id/postmortem", handlers.GetPostMortem(incidentSvc, postMortemSvc))
-		v1.POST("/incidents/:id/postmortem/generate", handlers.GeneratePostMortem(incidentSvc, postMortemSvc, aiSvc))
-		v1.PATCH("/incidents/:id/postmortem", handlers.UpdatePostMortem(incidentSvc, postMortemSvc))
-		v1.GET("/incidents/:id/postmortem/export", handlers.ExportPostMortem(incidentSvc, postMortemSvc))
-		v1.POST("/incidents/:id/postmortem/action-items", handlers.CreateActionItem(incidentSvc, postMortemSvc))
-		v1.PATCH("/incidents/:id/postmortem/action-items/:itemId", handlers.UpdateActionItem(incidentSvc, postMortemSvc))
-		v1.DELETE("/incidents/:id/postmortem/action-items/:itemId", handlers.DeleteActionItem(incidentSvc, postMortemSvc))
+		protected.GET("/incidents/:id/postmortem", handlers.GetPostMortem(incidentSvc, postMortemSvc))
+		protected.POST("/incidents/:id/postmortem/generate", handlers.GeneratePostMortem(incidentSvc, postMortemSvc, aiSvc))
+		protected.PATCH("/incidents/:id/postmortem", handlers.UpdatePostMortem(incidentSvc, postMortemSvc))
+		protected.GET("/incidents/:id/postmortem/export", handlers.ExportPostMortem(incidentSvc, postMortemSvc))
+		protected.POST("/incidents/:id/postmortem/action-items", handlers.CreateActionItem(incidentSvc, postMortemSvc))
+		protected.PATCH("/incidents/:id/postmortem/action-items/:itemId", handlers.UpdateActionItem(incidentSvc, postMortemSvc))
+		protected.DELETE("/incidents/:id/postmortem/action-items/:itemId", handlers.DeleteActionItem(incidentSvc, postMortemSvc))
 
 		// Grouping Rules (v0.3)
-		v1.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))
-		v1.GET("/grouping-rules/:id", handlers.GetGroupingRule(groupingRuleRepo))
+		protected.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))
+		protected.GET("/grouping-rules/:id", handlers.GetGroupingRule(groupingRuleRepo))
 		onGroupingRuleMutate := func() { groupingEngine.RefreshRules() }
-		v1.POST("/grouping-rules", handlers.CreateGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
-		v1.PUT("/grouping-rules/:id", handlers.UpdateGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
-		v1.DELETE("/grouping-rules/:id", handlers.DeleteGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
+		protected.POST("/grouping-rules", handlers.CreateGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
+		protected.PUT("/grouping-rules/:id", handlers.UpdateGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
+		protected.DELETE("/grouping-rules/:id", handlers.DeleteGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
 
 		// Routing Rules (v0.3)
-		v1.GET("/routing-rules", handlers.ListRoutingRules(routingRuleRepo))
-		v1.GET("/routing-rules/:id", handlers.GetRoutingRule(routingRuleRepo))
+		protected.GET("/routing-rules", handlers.ListRoutingRules(routingRuleRepo))
+		protected.GET("/routing-rules/:id", handlers.GetRoutingRule(routingRuleRepo))
 		onRoutingRuleMutate := func() { routingEngine.RefreshRules() }
-		v1.POST("/routing-rules", handlers.CreateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
-		v1.PATCH("/routing-rules/:id", handlers.UpdateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
-		v1.DELETE("/routing-rules/:id", handlers.DeleteRoutingRule(routingRuleRepo, onRoutingRuleMutate))
+		protected.POST("/routing-rules", handlers.CreateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
+		protected.PATCH("/routing-rules/:id", handlers.UpdateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
+		protected.DELETE("/routing-rules/:id", handlers.DeleteRoutingRule(routingRuleRepo, onRoutingRuleMutate))
 
 		// Schedules (v0.4)
-		v1.GET("/schedules", handlers.ListSchedules(scheduleRepo))
-		v1.POST("/schedules", handlers.CreateSchedule(scheduleRepo))
-		v1.GET("/schedules/:id", handlers.GetSchedule(scheduleRepo))
-		v1.PATCH("/schedules/:id", handlers.UpdateSchedule(scheduleRepo))
-		v1.DELETE("/schedules/:id", handlers.DeleteSchedule(scheduleRepo))
+		protected.GET("/schedules", handlers.ListSchedules(scheduleRepo))
+		protected.POST("/schedules", handlers.CreateSchedule(scheduleRepo))
+		protected.GET("/schedules/:id", handlers.GetSchedule(scheduleRepo))
+		protected.PATCH("/schedules/:id", handlers.UpdateSchedule(scheduleRepo))
+		protected.DELETE("/schedules/:id", handlers.DeleteSchedule(scheduleRepo))
 
-		v1.POST("/schedules/:id/layers", handlers.CreateLayer(scheduleRepo))
-		v1.DELETE("/schedules/:id/layers/:layer_id", handlers.DeleteLayer(scheduleRepo))
+		protected.POST("/schedules/:id/layers", handlers.CreateLayer(scheduleRepo))
+		protected.DELETE("/schedules/:id/layers/:layer_id", handlers.DeleteLayer(scheduleRepo))
 
-		v1.GET("/schedules/:id/oncall", handlers.GetOnCall(scheduleRepo, scheduleEvaluator))
-		v1.GET("/schedules/:id/oncall/timeline", handlers.GetOnCallTimeline(scheduleEvaluator))
+		protected.GET("/schedules/:id/oncall", handlers.GetOnCall(scheduleRepo, scheduleEvaluator))
+		protected.GET("/schedules/:id/oncall/timeline", handlers.GetOnCallTimeline(scheduleEvaluator))
 
-		v1.GET("/schedules/:id/overrides", handlers.ListOverrides(scheduleRepo))
-		v1.POST("/schedules/:id/overrides", handlers.CreateOverride(scheduleRepo))
-		v1.DELETE("/schedules/:id/overrides/:override_id", handlers.DeleteOverride(scheduleRepo))
+		protected.GET("/schedules/:id/overrides", handlers.ListOverrides(scheduleRepo))
+		protected.POST("/schedules/:id/overrides", handlers.CreateOverride(scheduleRepo))
+		protected.DELETE("/schedules/:id/overrides/:override_id", handlers.DeleteOverride(scheduleRepo))
 
 		// Escalation Policies (v0.5)
-		v1.GET("/escalation-policies", handlers.ListEscalationPolicies(escalationPolicyRepo))
-		v1.POST("/escalation-policies", handlers.CreateEscalationPolicy(escalationPolicyRepo))
-		v1.GET("/escalation-policies/:id", handlers.GetEscalationPolicy(escalationPolicyRepo))
-		v1.PATCH("/escalation-policies/:id", handlers.UpdateEscalationPolicy(escalationPolicyRepo))
-		v1.DELETE("/escalation-policies/:id", handlers.DeleteEscalationPolicy(escalationPolicyRepo))
+		protected.GET("/escalation-policies", handlers.ListEscalationPolicies(escalationPolicyRepo))
+		protected.POST("/escalation-policies", handlers.CreateEscalationPolicy(escalationPolicyRepo))
+		protected.GET("/escalation-policies/:id", handlers.GetEscalationPolicy(escalationPolicyRepo))
+		protected.PATCH("/escalation-policies/:id", handlers.UpdateEscalationPolicy(escalationPolicyRepo))
+		protected.DELETE("/escalation-policies/:id", handlers.DeleteEscalationPolicy(escalationPolicyRepo))
 
-		v1.POST("/escalation-policies/:id/tiers", handlers.CreateEscalationTier(escalationPolicyRepo))
-		v1.PATCH("/escalation-policies/:id/tiers/:tier_id", handlers.UpdateEscalationTier(escalationPolicyRepo))
-		v1.DELETE("/escalation-policies/:id/tiers/:tier_id", handlers.DeleteEscalationTier(escalationPolicyRepo))
+		protected.POST("/escalation-policies/:id/tiers", handlers.CreateEscalationTier(escalationPolicyRepo))
+		protected.PATCH("/escalation-policies/:id/tiers/:tier_id", handlers.UpdateEscalationTier(escalationPolicyRepo))
+		protected.DELETE("/escalation-policies/:id/tiers/:tier_id", handlers.DeleteEscalationTier(escalationPolicyRepo))
 	}
 }

@@ -14,8 +14,11 @@ import {
   GitFork,
   GitBranch,
   FileText,
+  LogOut,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
+import { useAuth } from '../../hooks/useAuth'
+import type { CurrentUser } from '../../api/auth'
 
 interface NavItem {
   id: string
@@ -49,6 +52,7 @@ export function Sidebar() {
   const [sectionsExpanded, setSectionsExpanded] = useState<Record<string, boolean>>({
     organization: true,
   })
+  const { user: currentUser } = useAuth()
 
   // Persist collapse state
   useEffect(() => {
@@ -239,32 +243,36 @@ export function Sidebar() {
         <div className="flex items-center h-14 px-3">
           {!isCollapsed ? (
             <>
-              <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-                AD
-              </div>
+              <UserAvatar user={currentUser} size="md" />
               <div className="ml-3 flex-1 min-w-0">
                 <div className="text-sm font-medium text-sidebar-text-active truncate">
-                  Admin User
+                  {userDisplayName(currentUser)}
                 </div>
+                {currentUser?.email && (
+                  <div className="text-xs text-text-tertiary truncate">{currentUser.email}</div>
+                )}
               </div>
-              <button
-                className="p-1.5 rounded hover:bg-sidebar-hover transition-colors ml-1"
-                aria-label="Settings"
-              >
-                <Settings className="w-4.5 h-4.5" />
-              </button>
               <button
                 className="p-1.5 rounded hover:bg-sidebar-hover transition-colors ml-1"
                 aria-label="Notifications"
               >
                 <Bell className="w-4.5 h-4.5" />
               </button>
+              {currentUser?.authenticated && (
+                <Tooltip content="Sign out">
+                  <a
+                    href="/auth/logout"
+                    className="p-1.5 rounded hover:bg-sidebar-hover transition-colors ml-1 text-sidebar-text"
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </a>
+                </Tooltip>
+              )}
             </>
           ) : (
-            <Tooltip content="Admin User">
-              <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium mx-auto">
-                AD
-              </div>
+            <Tooltip content={userDisplayName(currentUser)}>
+              <UserAvatar user={currentUser} size="md" className="mx-auto" />
             </Tooltip>
           )}
         </div>
@@ -307,5 +315,40 @@ export function Sidebar() {
         </>
       )}
     </>
+  )
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function userDisplayName(user: CurrentUser | null): string {
+  if (!user) return '...'
+  if (user.name) return user.name
+  if (user.email) return user.email.split('@')[0] ?? user.email
+  return 'You'
+}
+
+function initials(user: CurrentUser | null): string {
+  const name = user?.name || user?.email || ''
+  const parts = name.split(/[\s@._-]+/).filter(Boolean).slice(0, 2)
+  if (parts.length === 0) return '?'
+  return parts.map((p) => p[0]!.toUpperCase()).join('')
+}
+
+function UserAvatar({
+  user,
+  size = 'md',
+  className = '',
+}: {
+  user: CurrentUser | null
+  size?: 'sm' | 'md'
+  className?: string
+}) {
+  const dim = size === 'sm' ? 'h-6 w-6 text-xs' : 'h-8 w-8 text-sm'
+  return (
+    <div
+      className={`${dim} rounded-full bg-blue-500 flex items-center justify-center text-white font-medium flex-shrink-0 ${className}`}
+    >
+      {initials(user)}
+    </div>
   )
 }

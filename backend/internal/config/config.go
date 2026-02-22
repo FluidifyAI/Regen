@@ -42,6 +42,15 @@ type Config struct {
 	TeamsTenantID    string
 	TeamsTeamID      string // ID of the Team where incident channels are created
 	TeamsBotUserID   string // AAD object ID of the bot user; required for direct messages
+
+	// SAML SSO (optional — SSO disabled if SAMLIDPMetadataURL is empty)
+	// When disabled all routes are open (backwards-compatible with existing deployments).
+	SAMLIDPMetadataURL   string // SAML_IDP_METADATA_URL — IdP metadata endpoint
+	SAMLEntityID         string // SAML_ENTITY_ID — SP EntityID (defaults to <base_url>/saml/metadata)
+	SAMLBaseURL          string // SAML_BASE_URL — externally reachable base URL of this instance
+	SAMLCertFile         string // SAML_CERT_FILE — path to SP certificate PEM (self-signed generated if empty)
+	SAMLKeyFile          string // SAML_KEY_FILE — path to SP private key PEM
+	SAMLAllowIDPInitiated bool  // SAML_ALLOW_IDP_INITIATED — allow IdP-initiated flows (Okta tile click)
 }
 
 // Load reads configuration from environment variables
@@ -81,6 +90,14 @@ func Load() (*Config, error) {
 		TeamsTenantID:    getEnv("TEAMS_TENANT_ID", ""),
 		TeamsTeamID:      getEnv("TEAMS_TEAM_ID", ""),
 		TeamsBotUserID:   getEnv("TEAMS_BOT_USER_ID", ""),
+
+		// SAML SSO
+		SAMLIDPMetadataURL:    getEnv("SAML_IDP_METADATA_URL", ""),
+		SAMLEntityID:          getEnv("SAML_ENTITY_ID", ""),
+		SAMLBaseURL:           getEnv("SAML_BASE_URL", "http://localhost:8080"),
+		SAMLCertFile:          getEnv("SAML_CERT_FILE", ""),
+		SAMLKeyFile:           getEnv("SAML_KEY_FILE", ""),
+		SAMLAllowIDPInitiated: getEnvAsBool("SAML_ALLOW_IDP_INITIATED", false),
 	}
 
 	// Validate required configuration
@@ -116,6 +133,15 @@ func getEnvAsInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intValue, err := strconv.Atoi(value); err == nil {
 			return intValue
+		}
+	}
+	return defaultValue
+}
+
+func getEnvAsBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if boolValue, err := strconv.ParseBool(value); err == nil {
+			return boolValue
 		}
 	}
 	return defaultValue

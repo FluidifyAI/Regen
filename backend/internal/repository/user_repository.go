@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,7 +14,7 @@ import (
 type UserRepository interface {
 	GetBySubject(subject string) (*models.User, error)
 	GetByEmail(email string) (*models.User, error)
-	Upsert(user *models.User) error
+	Upsert(ctx context.Context, user *models.User) error
 	UpdateLastLogin(id uuid.UUID, at time.Time) error
 }
 
@@ -45,8 +46,8 @@ func (r *userRepository) GetByEmail(email string) (*models.User, error) {
 
 // Upsert inserts the user or updates email, name, and saml_idp_issuer if the
 // saml_subject already exists. Role is never overwritten by the IdP.
-func (r *userRepository) Upsert(user *models.User) error {
-	return r.db.Clauses(clause.OnConflict{
+func (r *userRepository) Upsert(ctx context.Context, user *models.User) error {
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "saml_subject"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"email", "name", "saml_idp_issuer", "last_login_at", "updated_at",

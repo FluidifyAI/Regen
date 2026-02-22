@@ -23,7 +23,7 @@ func NewAuthService(userRepo repository.UserRepository) AuthService {
 
 // UpsertFromSAML creates or updates a user from a SAML assertion.
 // Called on every successful SSO login — safe to call repeatedly.
-func (s *authService) UpsertFromSAML(_ context.Context, subject, issuer, email, name string) error {
+func (s *authService) UpsertFromSAML(ctx context.Context, subject, issuer, email, name string) error {
 	now := time.Now()
 	user := &models.User{
 		SAMLSubject:   subject,
@@ -32,5 +32,5 @@ func (s *authService) UpsertFromSAML(_ context.Context, subject, issuer, email, 
 		Name:          name,
 		LastLoginAt:   &now,
 	}
-	return s.userRepo.Upsert(user)
+	return s.userRepo.Upsert(ctx, user)
 }

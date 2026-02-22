@@ -28,6 +28,12 @@ class ApiClient {
     try {
       const response = await fetch(url, config)
 
+      // Handle 401 — redirect to SAML login (no-op in open mode since 401 never fires)
+      if (response.status === 401) {
+        window.location.href = '/saml/login'
+        return new Promise(() => {}) // never settles; browser is navigating away
+      }
+
       // Handle 204 No Content - no body to parse
       if (response.status === 204) {
         if (import.meta.env.DEV) {

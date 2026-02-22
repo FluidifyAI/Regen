@@ -97,20 +97,24 @@ Everything needed to run world-class incident management:
 - On-call scheduling
 - Slack/Teams integration
 - AI summarization (bring your own API key)
+- **SSO/SAML** (Okta, Azure AD, Google Workspace) — free, always
 - Docker & Kubernetes deployment
 - Community support
 
+> **Why SSO is free:** Gating SSO punishes good security practice and gets you listed on [sso.tax](https://sso.tax).
+> Teams that need SCIM + SOC2 audit logs for compliance will pay for Enterprise regardless.
+> Free SSO lowers the evaluation barrier and grows the top of funnel.
+
 ### Enterprise Tier ($15k–$50k/year flat license)
 
-Governance and compliance features:
+Governance, compliance, and operations features:
 
-- **SSO/SAML**: Okta, Azure AD, Google Workspace
-- **SCIM Provisioning**: Automated user management
-- **Audit Logs**: Immutable, exportable, SOC2-ready
-- **RBAC**: Fine-grained role-based access control
-- **Data Retention Policies**: Configurable retention windows
-- **Priority Support**: SLA-backed response times
-- **Custom Integrations**: Professional services
+- **SCIM Provisioning**: Automated user lifecycle (joiners/leavers synced from Okta/Azure AD)
+- **Audit Log Export**: Immutable, exportable, SOC2/ISO27001-ready
+- **RBAC**: Fine-grained role-based access control (viewer, responder, admin)
+- **Data Retention Policies**: Configurable retention windows per data type
+- **Priority Support**: SLA-backed response times (1h critical, 4h high)
+- **Custom Integrations**: Professional services for bespoke alert sources
 
 ### Managed Private Cloud (Custom Pricing)
 
@@ -261,11 +265,13 @@ Every action is logged. Timestamps are server-generated and immutable. This isn'
 
 **v0.9 — Enterprise Features + Teams Hardening (Weeks 24–26)**
 
-*Enterprise:*
-- [ ] SSO/SAML integration
-- [ ] RBAC (role-based access control)
-- [ ] Audit log export
+*OSS (free for all):*
+- [ ] SSO/SAML integration — SAML 2.0 SP via `crewjam/saml`; works with Okta, Azure AD, Google Workspace
+
+*Enterprise (paid):*
 - [ ] SCIM user provisioning
+- [ ] Audit log export (SOC2-ready)
+- [ ] RBAC (fine-grained roles: viewer, responder, admin)
 - [ ] Data retention policies
 
 *Teams Integration Hardening (backlog from v0.8):*

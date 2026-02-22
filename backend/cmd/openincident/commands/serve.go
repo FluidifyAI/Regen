@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,10 +13,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/openincident/openincident/internal/api"
+	"github.com/openincident/openincident/internal/auth"
 	"github.com/openincident/openincident/internal/config"
 	"github.com/openincident/openincident/internal/database"
 	"github.com/openincident/openincident/internal/metrics"
 	"github.com/openincident/openincident/internal/redis"
+	"github.com/openincident/openincident/internal/repository"
 	"github.com/openincident/openincident/internal/services"
 	"github.com/openincident/openincident/internal/worker"
 	"github.com/spf13/cobra"
@@ -42,7 +45,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 	setupLogging(cfg.LogLevel)
 
 	slog.Info("starting OpenIncident",
-		"version", "0.1.0",
+		"version", "0.9.0",
 		"environment", cfg.Environment,
 		"port", cfg.Port,
 	)
@@ -94,11 +97,27 @@ func runServe(_ *cobra.Command, _ []string) error {
 		slog.Warn("TEAMS_APP_ID not set — Teams integration disabled")
 	}
 
+	// Initialize SAML middleware (optional — nil when SAML_IDP_METADATA_URL is not set).
+	// Must run after migrations so the users table exists for JIT provisioning.
+	samlMiddleware, err := auth.NewSAMLMiddleware(cfg)
+	if err != nil {
+		return fmt.Errorf("saml: %w", err)
+	}
+	if samlMiddleware != nil {
+		// Wrap the default CookieSessionProvider with JIT user provisioning.
+		userRepo := repository.NewUserRepository(database.DB)
+		authSvc := services.NewAuthService(userRepo)
+		samlMiddleware.Session = auth.NewProvisioningSessionProvider(samlMiddleware.Session, authSvc)
+		slog.Info("SAML SSO enabled", "base_url", cfg.SAMLBaseURL)
+	} else {
+		slog.Warn("SAML SSO disabled — set SAML_IDP_METADATA_URL to enable authentication")
+	}
+
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
-	api.SetupRoutes(router, database.DB, cfg, teamsSvc)
+	api.SetupRoutes(router, database.DB, cfg, teamsSvc, samlMiddleware)
 
 	worker.StartAll(appCtx, database.DB, cfg, teamsSvc)
 

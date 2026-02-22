@@ -32,10 +32,14 @@
 
 | Tier | License | Features |
 |------|---------|----------|
-| Community | AGPLv3 | Everything: alerts, incidents, scheduling, Slack, AI |
-| Enterprise | Proprietary | SSO/SAML, audit logs, RBAC, SCIM, retention policies |
+| Community | AGPLv3 | Everything: alerts, incidents, scheduling, Slack/Teams, AI, **SSO/SAML** |
+| Enterprise | Proprietary | SCIM provisioning, audit log export, RBAC, retention policies, SLA support |
 
 **The OSS version must be a fully functional Ferrari. Enterprise is insurance and valet service.**
+
+> **Why SSO is free:** Gating SSO is user-hostile — it's a security hygiene requirement, not a power feature.
+> Teams that need SCIM + SOC2-ready audit logs will pay regardless. SSO free = more enterprise evaluators
+> self-hosting = more eventual paying customers. We stay off [sso.tax](https://sso.tax).
 
 ---
 
@@ -313,11 +317,13 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 
 **v0.9 — Enterprise Features + Teams Hardening (Weeks 24–26)**
 
-*Enterprise:*
-- [ ] SSO/SAML
-- [ ] RBAC
-- [ ] Audit log export
+*OSS (free):*
+- [x] SSO/SAML — SAML 2.0 SP, works with Okta, Azure AD, Google Workspace (JIT provisioning, backwards-compatible no-op when disabled)
+
+*Enterprise (paid):*
 - [ ] SCIM provisioning
+- [ ] Audit log export (SOC2-ready)
+- [ ] RBAC (viewer / responder / admin roles)
 - [ ] Retention policies
 
 *Teams Integration Hardening (backlog from v0.8):*

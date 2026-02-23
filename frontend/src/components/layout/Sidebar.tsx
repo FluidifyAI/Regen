@@ -17,7 +17,8 @@ import {
   LogOut,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
-import { getCurrentUser, type CurrentUser } from '../../api/auth'
+import { useAuth } from '../../hooks/useAuth'
+import type { CurrentUser } from '../../api/auth'
 
 interface NavItem {
   id: string
@@ -51,13 +52,7 @@ export function Sidebar() {
   const [sectionsExpanded, setSectionsExpanded] = useState<Record<string, boolean>>({
     organization: true,
   })
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
-
-  useEffect(() => {
-    getCurrentUser()
-      .then(setCurrentUser)
-      .catch(() => {/* silently ignore — open mode or network error */})
-  }, [])
+  const { user: currentUser } = useAuth()
 
   // Persist collapse state
   useEffect(() => {

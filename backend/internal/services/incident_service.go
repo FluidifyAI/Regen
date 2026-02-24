@@ -1158,6 +1158,10 @@ func (s *incidentService) ResolveIncident(id uuid.UUID, actorType, actorID strin
 // Adaptive Card, and stores the channel ID in the database. Runs asynchronously.
 func (s *incidentService) createTeamsChannelForIncident(incident *models.Incident, alerts []models.Alert) error {
 	channelName := formatIncidentChannelName(incident.IncidentNumber, incident.Slug)
+	// Teams channel display names are capped at 50 characters by the Graph API.
+	if len(channelName) > 50 {
+		channelName = channelName[:50]
+	}
 	description := fmt.Sprintf("Incident #%d: %s", incident.IncidentNumber, incident.Title)
 
 	slog.Info("creating teams channel for incident",

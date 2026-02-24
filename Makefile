@@ -1,4 +1,4 @@
-.PHONY: help dev dev-local backend backend-deps frontend frontend-local migrate test fmt lint build clean docker down logs teams-app-package
+.PHONY: help dev dev-local backend backend-deps frontend frontend-local migrate test fmt lint build clean docker down logs teams-app-package helm-deps helm-lint helm-template helm-test
 
 # Default target
 help:
@@ -190,3 +190,22 @@ install: install-backend install-frontend
 # Generate Teams app package for sideloading
 teams-app-package:
 	@./scripts/teams-app-package.sh
+
+## Helm
+.PHONY: helm-deps helm-lint helm-template helm-test
+
+helm-deps: ## Download Helm chart dependencies
+	helm dependency update deploy/helm/openincident
+
+helm-lint: helm-deps ## Lint the Helm chart
+	helm lint deploy/helm/openincident
+
+helm-template: helm-deps ## Dry-run render the chart (requires kubectl context)
+	helm template openincident deploy/helm/openincident \
+		--set ingress.host=localhost \
+		| kubectl apply --dry-run=client -f -
+
+helm-test: helm-lint ## Run all Helm checks (lint + template render)
+	helm template openincident deploy/helm/openincident \
+		--set ingress.host=localhost > /dev/null && \
+		echo "✓ helm template: OK"

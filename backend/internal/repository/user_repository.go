@@ -16,6 +16,18 @@ type UserRepository interface {
 	GetByEmail(email string) (*models.User, error)
 	Upsert(ctx context.Context, user *models.User) error
 	UpdateLastLogin(id uuid.UUID, at time.Time) error
+	// CreateLocal creates a new locally-authenticated user with a bcrypt password hash.
+	CreateLocal(user *models.User) error
+	// ListAll returns all users ordered by created_at ASC.
+	ListAll() ([]models.User, error)
+	// GetByID retrieves a user by primary key.
+	GetByID(id uuid.UUID) (*models.User, error)
+	// Update saves changed fields (name, role, password_hash) for a user.
+	Update(user *models.User) error
+	// Count returns the total number of active (non-deactivated) users.
+	Count() (int64, error)
+	// Deactivate soft-deletes a user by setting auth_source='deactivated'.
+	Deactivate(id uuid.UUID) error
 }
 
 type userRepository struct {
@@ -62,4 +74,66 @@ func (r *userRepository) UpdateLastLogin(id uuid.UUID, at time.Time) error {
 			"last_login_at": at,
 			"updated_at":    at,
 		}).Error
+}
+
+func (r *userRepository) CreateLocal(user *models.User) error {
+	return r.db.Create(user).Error
+}
+
+func (r *userRepository) ListAll() ([]models.User, error) {
+	var users []models.User
+	err := r.db.Order("created_at ASC").Find(&users).Error
+	return users, err
+}
+
+func (r *userRepository) GetByID(id uuid.UUID) (*models.User, error) {
+	var user models.User
+	err := r.db.First(&user, "id = ?", id).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, &NotFoundError{Resource: "user", ID: id.String()}
+	}
+	return &user, err
+}
+
+func (r *userRepository) Update(user *models.User) error {
+	result := r.db.Model(user).
+		Select("name", "role", "password_hash", "updated_at").
+		Updates(map[string]any{
+			"name":          user.Name,
+			"role":          user.Role,
+			"password_hash": user.PasswordHash,
+			"updated_at":    user.UpdatedAt,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return &NotFoundError{Resource: "user", ID: user.ID.String()}
+	}
+	return nil
+}
+
+func (r *userRepository) Deactivate(id uuid.UUID) error {
+	result := r.db.Model(&models.User{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"auth_source":   "deactivated",
+			"password_hash": nil,
+			"updated_at":    time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return &NotFoundError{Resource: "user", ID: id.String()}
+	}
+	return nil
+}
+
+func (r *userRepository) Count() (int64, error) {
+	var n int64
+	err := r.db.Model(&models.User{}).
+		Where("auth_source != 'deactivated'").
+		Count(&n).Error
+	return n, err
 }

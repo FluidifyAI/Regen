@@ -181,6 +181,54 @@ curl -X POST http://localhost:9093/-/reload
 
 ---
 
+## Kubernetes (Helm)
+
+```bash
+# Add the Bitnami chart repo (first time only)
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update
+
+# Download subchart dependencies
+make helm-deps
+
+# Install with bundled PostgreSQL + Redis (development / evaluation)
+helm install openincident deploy/helm/openincident \
+  --set ingress.host=incidents.myco.com \
+  --set postgresql.auth.password=<strong-password>
+
+# Install pointing at managed DB + Redis (production)
+helm install openincident deploy/helm/openincident \
+  --set postgresql.enabled=false \
+  --set redis.enabled=false \
+  --set secrets.databaseURL="postgresql://user:pass@your-rds.example.com:5432/openincident?sslmode=require" \
+  --set secrets.redisURL="redis://your-elasticache.example.com:6379" \
+  --set ingress.host=incidents.myco.com
+```
+
+### Upgrade
+
+```bash
+helm upgrade openincident deploy/helm/openincident \
+  --reuse-values \
+  --set image.tag=0.10.0
+```
+
+Migrations run automatically as a pre-upgrade Job before pods are replaced.
+
+### Configuration
+
+See `deploy/helm/openincident/values.yaml` for all available values. Key overrides:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `ingress.host` | `""` | Hostname for the Ingress (**required**) |
+| `postgresql.auth.password` | `changeme` | Change in production |
+| `autoscaling.enabled` | `true` | Enable HPA (2–10 replicas) |
+| `secrets.slackBotToken` | `""` | Slack bot token |
+| `secrets.openaiAPIKey` | `""` | OpenAI API key for AI features |
+
+---
+
 ## Architecture
 
 ```

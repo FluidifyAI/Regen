@@ -67,6 +67,10 @@ config:
   logLevel: info
   port: "8080"
   appEnv: production
+  # corsAllowedOrigins — comma-separated list of allowed request origins.
+  # Example: "https://incidents.myco.com,https://staging.myco.com"
+  # Leave empty to default to http://localhost:3000 (dev only — always set in production).
+  corsAllowedOrigins: ""
   samlBaseURL: ""
   samlAllowIdpInitiated: "false"
   teamsServiceURL: "https://smba.trafficmanager.net/amer/"

@@ -322,7 +322,9 @@ func (r *incidentRepository) LinkAlert(incidentID, alertID uuid.UUID, linkedByTy
 	return nil
 }
 
-// GetAlerts retrieves all alerts linked to an incident
+// GetAlerts retrieves alerts linked to an incident, most recent first, capped at 500.
+// Incidents can accumulate thousands of alerts during large outages; an unbounded
+// query would load all of them into memory and slow the response significantly.
 func (r *incidentRepository) GetAlerts(incidentID uuid.UUID) ([]models.Alert, error) {
 	var alerts []models.Alert
 
@@ -330,6 +332,7 @@ func (r *incidentRepository) GetAlerts(incidentID uuid.UUID) ([]models.Alert, er
 		Joins("JOIN incident_alerts ON incident_alerts.alert_id = alerts.id").
 		Where("incident_alerts.incident_id = ?", incidentID).
 		Order("alerts.received_at ASC").
+		Limit(500).
 		Find(&alerts).Error; err != nil {
 		return nil, &DatabaseError{Op: "get incident alerts", Err: err}
 	}

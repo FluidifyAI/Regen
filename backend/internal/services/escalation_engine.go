@@ -111,9 +111,23 @@ func (e *escalationEngine) EvaluateEscalations() error {
 	if err != nil {
 		return fmt.Errorf("failed to load active escalation states: %w", err)
 	}
+	if len(states) == 0 {
+		return nil
+	}
+
+	// Batch-load all policies with their tiers in two queries (policies + tiers IN (...))
+	// rather than one GetPolicyWithTiers query per state, which would be O(N) queries.
+	allPolicies, err := e.repo.GetAllPoliciesWithTiers()
+	if err != nil {
+		return fmt.Errorf("failed to load escalation policies: %w", err)
+	}
+	policyByID := make(map[uuid.UUID]*models.EscalationPolicy, len(allPolicies))
+	for i := range allPolicies {
+		policyByID[allPolicies[i].ID] = &allPolicies[i]
+	}
 
 	for i := range states {
-		if err := e.processState(&states[i]); err != nil {
+		if err := e.processState(&states[i], policyByID); err != nil {
 			// Log and continue — one bad state should not block others.
 			slog.Error("failed to process escalation state",
 				"state_id", states[i].ID,
@@ -126,10 +140,10 @@ func (e *escalationEngine) EvaluateEscalations() error {
 }
 
 // processState handles one escalation state row.
-func (e *escalationEngine) processState(state *models.EscalationState) error {
-	policy, err := e.repo.GetPolicyWithTiers(state.PolicyID)
-	if err != nil {
-		return fmt.Errorf("policy %s not found: %w", state.PolicyID, err)
+func (e *escalationEngine) processState(state *models.EscalationState, policyByID map[uuid.UUID]*models.EscalationPolicy) error {
+	policy, ok := policyByID[state.PolicyID]
+	if !ok {
+		return fmt.Errorf("policy %s not found", state.PolicyID)
 	}
 
 	if len(policy.Tiers) == 0 {

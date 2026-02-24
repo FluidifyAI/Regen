@@ -190,14 +190,14 @@ func (r *escalationPolicyRepository) UpdatePolicy(policy *models.EscalationPolic
 	if err := validatePolicy(policy); err != nil {
 		return err
 	}
-	if _, err := r.GetPolicyByID(policy.ID); err != nil {
-		return err
-	}
-	err := r.db.Model(policy).
+	result := r.db.Model(policy).
 		Select("name", "description", "enabled", "updated_at").
-		Updates(policy).Error
-	if err != nil {
-		return fmt.Errorf("failed to update escalation policy: %w", err)
+		Updates(policy)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update escalation policy: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return &NotFoundError{Resource: "escalation_policy", ID: policy.ID.String()}
 	}
 	return nil
 }

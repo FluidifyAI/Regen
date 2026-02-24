@@ -22,8 +22,9 @@ import (
 // SetupRoutes configures all application routes.
 // teamsSvc may be nil when Teams integration is disabled.
 // samlMiddleware may be nil when SSO is not configured (all routes open).
+// localAuth may be nil when local auth is not configured.
 // hooks contains enterprise extension points; OSS callers pass enterprise.NewNoOp().
-func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks) {
+func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks, localAuth services.LocalAuthService) {
 	// Initialize repositories
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
@@ -160,7 +161,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	} else {
 		slog.Warn("SAML SSO disabled — set SAML_IDP_METADATA_URL to enable authentication")
 	}
-	router.GET("/auth/logout", handlers.Logout(samlMiddleware))
+	router.GET("/auth/logout", handlers.Logout(samlMiddleware, localAuth))
 
 	// SCIM 2.0 provisioning routes — enterprise only, no-op stub returns 501 in OSS.
 	scimGroup := router.Group("/scim/v2")
@@ -168,7 +169,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 
 	// API v1 routes
 	// Webhooks are machine-to-machine and intentionally excluded from RequireAuth.
-	// All other /api/v1 routes require a valid SAML session (no-op when SSO disabled).
+	// All other /api/v1 routes require a valid session (no-op when auth disabled).
 	v1 := router.Group("/api/v1")
 	{
 		// Webhooks (with 1MB body size limit + rate limit: 300 req/min per IP)
@@ -215,12 +216,17 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			}
 		}
 
-		// Auth identity endpoint
-		v1.GET("/auth/me", middleware.RequireAuth(samlMiddleware), handlers.GetCurrentUser())
+		// Local login endpoint (always open — this IS the login action)
+		if localAuth != nil {
+			v1.POST("/auth/login", handlers.Login(localAuth))
+		}
 
-		// Protected routes — require SAML session (no-op when SSO disabled).
+		// Auth identity endpoint
+		v1.GET("/auth/me", middleware.RequireAuth(samlMiddleware, localAuth), handlers.GetCurrentUser(localAuth, samlMiddleware != nil))
+
+		// Protected routes — require session (no-op when auth disabled).
 		// RBAC middleware runs after auth; the OSS no-op allows all requests through.
-		protected := v1.Group("", middleware.RequireAuth(samlMiddleware), hooks.RBAC.Middleware("api", "access"), middleware.RateLimitAPI())
+		protected := v1.Group("", middleware.RequireAuth(samlMiddleware, localAuth), hooks.RBAC.Middleware("api", "access"), middleware.RateLimitAPI())
 
 		// Incidents
 		protected.GET("/incidents", handlers.ListIncidents(incidentSvc))
@@ -300,5 +306,15 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.POST("/escalation-policies/:id/tiers", handlers.CreateEscalationTier(escalationPolicyRepo))
 		protected.PATCH("/escalation-policies/:id/tiers/:tier_id", handlers.UpdateEscalationTier(escalationPolicyRepo))
 		protected.DELETE("/escalation-policies/:id/tiers/:tier_id", handlers.DeleteEscalationTier(escalationPolicyRepo))
+
+		// Settings — admin only
+		settingsGroup := protected.Group("/settings", middleware.RequireAdmin())
+		{
+			settingsGroup.GET("/users", handlers.ListUsers(localAuth))
+			settingsGroup.POST("/users", handlers.CreateUser(localAuth))
+			settingsGroup.PATCH("/users/:id", handlers.UpdateUser(localAuth))
+			settingsGroup.DELETE("/users/:id", handlers.DeactivateUser(localAuth))
+			settingsGroup.POST("/users/:id/reset-password", handlers.ResetUserPassword(localAuth))
+		}
 	}
 }

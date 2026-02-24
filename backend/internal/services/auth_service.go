@@ -26,7 +26,7 @@ func NewAuthService(userRepo repository.UserRepository) AuthService {
 func (s *authService) UpsertFromSAML(ctx context.Context, subject, issuer, email, name string) error {
 	now := time.Now()
 	user := &models.User{
-		SAMLSubject:   subject,
+		SAMLSubject:   &subject,
 		SAMLIDPIssuer: issuer,
 		Email:         email,
 		Name:          name,

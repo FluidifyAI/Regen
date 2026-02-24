@@ -154,7 +154,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			}
 			samlMiddleware.ServeHTTP(w, r)
 		})
-		router.Any("/saml/*action", gin.WrapH(samlHandler))
+		samlGroup := router.Group("/saml", middleware.RateLimitAuth())
+		samlGroup.Any("/*action", gin.WrapH(samlHandler))
 		slog.Info("SAML SSO routes registered", "login", "/saml/login", "metadata", "/saml/metadata")
 	} else {
 		slog.Warn("SAML SSO disabled — set SAML_IDP_METADATA_URL to enable authentication")
@@ -170,9 +171,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	// All other /api/v1 routes require a valid SAML session (no-op when SSO disabled).
 	v1 := router.Group("/api/v1")
 	{
-		// Webhooks (with 1MB body size limit)
+		// Webhooks (with 1MB body size limit + rate limit: 300 req/min per IP)
 		webhooksGroup := v1.Group("/webhooks")
 		webhooksGroup.Use(middleware.BodySizeLimit(middleware.WebhookMaxBodySize))
+		webhooksGroup.Use(middleware.RateLimitWebhooks())
 		{
 			// v0.1: Prometheus Alertmanager webhook (legacy handler for backwards compatibility)
 			webhooksGroup.POST("/prometheus", handlers.PrometheusWebhook(alertSvc))
@@ -218,7 +220,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 
 		// Protected routes — require SAML session (no-op when SSO disabled).
 		// RBAC middleware runs after auth; the OSS no-op allows all requests through.
-		protected := v1.Group("", middleware.RequireAuth(samlMiddleware), hooks.RBAC.Middleware("api", "access"))
+		protected := v1.Group("", middleware.RequireAuth(samlMiddleware), hooks.RBAC.Middleware("api", "access"), middleware.RateLimitAPI())
 
 		// Incidents
 		protected.GET("/incidents", handlers.ListIncidents(incidentSvc))

@@ -4,34 +4,27 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SecurityHeaders returns a middleware that sets standard security headers on all responses
+// SecurityHeaders returns a middleware that sets standard security headers on all responses.
 //
 // Headers set:
-// - X-Content-Type-Options: nosniff (prevents MIME type sniffing)
-// - X-Frame-Options: DENY (prevents clickjacking attacks)
-// - X-XSS-Protection: 1; mode=block (enables XSS protection in older browsers)
-// - Content-Security-Policy: default-src 'self' (restricts resource loading to same origin)
-// - Referrer-Policy: strict-origin-when-cross-origin (controls referrer information)
-//
-// These headers provide basic protection against common web vulnerabilities
-// and are appropriate for v0.1 of the application.
+//   - X-Content-Type-Options: nosniff (prevents MIME type sniffing)
+//   - X-Frame-Options: DENY (prevents clickjacking)
+//   - X-XSS-Protection: 1; mode=block (XSS protection for older browsers)
+//   - Content-Security-Policy: default-src 'self'
+//   - Referrer-Policy: strict-origin-when-cross-origin
+//   - Strict-Transport-Security: max-age=63072000; includeSubDomains (2 years; HTTPS only)
+//   - X-Permitted-Cross-Domain-Policies: none (blocks Flash/PDF cross-domain policy files)
 func SecurityHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Prevent MIME type sniffing
 		c.Writer.Header().Set("X-Content-Type-Options", "nosniff")
-
-		// Prevent clickjacking by disallowing the page to be rendered in a frame
 		c.Writer.Header().Set("X-Frame-Options", "DENY")
-
-		// Enable XSS protection in older browsers
 		c.Writer.Header().Set("X-XSS-Protection", "1; mode=block")
-
-		// Content Security Policy - only allow resources from same origin
 		c.Writer.Header().Set("Content-Security-Policy", "default-src 'self'")
-
-		// Control referrer information sent to other sites
 		c.Writer.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-
+		// HSTS: tell browsers to always use HTTPS for this domain for 2 years.
+		// Safe to set here — HTTP clients ignore it; it only takes effect over HTTPS.
+		c.Writer.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		c.Writer.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
 		c.Next()
 	}
 }

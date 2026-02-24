@@ -16,6 +16,7 @@ type IncidentRepository interface {
 	GetByNumber(number int) (*models.Incident, error)
 	GetBySlackChannelID(channelID string) (*models.Incident, error)
 	GetByTeamsChannelID(channelID string) (*models.Incident, error)
+	GetByTeamsConversationID(conversationID string) (*models.Incident, error)
 	List(filters IncidentFilters, pagination Pagination) ([]models.Incident, int64, error)
 	Update(incident *models.Incident) error
 	UpdateStatus(id uuid.UUID, status models.IncidentStatus) error
@@ -24,6 +25,7 @@ type IncidentRepository interface {
 	UpdateTeamsChannel(id uuid.UUID, channelID, channelName string) error
 	UpdateTeamsConversationID(id uuid.UUID, conversationID string) error
 	UpdateTeamsActivityID(id uuid.UUID, activityID string) error
+	UpdateTeamsPostingIDs(id uuid.UUID, conversationID, activityID string) error
 	LinkAlert(incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error
 	GetAlerts(incidentID uuid.UUID) ([]models.Alert, error)
 	GetIncidentByAlertID(alertID uuid.UUID) (*models.Incident, error)
@@ -143,9 +145,10 @@ func (r *incidentRepository) Update(incident *models.Incident) error {
 		"summary":            incident.Summary,
 		"slack_channel_id":   incident.SlackChannelID,
 		"slack_channel_name": incident.SlackChannelName,
-		"teams_channel_id":   incident.TeamsChannelID,
-		"teams_channel_name": incident.TeamsChannelName,
-		"teams_activity_id":  incident.TeamsActivityID,
+		"teams_channel_id":      incident.TeamsChannelID,
+		"teams_channel_name":    incident.TeamsChannelName,
+		"teams_conversation_id": incident.TeamsConversationID,
+		"teams_activity_id":     incident.TeamsActivityID,
 		"acknowledged_at":    incident.AcknowledgedAt,
 		"resolved_at":        incident.ResolvedAt,
 		"commander_id":       incident.CommanderID,
@@ -227,6 +230,21 @@ func (r *incidentRepository) GetByTeamsChannelID(channelID string) (*models.Inci
 	return &incident, nil
 }
 
+// GetByTeamsConversationID retrieves an incident by its Bot Framework conversation ID.
+// Returns nil (not an error) when not found — caller checks nil.
+// Bot Framework inbound activities use Conversation.ID (the conversation ID, format a:xxx),
+// which is distinct from the Teams channel ID (19:xxx@thread.tacv2) stored in teams_channel_id.
+func (r *incidentRepository) GetByTeamsConversationID(conversationID string) (*models.Incident, error) {
+	var incident models.Incident
+	if err := r.db.Where("teams_conversation_id = ?", conversationID).First(&incident).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, &DatabaseError{Op: "get incident by teams conversation id", Err: err}
+	}
+	return &incident, nil
+}
+
 // UpdateTeamsChannel stores the Teams channel ID and name for an incident.
 func (r *incidentRepository) UpdateTeamsChannel(id uuid.UUID, channelID, channelName string) error {
 	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).Updates(map[string]interface{}{
@@ -244,6 +262,19 @@ func (r *incidentRepository) UpdateTeamsConversationID(id uuid.UUID, conversatio
 	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).
 		Update("teams_conversation_id", conversationID).Error; err != nil {
 		return &DatabaseError{Op: "update incident teams conversation id", Err: err}
+	}
+	return nil
+}
+
+// UpdateTeamsPostingIDs atomically stores both the Bot Framework conversation ID and the
+// root activity ID in a single UPDATE statement. Avoids a partial-write state where
+// conversationID is stored but activityID is not, which would silently prevent card updates.
+func (r *incidentRepository) UpdateTeamsPostingIDs(id uuid.UUID, conversationID, activityID string) error {
+	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"teams_conversation_id": conversationID,
+		"teams_activity_id":     activityID,
+	}).Error; err != nil {
+		return &DatabaseError{Op: "update incident teams posting ids", Err: err}
 	}
 	return nil
 }

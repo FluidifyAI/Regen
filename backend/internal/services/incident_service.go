@@ -858,7 +858,10 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 
 	// Post Teams notification and optionally archive Teams channel, asynchronously (v0.8+)
 	if statusChanged && s.teamsSvc != nil {
-		go s.postStatusUpdateToTeams(incident, previousStatus, params.Status, params.UpdatedBy)
+		go func() {
+			defer recoverAsyncPanic("postStatusUpdateToTeams", "incident_id", incident.ID)
+			s.postStatusUpdateToTeams(incident, previousStatus, params.Status, params.UpdatedBy)
+		}()
 	}
 
 	// Fetch updated incident
@@ -895,10 +898,16 @@ func (s *incidentService) CreateTimelineEntry(params *CreateTimelineEntryParams)
 	// Post user notes to chat channels for bidirectional sync
 	if params.Type == "message" {
 		if s.chatService != nil {
-			go s.postTimelineNoteToSlack(params.IncidentID, params.Content)
+			go func() {
+				defer recoverAsyncPanic("postTimelineNoteToSlack", "incident_id", params.IncidentID)
+				s.postTimelineNoteToSlack(params.IncidentID, params.Content)
+			}()
 		}
 		if s.teamsSvc != nil {
-			go s.postTimelineNoteToTeams(params.IncidentID, params.Content)
+			go func() {
+				defer recoverAsyncPanic("postTimelineNoteToTeams", "incident_id", params.IncidentID)
+				s.postTimelineNoteToTeams(params.IncidentID, params.Content)
+			}()
 		}
 	}
 
@@ -909,7 +918,12 @@ func (s *incidentService) CreateTimelineEntry(params *CreateTimelineEntryParams)
 // Runs asynchronously so it doesn't block the API response.
 func (s *incidentService) postTimelineNoteToSlack(incidentID uuid.UUID, content models.JSONB) {
 	incident, err := s.incidentRepo.GetByID(incidentID)
-	if err != nil || incident.SlackChannelID == "" {
+	if err != nil {
+		slog.Error("postTimelineNoteToSlack: failed to load incident",
+			"incident_id", incidentID, "error", err)
+		return
+	}
+	if incident.SlackChannelID == "" {
 		return
 	}
 
@@ -940,7 +954,12 @@ func (s *incidentService) postTimelineNoteToSlack(incidentID uuid.UUID, content 
 // Runs asynchronously so it doesn't block the API response.
 func (s *incidentService) postTimelineNoteToTeams(incidentID uuid.UUID, content models.JSONB) {
 	incident, err := s.incidentRepo.GetByID(incidentID)
-	if err != nil || incident.TeamsConversationID == nil {
+	if err != nil {
+		slog.Error("postTimelineNoteToTeams: failed to load incident",
+			"incident_id", incidentID, "error", err)
+		return
+	}
+	if incident.TeamsConversationID == nil {
 		return
 	}
 
@@ -1122,12 +1141,12 @@ func (s *incidentService) ResolveIncident(id uuid.UUID, actorType, actorID strin
 		"new_status":      string(models.IncidentStatusResolved),
 		"actor":           actorID,
 	})
-	// Trigger Teams channel archive asynchronously
-	if s.teamsSvc != nil && incident.TeamsChannelID != nil {
+	// Re-fetch with updated status so postStatusUpdateToTeams sees the correct state.
+	// This also ensures the card update shows "resolved" rather than the previous status.
+	if updatedIncident, err := s.incidentRepo.GetByID(id); err == nil && s.teamsSvc != nil {
 		go func() {
-			if err := s.teamsSvc.ArchiveChannel(*incident.TeamsChannelID); err != nil {
-				slog.Warn("teams: failed to archive channel on resolve", "incident_id", id, "error", err)
-			}
+			defer recoverAsyncPanic("postStatusUpdateToTeams(resolve)", "incident_id", id)
+			s.postStatusUpdateToTeams(updatedIncident, incident.Status, models.IncidentStatusResolved, actorID)
 		}()
 	}
 	return nil
@@ -1155,31 +1174,37 @@ func (s *incidentService) createTeamsChannelForIncident(incident *models.Inciden
 		return fmt.Errorf("failed to create teams channel: %w", err)
 	}
 
+	// Link the channel to the incident in the database. If this fails the channel is
+	// orphaned in Teams — bot commands will never be able to find the incident — so
+	// we must abort here rather than continue. The timeline entry documents the orphaned ID
+	// so an operator can manually investigate.
 	if err := s.incidentRepo.UpdateTeamsChannel(incident.ID, channel.ID, channel.Name); err != nil {
-		slog.Error("failed to update incident with teams channel",
-			"incident_id", incident.ID, "channel_id", channel.ID, "error", err)
+		slog.Error("failed to update incident with teams channel — channel is orphaned",
+			"incident_id", incident.ID,
+			"teams_channel_id", channel.ID,
+			"error", err)
+		s.createTimelineEntry(incident.ID, "teams_channel_orphaned", models.JSONB{
+			"teams_channel_id":   channel.ID,
+			"teams_channel_name": channel.Name,
+			"error":              err.Error(),
+		})
+		return fmt.Errorf("teams channel created but could not be linked to incident: %w", err)
 	}
 
 	// Post initial Adaptive Card via Bot Framework Proactive Messaging.
 	// PostToChannel creates a Bot Framework conversation in the channel and returns
 	// both the conversationID (needed for future PostToConversation calls) and the
 	// activityID (needed to update the root card on status changes).
+	// Both IDs are stored atomically to prevent a partial-write state.
 	card := teamsIncidentCard(incident)
 	msg := Message{Blocks: []interface{}{card}}
 	conversationID, activityID, err := s.teamsSvc.PostToChannel(channel.ID, msg)
 	if err != nil {
 		slog.Error("failed to post initial teams card",
 			"incident_id", incident.ID, "channel_id", channel.ID, "error", err)
-	} else {
-		if conversationID != "" {
-			if storeErr := s.incidentRepo.UpdateTeamsConversationID(incident.ID, conversationID); storeErr != nil {
-				slog.Warn("failed to store teams conversation id", "incident_id", incident.ID, "error", storeErr)
-			}
-		}
-		if activityID != "" {
-			if storeErr := s.incidentRepo.UpdateTeamsActivityID(incident.ID, activityID); storeErr != nil {
-				slog.Warn("failed to store teams activity id", "incident_id", incident.ID, "error", storeErr)
-			}
+	} else if conversationID != "" && activityID != "" {
+		if storeErr := s.incidentRepo.UpdateTeamsPostingIDs(incident.ID, conversationID, activityID); storeErr != nil {
+			slog.Warn("failed to store teams posting ids", "incident_id", incident.ID, "error", storeErr)
 		}
 	}
 
@@ -1198,11 +1223,22 @@ func (s *incidentService) createTeamsChannelForIncident(incident *models.Inciden
 	return nil
 }
 
+// recoverAsyncPanic logs a recovered panic from an async goroutine.
+// Gin's recovery middleware only covers the HTTP handler goroutine; any goroutine
+// spawned with `go` must recover its own panics to prevent crashing the server.
+func recoverAsyncPanic(op string, extra ...any) {
+	if r := recover(); r != nil {
+		args := append([]any{"panic", fmt.Sprintf("%v", r)}, extra...)
+		slog.Error("panic in async goroutine — recovered", append([]any{"op", op}, args...)...)
+	}
+}
+
 // launchChannelCreation spawns goroutines to create Slack and/or Teams channels for a new incident.
 // Extracted to avoid repeating the same two-goroutine block in every CreateIncident* variant.
 func (s *incidentService) launchChannelCreation(incident *models.Incident, alerts []models.Alert) {
 	if s.chatService != nil {
 		go func() {
+			defer recoverAsyncPanic("CreateSlackChannelForIncident", "incident_id", incident.ID)
 			if err := s.CreateSlackChannelForIncident(incident, alerts); err != nil {
 				slog.Error("failed to create slack channel",
 					"incident_id", incident.ID,
@@ -1213,6 +1249,7 @@ func (s *incidentService) launchChannelCreation(incident *models.Incident, alert
 	}
 	if s.teamsSvc != nil {
 		go func() {
+			defer recoverAsyncPanic("createTeamsChannelForIncident", "incident_id", incident.ID)
 			if err := s.createTeamsChannelForIncident(incident, alerts); err != nil {
 				slog.Error("failed to create teams channel",
 					"incident_id", incident.ID,
@@ -1258,8 +1295,6 @@ func (s *incidentService) postStatusUpdateToTeams(incident *models.Incident, pre
 	// Archive on terminal status (best-effort rename via Graph API — known limitation)
 	isTerminal := newStatus == models.IncidentStatusResolved || newStatus == models.IncidentStatusCanceled
 	if isTerminal && incident.TeamsChannelID != nil {
-		if err := s.teamsSvc.ArchiveChannel(*incident.TeamsChannelID); err != nil {
-			slog.Warn("teams: failed to archive channel", "incident_id", incident.ID, "error", err)
-		}
+		s.teamsSvc.ArchiveChannel(*incident.TeamsChannelID)
 	}
 }

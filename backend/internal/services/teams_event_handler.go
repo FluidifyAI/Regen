@@ -120,8 +120,11 @@ func (h *TeamsEventHandler) handleNew(_ context.Context, activity BotActivity, t
 	}
 	incident, err := h.incidentSvc.CreateIncident(req)
 	if err != nil {
-		slog.Error("teams bot: failed to create incident", "error", err)
-		h.reply(activity, fmt.Sprintf("❌ Failed to create incident: %s", err))
+		slog.Error("teams bot: failed to create incident",
+			"title", title,
+			"requested_by", activity.From.ID,
+			"error", err)
+		h.reply(activity, "❌ Failed to create incident. The error has been recorded in system logs.")
 		return
 	}
 
@@ -129,11 +132,30 @@ func (h *TeamsEventHandler) handleNew(_ context.Context, activity BotActivity, t
 		incident.IncidentNumber, incident.Title))
 }
 
+// lookupIncidentByConversation fetches the incident linked to the Bot Framework conversation.
+// Bot Framework activity.Conversation.ID contains the conversation ID (a:xxx) which maps to
+// teams_conversation_id — distinct from the Teams channel ID in teams_channel_id.
+// Returns (nil, nil) when no incident is linked (normal for unlinked channels).
+func (h *TeamsEventHandler) lookupIncidentByConversation(activity BotActivity) (*models.Incident, error) {
+	incident, err := h.incidentRepo.GetByTeamsConversationID(activity.Conversation.ID)
+	if err != nil {
+		slog.Error("teams bot: database error looking up incident",
+			"conversation_id", activity.Conversation.ID,
+			"error", err)
+		return nil, err
+	}
+	return incident, nil
+}
+
 // handleAck acknowledges the incident linked to the current Teams channel.
 func (h *TeamsEventHandler) handleAck(_ context.Context, activity BotActivity) {
-	incident, err := h.incidentRepo.GetByTeamsChannelID(activity.Conversation.ID)
-	if err != nil || incident == nil {
-		h.reply(activity, "⚠️ No incident found for this channel.")
+	incident, err := h.lookupIncidentByConversation(activity)
+	if err != nil {
+		h.reply(activity, "Internal error. Please try again or check system logs.")
+		return
+	}
+	if incident == nil {
+		h.reply(activity, "⚠️ No incident is linked to this channel.")
 		return
 	}
 	if incident.Status != models.IncidentStatusTriggered {
@@ -142,7 +164,7 @@ func (h *TeamsEventHandler) handleAck(_ context.Context, activity BotActivity) {
 	}
 	if err := h.incidentSvc.AcknowledgeIncident(incident.ID, "teams_bot", activity.From.ID); err != nil {
 		slog.Error("teams bot: failed to acknowledge incident", "incident_id", incident.ID, "error", err)
-		h.reply(activity, fmt.Sprintf("❌ Failed to acknowledge: %s", err))
+		h.reply(activity, "❌ Failed to acknowledge incident. The error has been recorded in system logs.")
 		return
 	}
 	h.reply(activity, fmt.Sprintf("🟡 INC-%d acknowledged by %s", incident.IncidentNumber, activity.From.Name))
@@ -150,9 +172,13 @@ func (h *TeamsEventHandler) handleAck(_ context.Context, activity BotActivity) {
 
 // handleResolve resolves the incident linked to the current Teams channel.
 func (h *TeamsEventHandler) handleResolve(_ context.Context, activity BotActivity) {
-	incident, err := h.incidentRepo.GetByTeamsChannelID(activity.Conversation.ID)
-	if err != nil || incident == nil {
-		h.reply(activity, "⚠️ No incident found for this channel.")
+	incident, err := h.lookupIncidentByConversation(activity)
+	if err != nil {
+		h.reply(activity, "Internal error. Please try again or check system logs.")
+		return
+	}
+	if incident == nil {
+		h.reply(activity, "⚠️ No incident is linked to this channel.")
 		return
 	}
 	if incident.Status == models.IncidentStatusResolved {
@@ -161,7 +187,7 @@ func (h *TeamsEventHandler) handleResolve(_ context.Context, activity BotActivit
 	}
 	if err := h.incidentSvc.ResolveIncident(incident.ID, "teams_bot", activity.From.ID); err != nil {
 		slog.Error("teams bot: failed to resolve incident", "incident_id", incident.ID, "error", err)
-		h.reply(activity, fmt.Sprintf("❌ Failed to resolve: %s", err))
+		h.reply(activity, "❌ Failed to resolve incident. The error has been recorded in system logs.")
 		return
 	}
 	h.reply(activity, fmt.Sprintf("✅ INC-%d resolved by %s", incident.IncidentNumber, activity.From.Name))
@@ -169,15 +195,23 @@ func (h *TeamsEventHandler) handleResolve(_ context.Context, activity BotActivit
 
 // handleStatus posts the current incident status card in the channel.
 func (h *TeamsEventHandler) handleStatus(_ context.Context, activity BotActivity) {
-	incident, err := h.incidentRepo.GetByTeamsChannelID(activity.Conversation.ID)
-	if err != nil || incident == nil {
-		h.reply(activity, "⚠️ No incident found for this channel.")
+	incident, err := h.lookupIncidentByConversation(activity)
+	if err != nil {
+		h.reply(activity, "Internal error. Please try again or check system logs.")
+		return
+	}
+	if incident == nil {
+		h.reply(activity, "⚠️ No incident is linked to this channel.")
 		return
 	}
 	card := teamsIncidentCard(incident)
 	msg := Message{Blocks: []interface{}{card}}
 	if _, err := h.teamsSvc.PostToConversation(activity.Conversation.ID, msg); err != nil {
-		slog.Error("teams bot: failed to post status card", "error", err)
+		slog.Error("teams bot: failed to post status card",
+			"incident_id", incident.ID,
+			"conversation_id", activity.Conversation.ID,
+			"error", err)
+		h.reply(activity, "Failed to retrieve incident status. Please try again.")
 	}
 }
 
@@ -188,9 +222,14 @@ func (h *TeamsEventHandler) syncMessageToTimeline(_ context.Context, activity Bo
 	if text == "" {
 		return
 	}
-	incident, err := h.incidentRepo.GetByTeamsChannelID(activity.Conversation.ID)
-	if err != nil || incident == nil {
-		// Channel not linked to an incident — ignore silently
+	incident, err := h.incidentRepo.GetByTeamsConversationID(activity.Conversation.ID)
+	if err != nil {
+		slog.Warn("teams bot: database error syncing message to timeline",
+			"conversation_id", activity.Conversation.ID, "error", err)
+		return
+	}
+	if incident == nil {
+		// Conversation not linked to an incident — normal for channels created outside OpenIncident
 		return
 	}
 
@@ -230,7 +269,10 @@ func (h *TeamsEventHandler) reply(activity BotActivity, text string) {
 	// Use the conversation ID from the inbound activity directly — no need to
 	// create a new conversation since we're replying to an existing one.
 	if _, err := h.teamsSvc.PostToConversation(activity.Conversation.ID, msg); err != nil {
-		slog.Error("teams bot: failed to send reply", "error", err)
+		slog.Error("teams bot: failed to send reply",
+			"conversation_id", activity.Conversation.ID,
+			"text_length", len(text),
+			"error", err)
 	}
 }
 

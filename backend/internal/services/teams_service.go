@@ -134,9 +134,12 @@ func (s *TeamsService) UpdateMessage(channelID, messageID string, msg Message) e
 	return s.UpdateConversationMessage(channelID, messageID, msg)
 }
 
+// ArchiveChannel best-effort renames the channel to mark it as resolved.
+// Graph API does not support archiving standard channels (only private channels),
+// so this is a rename-only operation. Always returns nil — the error is logged
+// internally. Callers should not check the return value; the incident is already
+// resolved regardless of whether the rename succeeds.
 func (s *TeamsService) ArchiveChannel(channelID string) error {
-	// Graph API does not support archiving standard channels (only private channels).
-	// Best-effort: rename the channel to indicate it is resolved.
 	suffix := channelID
 	if len(suffix) > 8 {
 		suffix = suffix[:8]
@@ -394,6 +397,11 @@ func (s *TeamsService) botfwPut(url string, body interface{}) error {
 
 // ─── Shared HTTP helper ───────────────────────────────────────────────────────
 
+// apiResponseSizeLimit caps response body reads at 4 MB.
+// This prevents memory exhaustion if a misconfigured or malicious endpoint
+// returns a large error body. Legitimate Graph/Bot Framework responses are well under 1 MB.
+const apiResponseSizeLimit = 4 * 1024 * 1024
+
 func (s *TeamsService) doRequest(client *http.Client, req *http.Request, out interface{}) error {
 	resp, err := client.Do(req)
 	if err != nil {
@@ -401,7 +409,11 @@ func (s *TeamsService) doRequest(client *http.Client, req *http.Request, out int
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, apiResponseSizeLimit))
+	if err != nil {
+		return fmt.Errorf("teams API %s %s: failed to read response body: %w",
+			req.Method, req.URL.Path, err)
+	}
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("teams API %s %s → %d: %s", req.Method, req.URL.Path, resp.StatusCode, string(body))
 	}

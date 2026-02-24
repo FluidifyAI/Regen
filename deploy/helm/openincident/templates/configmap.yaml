@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openincident.fullname" . }}
+  labels:
+    {{- include "openincident.labels" . | nindent 4 }}
+data:
+  APP_ENV: {{ .Values.config.appEnv | quote }}
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  PORT: {{ .Values.config.port | quote }}
+  {{- if .Values.config.samlBaseURL }}
+  SAML_BASE_URL: {{ .Values.config.samlBaseURL | quote }}
+  {{- end }}
+  SAML_ALLOW_IDP_INITIATED: {{ .Values.config.samlAllowIdpInitiated | quote }}
+  TEAMS_SERVICE_URL: {{ .Values.config.teamsServiceURL | quote }}
+  {{- if .Values.config.slackAutoInviteUserIDs }}
+  SLACK_AUTO_INVITE_USER_IDS: {{ .Values.config.slackAutoInviteUserIDs | quote }}
+  {{- end }}

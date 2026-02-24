@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/openincident/openincident/internal/config"
+	"github.com/openincident/openincident/internal/enterprise"
 	"github.com/openincident/openincident/internal/repository"
 	"github.com/openincident/openincident/internal/services"
 	"gorm.io/gorm"
@@ -12,7 +13,9 @@ import (
 
 // StartAll starts all background workers.
 // teamsSvc is constructed once in serve.go and shared with the API router.
-func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService) {
+// hooks.Retention is a no-op in the OSS build; the enterprise build provides
+// a real enforcer that purges data according to configured retention policies.
+func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, hooks enterprise.Hooks) {
 	// Initialize dependencies for the shift notifier
 	scheduleRepo := repository.NewScheduleRepository(db)
 	scheduleEvaluator := services.NewScheduleEvaluator(scheduleRepo)
@@ -57,6 +60,9 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *se
 	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, escalationWorker)
 	escalationWorker.SetEngine(escalationEngine)
 	go escalationWorker.Run(ctx)
+
+	// Retention enforcer — no-op in OSS, real implementation in enterprise build.
+	hooks.Retention.Start(ctx, db)
 
 	slog.Info("background workers started")
 }

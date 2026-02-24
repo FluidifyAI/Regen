@@ -10,6 +10,7 @@ import (
 	"github.com/openincident/openincident/internal/api/handlers"
 	"github.com/openincident/openincident/internal/api/middleware"
 	"github.com/openincident/openincident/internal/config"
+	"github.com/openincident/openincident/internal/enterprise"
 	"github.com/openincident/openincident/internal/metrics"
 	"github.com/openincident/openincident/internal/models/webhooks"
 	"github.com/openincident/openincident/internal/repository"
@@ -21,7 +22,8 @@ import (
 // SetupRoutes configures all application routes.
 // teamsSvc may be nil when Teams integration is disabled.
 // samlMiddleware may be nil when SSO is not configured (all routes open).
-func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware) {
+// hooks contains enterprise extension points; OSS callers pass enterprise.NewNoOp().
+func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks) {
 	// Initialize repositories
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
@@ -128,7 +130,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	router.Use(middleware.CORS())
 	router.Use(middleware.Recovery())
 	router.Use(middleware.Logger())
-	router.Use(metrics.Middleware()) // Prometheus metrics
+	router.Use(metrics.Middleware())                    // Prometheus metrics
+	router.Use(middleware.AuditLog(hooks.Audit))        // Enterprise audit trail (no-op in OSS)
 
 	// Health check endpoints (always open — liveness/readiness probes)
 	router.GET("/health", handlers.Health(db))
@@ -157,6 +160,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		slog.Warn("SAML SSO disabled — set SAML_IDP_METADATA_URL to enable authentication")
 	}
 	router.GET("/auth/logout", handlers.Logout(samlMiddleware))
+
+	// SCIM 2.0 provisioning routes — enterprise only, no-op stub returns 501 in OSS.
+	scimGroup := router.Group("/scim/v2")
+	hooks.SCIM.RegisterRoutes(scimGroup)
 
 	// API v1 routes
 	// Webhooks are machine-to-machine and intentionally excluded from RequireAuth.
@@ -209,8 +216,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// Auth identity endpoint
 		v1.GET("/auth/me", middleware.RequireAuth(samlMiddleware), handlers.GetCurrentUser())
 
-		// Protected routes — require SAML session (no-op when SSO disabled)
-		protected := v1.Group("", middleware.RequireAuth(samlMiddleware))
+		// Protected routes — require SAML session (no-op when SSO disabled).
+		// RBAC middleware runs after auth; the OSS no-op allows all requests through.
+		protected := v1.Group("", middleware.RequireAuth(samlMiddleware), hooks.RBAC.Middleware("api", "access"))
 
 		// Incidents
 		protected.GET("/incidents", handlers.ListIncidents(incidentSvc))

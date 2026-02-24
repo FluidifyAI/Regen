@@ -16,6 +16,7 @@ import (
 	"github.com/openincident/openincident/internal/auth"
 	"github.com/openincident/openincident/internal/config"
 	"github.com/openincident/openincident/internal/database"
+	"github.com/openincident/openincident/internal/enterprise"
 	"github.com/openincident/openincident/internal/metrics"
 	"github.com/openincident/openincident/internal/redis"
 	"github.com/openincident/openincident/internal/repository"
@@ -113,13 +114,18 @@ func runServe(_ *cobra.Command, _ []string) error {
 		slog.Warn("SAML SSO disabled — set SAML_IDP_METADATA_URL to enable authentication")
 	}
 
+	// Enterprise hooks — no-op stubs in the OSS build.
+	// Replace enterprise.NewNoOp() with the real implementation in the
+	// enterprise binary to unlock SCIM, audit log export, RBAC, and retention.
+	enterpriseHooks := enterprise.NewNoOp()
+
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
-	api.SetupRoutes(router, database.DB, cfg, teamsSvc, samlMiddleware)
+	api.SetupRoutes(router, database.DB, cfg, teamsSvc, samlMiddleware, enterpriseHooks)
 
-	worker.StartAll(appCtx, database.DB, cfg, teamsSvc)
+	worker.StartAll(appCtx, database.DB, cfg, teamsSvc, enterpriseHooks)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

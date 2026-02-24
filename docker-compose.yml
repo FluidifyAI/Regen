@@ -60,6 +60,8 @@ services:
       - TEAMS_TEAM_ID=${TEAMS_TEAM_ID}
       - TEAMS_BOT_USER_ID=${TEAMS_BOT_USER_ID}
       - TEAMS_SERVICE_URL=${TEAMS_SERVICE_URL:-https://smba.trafficmanager.net/amer/}
+      # CORS — comma-separated list of allowed origins (default: http://localhost:3000)
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       # SAML SSO (optional — leave unset to run in open mode)
       - SAML_IDP_METADATA_URL=${SAML_IDP_METADATA_URL}
       - SAML_BASE_URL=${SAML_BASE_URL:-http://localhost:8080}

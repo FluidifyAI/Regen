@@ -199,18 +199,15 @@ func (s *TeamsService) GetThreadMessages(channelID, threadTS string) ([]string, 
 // ─── Bot Framework channel messaging ──────────────────────────────────────────
 
 // PostToChannel creates a new Bot Framework conversation in the given Teams channel
-// and posts a message to it. Returns both the conversationID and activityID so
-// callers can store both for future PostToConversation and UpdateConversationMessage calls.
+// and posts a message to it in a single API call. Returns both the conversationID
+// and activityID so callers can store both for future PostToConversation and
+// UpdateConversationMessage calls.
 //
 // Use this for the initial message when creating an incident channel.
 func (s *TeamsService) PostToChannel(teamsChannelID string, msg Message) (conversationID, activityID string, err error) {
-	convID, err := s.createChannelConversation(teamsChannelID)
+	convID, actID, err := s.createChannelConversation(teamsChannelID, msg)
 	if err != nil {
 		return "", "", fmt.Errorf("teams: create conversation in channel %s: %w", teamsChannelID, err)
-	}
-	actID, err := s.postToConversation(convID, msg)
-	if err != nil {
-		return "", "", fmt.Errorf("teams: post to conversation %s: %w", convID, err)
 	}
 	return convID, actID, nil
 }
@@ -232,10 +229,15 @@ func (s *TeamsService) UpdateConversationMessage(conversationID, activityID stri
 }
 
 // createChannelConversation creates a new Bot Framework conversation rooted in a
-// Teams channel. This is the mechanism that bypasses ChannelMessage.Send:
-// the Bot Framework relay creates the conversation on behalf of the bot.
-func (s *TeamsService) createChannelConversation(teamsChannelID string) (string, error) {
+// Teams channel and posts the initial message in a single API call.
+// Returns both the conversationID and activityID from the response.
+//
+// The Bot Framework relay requires a non-empty activity to create the conversation;
+// combining creation + first post into one round-trip is also the idiomatic approach.
+func (s *TeamsService) createChannelConversation(teamsChannelID string, msg Message) (conversationID, activityID string, err error) {
 	url := fmt.Sprintf("%sv3/conversations", s.serviceURL)
+	activity := buildBotFWMessageBody(msg)
+	activity["type"] = "message"
 	body := map[string]interface{}{
 		"bot": map[string]string{
 			"id":   "28:" + s.botAppID,
@@ -245,16 +247,18 @@ func (s *TeamsService) createChannelConversation(teamsChannelID string) (string,
 			"channel": map[string]string{"id": teamsChannelID},
 			"tenant":  map[string]string{"id": s.tenantID},
 		},
-		"isGroup": true,
-		"members": []interface{}{},
+		"isGroup":  true,
+		"tenantId": s.tenantID,
+		"activity": activity,
 	}
 	var result struct {
-		ID string `json:"id"`
+		ID         string `json:"id"`
+		ActivityID string `json:"activityId"`
 	}
 	if err := s.botfwPostJSON(url, body, &result); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return result.ID, nil
+	return result.ID, result.ActivityID, nil
 }
 
 // postToConversation sends a message activity to an existing conversation.

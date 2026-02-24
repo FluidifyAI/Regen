@@ -319,6 +319,7 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 
 *OSS (free):*
 - [x] SSO/SAML — SAML 2.0 SP, works with Okta, Azure AD, Google Workspace (JIT provisioning, backwards-compatible no-op when disabled)
+- [x] Frontend auth — `AuthContext`, `useAuth` hook, `AuthGate` (proactive session check), `LoginPage` with SSO button, user display + logout in Sidebar
 
 *Enterprise (paid):*
 - [ ] SCIM provisioning
@@ -327,11 +328,11 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 - [ ] Retention policies
 
 *Teams Integration Hardening (backlog from v0.8):*
-- [ ] Replace Graph API message posting with **Incoming Webhooks** per channel (workaround for delegated-only `ChannelMessage.Send`)
-- [ ] Sync UI timeline notes → Teams channel (parity with Slack's `postTimelineNoteToSlack`)
-- [ ] Sync Teams `@Bot` replies → UI timeline (inbound parity with Slack Socket Mode)
-- [ ] Proper channel archive on resolve (Graph API limitation: standard channels can't be archived; evaluate private channel model)
-- [ ] Auto-invite specific users to Teams channel (currently no-op for standard channels; needs private channel or DM fallback)
+- [x] Replace Graph API channel posting with **Bot Framework Proactive Messaging** (true Slack parity — same bot credentials, second OAuth scope `https://api.botframework.com/.default`, no `ChannelMessage.Send` permission required). Requires `TEAMS_SERVICE_URL` env var (Bot Framework relay endpoint for the tenant, e.g. `https://smba.trafficmanager.net/amer/`). New methods: `PostToChannel`, `PostToConversation`, `UpdateConversationMessage`. DB: `teams_conversation_id` column added (migration 000022).
+- [x] Sync UI timeline notes → Teams channel (`postTimelineNoteToTeams` mirrors `postTimelineNoteToSlack`)
+- [x] Sync Teams `@Bot` replies → UI timeline (non-command messages in `TeamsEventHandler` saved as timeline entries)
+- [ ] Proper channel archive on resolve — **documented limitation**: Graph API cannot archive standard channels; current behaviour renames to `[RESOLVED]`. True archive requires private channel model.
+- [ ] Auto-invite specific users to Teams channel — **documented limitation**: no-op for standard channels; Graph API `TeamMember` adds to Team, not channel. Private channel model required.
 
 **v1.0 — Production Ready (Weeks 27–28)**
 - [ ] Kubernetes Helm chart
@@ -363,6 +364,24 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 - Product works 100% without AI configured
 - BYO API key model (user's data, user's cost)
 - Abstract provider interface for future local LLM support
+
+### 5. Enterprise Release Strategy (Open Core)
+
+**Problem:** If enterprise features are pushed to the public AGPLv3 repo, they become open source.
+
+**Decision: Two-repo model**
+
+| Repo | Visibility | License | Contents |
+|------|-----------|---------|----------|
+| `openincident/openincident` | Public | AGPLv3 | Everything through v0.9 OSS |
+| `openincident/openincident-ee` | Private | Commercial | SCIM, audit logs, RBAC, retention |
+
+The private EE repo imports the public OSS repo as a Go module and adds enterprise packages on top. Paid customers receive a Docker image built from the combined codebase. OSS users never see enterprise code.
+
+**When to create the EE repo:** Before writing the first line of SCIM/audit/RBAC code.
+
+**Why not mono-repo with license headers (GitLab model)?**
+GitLab can do this because they have legal and engineering resources to enforce it. For a pre-v1.0 project, two repos is simpler, legally cleaner, and easier to explain to contributors.
 
 ---
 

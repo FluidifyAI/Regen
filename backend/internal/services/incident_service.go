@@ -892,9 +892,14 @@ func (s *incidentService) CreateTimelineEntry(params *CreateTimelineEntryParams)
 		return nil, err
 	}
 
-	// Post user notes to Slack channel for bidirectional sync
-	if params.Type == "message" && s.chatService != nil {
-		go s.postTimelineNoteToSlack(params.IncidentID, params.Content)
+	// Post user notes to chat channels for bidirectional sync
+	if params.Type == "message" {
+		if s.chatService != nil {
+			go s.postTimelineNoteToSlack(params.IncidentID, params.Content)
+		}
+		if s.teamsSvc != nil {
+			go s.postTimelineNoteToTeams(params.IncidentID, params.Content)
+		}
 	}
 
 	return entry, nil
@@ -925,6 +930,35 @@ func (s *incidentService) postTimelineNoteToSlack(incidentID uuid.UUID, content 
 
 	if _, err := s.chatService.PostMessage(incident.SlackChannelID, slackMessage); err != nil {
 		slog.Warn("failed to post timeline note to slack",
+			"incident_id", incidentID,
+			"error", err)
+	}
+}
+
+// postTimelineNoteToTeams posts a user-created note to the incident's Teams channel.
+// Mirrors postTimelineNoteToSlack for bidirectional Teams parity (v0.9+).
+// Runs asynchronously so it doesn't block the API response.
+func (s *incidentService) postTimelineNoteToTeams(incidentID uuid.UUID, content models.JSONB) {
+	incident, err := s.incidentRepo.GetByID(incidentID)
+	if err != nil || incident.TeamsConversationID == nil {
+		return
+	}
+
+	messageText := ""
+	if msg, ok := content["message"].(string); ok {
+		messageText = msg
+	} else if text, ok := content["text"].(string); ok {
+		messageText = text
+	}
+	if messageText == "" {
+		return
+	}
+
+	teamsMessage := Message{
+		Text: fmt.Sprintf("📝 **Note from web UI:**\n%s", messageText),
+	}
+	if _, err := s.teamsSvc.PostToConversation(*incident.TeamsConversationID, teamsMessage); err != nil {
+		slog.Warn("failed to post timeline note to teams",
 			"incident_id", incidentID,
 			"error", err)
 	}
@@ -1126,16 +1160,26 @@ func (s *incidentService) createTeamsChannelForIncident(incident *models.Inciden
 			"incident_id", incident.ID, "channel_id", channel.ID, "error", err)
 	}
 
-	// Post initial Adaptive Card
+	// Post initial Adaptive Card via Bot Framework Proactive Messaging.
+	// PostToChannel creates a Bot Framework conversation in the channel and returns
+	// both the conversationID (needed for future PostToConversation calls) and the
+	// activityID (needed to update the root card on status changes).
 	card := teamsIncidentCard(incident)
 	msg := Message{Blocks: []interface{}{card}}
-	activityID, err := s.teamsSvc.PostMessage(channel.ID, msg)
+	conversationID, activityID, err := s.teamsSvc.PostToChannel(channel.ID, msg)
 	if err != nil {
 		slog.Error("failed to post initial teams card",
 			"incident_id", incident.ID, "channel_id", channel.ID, "error", err)
-	} else if activityID != "" {
-		if storeErr := s.incidentRepo.UpdateTeamsActivityID(incident.ID, activityID); storeErr != nil {
-			slog.Warn("failed to store teams activity id", "incident_id", incident.ID, "error", storeErr)
+	} else {
+		if conversationID != "" {
+			if storeErr := s.incidentRepo.UpdateTeamsConversationID(incident.ID, conversationID); storeErr != nil {
+				slog.Warn("failed to store teams conversation id", "incident_id", incident.ID, "error", storeErr)
+			}
+		}
+		if activityID != "" {
+			if storeErr := s.incidentRepo.UpdateTeamsActivityID(incident.ID, activityID); storeErr != nil {
+				slog.Warn("failed to store teams activity id", "incident_id", incident.ID, "error", storeErr)
+			}
 		}
 	}
 
@@ -1181,35 +1225,40 @@ func (s *incidentService) launchChannelCreation(incident *models.Incident, alert
 
 // postStatusUpdateToTeams posts a status change notification to the Teams channel
 // and updates the root Adaptive Card. Runs asynchronously.
+// Uses Bot Framework Proactive Messaging via the stored conversationID (v0.9+):
+//   - UpdateConversationMessage refreshes the root incident card in-place
+//   - PostToConversation posts a new status notification card
 func (s *incidentService) postStatusUpdateToTeams(incident *models.Incident, previousStatus, newStatus models.IncidentStatus, updatedBy string) {
-	if incident.TeamsChannelID == nil {
+	if incident.TeamsConversationID == nil {
+		// Pre-v0.9 incident without a stored conversationID — skip silently.
+		// Channel was created but Bot Framework posting was not yet implemented.
 		return
 	}
-	channelID := *incident.TeamsChannelID
+	conversationID := *incident.TeamsConversationID
 
-	// Update the root card if we have its activity ID
+	// Update the root card in-place if we have its activity ID
 	if incident.TeamsActivityID != nil {
 		updatedCard := teamsIncidentCard(incident)
 		msg := Message{Blocks: []interface{}{updatedCard}}
-		if err := s.teamsSvc.UpdateMessage(channelID, *incident.TeamsActivityID, msg); err != nil {
+		if err := s.teamsSvc.UpdateConversationMessage(conversationID, *incident.TeamsActivityID, msg); err != nil {
 			slog.Warn("teams: failed to update root card on status change",
 				"incident_id", incident.ID, "error", err)
 		}
 	}
 
-	// Post a visible notification
+	// Post a visible notification to the conversation
 	statusCard := teamsStatusUpdateCard(incident, updatedBy)
 	notifMsg := Message{Blocks: []interface{}{statusCard}}
-	if _, err := s.teamsSvc.PostMessage(channelID, notifMsg); err != nil {
+	if _, err := s.teamsSvc.PostToConversation(conversationID, notifMsg); err != nil {
 		slog.Error("teams: failed to post status update notification",
 			"incident_id", incident.ID, "error", err)
 		return
 	}
 
-	// Archive on terminal status
+	// Archive on terminal status (best-effort rename via Graph API — known limitation)
 	isTerminal := newStatus == models.IncidentStatusResolved || newStatus == models.IncidentStatusCanceled
-	if isTerminal {
-		if err := s.teamsSvc.ArchiveChannel(channelID); err != nil {
+	if isTerminal && incident.TeamsChannelID != nil {
+		if err := s.teamsSvc.ArchiveChannel(*incident.TeamsChannelID); err != nil {
 			slog.Warn("teams: failed to archive channel", "incident_id", incident.ID, "error", err)
 		}
 	}

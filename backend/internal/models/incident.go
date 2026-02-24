@@ -24,10 +24,13 @@ type Incident struct {
 
 	// Teams integration (v0.8+)
 	// TeamsChannelID is the channel ID in the format "19:xxx@thread.tacv2"
+	// TeamsConversationID is the Bot Framework conversation ID (a:xxx) — distinct from channel ID,
+	// required for proactive messaging via Bot Framework REST API (v0.9+)
 	// TeamsActivityID is the ID of the root adaptive card posted in the channel (used for updates)
-	TeamsChannelID   *string `gorm:"type:varchar(255)" json:"teams_channel_id,omitempty"`
-	TeamsChannelName *string `gorm:"type:varchar(255)" json:"teams_channel_name,omitempty"`
-	TeamsActivityID  *string `gorm:"type:varchar(1024)" json:"teams_activity_id,omitempty"`
+	TeamsChannelID      *string `gorm:"type:varchar(255)" json:"teams_channel_id,omitempty"`
+	TeamsChannelName    *string `gorm:"type:varchar(255)" json:"teams_channel_name,omitempty"`
+	TeamsConversationID *string `gorm:"type:varchar(500)" json:"teams_conversation_id,omitempty"`
+	TeamsActivityID     *string `gorm:"type:varchar(1024)" json:"teams_activity_id,omitempty"`
 
 	// Timestamps (created_at and triggered_at are immutable)
 	CreatedAt      time.Time  `gorm:"not null;default:now()" json:"created_at"`

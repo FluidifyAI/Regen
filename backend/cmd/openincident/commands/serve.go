@@ -86,7 +86,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 	var teamsSvc *services.TeamsService
 	if cfg.TeamsAppID != "" {
 		var err error
-		teamsSvc, err = services.NewTeamsService(appCtx, cfg.TeamsAppID, cfg.TeamsAppPassword, cfg.TeamsTenantID, cfg.TeamsTeamID, cfg.TeamsBotUserID)
+		teamsSvc, err = services.NewTeamsService(appCtx, cfg.TeamsAppID, cfg.TeamsAppPassword, cfg.TeamsTenantID, cfg.TeamsTeamID, cfg.TeamsBotUserID, cfg.TeamsServiceURL)
 		if err != nil {
 			slog.Error("teams service initialization failed", "error", err)
 			slog.Warn("continuing without Teams integration — check TEAMS_* env vars and Azure app permissions")

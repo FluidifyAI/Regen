@@ -22,6 +22,7 @@ type IncidentRepository interface {
 	UpdateSlackChannel(id uuid.UUID, channelID, channelName string) error
 	UpdateSlackMessageTS(id uuid.UUID, messageTS string) error
 	UpdateTeamsChannel(id uuid.UUID, channelID, channelName string) error
+	UpdateTeamsConversationID(id uuid.UUID, conversationID string) error
 	UpdateTeamsActivityID(id uuid.UUID, activityID string) error
 	LinkAlert(incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error
 	GetAlerts(incidentID uuid.UUID) ([]models.Alert, error)
@@ -233,6 +234,16 @@ func (r *incidentRepository) UpdateTeamsChannel(id uuid.UUID, channelID, channel
 		"teams_channel_name": channelName,
 	}).Error; err != nil {
 		return &DatabaseError{Op: "update incident teams channel", Err: err}
+	}
+	return nil
+}
+
+// UpdateTeamsConversationID stores the Bot Framework conversation ID for an incident channel.
+// This is separate from the Teams channel ID and is required for proactive messaging (v0.9+).
+func (r *incidentRepository) UpdateTeamsConversationID(id uuid.UUID, conversationID string) error {
+	if err := r.db.Model(&models.Incident{}).Where("id = ?", id).
+		Update("teams_conversation_id", conversationID).Error; err != nil {
+		return &DatabaseError{Op: "update incident teams conversation id", Err: err}
 	}
 	return nil
 }

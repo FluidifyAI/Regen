@@ -98,6 +98,11 @@ func runServe(_ *cobra.Command, _ []string) error {
 		slog.Warn("TEAMS_APP_ID not set — Teams integration disabled")
 	}
 
+	// Initialize user and session repositories for local auth and SAML JIT provisioning.
+	userRepo := repository.NewUserRepository(database.DB)
+	sessionRepo := repository.NewLocalSessionRepository(database.DB)
+	localAuthSvc := services.NewLocalAuthService(userRepo, sessionRepo)
+
 	// Initialize SAML middleware (optional — nil when SAML_IDP_METADATA_URL is not set).
 	// Must run after migrations so the users table exists for JIT provisioning.
 	samlMiddleware, err := auth.NewSAMLMiddleware(cfg)
@@ -106,7 +111,6 @@ func runServe(_ *cobra.Command, _ []string) error {
 	}
 	if samlMiddleware != nil {
 		// Wrap the default CookieSessionProvider with JIT user provisioning.
-		userRepo := repository.NewUserRepository(database.DB)
 		authSvc := services.NewAuthService(userRepo)
 		samlMiddleware.Session = auth.NewProvisioningSessionProvider(samlMiddleware.Session, authSvc)
 		slog.Info("SAML SSO enabled", "base_url", cfg.SAMLBaseURL)
@@ -123,7 +127,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
-	api.SetupRoutes(router, database.DB, cfg, teamsSvc, samlMiddleware, enterpriseHooks)
+	api.SetupRoutes(router, database.DB, cfg, teamsSvc, samlMiddleware, enterpriseHooks, localAuthSvc)
 
 	worker.StartAll(appCtx, database.DB, cfg, teamsSvc, enterpriseHooks)
 

@@ -59,6 +59,7 @@ services:
       - TEAMS_TENANT_ID=${TEAMS_TENANT_ID}
       - TEAMS_TEAM_ID=${TEAMS_TEAM_ID}
       - TEAMS_BOT_USER_ID=${TEAMS_BOT_USER_ID}
+      - TEAMS_SERVICE_URL=${TEAMS_SERVICE_URL:-https://smba.trafficmanager.net/amer/}
       # SAML SSO (optional — leave unset to run in open mode)
       - SAML_IDP_METADATA_URL=${SAML_IDP_METADATA_URL}
       - SAML_BASE_URL=${SAML_BASE_URL:-http://localhost:8080}

@@ -313,12 +313,13 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 - [x] Teams bot commands (`@Bot ack`, `resolve`, `new`, `status`)
 - [x] Adaptive Card posted on incident creation and status change
 - [x] `MultiChatService` fan-out for DMs (shift notifier, escalation worker)
-- [ ] Initial card post blocked by `ChannelMessage.Send` (delegated-only permission) — deferred to v0.9
+- [x] Initial card post unblocked via Bot Framework Proactive Messaging (resolved in v0.9 hardening — see below)
 
 **v0.9 — Enterprise Features + Teams Hardening (Weeks 24–26)**
 
 *OSS (free):*
 - [x] SSO/SAML — SAML 2.0 SP, works with Okta, Azure AD, Google Workspace (JIT provisioning, backwards-compatible no-op when disabled)
+- [x] Frontend auth — `AuthContext`, `useAuth` hook, `AuthGate` (proactive session check), `LoginPage` with SSO button, user display + logout in Sidebar
 
 *Enterprise (paid):*
 - [ ] SCIM provisioning
@@ -327,11 +328,13 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 - [ ] Retention policies
 
 *Teams Integration Hardening (backlog from v0.8):*
-- [ ] Replace Graph API message posting with **Incoming Webhooks** per channel (workaround for delegated-only `ChannelMessage.Send`)
-- [ ] Sync UI timeline notes → Teams channel (parity with Slack's `postTimelineNoteToSlack`)
-- [ ] Sync Teams `@Bot` replies → UI timeline (inbound parity with Slack Socket Mode)
-- [ ] Proper channel archive on resolve (Graph API limitation: standard channels can't be archived; evaluate private channel model)
-- [ ] Auto-invite specific users to Teams channel (currently no-op for standard channels; needs private channel or DM fallback)
+- [x] Replace Graph API channel posting with **Bot Framework Proactive Messaging** (true Slack parity — same bot credentials, second OAuth scope `https://api.botframework.com/.default`, no `ChannelMessage.Send` permission required). Requires `TEAMS_SERVICE_URL` env var (region-specific relay URL). New methods: `PostToChannel`, `PostToConversation`, `UpdateConversationMessage`. DB: `teams_conversation_id` + `teams_activity_id` columns (migration 000022). `PostToChannel` collapses channel-create + initial post into a single Bot Framework API call (the relay requires a non-empty `activity` in the `ConversationParameters` body).
+- [x] Sync UI timeline notes → Teams channel (`postTimelineNoteToTeams` mirrors `postTimelineNoteToSlack`)
+- [x] Sync Teams `@Bot` replies → UI timeline (non-command messages in `TeamsEventHandler` saved as timeline entries)
+- [x] `make teams-app-package` — generates ready-to-sideload `openincident-teams-app.zip` from `TEAMS_APP_ID`; pure-Python PNG generation (no Pillow), fresh GUID for Teams app `id` (must differ from `botId`). See `scripts/teams-app-package.sh`.
+- [x] Security hardening pass: JWT `iss` validation (`https://api.botframework.com`), JWKS client timeout, `io.LimitReader` on API responses (4 MB cap), panic recovery on all Teams goroutines, `UpdateTeamsPostingIDs` atomic write, `GetByTeamsConversationID` for correct bot-command lookup
+- [ ] Proper channel archive on resolve — **documented limitation**: Graph API cannot archive standard channels; current behaviour renames to `[RESOLVED]`. True archive requires private channel model.
+- [ ] Auto-invite specific users to Teams channel — **documented limitation**: no-op for standard channels; Graph API `TeamMember` adds to Team, not channel. Private channel model required.
 
 **v1.0 — Production Ready (Weeks 27–28)**
 - [ ] Kubernetes Helm chart
@@ -354,6 +357,42 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 - Use `ChatService` interface for abstraction
 - Teams comes in v0.8 without rewriting core
 
+### 6. Teams Integration Architecture (critical — read before touching Teams code)
+
+Teams uses **two separate HTTP clients** with different OAuth scopes inside `TeamsService`:
+
+| Client | OAuth scope | Used for |
+|---|---|---|
+| `graphClient` | `https://graph.microsoft.com/.default` | Channel CRUD (Graph API) |
+| `botfwClient` | `https://api.botframework.com/.default` | Posting messages (Bot Framework relay) |
+
+`ChannelMessage.Send` in Graph API only works with delegated (user) auth — app-only tokens get 403. Bot Framework Proactive Messaging uses its own scope and works with client credentials, giving full Slack parity.
+
+**Two distinct Teams IDs are stored per incident — never confuse them:**
+
+| Field | Format | Source | Used for |
+|---|---|---|---|
+| `teams_channel_id` | `19:xxx@thread.tacv2` | Graph API `CreateChannel` response | Channel management (archive, Graph reads) |
+| `teams_conversation_id` | `19:xxx@thread.tacv2;messageid=NNN` | Bot Framework `POST /v3/conversations` response | Posting follow-up messages |
+| `teams_activity_id` | `NNN` (numeric string) | Bot Framework `POST /v3/conversations` response | Updating the root Adaptive Card |
+
+Bot commands (`ack`, `resolve`, `status`) receive `activity.Conversation.ID` which is the **conversation ID**, not the channel ID. Always use `GetByTeamsConversationID` in bot command handlers — `GetByTeamsChannelID` will always return not-found.
+
+**`POST /v3/conversations` payload requirements** (learned from live testing):
+- `tenantId` must appear at the **top level** of the request body (not just inside `channelData`)
+- `activity` must be included and must have non-empty `text` or at least one attachment — an empty `activity` returns `BadSyntax`
+- The Bot Framework relay endpoint is **region-specific**: `smba.trafficmanager.net/amer|emea|in|apac`. Default is `amer`; India tenants need `/in/`
+- The relay returns both `id` (conversationID) and `activityId` in a single response when `activity` is included — use this to avoid a second round-trip
+
+**Azure setup order matters** (each step unblocks the next):
+1. App Registration → gets App ID + secret
+2. Graph API permissions + admin consent → validates on startup via `getTeam()`
+3. Azure Bot Service resource (separate from App Registration) → makes "BotFramework" appear under "APIs my organization uses" in the portal
+4. Bot Framework API permission + admin consent → unblocks `botfwClient` token acquisition (fixes 401)
+5. Bot sideloaded into the team → unblocks `POST /v3/conversations` (fixes 400 BadSyntax)
+
+Missing step 3 is the most common setup failure — without it, the Bot Framework API permission simply doesn't exist in the tenant to grant.
+
 ### 3. Integrate, Don't Replace
 - We sit alongside Prometheus, Grafana, Datadog
 - Don't ask users to replace their observability stack
@@ -363,6 +402,24 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 - Product works 100% without AI configured
 - BYO API key model (user's data, user's cost)
 - Abstract provider interface for future local LLM support
+
+### 5. Enterprise Release Strategy (Open Core)
+
+**Problem:** If enterprise features are pushed to the public AGPLv3 repo, they become open source.
+
+**Decision: Two-repo model**
+
+| Repo | Visibility | License | Contents |
+|------|-----------|---------|----------|
+| `openincident/openincident` | Public | AGPLv3 | Everything through v0.9 OSS |
+| `openincident/openincident-ee` | Private | Commercial | SCIM, audit logs, RBAC, retention |
+
+The private EE repo imports the public OSS repo as a Go module and adds enterprise packages on top. Paid customers receive a Docker image built from the combined codebase. OSS users never see enterprise code.
+
+**When to create the EE repo:** Before writing the first line of SCIM/audit/RBAC code.
+
+**Why not mono-repo with license headers (GitLab model)?**
+GitLab can do this because they have legal and engineering resources to enforce it. For a pre-v1.0 project, two repos is simpler, legally cleaner, and easier to explain to contributors.
 
 ---
 

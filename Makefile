@@ -1,4 +1,4 @@
-.PHONY: help dev dev-local backend backend-deps frontend frontend-local migrate test fmt lint build clean docker down logs
+.PHONY: help dev dev-local backend backend-deps frontend frontend-local migrate test fmt lint build clean docker down logs teams-app-package
 
 # Default target
 help:
@@ -27,10 +27,11 @@ help:
 	@echo "  docker       - Build Docker images"
 	@echo ""
 	@echo "Utilities:"
-	@echo "  down         - Stop all services"
-	@echo "  clean        - Remove build artifacts and volumes"
-	@echo "  logs         - Show logs from all services"
-	@echo "  health       - Check service health"
+	@echo "  down                - Stop all services"
+	@echo "  clean               - Remove build artifacts and volumes"
+	@echo "  logs                - Show logs from all services"
+	@echo "  health              - Check service health"
+	@echo "  teams-app-package   - Generate Teams bot app package for sideloading"
 
 # Start all services
 dev:
@@ -185,3 +186,7 @@ install-frontend:
 
 install: install-backend install-frontend
 	@echo "All dependencies installed!"
+
+# Generate Teams app package for sideloading
+teams-app-package:
+	@./scripts/teams-app-package.sh

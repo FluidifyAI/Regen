@@ -200,7 +200,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			// Microsoft routes all bot messages here. Protected by Bot Framework JWT auth.
 			// Configure this URL as the bot endpoint in your Azure Bot registration.
 			if teamsSvc != nil {
-				teamsEventHandler := services.NewTeamsEventHandler(cfg.TeamsAppID, incidentSvc, incidentRepo, teamsSvc)
+				teamsEventHandler := services.NewTeamsEventHandler(cfg.TeamsAppID, incidentSvc, incidentRepo, timelineRepo, teamsSvc)
 				teamsGroup := webhooksGroup.Group("/teams", middleware.TeamsAuth(cfg.TeamsAppID))
 				teamsGroup.POST("", handlers.TeamsWebhook(teamsEventHandler))
 			}

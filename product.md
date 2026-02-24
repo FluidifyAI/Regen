@@ -195,21 +195,21 @@ Every action is logged. Timestamps are server-generated and immutable. This isn'
 
 **Timeline**: Weeks 1–8
 
-**v0.1 — Alert to Slack (Weeks 1–3)**
+**v0.1 — Alert to Slack (Weeks 1–3)** ✅ shipped
 - Prometheus Alertmanager webhook ingestion
 - Incident auto-creation from alerts
 - Slack channel auto-creation
 - Basic web UI for incident list
 - Docker Compose deployment
 
-**v0.2 — Incident Lifecycle (Weeks 4–5)**
+**v0.2 — Incident Lifecycle (Weeks 4–5)** ✅ shipped
 - Incident status workflow (triggered → acknowledged → resolved)
 - Incident timeline with all events
 - Slack bidirectional sync (messages appear in timeline)
 - Manual incident declaration from Slack
 - Incident severity levels
 
-**v0.3 — Multi-Source Alerts (Weeks 6–8)**
+**v0.3 — Multi-Source Alerts (Weeks 6–8)** ✅ shipped
 - Grafana Alertmanager integration
 - CloudWatch integration
 - Generic webhook endpoint (catch-all)
@@ -220,37 +220,36 @@ Every action is logged. Timestamps are server-generated and immutable. This isn'
 
 **Timeline**: Weeks 9–14
 
-**v0.4 — On-Call Rotations (Weeks 9–11)**
+**v0.4 — On-Call Rotations (Weeks 9–11)** ✅ shipped
 - Schedule creation (daily, weekly, custom)
 - Rotation management
 - Override scheduling
 - On-call calendar view
 - Slack notifications for shift changes
 
-**v0.5 — Escalation Policies (Weeks 12–14)**
-- Multi-tier escalation chains
-- Escalation timeout rules
-- Fallback responders
-- Escalation path visualization
-- PagerDuty schedule import
+**v0.5 — Escalation Policies (Weeks 12–14)** ⚠️ partial
+- ✅ Multi-tier escalation chains
+- ✅ Escalation timeout rules
+- ✅ Fallback responders
+- ✅ Escalation path visualization
+- ❌ PagerDuty schedule import — **pending** (OI-EPIC-020; not yet implemented)
 
 ### Phase 3: AI & Intelligence (v0.6–v0.7)
 
 **Timeline**: Weeks 15–20
 
-**v0.6 — AI Summarization (Weeks 15–17)**
-- Incident summary generation (OpenAI integration)
+**v0.6 — AI Summarization (Weeks 15–17)** ✅ shipped
+- Incident summary generation (OpenAI BYO key — `internal/integrations/openai/`)
 - Slack thread summarization
 - Timeline digest for handoffs
-- Configurable summary triggers
 - BYO API key support
 
-**v0.7 — Post-Mortem Automation (Weeks 18–20)**
-- Auto-generated post-mortem drafts
-- Template customization
-- Timeline → post-mortem section mapping
-- Action item extraction
-- Confluence/Notion export
+**v0.7 — Post-Mortem Automation (Weeks 18–20)** ⚠️ partial
+- ✅ Auto-generated post-mortem drafts (`POST /api/v1/incidents/:id/postmortem/generate`)
+- ✅ Template customization (`PostMortemTemplatesPage`, full CRUD API)
+- ✅ Timeline → post-mortem section mapping
+- ✅ Action item extraction
+- ❌ Confluence/Notion export — **pending** (post-mortems exportable as JSON only today)
 
 ### Phase 4: Enterprise & Polish (v0.8–v1.0)
 
@@ -261,33 +260,30 @@ Every action is logged. Timestamps are server-generated and immutable. This isn'
 - Teams bot commands: `@Bot ack`, `resolve`, `new`, `status`
 - Adaptive Cards on incident creation and status change
 - `MultiChatService` fan-out for DMs (shift notifier, escalation worker)
-- **Known limitation:** `ChannelMessage.Send` is a delegated-only Graph API permission — initial card post is blocked. Deferred to v0.9 via Incoming Webhooks.
+- Bot Framework Proactive Messaging (resolved delegated-only Graph API limitation from original plan)
 
-**v0.9 — Enterprise Features + Teams Hardening (Weeks 24–26)**
+**v0.9 — Enterprise Features + Teams Hardening (Weeks 24–26)** ⚠️ partial
 
 *OSS (free for all):*
-- [ ] SSO/SAML integration — SAML 2.0 SP via `crewjam/saml`; works with Okta, Azure AD, Google Workspace
+- ✅ SSO/SAML — SAML 2.0 SP via `crewjam/saml`; Okta, Azure AD, Google Workspace; JIT provisioning; no-op when unconfigured
+- ✅ Frontend auth — `AuthContext`, `AuthGate`, `LoginPage` with SSO button, user display + logout
 
-*Enterprise (paid):*
-- [ ] SCIM user provisioning
-- [ ] Audit log export (SOC2-ready)
-- [ ] RBAC (fine-grained roles: viewer, responder, admin)
-- [ ] Data retention policies
+*Enterprise (paid) — pending:*
+- ❌ SCIM user provisioning
+- ❌ Audit log export (SOC2-ready)
+- ❌ RBAC (viewer / responder / admin roles)
+- ❌ Data retention policies
 
-*Teams Integration Hardening (backlog from v0.8):*
-- [ ] Replace Graph API message posting with **Incoming Webhooks** per channel (standard workaround for delegated-only `ChannelMessage.Send`; webhook URL stored at channel creation time)
-- [ ] Sync UI timeline notes → Teams channel (parity with Slack's bidirectional note sync)
-- [ ] Sync Teams `@Bot` replies → UI timeline (inbound parity with Slack Socket Mode)
-- [ ] Proper channel archive on resolve (Graph API cannot archive standard channels; evaluate private channel model or rename convention)
-- [ ] Auto-invite specific users to Teams channel (no-op for standard channels; needs private channel model or DM fallback)
+*Teams Integration — known limitations (documented):*
+- ❌ Proper channel archive on resolve — Graph API cannot archive standard channels; current behaviour renames to `[RESOLVED]`. Private channel model required.
+- ❌ Auto-invite specific users — no-op for standard channels; Graph API `TeamMember` adds to Team, not channel. Private channel model required.
 
-**v1.0 — Production Ready (Weeks 27–28)**
-- Kubernetes Helm chart
-- High availability documentation
-- Backup and restore procedures
-- Performance optimization
-- Security hardening guide
-- Public launch
+**v1.0 — Production Ready (Weeks 27–28)** ⚠️ partial
+- ✅ Kubernetes Helm chart (`deploy/helm/openincident/` — Deployment, Service, Ingress, HPA, migration Job)
+- ✅ High availability documentation (`docs/OPERATIONS.md`)
+- ✅ Security hardening — CORS allowlist, HSTS, rate limiting, webhook signing, `docs/SECURITY.md`
+- ✅ Performance optimization — N+1 fix (escalation engine), 8 new DB indexes (migration 000023), bounded queries
+- ❌ Public launch — **pending**: README final polish, Docker Hub image push, announcement
 
 ### Future: Post-v1.0
 
@@ -407,11 +403,13 @@ If "OpenIncident" has trademark issues:
 
 | Area | Limitation | Planned Fix |
 |------|-----------|-------------|
-| Teams message posting | `ChannelMessage.Send` is delegated-only in Microsoft Graph API — cannot be granted to an app registration | Use Incoming Webhooks per channel (v0.9) |
-| Teams channel archive | Graph API cannot archive standard channels | Rename to `[RESOLVED] inc-N-...` as best-effort today; evaluate private channel model in v0.9 |
-| Teams user invites | Standard channels visible to all Team members — explicit invites are a no-op | Private channel model or DM fallback in v0.9 |
-| Teams timeline sync | UI notes sync to Slack only today | Add Teams fan-out in v0.9 |
-| AI provider | OpenAI only | Interface already abstracted; local LLM (Ollama) planned post-v1.0 |
+| Teams message posting | `ChannelMessage.Send` is delegated-only in Microsoft Graph API | ✅ **Resolved (v0.9)** — Bot Framework Proactive Messaging; no Graph permission required |
+| Teams channel archive | Graph API cannot archive standard channels | ⚠️ **Open** — renames to `[RESOLVED] inc-N-...`; true archive needs private channel model |
+| Teams user invites | Standard channels visible to all Team members — explicit invites are a no-op | ⚠️ **Open** — private channel model or DM fallback needed |
+| Teams timeline sync | UI notes → Teams was missing parity with Slack | ✅ **Resolved (v0.9)** — `postTimelineNoteToTeams` ships with full fan-out |
+| AI provider | OpenAI only | Interface abstracted; local LLM (Ollama) planned post-v1.0 |
+| PagerDuty import | Not yet implemented | ⚠️ **Open** — OI-EPIC-020; API client, mapping, CLI, docs all pending |
+| Post-mortem export | JSON only; no Confluence/Notion push | ⚠️ **Open** — planned post-v1.0 |
 
 ---
 

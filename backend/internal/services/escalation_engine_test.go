@@ -44,7 +44,11 @@ func (m *mockEscalationRepo) GetPolicyWithTiers(id uuid.UUID) (*models.Escalatio
 }
 func (m *mockEscalationRepo) GetAllPolicies() ([]models.EscalationPolicy, error) { return nil, nil }
 func (m *mockEscalationRepo) GetAllPoliciesWithTiers() ([]models.EscalationPolicy, error) {
-	return nil, nil
+	out := make([]models.EscalationPolicy, 0, len(m.policies))
+	for _, p := range m.policies {
+		out = append(out, *p)
+	}
+	return out, nil
 }
 func (m *mockEscalationRepo) GetEnabledPolicies() ([]models.EscalationPolicy, error) {
 	return nil, nil

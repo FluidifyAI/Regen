@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -13,6 +14,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// jwksFetchClient is a dedicated HTTP client for JWKS refreshes.
+// Using http.DefaultClient (no timeout) risks blocking indefinitely under the
+// write lock, stalling all concurrent Teams webhook requests during slow Microsoft responses.
+var jwksFetchClient = &http.Client{Timeout: 10 * time.Second}
 
 // TeamsAuth validates the Bot Framework JWT Bearer token sent by Microsoft.
 //
@@ -70,6 +76,7 @@ func (v *teamsTokenValidator) validate(ctx context.Context, tokenStr string) err
 			return ks, nil
 		},
 		jwt.WithAudience(v.appID),
+		jwt.WithIssuer("https://api.botframework.com"), // prevents cross-service token reuse
 		jwt.WithIssuedAt(),
 		jwt.WithExpirationRequired(),
 	)
@@ -139,15 +146,18 @@ func fetchBotFrameworkJWKS(ctx context.Context) (jwt.VerificationKeySet, error) 
 			X5c []string `json:"x5c"`
 		}
 		if err := json.Unmarshal(rawKey, &keyData); err != nil {
+			slog.Warn("teams auth: failed to unmarshal JWKS key entry, skipping", "error", err)
 			continue
 		}
 		if keyData.Kty != "RSA" || len(keyData.X5c) == 0 {
-			continue
+			continue // non-RSA or missing x5c chain — expected, not an error
 		}
 		// Parse the PEM certificate from x5c
 		certPEM := "-----BEGIN CERTIFICATE-----\n" + keyData.X5c[0] + "\n-----END CERTIFICATE-----"
 		key, err := jwt.ParseRSAPublicKeyFromPEM([]byte(certPEM))
 		if err != nil {
+			slog.Warn("teams auth: failed to parse RSA key from x5c, skipping",
+				"kid", keyData.Kid, "error", err)
 			continue
 		}
 		ks.Keys = append(ks.Keys, key)
@@ -165,7 +175,7 @@ func fetchJSON[T any](ctx context.Context, url string) (T, error) {
 	if err != nil {
 		return zero, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := jwksFetchClient.Do(req)
 	if err != nil {
 		return zero, err
 	}

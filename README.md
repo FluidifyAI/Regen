@@ -24,6 +24,7 @@ incident.io + PagerDuty, self-hosted, with BYO-AI.
 - **Alert Ingestion** — Prometheus, Grafana, CloudWatch, generic webhooks
 - **Incident Management** — Full lifecycle with immutable timeline
 - **Slack Integration** — Auto-create channels, bidirectional sync
+- **Microsoft Teams Integration** — Auto-create channels, Adaptive Cards, bot commands
 - **On-Call Scheduling** — Rotations, layers, overrides
 - **Escalation Policies** — Multi-tier escalation with timeouts
 - **AI Summarization** — Incident summaries, post-mortem drafts (BYO OpenAI key)
@@ -225,7 +226,7 @@ curl -X POST http://localhost:9093/-/reload
 - [ ] **v0.5** — Escalation policies
 - [ ] **v0.6** — AI summarization
 - [ ] **v0.7** — Post-mortem generation
-- [ ] **v0.8** — Microsoft Teams
+- [x] **v0.8** — Microsoft Teams integration (channels, Adaptive Cards, bot commands)
 - [ ] **v0.9** — Enterprise features (SSO, RBAC)
 - [ ] **v1.0** — Production ready
 
@@ -284,6 +285,14 @@ SLACK_BOT_TOKEN=xoxb-...
 SLACK_SIGNING_SECRET=...
 SLACK_APP_TOKEN=xapp-...              # Socket Mode (interactive features)
 SLACK_AUTO_INVITE_USER_IDS=           # Comma-separated user IDs, e.g. U01234,U56789
+
+# Microsoft Teams Integration (optional)
+TEAMS_APP_ID=<azure-app-registration-id>
+TEAMS_APP_PASSWORD=<client-secret>
+TEAMS_TENANT_ID=<directory-tenant-id>
+TEAMS_TEAM_ID=<team-id>
+TEAMS_BOT_USER_ID=<bot-service-principal-id>   # optional, needed for DMs
+TEAMS_SERVICE_URL=https://smba.trafficmanager.net/amer/  # see region table below
 
 # Optional: AI Features
 OPENAI_API_KEY=sk-...
@@ -403,6 +412,178 @@ APP_ENV=production
 | Slack messages → timeline sync | `SLACK_APP_TOKEN` (Socket Mode) |
 | Archive channel on resolution | `SLACK_BOT_TOKEN` |
 | Auto-invite users to channel | `SLACK_AUTO_INVITE_USER_IDS` |
+
+---
+
+### Microsoft Teams App Setup
+
+Teams integration lets OpenIncident automatically create a channel for each incident, post an Adaptive Card with live status, and respond to bot commands (`ack`, `resolve`, `status`, `new`).
+
+**Time required**: ~30 minutes for initial Azure setup, ~5 minutes for subsequent deploys.
+
+#### Prerequisites
+
+- Microsoft 365 tenant with Teams
+- Azure Active Directory access to create App Registrations
+- Teams team where incidents will be managed
+- Permission to install custom apps in Teams (or IT admin who can do it)
+
+#### Step 1 — Create an Azure App Registration
+
+1. Go to [Azure Portal](https://portal.azure.com) → **Azure Active Directory** → **App registrations** → **New registration**
+2. Name: `openincident-bot` (or any name)
+3. Supported account types: **Single tenant**
+4. Click **Register**
+5. On the Overview page, copy:
+   - **Application (client) ID** → `TEAMS_APP_ID`
+   - **Directory (tenant) ID** → `TEAMS_TENANT_ID`
+6. Go to **Certificates & secrets** → **New client secret**
+7. Add a description, choose an expiry, click **Add**
+8. Copy the **Value** immediately (it won't be shown again) → `TEAMS_APP_PASSWORD`
+
+#### Step 2 — Add Microsoft Graph API permissions
+
+1. In the App Registration, click **API permissions** → **Add a permission**
+2. Select **Microsoft Graph** → **Application permissions**
+3. Add each of the following:
+
+   | Permission | Purpose |
+   |---|---|
+   | `Channel.Create` | Create incident channels |
+   | `ChannelMessage.Read.All` | Read thread messages for timeline sync |
+   | `Chat.ReadWrite.All` | Send direct messages |
+   | `Team.ReadBasic.All` | Validate the team exists on startup |
+   | `TeamMember.Read.All` | Read team members |
+
+4. Click **Grant admin consent for \<your org\>** — this requires an admin account
+
+#### Step 3 — Create an Azure Bot Service
+
+> **This step is required.** Without it, the Bot Framework relay rejects all proactive message requests regardless of permissions.
+
+1. In Azure Portal → **Create a resource** → search **"Azure Bot"** → **Create**
+2. Fill in:
+   - **Bot handle**: `openincident-bot` (any name, must be globally unique)
+   - **Resource group**: same as your other resources
+   - **App ID**: select **Use existing app registration** → enter the App ID from Step 1
+   - **App type**: Single tenant
+3. Click **Review + create** → **Create**
+4. Once deployed, go to the resource → **Channels** → **Microsoft Teams** → **Save**
+
+5. Now add the Bot Framework API permission:
+   - Go back to your App Registration → **API permissions** → **Add a permission**
+   - Click **APIs my organization uses** tab (not Microsoft APIs)
+   - Search: `BotFramework` → select **Microsoft Bot Framework**
+   - Choose **Application permissions** → add whatever scope is available
+   - Click **Grant admin consent**
+
+#### Step 4 — Find your Team ID
+
+You need the internal ID of the Teams team where incidents will be posted.
+
+**Option A — From the Teams URL:**
+1. Open Teams in a browser
+2. Navigate to your team → click any channel
+3. Copy the URL: it contains `groupId=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
+4. That `groupId` value is your `TEAMS_TEAM_ID`
+
+**Option B — From Graph Explorer:**
+1. Go to [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer)
+2. Sign in and run: `GET https://graph.microsoft.com/v1.0/me/joinedTeams`
+3. Find your team and copy its `id` field
+
+#### Step 5 — Generate and install the bot app package
+
+OpenIncident includes a command to generate the Teams sideload package automatically:
+
+```bash
+# Ensure TEAMS_APP_ID is in your .env, then:
+make teams-app-package
+```
+
+This creates `openincident-teams-app.zip` and prints sideload instructions. To install:
+
+1. Open **Microsoft Teams**
+2. Navigate to your incident-management team
+3. Click **···** next to the team name → **Manage team** → **Apps** tab
+4. Click **Upload a custom app** → select `openincident-teams-app.zip`
+5. Click **Add** → **Add to a team** → select your team → **Set up a bot**
+
+> If "Upload a custom app" is not visible, ask your Teams admin to enable custom app uploads in the Teams Admin Center under **Teams apps** → **Setup policies**.
+
+#### Step 6 — Configure environment variables
+
+Add to your `.env`:
+
+```env
+TEAMS_APP_ID=4fc877c2-...          # Application (client) ID from Step 1
+TEAMS_APP_PASSWORD=your-secret     # Client secret value from Step 1
+TEAMS_TENANT_ID=007f9c35-...       # Directory (tenant) ID from Step 1
+TEAMS_TEAM_ID=339fa65d-...         # Team ID from Step 4
+TEAMS_BOT_USER_ID=                 # Optional — service principal object ID, needed for DMs
+TEAMS_SERVICE_URL=https://smba.trafficmanager.net/amer/   # Match your region (see below)
+```
+
+**Service URL by region** — pick the one closest to your Microsoft 365 tenant:
+
+| Region | URL |
+|---|---|
+| Americas (default) | `https://smba.trafficmanager.net/amer/` |
+| Europe | `https://smba.trafficmanager.net/emea/` |
+| India | `https://smba.trafficmanager.net/in/` |
+| Asia Pacific | `https://smba.trafficmanager.net/apac/` |
+
+If you are unsure, check your tenant's region in **Azure Active Directory** → **Properties** → **Country or region**.
+
+#### Step 7 — Restart and verify
+
+```bash
+docker-compose restart backend
+```
+
+Check the logs:
+
+```bash
+docker-compose logs backend | grep -i teams
+```
+
+You should see:
+```
+"Teams integration enabled"
+```
+
+Create a test incident to confirm the channel appears:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/incidents \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Teams integration test","severity":"high"}'
+```
+
+Within a few seconds a new channel should appear in your Teams team with an Adaptive Card showing the incident status.
+
+#### Bot commands
+
+Once the bot is installed, mention it in any incident channel:
+
+| Command | Action |
+|---|---|
+| `@OpenIncident ack` | Acknowledge the incident |
+| `@OpenIncident resolve` | Resolve the incident |
+| `@OpenIncident status` | Show current incident status |
+| `@OpenIncident new <title>` | Create a new incident |
+
+#### Teams Features Overview
+
+| Feature | Requires |
+|---|---|
+| Auto-create incident channel | `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID`, `TEAMS_TEAM_ID` |
+| Post Adaptive Card on creation | All of the above + bot installed in team |
+| Update card on status change | All of the above + `teams_conversation_id` stored |
+| Bot commands (ack/resolve/status) | Bot installed in team |
+| Create incident via bot (`new`) | Bot installed in team |
+| Direct message on escalation | `TEAMS_BOT_USER_ID` additionally |
+| Archive channel on resolve | All base vars (best-effort rename) |
 
 ---
 
@@ -542,6 +723,68 @@ APP_ENV=production
        }]
      }'
    ```
+
+### Microsoft Teams Integration Not Working
+
+**Symptom**: Incidents are created but no Teams channel appears, or channel appears but no message is posted.
+
+**Step 1 — Check the logs:**
+
+```bash
+docker-compose logs backend | grep -i teams
+```
+
+| Log message | Meaning |
+|---|---|
+| `"Teams integration enabled"` | Credentials validated, Graph API working |
+| `"creating teams channel for incident"` | Channel creation attempt started |
+| `"teams channel created for incident"` | Graph API succeeded — channel exists |
+| `"failed to post initial teams card"` | Bot Framework step failed (see below) |
+| `credential validation failed` | Wrong `TEAMS_APP_ID` / `TEAMS_APP_PASSWORD` / `TEAMS_TENANT_ID` |
+
+**Step 2 — Channel created but no message posted (most common)**
+
+The channel appears in Teams but no Adaptive Card is posted. Check for the error in logs:
+
+- `401 Authorization has been denied` — Bot Framework API permission not granted.
+  Go to Azure Portal → App Registration → **API permissions** → **APIs my organization uses**
+  → search `BotFramework` → add permission → **Grant admin consent**.
+
+- `400 BadSyntax: Incorrect conversation creation parameters` — The bot is not installed in the team.
+  Run `make teams-app-package` and follow the sideload instructions.
+
+- `400 BadSyntax: Activity must include non-empty text` — Outdated version of the service code.
+  Pull the latest version and restart.
+
+**Step 3 — Wrong region (silent failures)**
+
+If your Microsoft 365 tenant is outside the Americas, the default service URL will fail with a 400.
+Set the correct region in `.env`:
+
+```env
+# Europe
+TEAMS_SERVICE_URL=https://smba.trafficmanager.net/emea/
+
+# India
+TEAMS_SERVICE_URL=https://smba.trafficmanager.net/in/
+
+# Asia Pacific
+TEAMS_SERVICE_URL=https://smba.trafficmanager.net/apac/
+```
+
+**Step 4 — Bot commands not working**
+
+If `@OpenIncident ack` returns "No incident found for this channel":
+- Verify the bot is installed in the team (Step 5 of setup)
+- Verify `TEAMS_SERVICE_URL` matches your tenant region
+- Check that `teams_conversation_id` was saved: create a fresh incident and check logs for "teams channel created"
+
+**Step 5 — "Upload a custom app" not visible in Teams**
+
+Custom app sideloading is controlled by Teams policy. Ask a Teams admin to enable it:
+Teams Admin Center → **Teams apps** → **Setup policies** → allow custom app uploads.
+
+Alternatively, the admin can upload the package centrally via **Manage apps** and assign it to the team.
 
 ### Frontend Shows Empty State
 

@@ -42,6 +42,7 @@ type Config struct {
 	TeamsTenantID    string
 	TeamsTeamID      string // ID of the Team where incident channels are created
 	TeamsBotUserID   string // AAD object ID of the bot user; required for direct messages
+	TeamsServiceURL  string // Bot Framework relay URL for this tenant (e.g. https://smba.trafficmanager.net/amer/)
 
 	// SAML SSO (optional — SSO disabled if SAMLIDPMetadataURL is empty)
 	// When disabled all routes are open (backwards-compatible with existing deployments).
@@ -90,6 +91,7 @@ func Load() (*Config, error) {
 		TeamsTenantID:    getEnv("TEAMS_TENANT_ID", ""),
 		TeamsTeamID:      getEnv("TEAMS_TEAM_ID", ""),
 		TeamsBotUserID:   getEnv("TEAMS_BOT_USER_ID", ""),
+		TeamsServiceURL:  getEnv("TEAMS_SERVICE_URL", "https://smba.trafficmanager.net/amer/"),
 
 		// SAML SSO
 		SAMLIDPMetadataURL:    getEnv("SAML_IDP_METADATA_URL", ""),

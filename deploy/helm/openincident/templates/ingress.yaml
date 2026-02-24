@@ -1,4 +1,7 @@
 {{- if .Values.ingress.enabled -}}
+{{- if not .Values.ingress.host }}
+{{ fail "ingress.host must be set when ingress.enabled=true (e.g. --set ingress.host=incidents.myco.com)" }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

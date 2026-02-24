@@ -21,8 +21,10 @@ OpenIncident has been deployed!
   ⚠  Change the default PostgreSQL password:
      --set postgresql.auth.password=<strong-password>
 {{- end }}
-  ✓  Set secrets (Slack, OpenAI, Teams) via --set secrets.<key>=<value>
-     or a sealed-secrets / external-secrets operator.
+  ✓  Set secrets (Slack, OpenAI, Teams) via a values file with restricted
+     permissions or a secrets operator (Sealed Secrets, External Secrets).
+     WARNING: Do NOT use --set for secrets — values passed via --set are
+     stored in plain text in Helm release history.
 
   📖  Full setup docs:
      https://github.com/openincident/openincident#kubernetes

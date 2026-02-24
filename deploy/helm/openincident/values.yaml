@@ -24,6 +24,9 @@ podSecurityContext:
 
 securityContext:
   allowPrivilegeEscalation: false
+  # readOnlyRootFilesystem enforced. SAML SP key/cert must be readable
+  # at the path specified by SAML_CERT_FILE / SAML_KEY_FILE env vars —
+  # mount them via a Kubernetes Secret volume (not written by the app).
   readOnlyRootFilesystem: true
   capabilities:
     drop:
@@ -36,7 +39,10 @@ service:
 ingress:
   enabled: true
   className: nginx
+  # Required: set this to your hostname (e.g. incidents.myco.com)
   host: ""
+  # Recommended: set tls=true in production — SAML ACS and webhooks
+  # transmit sensitive data that must be protected by TLS.
   tls: false
   tlsSecretName: ""
   annotations: {}

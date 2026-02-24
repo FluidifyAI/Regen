@@ -1,0 +1,24 @@
+apiVersion: v2
+name: openincident
+description: Open-source incident management platform
+type: application
+version: 0.1.0
+appVersion: "0.9.0"
+keywords:
+  - incident-management
+  - on-call
+  - alerting
+home: https://github.com/openincident/openincident
+sources:
+  - https://github.com/openincident/openincident
+maintainers:
+  - name: OpenIncident Contributors
+dependencies:
+  - name: postgresql
+    version: ">=16.0.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: ">=21.0.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled

@@ -1,11 +1,41 @@
 /**
- * LoginPage — shown when SAML SSO is configured and the user has no active session.
- * In open-access mode (no SAML configured), this page is never rendered.
+ * LoginPage — shown when the user has no active session.
+ *
+ * - Always shows a local email/password form.
+ * - Shows the SSO button only when ssoEnabled=true (SAML configured on server).
+ * - In open-access mode (no auth configured) this page is never rendered.
  *
  * Design: cohesive with the app's dark navy (#0F172A) + blue (#2563EB) identity.
  * Background uses a CSS dot-grid for depth without adding visual noise.
  */
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { login } from '../api/auth'
+import { useAuth } from '../hooks/useAuth'
+
 export function LoginPage() {
+  const { ssoEnabled } = useAuth()
+  const navigate = useNavigate()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      await login({ email, password })
+      navigate('/', { replace: true })
+      window.location.reload() // refresh AuthContext
+    } catch {
+      setError('Invalid email or password')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div
       className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4"
@@ -50,24 +80,82 @@ export function LoginPage() {
           {/* Divider */}
           <div className="border-t border-[#1E293B] mb-8" />
 
-          {/* Sign in section */}
-          <div className="space-y-4">
-            <p className="text-[#94A3B8] text-sm text-center">
-              Your organization uses Single Sign-On.
-            </p>
+          {/* Local email/password form */}
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="email" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-colors duration-150"
+                />
+              </div>
 
-            <a
-              href="/saml/login"
-              className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2 focus:ring-offset-[#0F172A]"
+              <div>
+                <label htmlFor="password" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-colors duration-150"
+                />
+              </div>
+            </div>
+
+            {/* Inline error */}
+            {error && (
+              <p className="text-[#F87171] text-sm text-center" role="alert">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2 focus:ring-offset-[#0F172A]"
             >
-              <KeyIcon className="w-4 h-4" />
-              Sign in with SSO
-            </a>
-          </div>
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+
+          {/* SSO divider + button — shown only when SAML is configured */}
+          {ssoEnabled && (
+            <>
+              <div className="flex items-center gap-3 my-6">
+                <div className="flex-1 border-t border-[#1E293B]" />
+                <span className="text-[#334155] text-xs">or</span>
+                <div className="flex-1 border-t border-[#1E293B]" />
+              </div>
+
+              <a
+                href="/saml/login"
+                className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg border border-[#334155] bg-transparent hover:bg-[#1E293B] text-[#94A3B8] hover:text-[#CBD5E1] text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2 focus:ring-offset-[#0F172A]"
+              >
+                <KeyIcon className="w-4 h-4" />
+                Sign in with SSO
+              </a>
+            </>
+          )}
 
           {/* Footer note */}
           <p className="mt-8 text-center text-[#334155] text-xs">
-            Access is managed by your identity provider
+            {ssoEnabled
+              ? 'Access is managed by your identity provider or local accounts'
+              : 'Sign in with your OpenIncident credentials'}
           </p>
         </div>
 

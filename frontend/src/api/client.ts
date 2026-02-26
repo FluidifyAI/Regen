@@ -14,6 +14,7 @@ class ApiClient {
 
     const config: RequestInit = {
       ...options,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
@@ -28,9 +29,9 @@ class ApiClient {
     try {
       const response = await fetch(url, config)
 
-      // Handle 401 — redirect to SAML login (no-op in open mode since 401 never fires)
+      // Handle 401 — redirect to login page (handles both local and SSO auth)
       if (response.status === 401) {
-        window.location.href = '/saml/login'
+        window.location.href = '/login'
         return new Promise(() => {}) // never settles; browser is navigating away
       }
 

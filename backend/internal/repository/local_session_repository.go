@@ -17,6 +17,7 @@ type LocalSessionRepository interface {
 	Create(userID uuid.UUID) (*models.LocalSession, error)
 	GetByToken(token string) (*models.LocalSession, error)
 	DeleteByToken(token string) error
+	DeleteByUserID(userID uuid.UUID) error
 	DeleteExpired() error
 }
 
@@ -45,17 +46,19 @@ func (r *localSessionRepository) GetByToken(token string) (*models.LocalSession,
 	var s models.LocalSession
 	err := r.db.Where("token = ? AND expires_at > NOW()", token).First(&s).Error
 	if err == gorm.ErrRecordNotFound {
-		preview := token
-		if len(token) > 8 {
-			preview = token[:8] + "..."
-		}
-		return nil, &NotFoundError{Resource: "local_session", ID: preview}
+		// Use a static ID string — never include token content in error messages
+		// to avoid leaking session token prefixes into logs.
+		return nil, &NotFoundError{Resource: "local_session", ID: "token"}
 	}
 	return &s, err
 }
 
 func (r *localSessionRepository) DeleteByToken(token string) error {
 	return r.db.Delete(&models.LocalSession{}, "token = ?", token).Error
+}
+
+func (r *localSessionRepository) DeleteByUserID(userID uuid.UUID) error {
+	return r.db.Delete(&models.LocalSession{}, "user_id = ?", userID).Error
 }
 
 func (r *localSessionRepository) DeleteExpired() error {

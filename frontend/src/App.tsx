@@ -14,6 +14,7 @@ import { EscalationPolicyDetailPage } from './pages/EscalationPolicyDetailPage'
 import { AlertDetailPage } from './pages/AlertDetailPage'
 import { PostMortemTemplatesPage } from './pages/PostMortemTemplatesPage'
 import { SettingsUsersPage } from './pages/SettingsUsersPage'
+import { LogoutPage } from './pages/LogoutPage'
 
 function App() {
   return (
@@ -21,9 +22,9 @@ function App() {
       <AuthProvider>
         <AuthGate>
           <Routes>
-            {/* Standalone login route — rendered by AuthGate when unauthed, but also
-                directly accessible so the browser can land here after /auth/logout */}
             <Route path="/login" element={<LoginPage />} />
+            {/* Shown after successful sign-out — always accessible, bypasses AuthGate */}
+            <Route path="/logout" element={<LogoutPage />} />
 
             <Route element={<AppLayout />}>
               <Route path="/" element={<HomePage />} />

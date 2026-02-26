@@ -26,6 +26,8 @@ type UserRepository interface {
 	Update(user *models.User) error
 	// Count returns the total number of active (non-deactivated) users.
 	Count() (int64, error)
+	// CountByRole returns the number of active users with the given role.
+	CountByRole(role models.UserRole) (int64, error)
 	// Deactivate soft-deletes a user by setting auth_source='deactivated'.
 	Deactivate(id uuid.UUID) error
 }
@@ -134,6 +136,14 @@ func (r *userRepository) Count() (int64, error) {
 	var n int64
 	err := r.db.Model(&models.User{}).
 		Where("auth_source != 'deactivated'").
+		Count(&n).Error
+	return n, err
+}
+
+func (r *userRepository) CountByRole(role models.UserRole) (int64, error) {
+	var n int64
+	err := r.db.Model(&models.User{}).
+		Where("role = ? AND auth_source != 'deactivated'", role).
 		Count(&n).Error
 	return n, err
 }

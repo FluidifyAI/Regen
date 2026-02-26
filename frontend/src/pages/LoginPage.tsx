@@ -9,15 +9,25 @@
  * Background uses a CSS dot-grid for depth without adding visual noise.
  */
 import { useState } from 'react'
-import { login } from '../api/auth'
+import { login, bootstrap } from '../api/auth'
 import { useAuth } from '../hooks/useAuth'
 
 export function LoginPage() {
-  const { ssoEnabled, loading: authLoading } = useAuth()
+  const { ssoEnabled, openMode, loading: authLoading } = useAuth()
+
+  // Sign-in form state
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // First-time setup form state — auto-open when no accounts exist yet
+  const [showSetup, setShowSetup] = useState(openMode)
+  const [setupName, setSetupName] = useState('')
+  const [setupEmail, setSetupEmail] = useState('')
+  const [setupPassword, setSetupPassword] = useState('')
+  const [setupError, setSetupError] = useState('')
+  const [setupLoading, setSetupLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -30,6 +40,29 @@ export function LoginPage() {
       setError('Invalid email or password')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleSetup(e: React.FormEvent) {
+    e.preventDefault()
+    setSetupError('')
+    setSetupLoading(true)
+    try {
+      await bootstrap({ name: setupName, email: setupEmail, password: setupPassword })
+      // Bootstrap succeeded — immediately log in with the new credentials
+      await login({ email: setupEmail, password: setupPassword })
+      window.location.href = '/'
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('409') || msg.includes('already exist')) {
+        setSetupError('An admin account already exists. Sign in above.')
+      } else if (msg.includes('8')) {
+        setSetupError('Password must be at least 8 characters.')
+      } else {
+        setSetupError('Setup failed. Check your details and try again.')
+      }
+    } finally {
+      setSetupLoading(false)
     }
   }
 
@@ -70,15 +103,22 @@ export function LoginPage() {
               OpenIncident
             </h1>
             <p className="text-[#475569] text-sm mt-1">
-              Incident management, self-hosted
+              {openMode ? 'Set up your instance' : 'Incident management, self-hosted'}
             </p>
           </div>
 
           {/* Divider */}
           <div className="border-t border-[#1E293B] mb-8" />
 
-          {/* Local email/password form */}
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {/* In open mode (no accounts yet), skip the login form — nothing to log in to */}
+          {openMode && (
+            <p className="text-[#475569] text-sm text-center mb-6">
+              No accounts exist yet. Create the admin account below to get started.
+            </p>
+          )}
+
+          {/* Local email/password form — hidden when no accounts exist */}
+          <form onSubmit={handleSubmit} className={`space-y-4 ${openMode ? 'hidden' : ''}`} noValidate>
             <div className="space-y-3">
               <div>
                 <label htmlFor="email" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
@@ -148,11 +188,96 @@ export function LoginPage() {
             </>
           )}
 
+          {/* First-time setup section */}
+          <div className={openMode ? '' : 'mt-6'}>
+            {/* Toggle is only shown when there ARE existing accounts (open mode hides it) */}
+            {!openMode && (
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex-1 border-t border-[#1E293B]" />
+                <button
+                  type="button"
+                  onClick={() => { setShowSetup(!showSetup); setSetupError('') }}
+                  className="text-[#475569] hover:text-[#94A3B8] text-xs transition-colors whitespace-nowrap"
+                >
+                  {showSetup ? 'Cancel setup' : 'First time here? Create admin account →'}
+                </button>
+                <div className="flex-1 border-t border-[#1E293B]" />
+              </div>
+            )}
+
+            {showSetup && (
+              <form onSubmit={handleSetup} className="space-y-3" noValidate>
+                <div>
+                  <label htmlFor="setup-name" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
+                    Full name
+                  </label>
+                  <input
+                    id="setup-name"
+                    type="text"
+                    autoComplete="name"
+                    required
+                    value={setupName}
+                    onChange={(e) => setSetupName(e.target.value)}
+                    placeholder="Jane Smith"
+                    className="w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-colors duration-150"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="setup-email" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
+                    Email
+                  </label>
+                  <input
+                    id="setup-email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={setupEmail}
+                    onChange={(e) => setSetupEmail(e.target.value)}
+                    placeholder="admin@example.com"
+                    className="w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-colors duration-150"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="setup-password" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
+                    Password <span className="text-[#475569] font-normal">(min. 8 characters)</span>
+                  </label>
+                  <input
+                    id="setup-password"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    minLength={8}
+                    value={setupPassword}
+                    onChange={(e) => setSetupPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-colors duration-150"
+                  />
+                </div>
+
+                {setupError && (
+                  <p className="text-[#F87171] text-sm text-center" role="alert">
+                    {setupError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={setupLoading}
+                  className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg border border-[#2563EB] bg-transparent hover:bg-[#1E3A5F] disabled:opacity-50 disabled:cursor-not-allowed text-[#60A5FA] text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2 focus:ring-offset-[#0F172A]"
+                >
+                  {setupLoading ? 'Creating account…' : 'Create admin account & sign in'}
+                </button>
+              </form>
+            )}
+          </div>
+
           {/* Footer note */}
-          <p className="mt-8 text-center text-[#334155] text-xs">
-            {ssoEnabled
-              ? 'Access is managed by your identity provider or local accounts'
-              : 'Sign in with your OpenIncident credentials'}
+          <p className="mt-6 text-center text-[#334155] text-xs">
+            {openMode
+              ? 'This account will have full admin access'
+              : ssoEnabled
+                ? 'Access is managed by your identity provider or local accounts'
+                : 'Sign in with your OpenIncident credentials'}
           </p>
         </div>
 

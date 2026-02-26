@@ -23,6 +23,7 @@ type LocalAuthService interface {
 	GetUser(id uuid.UUID) (*models.User, error)
 	ListUsers() ([]models.User, error)
 	CountUsers() (int64, error)
+	CountAdmins() (int64, error)
 }
 
 // dummyHash is computed once at startup and used in Login to ensure constant-time
@@ -86,6 +87,9 @@ func (s *localAuthService) GetSessionUser(token string) (*models.User, error) {
 // CreateUser creates a new local user with a bcrypt password hash.
 // Returns the user and a one-time setup token.
 func (s *localAuthService) CreateUser(email, name, password string, role models.UserRole) (*models.User, string, error) {
+	if len(password) < 8 {
+		return nil, "", fmt.Errorf("password must be at least 8 characters")
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to hash password: %w", err)
@@ -109,13 +113,18 @@ func (s *localAuthService) CreateUser(email, name, password string, role models.
 	return user, sess.Token, nil
 }
 
+// UpdateUser updates a user's name, role, and optionally their password.
+// The handler pre-fetches the user to resolve any unset fields; this method
+// does not re-fetch from the database to avoid a redundant round-trip.
 func (s *localAuthService) UpdateUser(id uuid.UUID, name string, role models.UserRole, newPassword string) error {
-	user, err := s.users.GetByID(id)
-	if err != nil {
-		return err
+	if newPassword != "" && len(newPassword) < 8 {
+		return fmt.Errorf("password must be at least 8 characters")
 	}
+
+	user := &models.User{ID: id}
 	user.Name = name
 	user.Role = role
+
 	if newPassword != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
 		if err != nil {
@@ -128,7 +137,16 @@ func (s *localAuthService) UpdateUser(id uuid.UUID, name string, role models.Use
 	return s.users.Update(user)
 }
 
+// ResetPassword issues a one-time setup session for the given user.
+// Only local accounts are eligible — SAML users have no password to reset.
 func (s *localAuthService) ResetPassword(id uuid.UUID) (string, error) {
+	user, err := s.users.GetByID(id)
+	if err != nil {
+		return "", err
+	}
+	if user.AuthSource != "local" {
+		return "", fmt.Errorf("password reset is only available for local accounts")
+	}
 	sess, err := s.sessions.Create(id)
 	if err != nil {
 		return "", err
@@ -137,7 +155,13 @@ func (s *localAuthService) ResetPassword(id uuid.UUID) (string, error) {
 }
 
 func (s *localAuthService) DeactivateUser(id uuid.UUID) error {
-	return s.users.Deactivate(id)
+	if err := s.users.Deactivate(id); err != nil {
+		return err
+	}
+	// Invalidate all active sessions immediately so the user cannot continue
+	// using a live cookie after their account is deactivated.
+	_ = s.sessions.DeleteByUserID(id)
+	return nil
 }
 
 func (s *localAuthService) GetUser(id uuid.UUID) (*models.User, error) {
@@ -150,4 +174,9 @@ func (s *localAuthService) ListUsers() ([]models.User, error) {
 
 func (s *localAuthService) CountUsers() (int64, error) {
 	return s.users.Count()
+}
+
+// CountAdmins returns the number of active admin accounts.
+func (s *localAuthService) CountAdmins() (int64, error) {
+	return s.users.CountByRole(models.UserRoleAdmin)
 }

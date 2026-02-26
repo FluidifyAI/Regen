@@ -216,10 +216,16 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			}
 		}
 
-		// Local login endpoint (always open — this IS the login action)
+		// Local login/logout endpoints (always open — these ARE the auth actions)
 		if localAuth != nil {
-			v1.POST("/auth/login", handlers.Login(localAuth))
+			v1.POST("/auth/login", middleware.RateLimitAuth(), handlers.Login(localAuth))
+			// Bootstrap: allow first user creation without auth (only works when user count is 0)
+			v1.POST("/auth/bootstrap", middleware.RateLimitAuth(), handlers.CreateFirstUser(localAuth))
 		}
+		// Logout is always registered — handles both local and SAML sessions.
+		// POST is the safe form (SPA calls this via fetch); the GET at /auth/logout
+		// is kept for SAML redirect flows and deep-link compatibility.
+		v1.POST("/auth/logout", handlers.APILogout(samlMiddleware, localAuth))
 
 		// Auth identity endpoint
 		v1.GET("/auth/me", middleware.RequireAuth(samlMiddleware, localAuth), handlers.GetCurrentUser(localAuth, samlMiddleware != nil))

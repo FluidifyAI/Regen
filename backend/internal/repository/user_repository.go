@@ -96,7 +96,12 @@ func (r *userRepository) GetByID(id uuid.UUID) (*models.User, error) {
 func (r *userRepository) Update(user *models.User) error {
 	result := r.db.Model(user).
 		Select("name", "role", "password_hash", "updated_at").
-		Updates(user)
+		Updates(map[string]any{
+			"name":          user.Name,
+			"role":          user.Role,
+			"password_hash": user.PasswordHash,
+			"updated_at":    user.UpdatedAt,
+		})
 	if result.Error != nil {
 		return result.Error
 	}

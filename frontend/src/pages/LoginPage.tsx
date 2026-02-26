@@ -9,13 +9,11 @@
  * Background uses a CSS dot-grid for depth without adding visual noise.
  */
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { login } from '../api/auth'
 import { useAuth } from '../hooks/useAuth'
 
 export function LoginPage() {
-  const { ssoEnabled } = useAuth()
-  const navigate = useNavigate()
+  const { ssoEnabled, loading: authLoading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -27,8 +25,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login({ email, password })
-      navigate('/', { replace: true })
-      window.location.reload() // refresh AuthContext
+      window.location.href = '/'
     } catch {
       setError('Invalid email or password')
     } finally {
@@ -133,7 +130,7 @@ export function LoginPage() {
           </form>
 
           {/* SSO divider + button — shown only when SAML is configured */}
-          {ssoEnabled && (
+          {!authLoading && ssoEnabled && (
             <>
               <div className="flex items-center gap-3 my-6">
                 <div className="flex-1 border-t border-[#1E293B]" />

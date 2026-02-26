@@ -13,6 +13,7 @@ import { EscalationPoliciesPage } from './pages/EscalationPoliciesPage'
 import { EscalationPolicyDetailPage } from './pages/EscalationPolicyDetailPage'
 import { AlertDetailPage } from './pages/AlertDetailPage'
 import { PostMortemTemplatesPage } from './pages/PostMortemTemplatesPage'
+import { SettingsUsersPage } from './pages/SettingsUsersPage'
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
               <Route path="/escalation-policies/:id" element={<EscalationPolicyDetailPage />} />
               <Route path="/alerts/:id" element={<AlertDetailPage />} />
               <Route path="/post-mortem-templates" element={<PostMortemTemplatesPage />} />
+              <Route path="/settings/users" element={<SettingsUsersPage />} />
             </Route>
           </Routes>
         </AuthGate>

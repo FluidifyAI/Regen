@@ -20,6 +20,7 @@ type LocalAuthService interface {
 	UpdateUser(id uuid.UUID, name string, role models.UserRole, newPassword string) error
 	ResetPassword(id uuid.UUID) (string, error)
 	DeactivateUser(id uuid.UUID) error
+	GetUser(id uuid.UUID) (*models.User, error)
 	ListUsers() ([]models.User, error)
 	CountUsers() (int64, error)
 }
@@ -137,6 +138,10 @@ func (s *localAuthService) ResetPassword(id uuid.UUID) (string, error) {
 
 func (s *localAuthService) DeactivateUser(id uuid.UUID) error {
 	return s.users.Deactivate(id)
+}
+
+func (s *localAuthService) GetUser(id uuid.UUID) (*models.User, error) {
+	return s.users.GetByID(id)
 }
 
 func (s *localAuthService) ListUsers() ([]models.User, error) {

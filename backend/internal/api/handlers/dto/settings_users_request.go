@@ -8,7 +8,7 @@ type CreateUserRequest struct {
 }
 
 type UpdateUserRequest struct {
-	Name     string `json:"name"`
-	Role     string `json:"role"     binding:"omitempty,oneof=admin member viewer"`
-	Password string `json:"password" binding:"omitempty,min=8"`
+	Name     *string `json:"name"`
+	Role     *string `json:"role"     binding:"omitempty,oneof=admin member viewer"`
+	Password *string `json:"password" binding:"omitempty,min=8"`
 }

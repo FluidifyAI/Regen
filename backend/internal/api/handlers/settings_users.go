@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -36,7 +37,13 @@ func CreateUser(localAuth services.LocalAuthService) gin.HandlerFunc {
 		}
 		user, setupToken, err := localAuth.CreateUser(req.Email, req.Name, req.Password, models.UserRole(req.Role))
 		if err != nil {
-			c.JSON(http.StatusConflict, gin.H{"error": gin.H{"message": err.Error()}})
+			errMsg := err.Error()
+			// Check for duplicate email (GORM/PostgreSQL unique constraint violation)
+			if strings.Contains(errMsg, "duplicate") || strings.Contains(errMsg, "unique") || strings.Contains(errMsg, "already exists") {
+				c.JSON(http.StatusConflict, gin.H{"error": gin.H{"code": "duplicate_email", "message": "A user with this email already exists"}})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": errMsg}})
 			return
 		}
 		c.JSON(http.StatusCreated, gin.H{
@@ -59,7 +66,28 @@ func UpdateUser(localAuth services.LocalAuthService) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
 			return
 		}
-		if err := localAuth.UpdateUser(id, req.Name, models.UserRole(req.Role), req.Password); err != nil {
+
+		// Get the current user to preserve unset fields
+		currentUser, err := localAuth.GetUser(id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "user not found"}})
+			return
+		}
+
+		name := currentUser.Name
+		if req.Name != nil {
+			name = *req.Name
+		}
+		role := currentUser.Role
+		if req.Role != nil {
+			role = models.UserRole(*req.Role)
+		}
+		var password string
+		if req.Password != nil {
+			password = *req.Password
+		}
+
+		if err := localAuth.UpdateUser(id, name, role, password); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": err.Error()}})
 			return
 		}

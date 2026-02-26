@@ -24,6 +24,8 @@ type UserRepository interface {
 	GetByID(id uuid.UUID) (*models.User, error)
 	// Update saves changed fields (name, role, password_hash) for a user.
 	Update(user *models.User) error
+	// Count returns the total number of active (non-deactivated) users.
+	Count() (int64, error)
 	// Deactivate soft-deletes a user by setting auth_source='deactivated'.
 	Deactivate(id uuid.UUID) error
 }
@@ -126,4 +128,12 @@ func (r *userRepository) Deactivate(id uuid.UUID) error {
 		return &NotFoundError{Resource: "user", ID: id.String()}
 	}
 	return nil
+}
+
+func (r *userRepository) Count() (int64, error) {
+	var n int64
+	err := r.db.Model(&models.User{}).
+		Where("auth_source != 'deactivated'").
+		Count(&n).Error
+	return n, err
 }

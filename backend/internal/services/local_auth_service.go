@@ -24,6 +24,15 @@ type LocalAuthService interface {
 	CountUsers() (int64, error)
 }
 
+// dummyHash is computed once at startup and used in Login to ensure constant-time
+// responses regardless of whether the email exists in the database.
+var dummyHash []byte
+
+func init() {
+	h, _ := bcrypt.GenerateFromPassword([]byte("dummy-constant-time"), 12)
+	dummyHash = h
+}
+
 type localAuthService struct {
 	users    repository.UserRepository
 	sessions repository.LocalSessionRepository
@@ -34,17 +43,21 @@ func NewLocalAuthService(users repository.UserRepository, sessions repository.Lo
 }
 
 func (s *localAuthService) Login(email, password string) (*models.LocalSession, error) {
-	user, err := s.users.GetByEmail(email)
-	if err != nil {
-		// Return generic error to avoid user enumeration
+	user, lookupErr := s.users.GetByEmail(email)
+
+	// Always run a bcrypt comparison to prevent timing-based user enumeration.
+	// If the user wasn't found or isn't a local user, compare against a dummy hash
+	// (guaranteed to fail) but take roughly the same time.
+	hashToCompare := dummyHash
+	if lookupErr == nil && user.AuthSource == "local" && user.PasswordHash != nil {
+		hashToCompare = []byte(*user.PasswordHash)
+	}
+	compareErr := bcrypt.CompareHashAndPassword(hashToCompare, []byte(password))
+
+	if lookupErr != nil || user.AuthSource != "local" || user.PasswordHash == nil || compareErr != nil {
 		return nil, errors.New("invalid email or password")
 	}
-	if user.AuthSource != "local" || user.PasswordHash == nil {
-		return nil, errors.New("invalid email or password")
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password)); err != nil {
-		return nil, errors.New("invalid email or password")
-	}
+
 	// Lazy cleanup of expired sessions
 	_ = s.sessions.DeleteExpired()
 
@@ -131,9 +144,5 @@ func (s *localAuthService) ListUsers() ([]models.User, error) {
 }
 
 func (s *localAuthService) CountUsers() (int64, error) {
-	users, err := s.users.ListAll()
-	if err != nil {
-		return 0, err
-	}
-	return int64(len(users)), nil
+	return s.users.Count()
 }

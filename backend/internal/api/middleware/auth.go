@@ -88,7 +88,7 @@ func GetLocalUser(c *gin.Context) *models.User {
 func RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := GetLocalUser(c)
-		if user != nil && user.Role != models.UserRoleAdmin {
+		if user == nil || user.Role != models.UserRoleAdmin {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error": gin.H{"code": "forbidden", "message": "Admin access required"},
 			})

@@ -345,9 +345,9 @@ export function Sidebar() {
 
 function userDisplayName(user: CurrentUser | null): string {
   if (!user) return '...'
+  if (user.mode === 'open') return 'Open Mode'
   if (user.name) return user.name
   if (user.email) return user.email.split('@')[0] ?? user.email
-  if (user.mode === 'open') return 'Open Mode'
   return 'You'
 }
 

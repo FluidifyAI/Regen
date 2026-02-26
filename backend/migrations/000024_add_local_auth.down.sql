@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS local_sessions;
+ALTER TABLE users DROP COLUMN IF EXISTS password_hash;
+ALTER TABLE users DROP COLUMN IF EXISTS auth_source;
+ALTER TABLE users ALTER COLUMN saml_subject SET NOT NULL;

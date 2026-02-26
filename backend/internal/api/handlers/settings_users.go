@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/api/handlers/dto"
+	"github.com/openincident/openincident/internal/api/middleware"
 	"github.com/openincident/openincident/internal/models"
 	"github.com/openincident/openincident/internal/services"
 )
@@ -103,6 +104,31 @@ func DeactivateUser(localAuth services.LocalAuthService) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "invalid user id"}})
 			return
 		}
+
+		// Guard: cannot deactivate yourself
+		if caller := middleware.GetLocalUser(c); caller != nil && caller.ID == id {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "cannot deactivate your own account"}})
+			return
+		}
+
+		// Guard: cannot remove the last admin — pre-fetch to get the target's role
+		target, err := localAuth.GetUser(id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "user not found"}})
+			return
+		}
+		if target.Role == models.UserRoleAdmin {
+			adminCount, err := localAuth.CountAdmins()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to check admin count"}})
+				return
+			}
+			if adminCount <= 1 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "cannot deactivate the last admin account"}})
+				return
+			}
+		}
+
 		if err := localAuth.DeactivateUser(id); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": err.Error()}})
 			return
@@ -125,5 +151,42 @@ func ResetUserPassword(localAuth services.LocalAuthService) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"setup_token": token})
+	}
+}
+
+// CreateFirstUser handles POST /api/v1/auth/bootstrap — creates the initial admin account.
+// Returns 409 if any users already exist. This endpoint is unauthenticated on purpose.
+func CreateFirstUser(localAuth services.LocalAuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if localAuth == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{"message": "local auth not configured"}})
+			return
+		}
+		// Only allowed when no users exist
+		count, err := localAuth.CountUsers()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to check user count"}})
+			return
+		}
+		if count > 0 {
+			c.JSON(http.StatusConflict, gin.H{"error": gin.H{"message": "users already exist; use admin login to create additional users"}})
+			return
+		}
+		var req dto.CreateUserRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
+			return
+		}
+		// Role is forced to admin regardless of what was requested — this is always the first admin.
+		user, setupToken, err := localAuth.CreateUser(req.Email, req.Name, req.Password, models.UserRoleAdmin)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": err.Error()}})
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{
+			"user":        dto.UserToResponse(*user),
+			"setup_token": setupToken,
+			"message":     "Initial admin account created. Use the setup_token to log in.",
+		})
 	}
 }

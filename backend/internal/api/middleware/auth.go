@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gin-gonic/gin"
@@ -99,5 +100,6 @@ func RequireAdmin() gin.HandlerFunc {
 }
 
 func clearSessionCookie(c *gin.Context) {
-	c.SetCookie(localSessionCookieName, "", -1, "/", "", false, true)
+	secure := os.Getenv("APP_ENV") == "production"
+	c.SetCookie(localSessionCookieName, "", -1, "/", "", secure, true)
 }

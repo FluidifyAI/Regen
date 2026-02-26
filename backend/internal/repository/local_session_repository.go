@@ -45,11 +45,9 @@ func (r *localSessionRepository) GetByToken(token string) (*models.LocalSession,
 	var s models.LocalSession
 	err := r.db.Where("token = ? AND expires_at > NOW()", token).First(&s).Error
 	if err == gorm.ErrRecordNotFound {
-		preview := token
-		if len(token) > 8 {
-			preview = token[:8] + "..."
-		}
-		return nil, &NotFoundError{Resource: "local_session", ID: preview}
+		// Use a static ID string — never include token content in error messages
+		// to avoid leaking session token prefixes into logs.
+		return nil, &NotFoundError{Resource: "local_session", ID: "token"}
 	}
 	return &s, err
 }

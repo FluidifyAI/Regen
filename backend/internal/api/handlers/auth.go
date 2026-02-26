@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gin-gonic/gin"
@@ -17,7 +18,8 @@ func Logout(samlMiddleware *samlsp.Middleware, localAuth services.LocalAuthServi
 			if cookie, err := c.Cookie("oi_session"); err == nil {
 				_ = localAuth.Logout(cookie)
 			}
-			c.SetCookie("oi_session", "", -1, "/", "", false, true)
+			secure := os.Getenv("APP_ENV") == "production"
+			c.SetCookie("oi_session", "", -1, "/", "", secure, true)
 		}
 		// Clear SAML session
 		if samlMiddleware != nil {
@@ -46,7 +48,9 @@ func Login(localAuth services.LocalAuthService) gin.HandlerFunc {
 		}
 
 		// Set session cookie: 7-day, HttpOnly, SameSite=Lax
-		c.SetCookie("oi_session", session.Token, 7*24*3600, "/", "", false, true)
+		// Secure flag is set in production to enforce HTTPS-only cookie transmission.
+		secure := os.Getenv("APP_ENV") == "production"
+		c.SetCookie("oi_session", session.Token, 7*24*3600, "/", "", secure, true)
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }

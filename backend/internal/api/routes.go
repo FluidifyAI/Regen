@@ -306,5 +306,15 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.POST("/escalation-policies/:id/tiers", handlers.CreateEscalationTier(escalationPolicyRepo))
 		protected.PATCH("/escalation-policies/:id/tiers/:tier_id", handlers.UpdateEscalationTier(escalationPolicyRepo))
 		protected.DELETE("/escalation-policies/:id/tiers/:tier_id", handlers.DeleteEscalationTier(escalationPolicyRepo))
+
+		// Settings — admin only
+		settingsGroup := v1.Group("/settings", middleware.RequireAdmin())
+		{
+			settingsGroup.GET("/users", handlers.ListUsers(localAuth))
+			settingsGroup.POST("/users", handlers.CreateUser(localAuth))
+			settingsGroup.PATCH("/users/:id", handlers.UpdateUser(localAuth))
+			settingsGroup.DELETE("/users/:id", handlers.DeactivateUser(localAuth))
+			settingsGroup.POST("/users/:id/reset-password", handlers.ResetUserPassword(localAuth))
+		}
 	}
 }

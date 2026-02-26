@@ -312,7 +312,7 @@ function EditModal({ user, onClose, onSaved }: { user: UserRecord; onClose: () =
     try {
       await updateUser(user.id, {
         ...(name ? { name } : {}),
-        ...(role ? { role } : {}),
+        ...(user.auth_source !== 'saml' && role ? { role } : {}),
         ...(password ? { password } : {}),
       })
       onSaved()

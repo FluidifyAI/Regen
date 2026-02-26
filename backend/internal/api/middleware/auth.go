@@ -2,12 +2,19 @@ package middleware
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gin-gonic/gin"
 	"github.com/openincident/openincident/internal/models"
 	"github.com/openincident/openincident/internal/services"
 )
+
+// isSecure returns true if the Secure flag should be set on cookies.
+// Always secure except in local development to allow plain HTTP.
+func isSecure() bool {
+	return os.Getenv("APP_ENV") != "development"
+}
 
 const (
 	contextKeySAMLSession  = "saml_session"
@@ -99,5 +106,13 @@ func RequireAdmin() gin.HandlerFunc {
 }
 
 func clearSessionCookie(c *gin.Context) {
-	c.SetCookie(localSessionCookieName, "", -1, "/", "", false, true)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     localSessionCookieName,
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   isSecure(),
+		SameSite: http.SameSiteStrictMode,
+	})
 }

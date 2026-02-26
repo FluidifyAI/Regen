@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gin-gonic/gin"
@@ -9,21 +10,47 @@ import (
 	"github.com/openincident/openincident/internal/services"
 )
 
-// Logout clears both local and SAML sessions.
+// setSessionCookie writes the oi_session cookie with SameSite=Strict.
+// Gin's c.SetCookie does not support SameSite selection, so we write directly.
+func setSessionCookie(c *gin.Context, token string, maxAge int) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "oi_session",
+		Value:    token,
+		MaxAge:   maxAge,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   os.Getenv("APP_ENV") != "development",
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+// Logout handles GET /auth/logout — browser redirect flow (kept for backwards compatibility).
 func Logout(samlMiddleware *samlsp.Middleware, localAuth services.LocalAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Clear local session
-		if localAuth != nil {
-			if cookie, err := c.Cookie("oi_session"); err == nil {
-				_ = localAuth.Logout(cookie)
-			}
-			c.SetCookie("oi_session", "", -1, "/", "", false, true)
+		clearSession(c, samlMiddleware, localAuth)
+		c.Redirect(http.StatusFound, "/login")
+	}
+}
+
+// APILogout handles POST /api/v1/auth/logout — called from the SPA via fetch.
+// Returns JSON so the frontend can handle navigation itself.
+func APILogout(samlMiddleware *samlsp.Middleware, localAuth services.LocalAuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		clearSession(c, samlMiddleware, localAuth)
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	}
+}
+
+// clearSession invalidates the current session for both local and SAML auth.
+func clearSession(c *gin.Context, samlMiddleware *samlsp.Middleware, localAuth services.LocalAuthService) {
+	if localAuth != nil {
+		if cookie, err := c.Cookie("oi_session"); err == nil {
+			_ = localAuth.Logout(cookie)
 		}
-		// Clear SAML session
-		if samlMiddleware != nil {
-			_ = samlMiddleware.Session.DeleteSession(c.Writer, c.Request)
-		}
-		c.Redirect(http.StatusFound, "/")
+		setSessionCookie(c, "", -1)
+	}
+	if samlMiddleware != nil {
+		_ = samlMiddleware.Session.DeleteSession(c.Writer, c.Request)
 	}
 }
 
@@ -45,8 +72,8 @@ func Login(localAuth services.LocalAuthService) gin.HandlerFunc {
 			return
 		}
 
-		// Set session cookie: 7-day, HttpOnly, SameSite=Lax
-		c.SetCookie("oi_session", session.Token, 7*24*3600, "/", "", false, true)
+		// Set session cookie: 7-day, HttpOnly, SameSite=Strict
+		setSessionCookie(c, session.Token, 7*24*3600)
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }
@@ -84,12 +111,28 @@ func GetCurrentUser(localAuth services.LocalAuthService, samlConfigured bool) gi
 			return
 		}
 
-		// Open mode / unauthenticated
-		c.JSON(http.StatusOK, gin.H{
-			"authenticated": false,
-			"mode":          "open",
-			"ssoEnabled":    samlConfigured,
-			"message":       "No active session",
-		})
+		// Determine true open mode: only when no users exist AND SAML is not configured.
+		// Once a local user has been created, login is always required.
+		isOpenMode := !samlConfigured
+		if isOpenMode && localAuth != nil {
+			count, err := localAuth.CountUsers()
+			if err == nil && count > 0 {
+				isOpenMode = false
+			}
+		}
+
+		if isOpenMode {
+			c.JSON(http.StatusOK, gin.H{
+				"authenticated": false,
+				"mode":          "open",
+				"ssoEnabled":    false,
+				"message":       "No auth configured — all requests permitted",
+			})
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"authenticated": false,
+				"ssoEnabled":    samlConfigured,
+			})
+		}
 	}
 }

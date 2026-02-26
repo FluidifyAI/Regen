@@ -22,3 +22,17 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 export async function login(req: LoginRequest): Promise<void> {
   return apiClient.post<void>('/api/v1/auth/login', req)
 }
+
+export interface BootstrapRequest {
+  name: string
+  email: string
+  password: string
+}
+
+export async function bootstrap(req: BootstrapRequest): Promise<void> {
+  await apiClient.post<unknown>('/api/v1/auth/bootstrap', req)
+}
+
+export async function logout(): Promise<void> {
+  await apiClient.post<unknown>('/api/v1/auth/logout')
+}

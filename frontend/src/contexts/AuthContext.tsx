@@ -8,6 +8,8 @@ interface AuthState {
   authenticated: boolean
   /** true when SAML is not configured — all requests permitted */
   openMode: boolean
+  /** true when SSO/SAML is enabled on the server */
+  ssoEnabled: boolean
 }
 
 const AuthContext = createContext<AuthState>({
@@ -15,6 +17,7 @@ const AuthContext = createContext<AuthState>({
   loading: true,
   authenticated: false,
   openMode: false,
+  ssoEnabled: false,
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -33,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     authenticated: user?.authenticated === true,
     openMode: user?.mode === 'open',
+    ssoEnabled: user?.ssoEnabled === true,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

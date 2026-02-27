@@ -71,6 +71,21 @@ func RequireAuth(samlMiddleware *samlsp.Middleware, localAuth ...services.LocalA
 }
 
 // GetSAMLSession retrieves the SAML session from the Gin context.
+// InjectSAMLSession reads the SAML session cookie (if present) and sets it in
+// the Gin context without aborting when no session exists. Use on routes that
+// must be accessible without auth but should still identify SAML users
+// (e.g. GET /auth/me).
+func InjectSAMLSession(samlMiddleware *samlsp.Middleware) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if samlMiddleware != nil {
+			if session, err := samlMiddleware.Session.GetSession(c.Request); err == nil && session != nil {
+				c.Set(contextKeySAMLSession, session)
+			}
+		}
+		c.Next()
+	}
+}
+
 func GetSAMLSession(c *gin.Context) samlsp.Session {
 	if val, exists := c.Get(contextKeySAMLSession); exists {
 		if s, ok := val.(samlsp.Session); ok {

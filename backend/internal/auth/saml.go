@@ -101,6 +101,18 @@ func NewSAMLMiddleware(cfg *config.Config) (*samlsp.Middleware, error) {
 		return nil, fmt.Errorf("saml: create middleware: %w", err)
 	}
 
+	// Upgrade the session cookie to SameSite=Strict on HTTPS.
+	// The tracking cookie (CookieRequestTracker) stays at cookieSameSite (Lax/None)
+	// because the IdP must POST cross-site to /saml/acs with the tracking cookie present.
+	// The session cookie is only ever READ by same-origin requests from the SPA, so
+	// Strict is both safe and more restrictive.
+	if baseURL.Scheme == "https" {
+		if csp, ok := middleware.Session.(samlsp.CookieSessionProvider); ok {
+			csp.SameSite = http.SameSiteStrictMode
+			middleware.Session = csp
+		}
+	}
+
 	return middleware, nil
 }
 

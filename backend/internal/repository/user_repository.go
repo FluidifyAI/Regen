@@ -66,7 +66,7 @@ func (r *userRepository) Upsert(ctx context.Context, user *models.User) error {
 	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "email"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"saml_subject", "name", "saml_idp_issuer", "last_login_at", "updated_at",
+			"saml_subject", "name", "saml_idp_issuer", "auth_source", "last_login_at", "updated_at",
 		}),
 	}).Create(user).Error
 }

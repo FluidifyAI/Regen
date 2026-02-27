@@ -24,6 +24,9 @@ type LocalAuthService interface {
 	ListUsers() ([]models.User, error)
 	CountUsers() (int64, error)
 	CountAdmins() (int64, error)
+	// GetUserByEmail returns the user with the given email, regardless of auth source.
+	// Used by middleware to resolve a SAML JWT session to a DB user record.
+	GetUserByEmail(email string) (*models.User, error)
 }
 
 // dummyHash is computed once at startup and used in Login to ensure constant-time
@@ -90,6 +93,11 @@ func (s *localAuthService) CreateUser(email, name, password string, role models.
 	if len(password) < 8 {
 		return nil, "", fmt.Errorf("password must be at least 8 characters")
 	}
+	// bcrypt silently truncates input at 72 bytes — enforce the limit explicitly
+	// so two different passwords cannot produce the same hash.
+	if len(password) > 72 {
+		return nil, "", fmt.Errorf("password must be at most 72 characters")
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to hash password: %w", err)
@@ -119,6 +127,9 @@ func (s *localAuthService) CreateUser(email, name, password string, role models.
 func (s *localAuthService) UpdateUser(id uuid.UUID, name string, role models.UserRole, newPassword string) error {
 	if newPassword != "" && len(newPassword) < 8 {
 		return fmt.Errorf("password must be at least 8 characters")
+	}
+	if newPassword != "" && len(newPassword) > 72 {
+		return fmt.Errorf("password must be at most 72 characters")
 	}
 
 	user := &models.User{ID: id}
@@ -179,4 +190,8 @@ func (s *localAuthService) CountUsers() (int64, error) {
 // CountAdmins returns the number of active admin accounts.
 func (s *localAuthService) CountAdmins() (int64, error) {
 	return s.users.CountByRole(models.UserRoleAdmin)
+}
+
+func (s *localAuthService) GetUserByEmail(email string) (*models.User, error) {
+	return s.users.GetByEmail(email)
 }

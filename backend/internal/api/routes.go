@@ -238,6 +238,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// Local login/logout endpoints (always open — these ARE the auth actions)
 		if localAuth != nil {
 			v1.POST("/auth/login", middleware.RateLimitAuth(), handlers.Login(localAuth))
+		v1.POST("/auth/login/setup-token", middleware.RateLimitAuth(), handlers.SetupTokenLogin(localAuth))
 			// Bootstrap: allow first user creation without auth (only works when user count is 0)
 			v1.POST("/auth/bootstrap", middleware.RateLimitAuth(), handlers.CreateFirstUser(localAuth))
 		}
@@ -251,7 +252,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// SAML session in context without aborting, so authenticated SAML users
 		// are also correctly identified.
 		v1.GET("/auth/me",
-			middleware.InjectSAMLSession(samlMiddleware),
+			middleware.InjectSAMLSession(samlMiddleware, localAuth),
 			handlers.GetCurrentUser(localAuth, samlMiddleware != nil),
 		)
 

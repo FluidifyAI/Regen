@@ -10,9 +10,10 @@ import (
 	"github.com/openincident/openincident/internal/services"
 )
 
-// isSecure returns true if the Secure flag should be set on cookies.
+// IsSecure returns true if the Secure flag should be set on cookies.
 // Always secure except in local development to allow plain HTTP.
-func isSecure() bool {
+// Single definition used by both middleware and handler packages.
+func IsSecure() bool {
 	return os.Getenv("APP_ENV") != "development"
 }
 
@@ -48,7 +49,7 @@ func RequireAuth(samlMiddleware *samlsp.Middleware, localAuth ...services.LocalA
 			}
 		}
 
-		// 2. Check SAML session
+		// 2. Check SAML session and resolve DB user so RequireAdmin works uniformly.
 		if samlMiddleware != nil {
 			session, err := samlMiddleware.Session.GetSession(c.Request)
 			if err != nil || session == nil {
@@ -61,6 +62,9 @@ func RequireAuth(samlMiddleware *samlsp.Middleware, localAuth ...services.LocalA
 				return
 			}
 			c.Set(contextKeySAMLSession, session)
+			// Resolve DB user from SAML session email so downstream middleware
+			// (e.g. RequireAdmin) can operate identically for both auth paths.
+			resolveAndStoreSAMLUser(c, session, la)
 			c.Next()
 			return
 		}
@@ -70,20 +74,52 @@ func RequireAuth(samlMiddleware *samlsp.Middleware, localAuth ...services.LocalA
 	}
 }
 
-// GetSAMLSession retrieves the SAML session from the Gin context.
 // InjectSAMLSession reads the SAML session cookie (if present) and sets it in
 // the Gin context without aborting when no session exists. Use on routes that
 // must be accessible without auth but should still identify SAML users
-// (e.g. GET /auth/me).
-func InjectSAMLSession(samlMiddleware *samlsp.Middleware) gin.HandlerFunc {
+// (e.g. GET /auth/me). When la is provided, also resolves the DB user into
+// contextKeyLocalUser so handlers see a unified identity regardless of auth path.
+func InjectSAMLSession(samlMiddleware *samlsp.Middleware, la services.LocalAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if samlMiddleware != nil {
 			if session, err := samlMiddleware.Session.GetSession(c.Request); err == nil && session != nil {
 				c.Set(contextKeySAMLSession, session)
+				resolveAndStoreSAMLUser(c, session, la)
 			}
 		}
 		c.Next()
 	}
+}
+
+// resolveAndStoreSAMLUser extracts the email from a SAML JWT session, looks up
+// the corresponding DB user, and stores it under contextKeyLocalUser. This
+// allows RequireAdmin and GetLocalUser to work identically for both local and
+// SAML auth paths. If resolution fails (e.g. user deactivated), the context key
+// is left unset — callers that require authentication must check separately.
+func resolveAndStoreSAMLUser(c *gin.Context, session samlsp.Session, la services.LocalAuthService) {
+	if la == nil {
+		return
+	}
+	sa, ok := session.(samlsp.JWTSessionClaims)
+	if !ok {
+		return
+	}
+	// Try common email attribute names — matches the samlAttr() extraction in auth/saml.go.
+	email := sa.Attributes.Get("email")
+	if email == "" {
+		email = sa.Attributes.Get("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress")
+	}
+	if email == "" {
+		email = sa.Attributes.Get("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/email")
+	}
+	if email == "" {
+		return
+	}
+	user, err := la.GetUserByEmail(email)
+	if err != nil || user == nil || user.AuthSource == "deactivated" {
+		return
+	}
+	c.Set(contextKeyLocalUser, user)
 }
 
 func GetSAMLSession(c *gin.Context) samlsp.Session {
@@ -127,7 +163,7 @@ func clearSessionCookie(c *gin.Context) {
 		MaxAge:   -1,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   isSecure(),
+		Secure:   IsSecure(),
 		SameSite: http.SameSiteStrictMode,
 	})
 }

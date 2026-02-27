@@ -8,18 +8,36 @@ import (
 //
 // Headers set:
 //   - X-Content-Type-Options: nosniff (prevents MIME type sniffing)
-//   - X-Frame-Options: DENY (prevents clickjacking)
-//   - X-XSS-Protection: 1; mode=block (XSS protection for older browsers)
-//   - Content-Security-Policy: default-src 'self'
+//   - X-Frame-Options: DENY (legacy clickjacking protection for older browsers)
+//   - Content-Security-Policy: tightened policy — see inline comment
 //   - Referrer-Policy: strict-origin-when-cross-origin
 //   - Strict-Transport-Security: max-age=63072000; includeSubDomains (2 years; HTTPS only)
 //   - X-Permitted-Cross-Domain-Policies: none (blocks Flash/PDF cross-domain policy files)
+//
+// X-XSS-Protection is intentionally omitted: it is deprecated, removed from modern
+// browsers, and can introduce vulnerabilities in older IE/Edge versions.
 func SecurityHeaders() gin.HandlerFunc {
+	// object-src 'none'      — disables plugins (Flash, Java applets)
+	// base-uri 'self'        — prevents <base> tag hijacking (relative URL manipulation)
+	// frame-ancestors 'none' — modern clickjacking protection (supersedes X-Frame-Options)
+	// form-action 'self'     — forms may only submit to our own origin
+	// style-src + 'unsafe-inline' — React components use inline styles; required for SPA
+	// img-src data:          — base64-encoded data URIs used in UI components
+	const csp = "default-src 'self'; " +
+		"script-src 'self'; " +
+		"style-src 'self' 'unsafe-inline'; " +
+		"img-src 'self' data:; " +
+		"connect-src 'self'; " +
+		"font-src 'self'; " +
+		"object-src 'none'; " +
+		"base-uri 'self'; " +
+		"frame-ancestors 'none'; " +
+		"form-action 'self'"
+
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("X-Content-Type-Options", "nosniff")
 		c.Writer.Header().Set("X-Frame-Options", "DENY")
-		c.Writer.Header().Set("X-XSS-Protection", "1; mode=block")
-		c.Writer.Header().Set("Content-Security-Policy", "default-src 'self'")
+		c.Writer.Header().Set("Content-Security-Policy", csp)
 		c.Writer.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		// HSTS: tell browsers to always use HTTPS for this domain for 2 years.
 		// Safe to set here — HTTP clients ignore it; it only takes effect over HTTPS.

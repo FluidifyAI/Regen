@@ -17,6 +17,7 @@ type LocalSessionRepository interface {
 	Create(userID uuid.UUID) (*models.LocalSession, error)
 	GetByToken(token string) (*models.LocalSession, error)
 	DeleteByToken(token string) error
+	DeleteByUserID(userID uuid.UUID) error
 	DeleteExpired() error
 }
 
@@ -54,6 +55,10 @@ func (r *localSessionRepository) GetByToken(token string) (*models.LocalSession,
 
 func (r *localSessionRepository) DeleteByToken(token string) error {
 	return r.db.Delete(&models.LocalSession{}, "token = ?", token).Error
+}
+
+func (r *localSessionRepository) DeleteByUserID(userID uuid.UUID) error {
+	return r.db.Delete(&models.LocalSession{}, "user_id = ?", userID).Error
 }
 
 func (r *localSessionRepository) DeleteExpired() error {

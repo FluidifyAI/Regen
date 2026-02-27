@@ -218,9 +218,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 
 		// Local login endpoint (always open — this IS the login action)
 		if localAuth != nil {
-			v1.POST("/auth/login", handlers.Login(localAuth))
+			v1.POST("/auth/login", middleware.RateLimitAuth(), handlers.Login(localAuth))
 			// Bootstrap: allow first user creation without auth (only works when user count is 0)
-			v1.POST("/auth/bootstrap", handlers.CreateFirstUser(localAuth))
+			v1.POST("/auth/bootstrap", middleware.RateLimitAuth(), handlers.CreateFirstUser(localAuth))
 		}
 
 		// Auth identity endpoint

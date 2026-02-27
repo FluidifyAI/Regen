@@ -155,7 +155,13 @@ func (s *localAuthService) ResetPassword(id uuid.UUID) (string, error) {
 }
 
 func (s *localAuthService) DeactivateUser(id uuid.UUID) error {
-	return s.users.Deactivate(id)
+	if err := s.users.Deactivate(id); err != nil {
+		return err
+	}
+	// Invalidate all active sessions immediately so the user cannot continue
+	// using a live cookie after their account is deactivated.
+	_ = s.sessions.DeleteByUserID(id)
+	return nil
 }
 
 func (s *localAuthService) GetUser(id uuid.UUID) (*models.User, error) {
@@ -172,15 +178,5 @@ func (s *localAuthService) CountUsers() (int64, error) {
 
 // CountAdmins returns the number of active admin accounts.
 func (s *localAuthService) CountAdmins() (int64, error) {
-	users, err := s.users.ListAll()
-	if err != nil {
-		return 0, err
-	}
-	var count int64
-	for _, u := range users {
-		if u.Role == models.UserRoleAdmin && u.AuthSource != "deactivated" {
-			count++
-		}
-	}
-	return count, nil
+	return s.users.CountByRole(models.UserRoleAdmin)
 }

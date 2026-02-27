@@ -10,6 +10,20 @@ import (
 	"github.com/openincident/openincident/internal/services"
 )
 
+// setSessionCookie writes the oi_session cookie with SameSite=Strict.
+// Gin's c.SetCookie does not support SameSite selection, so we write directly.
+func setSessionCookie(c *gin.Context, token string, maxAge int) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "oi_session",
+		Value:    token,
+		MaxAge:   maxAge,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   os.Getenv("APP_ENV") != "development",
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
 // Logout clears both local and SAML sessions.
 func Logout(samlMiddleware *samlsp.Middleware, localAuth services.LocalAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -18,14 +32,13 @@ func Logout(samlMiddleware *samlsp.Middleware, localAuth services.LocalAuthServi
 			if cookie, err := c.Cookie("oi_session"); err == nil {
 				_ = localAuth.Logout(cookie)
 			}
-			secure := os.Getenv("APP_ENV") == "production"
-			c.SetCookie("oi_session", "", -1, "/", "", secure, true)
+			setSessionCookie(c, "", -1)
 		}
 		// Clear SAML session
 		if samlMiddleware != nil {
 			_ = samlMiddleware.Session.DeleteSession(c.Writer, c.Request)
 		}
-		c.Redirect(http.StatusFound, "/")
+		c.Redirect(http.StatusFound, "/login")
 	}
 }
 
@@ -47,10 +60,8 @@ func Login(localAuth services.LocalAuthService) gin.HandlerFunc {
 			return
 		}
 
-		// Set session cookie: 7-day, HttpOnly, SameSite=Lax
-		// Secure flag is set in production to enforce HTTPS-only cookie transmission.
-		secure := os.Getenv("APP_ENV") == "production"
-		c.SetCookie("oi_session", session.Token, 7*24*3600, "/", "", secure, true)
+		// Set session cookie: 7-day, HttpOnly, SameSite=Strict
+		setSessionCookie(c, session.Token, 7*24*3600)
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }
@@ -88,12 +99,28 @@ func GetCurrentUser(localAuth services.LocalAuthService, samlConfigured bool) gi
 			return
 		}
 
-		// Open mode / unauthenticated
-		c.JSON(http.StatusOK, gin.H{
-			"authenticated": false,
-			"mode":          "open",
-			"ssoEnabled":    samlConfigured,
-			"message":       "No active session",
-		})
+		// Determine true open mode: only when no users exist AND SAML is not configured.
+		// Once a local user has been created, login is always required.
+		isOpenMode := !samlConfigured
+		if isOpenMode && localAuth != nil {
+			count, err := localAuth.CountUsers()
+			if err == nil && count > 0 {
+				isOpenMode = false
+			}
+		}
+
+		if isOpenMode {
+			c.JSON(http.StatusOK, gin.H{
+				"authenticated": false,
+				"mode":          "open",
+				"ssoEnabled":    false,
+				"message":       "No auth configured — all requests permitted",
+			})
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"authenticated": false,
+				"ssoEnabled":    samlConfigured,
+			})
+		}
 	}
 }

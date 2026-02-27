@@ -10,6 +10,12 @@ import (
 	"github.com/openincident/openincident/internal/services"
 )
 
+// isSecure returns true if the Secure flag should be set on cookies.
+// Always secure except in local development to allow plain HTTP.
+func isSecure() bool {
+	return os.Getenv("APP_ENV") != "development"
+}
+
 const (
 	contextKeySAMLSession  = "saml_session"
 	contextKeyLocalUser    = "local_user"
@@ -100,6 +106,13 @@ func RequireAdmin() gin.HandlerFunc {
 }
 
 func clearSessionCookie(c *gin.Context) {
-	secure := os.Getenv("APP_ENV") == "production"
-	c.SetCookie(localSessionCookieName, "", -1, "/", "", secure, true)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     localSessionCookieName,
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   isSecure(),
+		SameSite: http.SameSiteStrictMode,
+	})
 }

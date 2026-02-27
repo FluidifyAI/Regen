@@ -9,13 +9,13 @@ import {
   ChevronRight,
   ChevronDown,
   Settings,
-  Bell,
   Shield,
   GitFork,
   GitBranch,
   FileText,
   LogOut,
   Users,
+  Menu,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
 import { useAuth } from '../../hooks/useAuth'
@@ -247,7 +247,7 @@ export function Sidebar() {
                 />
               </button>
             )}
-            {(sectionsExpanded[section.id] || isCollapsed) && (
+            {(!section.collapsible || sectionsExpanded[section.id] || isCollapsed) && (
               <div className="space-y-1">{section.items.map(renderNavItem)}</div>
             )}
           </div>
@@ -268,12 +268,17 @@ export function Sidebar() {
                   <div className="text-xs text-text-tertiary truncate">{currentUser.email}</div>
                 )}
               </div>
-              <button
-                className="p-1.5 rounded hover:bg-sidebar-hover transition-colors ml-1"
-                aria-label="Notifications"
-              >
-                <Bell className="w-4.5 h-4.5" />
-              </button>
+              {currentUser?.role === 'admin' && (
+                <Tooltip content="Settings">
+                  <Link
+                    to="/settings/users"
+                    className="p-1.5 rounded hover:bg-sidebar-hover transition-colors ml-1 text-sidebar-text"
+                    aria-label="Settings"
+                  >
+                    <Settings className="w-4.5 h-4.5" />
+                  </Link>
+                </Tooltip>
+              )}
               {currentUser?.authenticated && (
                 <Tooltip content="Sign out">
                   <button
@@ -315,7 +320,7 @@ export function Sidebar() {
         className="md:hidden fixed top-4 left-4 z-50 p-2 bg-sidebar-bg text-sidebar-text rounded shadow-lg"
         aria-label="Open menu"
       >
-        <Settings className="w-5 h-5" />
+        <Menu className="w-5 h-5" />
       </button>
 
       {/* Mobile Sidebar Overlay */}

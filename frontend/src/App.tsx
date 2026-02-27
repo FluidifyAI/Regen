@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { AuthGate } from './components/auth/AuthGate'
 import { AppLayout } from './components/layout/AppLayout'
@@ -37,6 +37,7 @@ function App() {
               <Route path="/escalation-policies/:id" element={<EscalationPolicyDetailPage />} />
               <Route path="/alerts/:id" element={<AlertDetailPage />} />
               <Route path="/post-mortem-templates" element={<PostMortemTemplatesPage />} />
+              <Route path="/settings" element={<Navigate to="/settings/users" replace />} />
               <Route path="/settings/users" element={<SettingsUsersPage />} />
             </Route>
           </Routes>

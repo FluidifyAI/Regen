@@ -15,13 +15,16 @@ const PUBLIC_PATHS = ['/login', '/logout']
  * ├──────────────────────────────┼──────────────────────────────┤
  * │ Public path (/login, /logout)│ Render children (passthrough)│
  * │ Loading                      │ Full-screen skeleton         │
- * │ Open mode (no auth)          │ Render children (passthrough)│
  * │ Authenticated                │ Render children              │
+ * │ Unauthenticated (open mode)  │ Show LoginPage (setup form)  │
  * │ Unauthenticated              │ Show LoginPage               │
  * └──────────────────────────────┴──────────────────────────────┘
+ *
+ * Open mode (no users exist yet) no longer bypasses auth. The LoginPage
+ * detects open mode and shows the first-run setup form automatically.
  */
 export function AuthGate({ children }: { children: ReactNode }) {
-  const { loading, authenticated, openMode } = useAuth()
+  const { loading, authenticated } = useAuth()
   const { pathname } = useLocation()
 
   // Always let public pages render, even before the auth check completes.
@@ -33,12 +36,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <AuthLoadingScreen />
   }
 
-  // Open mode or authenticated — let the app render
-  if (openMode || authenticated) {
+  if (authenticated) {
     return <>{children}</>
   }
 
-  // Auth required (local users exist or SAML configured), no active session → show login
+  // Not authenticated — show login. LoginPage reads openMode to decide
+  // whether to show the sign-in form or the first-run account setup form.
   return <LoginPage />
 }
 

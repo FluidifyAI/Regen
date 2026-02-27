@@ -267,14 +267,6 @@ export function Sidebar() {
                 {currentUser?.email && (
                   <div className="text-xs text-text-tertiary truncate">{currentUser.email}</div>
                 )}
-                {currentUser?.mode === 'open' && (
-                  <a
-                    href="/login"
-                    className="text-xs text-blue-400 hover:text-blue-300 hover:underline"
-                  >
-                    Sign in
-                  </a>
-                )}
               </div>
               <button
                 className="p-1.5 rounded hover:bg-sidebar-hover transition-colors ml-1"

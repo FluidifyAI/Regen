@@ -36,7 +36,11 @@ func CreateUser(localAuth services.LocalAuthService) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
 			return
 		}
-		user, setupToken, err := localAuth.CreateUser(req.Email, req.Name, req.Password, models.UserRole(req.Role))
+		role := models.UserRoleMember
+		if req.Role != "" {
+			role = models.UserRole(req.Role)
+		}
+		user, setupToken, err := localAuth.CreateUser(req.Email, req.Name, req.Password, role)
 		if err != nil {
 			errMsg := err.Error()
 			// Check for duplicate email (GORM/PostgreSQL unique constraint violation)

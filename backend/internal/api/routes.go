@@ -3,6 +3,7 @@ package api
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/crewjam/saml/samlsp"
@@ -148,9 +149,27 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// We dispatch /saml/login to HandleStartAuthFlow ourselves — we can't
 		// register it as a separate Gin route alongside the *action wildcard
 		// (httprouter conflict), so we intercept inside the handler instead.
+		// After SAML auth the IdP POSTs to /saml/acs, which redirects the browser
+		// to the URI stored in the crewjam request tracker (set during
+		// HandleStartAuthFlow). By default that URI is the /saml/login path on
+		// the backend (port 8080) — which has no frontend to serve. We fix this
+		// by cloning the request with the frontend URL before calling
+		// HandleStartAuthFlow, so crewjam tracks the frontend root as the
+		// post-auth destination. SAML_REDIRECT_URL should be the externally
+		// reachable frontend URL (e.g. http://localhost:3000 in dev, https://app.example.com in prod).
+		samlRedirectURL := os.Getenv("SAML_REDIRECT_URL")
+		if samlRedirectURL == "" {
+			samlRedirectURL = cfg.SAMLBaseURL // prod default: same origin serves the frontend
+		}
+		parsedRedirect, _ := url.Parse(samlRedirectURL)
+
 		samlHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/saml/login" || r.URL.Path == "/saml/login/" {
-				samlMiddleware.HandleStartAuthFlow(w, r)
+				// Redirect to the frontend root after auth, not back to /saml/login.
+				r2 := r.Clone(r.Context())
+				r2.URL = &url.URL{Scheme: parsedRedirect.Scheme, Host: parsedRedirect.Host, Path: "/"}
+				r2.Host = parsedRedirect.Host
+				samlMiddleware.HandleStartAuthFlow(w, r2)
 				return
 			}
 			samlMiddleware.ServeHTTP(w, r)
@@ -219,6 +238,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// Local login/logout endpoints (always open — these ARE the auth actions)
 		if localAuth != nil {
 			v1.POST("/auth/login", middleware.RateLimitAuth(), handlers.Login(localAuth))
+		v1.POST("/auth/login/setup-token", middleware.RateLimitAuth(), handlers.SetupTokenLogin(localAuth))
 			// Bootstrap: allow first user creation without auth (only works when user count is 0)
 			v1.POST("/auth/bootstrap", middleware.RateLimitAuth(), handlers.CreateFirstUser(localAuth))
 		}
@@ -227,8 +247,14 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// is kept for SAML redirect flows and deep-link compatibility.
 		v1.POST("/auth/logout", handlers.APILogout(samlMiddleware, localAuth))
 
-		// Auth identity endpoint
-		v1.GET("/auth/me", middleware.RequireAuth(samlMiddleware, localAuth), handlers.GetCurrentUser(localAuth, samlMiddleware != nil))
+		// Auth identity endpoint — no RequireAuth so unauthenticated callers can
+		// read ssoEnabled to show the SSO button. InjectSAMLSession populates the
+		// SAML session in context without aborting, so authenticated SAML users
+		// are also correctly identified.
+		v1.GET("/auth/me",
+			middleware.InjectSAMLSession(samlMiddleware, localAuth),
+			handlers.GetCurrentUser(localAuth, samlMiddleware != nil),
+		)
 
 		// Protected routes — require session (no-op when auth disabled).
 		// RBAC middleware runs after auth; the OSS no-op allows all requests through.

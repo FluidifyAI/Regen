@@ -103,6 +103,24 @@ func runServe(_ *cobra.Command, _ []string) error {
 	sessionRepo := repository.NewLocalSessionRepository(database.DB)
 	localAuthSvc := services.NewLocalAuthService(userRepo, sessionRepo)
 
+	// Periodic cleanup of expired local sessions. Daily is sufficient — sessions
+	// are already rejected at read time (expires_at > NOW()), so this is purely
+	// a table housekeeping operation with no security impact.
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := sessionRepo.DeleteExpired(); err != nil {
+					slog.Warn("session cleanup failed", "error", err)
+				}
+			case <-appCtx.Done():
+				return
+			}
+		}
+	}()
+
 	// Initialize SAML middleware (optional — nil when SAML_IDP_METADATA_URL is not set).
 	// Must run after migrations so the users table exists for JIT provisioning.
 	samlMiddleware, err := auth.NewSAMLMiddleware(cfg)

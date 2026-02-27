@@ -1,22 +1,33 @@
 import type { ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { LoginPage } from '../../pages/LoginPage'
+
+// Routes that are always accessible regardless of auth state.
+const PUBLIC_PATHS = ['/login', '/logout']
 
 /**
  * AuthGate wraps the entire app.
  *
  * Behaviour matrix:
- * ┌─────────────────────────┬──────────────────────────────┐
- * │ State                   │ Result                       │
- * ├─────────────────────────┼──────────────────────────────┤
- * │ Loading                 │ Full-screen skeleton         │
- * │ Open mode (no SAML)     │ Render children (passthrough)│
- * │ SAML enabled + authed   │ Render children              │
- * │ SAML enabled + unauthed │ Show LoginPage               │
- * └─────────────────────────┴──────────────────────────────┘
+ * ┌──────────────────────────────┬──────────────────────────────┐
+ * │ State                        │ Result                       │
+ * ├──────────────────────────────┼──────────────────────────────┤
+ * │ Public path (/login, /logout)│ Render children (passthrough)│
+ * │ Loading                      │ Full-screen skeleton         │
+ * │ Open mode (no auth)          │ Render children (passthrough)│
+ * │ Authenticated                │ Render children              │
+ * │ Unauthenticated              │ Show LoginPage               │
+ * └──────────────────────────────┴──────────────────────────────┘
  */
 export function AuthGate({ children }: { children: ReactNode }) {
   const { loading, authenticated, openMode } = useAuth()
+  const { pathname } = useLocation()
+
+  // Always let public pages render, even before the auth check completes.
+  if (PUBLIC_PATHS.includes(pathname)) {
+    return <>{children}</>
+  }
 
   if (loading) {
     return <AuthLoadingScreen />
@@ -27,7 +38,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <>{children}</>
   }
 
-  // SAML configured, session missing → show login
+  // Auth required (local users exist or SAML configured), no active session → show login
   return <LoginPage />
 }
 

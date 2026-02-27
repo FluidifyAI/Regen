@@ -58,13 +58,15 @@ func (r *userRepository) GetByEmail(email string) (*models.User, error) {
 	return &user, err
 }
 
-// Upsert inserts the user or updates email, name, and saml_idp_issuer if the
-// saml_subject already exists. Role is never overwritten by the IdP.
+// Upsert inserts the user or, if a user with the same email already exists
+// (local account or previous SAML login), updates the SAML identity fields.
+// Conflicting on email — not saml_subject — lets SAML "adopt" an existing
+// local account on first SSO login. Role is never overwritten by the IdP.
 func (r *userRepository) Upsert(ctx context.Context, user *models.User) error {
 	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "saml_subject"}},
+		Columns: []clause.Column{{Name: "email"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"email", "name", "saml_idp_issuer", "last_login_at", "updated_at",
+			"saml_subject", "name", "saml_idp_issuer", "last_login_at", "updated_at",
 		}),
 	}).Create(user).Error
 }

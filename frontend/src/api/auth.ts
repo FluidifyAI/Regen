@@ -4,6 +4,7 @@ export interface CurrentUser {
   authenticated: boolean
   mode?: 'open'
   message?: string
+  id?: string
   email?: string
   name?: string
   role?: 'admin' | 'member' | 'viewer'
@@ -31,6 +32,10 @@ export interface BootstrapRequest {
 
 export async function bootstrap(req: BootstrapRequest): Promise<void> {
   await apiClient.post<unknown>('/api/v1/auth/bootstrap', req)
+}
+
+export async function exchangeSetupToken(token: string): Promise<void> {
+  return apiClient.post<void>('/api/v1/auth/login/setup-token', { token })
 }
 
 export async function logout(): Promise<void> {

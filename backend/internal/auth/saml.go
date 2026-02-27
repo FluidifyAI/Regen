@@ -66,17 +66,24 @@ func NewSAMLMiddleware(cfg *config.Config) (*samlsp.Middleware, error) {
 	}
 
 	// 4. Build the SP middleware
+	//
+	// SameSite cookie strategy:
+	// - Production (HTTPS): SameSite=None + Secure=true (set by crewjam when URL scheme is https).
+	//   Required because the IdP POSTs cross-site to /saml/acs (SAML POST binding).
+	// - Development (HTTP): SameSite=Lax. Chrome 80+ rejects SameSite=None without Secure,
+	//   so the tracking cookie is silently dropped → GetTrackedRequest fails → 404.
+	//   SameSite=Lax works on localhost because all localhost ports share the same
+	//   eTLD+1 ("localhost"), making cross-port requests same-site by spec.
+	cookieSameSite := http.SameSiteNoneMode
+	if baseURL.Scheme != "https" {
+		cookieSameSite = http.SameSiteLaxMode
+	}
 	opts := samlsp.Options{
-		URL:         *baseURL,
-		Key:         keyPair.PrivateKey.(*rsa.PrivateKey),
-		Certificate: keyPair.Leaf,
-		IDPMetadata: idpMetadata,
-		// SameSite=None is required for SAML POST binding: the IdP issues a
-		// cross-site POST back to our ACS endpoint. SameSite=Lax blocks that
-		// POST in all modern browsers (Chrome 80+, Firefox, Safari), breaking
-		// the tracking cookie that correlates the AuthnRequest to the response.
-		// SameSite=None requires HTTPS (Secure flag), enforced above in production.
-		CookieSameSite:    http.SameSiteNoneMode,
+		URL:               *baseURL,
+		Key:               keyPair.PrivateKey.(*rsa.PrivateKey),
+		Certificate:       keyPair.Leaf,
+		IDPMetadata:       idpMetadata,
+		CookieSameSite:    cookieSameSite,
 		CookieName:        "openincident_session",
 		AllowIDPInitiated: cfg.SAMLAllowIDPInitiated,
 	}
@@ -92,6 +99,18 @@ func NewSAMLMiddleware(cfg *config.Config) (*samlsp.Middleware, error) {
 	middleware, err := samlsp.New(opts)
 	if err != nil {
 		return nil, fmt.Errorf("saml: create middleware: %w", err)
+	}
+
+	// Upgrade the session cookie to SameSite=Strict on HTTPS.
+	// The tracking cookie (CookieRequestTracker) stays at cookieSameSite (Lax/None)
+	// because the IdP must POST cross-site to /saml/acs with the tracking cookie present.
+	// The session cookie is only ever READ by same-origin requests from the SPA, so
+	// Strict is both safe and more restrictive.
+	if baseURL.Scheme == "https" {
+		if csp, ok := middleware.Session.(samlsp.CookieSessionProvider); ok {
+			csp.SameSite = http.SameSiteStrictMode
+			middleware.Session = csp
+		}
 	}
 
 	return middleware, nil

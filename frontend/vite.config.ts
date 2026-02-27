@@ -11,6 +11,13 @@ export default defineConfig({
         target: process.env.VITE_API_URL || 'http://localhost:8080',
         changeOrigin: true,
       },
+      // SAML SSO routes must hit the backend directly (not the Vite SPA).
+      // /saml/login initiates the SP-initiated flow; /saml/acs receives the
+      // IdP's POST response; /saml/metadata serves SP metadata to the IdP.
+      '/saml': {
+        target: process.env.VITE_API_URL || 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
   build: {

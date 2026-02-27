@@ -23,6 +23,8 @@ func NewAuthService(userRepo repository.UserRepository) AuthService {
 
 // UpsertFromSAML creates or updates a user from a SAML assertion.
 // Called on every successful SSO login — safe to call repeatedly.
+// Setting AuthSource="saml" on conflict ensures that a local account adopted
+// via SSO can no longer authenticate with a local password (prevents dual-path).
 func (s *authService) UpsertFromSAML(ctx context.Context, subject, issuer, email, name string) error {
 	now := time.Now()
 	user := &models.User{
@@ -30,6 +32,7 @@ func (s *authService) UpsertFromSAML(ctx context.Context, subject, issuer, email
 		SAMLIDPIssuer: issuer,
 		Email:         email,
 		Name:          name,
+		AuthSource:    "saml",
 		LastLoginAt:   &now,
 	}
 	return s.userRepo.Upsert(ctx, user)

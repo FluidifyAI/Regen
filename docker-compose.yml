@@ -69,6 +69,7 @@ services:
       - SAML_CERT_FILE=${SAML_CERT_FILE}
       - SAML_KEY_FILE=${SAML_KEY_FILE}
       - SAML_ALLOW_IDP_INITIATED=${SAML_ALLOW_IDP_INITIATED:-false}
+      - SAML_REDIRECT_URL=${SAML_REDIRECT_URL}
     volumes:
       - ./backend:/app
       - go_modules:/go/pkg/mod
@@ -83,7 +84,8 @@ services:
       - openincident
 
   # mock-idp + saml-proxy: Local SAML IdP for SSO development/testing.
-  # Test credentials: user1 / user1password  (email: user1@example.com)
+  # Test credentials: user1 / user1pass  (email: user1@example.com)
+  #                   user2 / user2pass  (email: user2@example.com)
   #
   # saml-proxy (nginx) rewrites the Host header to localhost:8082 so SimpleSAMLphp
   # advertises SSO URLs the browser can reach. Without it, SimpleSAMLphp would use

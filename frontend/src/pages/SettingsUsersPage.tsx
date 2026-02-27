@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Plus } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { Button } from '../components/ui/Button'
 import {
   listUsers,
   createUser,
@@ -63,99 +65,102 @@ export function SettingsUsersPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-[#F1F5F9]">Users</h1>
-          <p className="text-[#64748B] text-sm mt-1">Manage team members and access</p>
+    <div className="flex flex-col h-full">
+      {/* Page Header — matches Incidents page pattern */}
+      <div className="border-b border-border bg-white px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-text-primary">Users</h1>
+            <p className="text-sm text-text-secondary mt-0.5">Manage team members and access</p>
+          </div>
+          <Button variant="primary" onClick={() => setShowInvite(true)}>
+            <Plus className="w-4 h-4" />
+            Invite user
+          </Button>
         </div>
-        <button
-          onClick={() => setShowInvite(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          + Invite user
-        </button>
       </div>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
-          {error}
-        </div>
-      )}
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+            {error}
+          </div>
+        )}
 
-      {setupToken && (
-        <SetupLinkBox token={setupToken} onClose={() => setSetupToken('')} />
-      )}
+        {setupToken && (
+          <SetupLinkBox token={setupToken} onClose={() => setSetupToken('')} />
+        )}
 
-      <div className="rounded-xl border border-[#1E293B] overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-[#1E293B] text-[#64748B] text-xs uppercase tracking-wide">
-              <th className="text-left px-4 py-3 font-medium">Name</th>
-              <th className="text-left px-4 py-3 font-medium">Email</th>
-              <th className="text-left px-4 py-3 font-medium">Role</th>
-              <th className="text-left px-4 py-3 font-medium">Auth</th>
-              <th className="text-left px-4 py-3 font-medium">Last login</th>
-              <th className="text-left px-4 py-3 font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#1E293B]">
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-[#475569]">Loading…</td>
+        {/* Table — matches Incidents table style */}
+        <div className="bg-white border border-border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-text-tertiary">Name</th>
+                <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-text-tertiary">Email</th>
+                <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-text-tertiary">Role</th>
+                <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-text-tertiary">Auth</th>
+                <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-text-tertiary">Last login</th>
+                <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-text-tertiary">Actions</th>
               </tr>
-            ) : users.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-[#475569]">
-                  No users yet. Invite your first team member.
-                </td>
-              </tr>
-            ) : (
-              users.map(u => (
-                <tr
-                  key={u.id}
-                  className={`bg-[#0F172A] hover:bg-[#1E293B]/50 transition-colors ${
-                    u.auth_source === 'deactivated' ? 'opacity-50' : ''
-                  }`}
-                >
-                  <td className="px-4 py-3 text-[#F1F5F9] font-medium">{u.name || '—'}</td>
-                  <td className="px-4 py-3 text-[#94A3B8]">{u.email}</td>
-                  <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
-                  <td className="px-4 py-3 text-[#64748B] text-xs uppercase">{u.auth_source}</td>
-                  <td className="px-4 py-3 text-[#64748B]">
-                    {u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {u.auth_source !== 'deactivated' && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setEditingUser(u)}
-                          className="text-xs text-[#94A3B8] hover:text-[#F1F5F9] px-2 py-1 rounded hover:bg-[#1E293B]"
-                        >
-                          Edit
-                        </button>
-                        {u.auth_source === 'local' && (
-                          <button
-                            onClick={() => handleResetPassword(u)}
-                            className="text-xs text-[#94A3B8] hover:text-[#F1F5F9] px-2 py-1 rounded hover:bg-[#1E293B]"
-                          >
-                            Reset pw
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeactivate(u)}
-                          className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-900/20"
-                        >
-                          Deactivate
-                        </button>
-                      </div>
-                    )}
+            </thead>
+            <tbody className="divide-y divide-border">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-text-tertiary">Loading…</td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-text-tertiary">
+                    No users yet. Invite your first team member.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                users.map(u => (
+                  <tr
+                    key={u.id}
+                    className={`hover:bg-gray-50 transition-colors ${u.auth_source === 'deactivated' ? 'opacity-50' : ''}`}
+                  >
+                    <td className="px-4 py-3 font-medium text-text-primary">{u.name || '—'}</td>
+                    <td className="px-4 py-3 text-text-secondary">{u.email}</td>
+                    <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
+                    <td className="px-4 py-3 text-xs uppercase tracking-wide text-text-tertiary font-medium">{u.auth_source}</td>
+                    <td className="px-4 py-3 text-text-secondary">
+                      {u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      {u.auth_source !== 'deactivated' && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingUser(u)}
+                            className="text-xs text-text-secondary hover:text-text-primary px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          {u.auth_source === 'local' && (
+                            <button
+                              onClick={() => handleResetPassword(u)}
+                              className="text-xs text-text-secondary hover:text-text-primary px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                            >
+                              Reset pw
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeactivate(u)}
+                            className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                          >
+                            Deactivate
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showInvite && (
@@ -181,13 +186,13 @@ export function SettingsUsersPage() {
 }
 
 function RoleBadge({ role }: { role: string }) {
-  const colors: Record<string, string> = {
-    admin: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-    member: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-    viewer: 'bg-gray-500/20 text-gray-300 border-gray-500/30',
+  const styles: Record<string, string> = {
+    admin: 'bg-purple-100 text-purple-700 ring-1 ring-purple-200',
+    member: 'bg-blue-100 text-blue-700 ring-1 ring-blue-200',
+    viewer: 'bg-gray-100 text-gray-600 ring-1 ring-gray-200',
   }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${colors[role] ?? colors.member}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${styles[role] ?? styles.member}`}>
       {role}
     </span>
   )
@@ -202,20 +207,20 @@ function SetupLinkBox({ token, onClose }: { token: string; onClose: () => void }
     setTimeout(() => setCopied(false), 2000)
   }
   return (
-    <div className="mb-6 p-4 bg-[#1E293B] rounded-xl border border-[#334155]">
+    <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-sm font-medium text-[#F1F5F9]">Share this one-time login link</p>
-        <button onClick={onClose} className="text-[#475569] hover:text-[#94A3B8] text-xs">Dismiss</button>
+        <p className="text-sm font-medium text-text-primary">Share this one-time login link</p>
+        <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary text-xs">Dismiss</button>
       </div>
-      <p className="text-xs text-[#64748B] mb-3">The link expires after 7 days. Share it securely.</p>
+      <p className="text-xs text-text-secondary mb-3">The link expires after 7 days. Share it securely.</p>
       <div className="flex gap-2">
         <input
           readOnly value={url}
-          className="flex-1 text-xs bg-[#0F172A] border border-[#334155] rounded-lg px-3 py-2 text-[#F1F5F9] font-mono"
+          className="flex-1 text-xs border border-border rounded-lg px-3 py-2 text-text-primary font-mono bg-white focus:outline-none"
         />
         <button
           onClick={copyLink}
-          className="px-4 py-2 text-xs bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg transition-colors font-medium min-w-[70px]"
+          className="px-4 py-2 text-xs bg-brand-primary hover:bg-brand-primary/90 text-white rounded-lg transition-colors font-medium min-w-[70px]"
         >
           {copied ? 'Copied!' : 'Copy'}
         </button>
@@ -224,14 +229,14 @@ function SetupLinkBox({ token, onClose }: { token: string; onClose: () => void }
   )
 }
 
-const inputCls = 'w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 focus:outline-none focus:border-[#2563EB]'
-const primaryBtn = 'flex-1 h-10 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-sm font-medium transition-colors disabled:opacity-50'
-const secondaryBtn = 'flex-1 h-10 rounded-lg border border-[#334155] text-[#94A3B8] hover:text-[#F1F5F9] text-sm font-medium transition-colors'
+const inputCls = 'w-full h-10 rounded-lg border border-border text-text-primary text-sm px-3 bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent'
+const primaryBtn = 'flex-1 h-10 rounded-lg bg-brand-primary hover:bg-brand-primary/90 text-white text-sm font-medium transition-colors disabled:opacity-50'
+const secondaryBtn = 'flex-1 h-10 rounded-lg border border-border text-text-secondary hover:text-text-primary text-sm font-medium transition-colors bg-white'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[#94A3B8] text-xs font-medium mb-1.5">{label}</label>
+      <label className="block text-text-secondary text-xs font-medium mb-1.5">{label}</label>
       {children}
     </div>
   )
@@ -239,12 +244,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div
-        className="relative w-full max-w-md mx-4 bg-[#0F172A] rounded-2xl border border-[#1E293B] p-6"
-        style={{ boxShadow: '0 24px 48px rgba(0,0,0,0.4)' }}
-      >
-        <button onClick={onClose} className="absolute top-4 right-4 text-[#475569] hover:text-[#94A3B8] text-lg leading-none">×</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative w-full max-w-md mx-4 bg-white rounded-xl border border-border p-6 shadow-xl">
+        <button onClick={onClose} className="absolute top-4 right-4 text-text-tertiary hover:text-text-secondary text-lg leading-none">×</button>
         {children}
       </div>
     </div>
@@ -276,7 +278,7 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   return (
     <ModalOverlay onClose={onClose}>
-      <h2 className="text-lg font-semibold text-[#F1F5F9] mb-6">Invite user</h2>
+      <h2 className="text-lg font-semibold text-text-primary mb-6">Invite user</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="Name"><input value={name} onChange={e => setName(e.target.value)} required className={inputCls} placeholder="Jane Smith" /></Field>
         <Field label="Email"><input type="email" value={email} onChange={e => setEmail(e.target.value)} required className={inputCls} placeholder="jane@company.com" /></Field>
@@ -288,7 +290,7 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           </select>
         </Field>
         <Field label="Initial password"><input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} className={inputCls} placeholder="Min. 8 characters" /></Field>
-        {error && <p className="text-red-400 text-xs">{error}</p>}
+        {error && <p className="text-red-500 text-xs">{error}</p>}
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={onClose} className={secondaryBtn}>Cancel</button>
           <button type="submit" disabled={loading} className={primaryBtn}>{loading ? 'Creating…' : 'Create user'}</button>
@@ -326,8 +328,8 @@ function EditModal({ user, onClose, onSaved }: { user: UserRecord; onClose: () =
 
   return (
     <ModalOverlay onClose={onClose}>
-      <h2 className="text-lg font-semibold text-[#F1F5F9] mb-1">Edit user</h2>
-      <p className="text-[#64748B] text-sm mb-6">{user.email}</p>
+      <h2 className="text-lg font-semibold text-text-primary mb-1">Edit user</h2>
+      <p className="text-text-secondary text-sm mb-6">{user.email}</p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="Name"><input value={name} onChange={e => setName(e.target.value)} className={inputCls} /></Field>
         {user.auth_source !== 'saml' && (
@@ -344,7 +346,7 @@ function EditModal({ user, onClose, onSaved }: { user: UserRecord; onClose: () =
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} minLength={8} className={inputCls} placeholder="Leave blank to keep current" />
           </Field>
         )}
-        {error && <p className="text-red-400 text-xs">{error}</p>}
+        {error && <p className="text-red-500 text-xs">{error}</p>}
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={onClose} className={secondaryBtn}>Cancel</button>
           <button type="submit" disabled={loading} className={primaryBtn}>{loading ? 'Saving…' : 'Save changes'}</button>

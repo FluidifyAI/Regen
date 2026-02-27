@@ -251,60 +251,60 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 ### Phase 1: Foundation (v0.1–v0.3)
 
 **v0.1 — Alert to Slack (Weeks 1–3)**
-- [ ] Project setup (Go, PostgreSQL, Redis, Docker Compose)
-- [ ] Prometheus webhook endpoint
-- [ ] Alert model and storage
-- [ ] Incident auto-creation from alerts
-- [ ] Slack channel auto-creation
-- [ ] Basic incident list UI
+- [x] Project setup (Go, PostgreSQL, Redis, Docker Compose)
+- [x] Prometheus webhook endpoint
+- [x] Alert model and storage
+- [x] Incident auto-creation from alerts
+- [x] Slack channel auto-creation
+- [x] Basic incident list UI
 
 **v0.2 — Incident Lifecycle (Weeks 4–5)**
-- [ ] Status workflow (triggered → acknowledged → resolved)
-- [ ] Timeline entries (immutable)
-- [ ] Slack bidirectional sync
-- [ ] Manual incident creation from Slack (/incident new)
-- [ ] Incident detail page
+- [x] Status workflow (triggered → acknowledged → resolved)
+- [x] Timeline entries (immutable)
+- [x] Slack bidirectional sync
+- [x] Manual incident creation from Slack (/incident new)
+- [x] Incident detail page
 
 **v0.3 — Multi-Source Alerts (Weeks 6–8)**
-- [ ] Grafana webhook
-- [ ] CloudWatch webhook
-- [ ] Generic webhook
-- [ ] Alert deduplication
-- [ ] Alert grouping rules
-- [ ] Routing rules
+- [x] Grafana webhook
+- [x] CloudWatch webhook
+- [x] Generic webhook
+- [x] Alert deduplication
+- [x] Alert grouping rules
+- [x] Routing rules
 
 ### Phase 2: On-Call (v0.4–v0.5)
 
 **v0.4 — Rotations (Weeks 9–11)**
-- [ ] Schedule model
-- [ ] Layer-based rotations
-- [ ] Override scheduling
-- [ ] Calendar UI
-- [ ] Who's on call API
-- [ ] Slack shift notifications
+- [x] Schedule model
+- [x] Layer-based rotations
+- [x] Override scheduling
+- [x] Calendar UI
+- [x] Who's on call API
+- [x] Slack shift notifications
 
 **v0.5 — Escalations (Weeks 12–14)**
-- [ ] Escalation policy model
-- [ ] Multi-step escalation
-- [ ] Timeout triggers
-- [ ] Escalation UI
-- [ ] PagerDuty import
+- [x] Escalation policy model
+- [x] Multi-step escalation
+- [x] Timeout triggers
+- [x] Escalation UI
+- [ ] PagerDuty import — **PENDING** (OI-EPIC-020): API client, schedule/policy mapping, CLI command, validation, docs — not yet implemented
 
 ### Phase 3: AI (v0.6–v0.7)
 
 **v0.6 — Summarization (Weeks 15–17)**
-- [ ] OpenAI integration (BYO key)
-- [ ] Incident summary generation
-- [ ] Slack thread summarization
-- [ ] Handoff digest
-- [ ] Summary in UI
+- [x] OpenAI integration (BYO key) — `internal/integrations/openai/`
+- [x] Incident summary generation — `POST /api/v1/incidents/:id/summarize`
+- [x] Slack thread summarization
+- [x] Handoff digest
+- [x] Summary in UI
 
 **v0.7 — Post-Mortems (Weeks 18–20)**
-- [ ] Post-mortem model
-- [ ] Auto-generated drafts
-- [ ] Template system
-- [ ] Action item extraction
-- [ ] Export (Confluence/Notion)
+- [x] Post-mortem model — migrations 000017–000019
+- [x] Auto-generated drafts — `POST /api/v1/incidents/:id/postmortem/generate`
+- [x] Template system — `PostMortemTemplatesPage`, CRUD API
+- [x] Action item extraction
+- [ ] Export (Confluence/Notion) — **PENDING**: not implemented; post-mortems exportable as JSON only
 
 ### Phase 4: Enterprise (v0.8–v1.0)
 
@@ -337,11 +337,11 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 - [ ] Auto-invite specific users to Teams channel — **documented limitation**: no-op for standard channels; Graph API `TeamMember` adds to Team, not channel. Private channel model required.
 
 **v1.0 — Production Ready (Weeks 27–28)**
-- [ ] Kubernetes Helm chart
-- [ ] HA documentation
-- [ ] Security hardening
-- [ ] Performance tuning
-- [ ] Public launch
+- [x] Kubernetes Helm chart — `deploy/helm/openincident/` (Deployment, Service, Ingress, HPA, migration Job, ConfigMap, Secret, NOTES.txt)
+- [x] HA documentation — `docs/OPERATIONS.md` (K8s HA, PostgreSQL HA, Redis Sentinel, zero-downtime deploys, observability, sizing)
+- [x] Security hardening — CORS allowlist (`CORS_ALLOWED_ORIGINS`), HSTS, security headers, rate limiting (3 tiers), webhook signing; `docs/SECURITY.md`
+- [x] Performance tuning — N+1 fix in escalation engine, 8 new DB indexes (migration 000023), `GetAlerts()` bounded at 500, redundant pre-check removed
+- [ ] Public launch — **PENDING**: README final polish, Docker Hub image push, announcement
 
 ---
 

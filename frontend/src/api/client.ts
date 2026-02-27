@@ -29,10 +29,14 @@ class ApiClient {
     try {
       const response = await fetch(url, config)
 
-      // Handle 401 — redirect to login page (handles both local and SSO auth)
+      // Handle 401 — redirect to login page unless already there
       if (response.status === 401) {
-        window.location.href = '/login'
-        return new Promise(() => {}) // never settles; browser is navigating away
+        const onAuthPage = ['/login', '/logout'].includes(window.location.pathname)
+        if (!onAuthPage) {
+          window.location.href = '/login'
+          return new Promise(() => {}) // never settles; browser is navigating away
+        }
+        // Already on login page — fall through to throw the error normally
       }
 
       // Handle 204 No Content - no body to parse

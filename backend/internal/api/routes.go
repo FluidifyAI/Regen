@@ -227,8 +227,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// is kept for SAML redirect flows and deep-link compatibility.
 		v1.POST("/auth/logout", handlers.APILogout(samlMiddleware, localAuth))
 
-		// Auth identity endpoint
-		v1.GET("/auth/me", middleware.RequireAuth(samlMiddleware, localAuth), handlers.GetCurrentUser(localAuth, samlMiddleware != nil))
+		// Auth identity endpoint — intentionally no RequireAuth so unauthenticated
+		// callers can read ssoEnabled to decide whether to show the SSO button.
+		// The handler itself checks session state and returns the correct payload.
+		v1.GET("/auth/me", handlers.GetCurrentUser(localAuth, samlMiddleware != nil))
 
 		// Protected routes — require session (no-op when auth disabled).
 		// RBAC middleware runs after auth; the OSS no-op allows all requests through.

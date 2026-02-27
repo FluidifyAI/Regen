@@ -142,7 +142,7 @@ func GetCurrentUser(localAuth services.LocalAuthService, samlConfigured bool) gi
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store")
 
-		// Local session user (also covers SAML users resolved by InjectSAMLSession middleware)
+		// Local session user resolved by RequireAuth or InjectSAMLSession middleware.
 		if user := middleware.GetLocalUser(c); user != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"authenticated": true,
@@ -153,6 +153,24 @@ func GetCurrentUser(localAuth services.LocalAuthService, samlConfigured bool) gi
 				"ssoEnabled":    samlConfigured,
 			})
 			return
+		}
+
+		// /auth/me is public (no RequireAuth), so local session cookies are not
+		// resolved by middleware. Check the cookie directly here.
+		if localAuth != nil {
+			if cookie, err := c.Cookie("oi_session"); err == nil && cookie != "" {
+				if user, err := localAuth.GetSessionUser(cookie); err == nil {
+					c.JSON(http.StatusOK, gin.H{
+						"authenticated": true,
+						"id":            user.ID,
+						"email":         user.Email,
+						"name":          user.Name,
+						"role":          user.Role,
+						"ssoEnabled":    samlConfigured,
+					})
+					return
+				}
+			}
 		}
 
 		// Fallback: SAML session exists but DB resolution failed (e.g. deactivated user).

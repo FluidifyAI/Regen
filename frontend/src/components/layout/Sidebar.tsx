@@ -129,7 +129,7 @@ export function Sidebar() {
         },
       ],
     },
-    {
+    ...(currentUser?.role === 'admin' ? [{
       id: 'settings',
       label: 'Settings',
       collapsible: false,
@@ -142,7 +142,7 @@ export function Sidebar() {
           matchPaths: ['/settings/users'],
         },
       ],
-    },
+    }] : []),
   ]
 
   const isActive = (item: NavItem): boolean => {

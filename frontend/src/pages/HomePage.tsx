@@ -16,6 +16,7 @@ import { updateIncident } from '../api/incidents'
 import { Button } from '../components/ui/Button'
 import { IncidentCard } from '../components/incidents/IncidentCard'
 import { CreateIncidentModal } from '../components/incidents/CreateIncidentModal'
+import { ConfirmStatusChangeModal } from '../components/incidents/ConfirmStatusChangeModal'
 import { SkeletonCard } from '../components/ui/Skeleton'
 import { EmptyDashboard } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
@@ -29,10 +30,18 @@ import type { Incident } from '../api/types'
  * Groups active incidents by status (triggered, acknowledged)
  * Shows resolved incidents in separate column
  */
+type DragStatus = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
+
+interface PendingDrag {
+  incidentId: string
+  newStatus: DragStatus
+}
+
 export function HomePage() {
   const navigate = useNavigate()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [activeIncident, setActiveIncident] = useState<Incident | null>(null)
+  const [pendingDrag, setPendingDrag] = useState<PendingDrag | null>(null)
   const { toasts, dismissToast, success, error: showError } = useToast()
 
   // Fetch active incidents (not canceled)
@@ -61,10 +70,9 @@ export function HomePage() {
     setActiveIncident(incident || null)
   }
 
-  const VALID_STATUSES = ['triggered', 'acknowledged', 'resolved'] as const
-  type DragStatus = (typeof VALID_STATUSES)[number]
+  const VALID_STATUSES = ['triggered', 'acknowledged', 'resolved', 'canceled'] as const
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     setActiveIncident(null)
 
@@ -89,17 +97,22 @@ export function HomePage() {
     const incident = incidents.find((i) => i.id === incidentId)
     if (!incident || incident.status === newStatus) return
 
+    // Terminal statuses require modal confirmation before committing
+    if (newStatus === 'resolved' || newStatus === 'canceled') {
+      setPendingDrag({ incidentId, newStatus })
+      return
+    }
+
+    commitDrag(incidentId, newStatus)
+  }
+
+  const commitDrag = async (incidentId: string, newStatus: DragStatus) => {
+    setPendingDrag(null)
     try {
-      // Make API call and wait for it
       await updateIncident(incidentId, { status: newStatus })
-
-      // Refetch to get fresh data and WAIT for it
       await refetch()
-
-      // Show success only after refetch completes
       success(`Incident moved to ${newStatus}`)
     } catch (err) {
-      // Refetch to rollback on error
       await refetch()
       showError(err instanceof Error ? err.message : 'Failed to update status')
     }
@@ -121,6 +134,12 @@ export function HomePage() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreated={handleIncidentCreated}
+      />
+      <ConfirmStatusChangeModal
+        isOpen={pendingDrag !== null}
+        newStatus={pendingDrag?.newStatus ?? 'resolved'}
+        onConfirm={() => pendingDrag && commitDrag(pendingDrag.incidentId, pendingDrag.newStatus)}
+        onCancel={() => setPendingDrag(null)}
       />
       {/* Page Header */}
       <div className="border-b border-border bg-white px-6 py-4">

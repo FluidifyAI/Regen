@@ -219,8 +219,8 @@ export function EscalationPoliciesPage() {
                     >
                       {policy.enabled ? (
                         <>
-                          <ToggleRight className="w-4 h-4 text-green-600" />
-                          <span className="text-green-700">Enabled</span>
+                          <ToggleRight className="w-4 h-4 text-brand-primary" />
+                          <span className="text-brand-primary font-medium">Enabled</span>
                         </>
                       ) : (
                         <>

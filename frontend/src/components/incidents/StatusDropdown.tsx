@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { updateIncident } from '../../api/incidents'
 import { Badge } from '../ui/Badge'
+import { ConfirmStatusChangeModal } from './ConfirmStatusChangeModal'
 
 type StatusType = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
 
@@ -16,9 +17,12 @@ interface StatusDropdownProps {
 
 const STATUS_OPTIONS: StatusType[] = ['triggered', 'acknowledged', 'resolved', 'canceled']
 
+// Terminal statuses that require modal confirmation before committing
+const CONFIRM_REQUIRED: StatusType[] = ['resolved', 'canceled']
+
 /**
- * Status dropdown with optimistic updates
- * Updates UI immediately, calls API, rolls back on error
+ * Status dropdown with modal confirmation for terminal status changes.
+ * resolved/canceled show a confirmation modal before committing.
  */
 export function StatusDropdown({
   incidentId,
@@ -30,27 +34,29 @@ export function StatusDropdown({
 }: StatusDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [pendingStatus, setPendingStatus] = useState<StatusType | null>(null)
 
-  const handleStatusChange = async (newStatus: StatusType) => {
-    if (newStatus === currentStatus || isUpdating) return
-
+  const handleStatusClick = (status: StatusType) => {
+    if (status === currentStatus || isUpdating) return
     setIsOpen(false)
-    setIsUpdating(true)
 
-    // Save previous status for rollback
+    if (CONFIRM_REQUIRED.includes(status)) {
+      setPendingStatus(status)
+    } else {
+      commitStatusChange(status)
+    }
+  }
+
+  const commitStatusChange = async (newStatus: StatusType) => {
+    setPendingStatus(null)
+    setIsUpdating(true)
     const previousStatus = currentStatus
 
     try {
-      // Make API call
       await updateIncident(incidentId, { status: newStatus })
-
-      // Refetch to get the updated data from server
       await onRefetch()
-
-      // Show success toast AFTER refetch completes
       onSuccess(`Status updated to ${newStatus}`)
     } catch (error) {
-      // Rollback on error
       onStatusChange(previousStatus)
       onError(error instanceof Error ? error.message : 'Failed to update status')
     } finally {
@@ -59,46 +65,52 @@ export function StatusDropdown({
   }
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => !isUpdating && setIsOpen(!isOpen)}
-        disabled={isUpdating}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-surface-secondary transition-colors ${
-          isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-        }`}
-      >
-        <Badge variant={currentStatus} type="status">
-          {currentStatus}
-        </Badge>
-        <ChevronDown className="w-4 h-4 text-text-tertiary" />
-      </button>
+    <>
+      <ConfirmStatusChangeModal
+        isOpen={pendingStatus !== null}
+        newStatus={pendingStatus ?? 'resolved'}
+        onConfirm={() => pendingStatus && commitStatusChange(pendingStatus)}
+        onCancel={() => setPendingStatus(null)}
+      />
 
-      {isOpen && !isUpdating && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
-          />
+      <div className="relative">
+        <button
+          onClick={() => !isUpdating && setIsOpen(!isOpen)}
+          disabled={isUpdating}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-surface-secondary transition-colors ${
+            isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+          }`}
+        >
+          <Badge variant={currentStatus} type="status">
+            {currentStatus}
+          </Badge>
+          <ChevronDown className="w-4 h-4 text-text-tertiary" />
+        </button>
 
-          {/* Dropdown Menu */}
-          <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-border rounded-lg shadow-lg z-20 py-1">
-            {STATUS_OPTIONS.map((status) => (
-              <button
-                key={status}
-                onClick={() => handleStatusChange(status)}
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-secondary transition-colors flex items-center gap-2 ${
-                  status === currentStatus ? 'bg-surface-secondary' : ''
-                }`}
-              >
-                <Badge variant={status} type="status">
-                  {status}
-                </Badge>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+        {isOpen && !isUpdating && (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setIsOpen(false)}
+            />
+            <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-border rounded-lg shadow-lg z-20 py-1">
+              {STATUS_OPTIONS.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => handleStatusClick(status)}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-secondary transition-colors flex items-center gap-2 ${
+                    status === currentStatus ? 'bg-surface-secondary' : ''
+                  }`}
+                >
+                  <Badge variant={status} type="status">
+                    {status}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </>
   )
 }

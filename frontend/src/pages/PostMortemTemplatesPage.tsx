@@ -181,6 +181,7 @@ export function PostMortemTemplatesPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<PostMortemTemplate | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   async function fetchTemplates() {
     setLoading(true)
@@ -212,11 +213,12 @@ export function PostMortemTemplatesPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this template? This cannot be undone.')) return
     setDeletingId(id)
+    setDeleteError(null)
     try {
       await deletePostMortemTemplate(id)
       setTemplates((prev) => prev.filter((t) => t.id !== id))
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete template')
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete template')
     } finally {
       setDeletingId(null)
     }
@@ -260,6 +262,12 @@ export function PostMortemTemplatesPage() {
           New Template
         </Button>
       </div>
+
+      {deleteError && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {deleteError}
+        </div>
+      )}
 
       {/* Built-in templates */}
       {builtIn.length > 0 && (

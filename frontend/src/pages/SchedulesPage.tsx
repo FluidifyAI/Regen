@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { Button } from '../components/ui/Button'
@@ -19,6 +19,7 @@ const GANTT_DAYS = 7
 function useScheduleTimelines(
   scheduleIds: string[],
   windowStart: Date,
+  days: number,
 ): Record<string, TimelineSegment[]> {
   const [data, setData] = useState<Record<string, TimelineSegment[]>>({})
 
@@ -27,9 +28,10 @@ function useScheduleTimelines(
       setData({})
       return
     }
+    let cancelled = false
     const from = windowStart.toISOString()
     const toDate = new Date(windowStart)
-    toDate.setDate(toDate.getDate() + GANTT_DAYS)
+    toDate.setDate(toDate.getDate() + days)
     const to = toDate.toISOString()
 
     Promise.all(
@@ -39,14 +41,15 @@ function useScheduleTimelines(
           .catch(() => ({ id, segments: [] as TimelineSegment[] })),
       ),
     ).then((results) => {
+      if (cancelled) return
       const map: Record<string, TimelineSegment[]> = {}
       results.forEach(({ id, segments }) => {
         map[id] = segments
       })
       setData(map)
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scheduleIds.join(','), windowStart.toISOString()])
+    return () => { cancelled = true }
+  }, [scheduleIds, windowStart, days])
 
   return data
 }
@@ -194,8 +197,8 @@ export function SchedulesPage() {
     navigate(`/on-call/${id}`)
   }
 
-  const scheduleIds = schedules.map((s) => s.id)
-  const timelines = useScheduleTimelines(scheduleIds, windowStart)
+  const scheduleIds = useMemo(() => schedules.map((s) => s.id), [schedules])
+  const timelines = useScheduleTimelines(scheduleIds, windowStart, GANTT_DAYS)
 
   const ganttRows: GanttRow[] = schedules.map((s) => ({
     id: s.id,

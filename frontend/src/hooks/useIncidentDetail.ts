@@ -27,6 +27,8 @@ interface IncidentDetail {
   // AI Summarization (v0.6+)
   ai_summary?: string
   ai_summary_generated_at?: string
+  // AI Agents (v0.9+)
+  ai_enabled: boolean
 }
 
 interface UseIncidentDetailResult {

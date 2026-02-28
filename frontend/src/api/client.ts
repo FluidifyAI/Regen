@@ -1,4 +1,4 @@
-import type { ApiError } from './types'
+import type { ApiError, AIAgent } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL || ''
 
@@ -120,3 +120,11 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient()
+
+export async function listAgents(): Promise<AIAgent[]> {
+  return apiClient.get<AIAgent[]>('/api/v1/agents')
+}
+
+export async function setAgentStatus(id: string, active: boolean): Promise<AIAgent> {
+  return apiClient.patch<AIAgent>(`/api/v1/agents/${id}/status`, { active })
+}

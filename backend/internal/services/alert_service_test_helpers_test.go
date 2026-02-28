@@ -48,10 +48,10 @@ type mockIncidentService struct {
 func (m *mockIncidentService) ShouldCreateIncident(severity models.AlertSeverity) bool {
 	return m.shouldCreate
 }
-func (m *mockIncidentService) CreateIncidentFromAlert(alert *models.Alert) (*models.Incident, error) {
+func (m *mockIncidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled bool) (*models.Incident, error) {
 	return &models.Incident{ID: uuid.New()}, nil
 }
-func (m *mockIncidentService) CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string) (*models.Incident, error) {
+func (m *mockIncidentService) CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string, aiEnabled bool) (*models.Incident, error) {
 	return &models.Incident{ID: uuid.New()}, nil
 }
 func (m *mockIncidentService) LinkAlertToExistingIncident(alert *models.Alert, incidentID uuid.UUID) error {

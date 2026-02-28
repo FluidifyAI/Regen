@@ -326,3 +326,60 @@ func TestRoutingEngine_RefreshRules_UpdatesCache(t *testing.T) {
 		t.Error("should suppress after rules refreshed")
 	}
 }
+
+func TestExtractAIEnabled_DefaultsTrueWhenAbsent(t *testing.T) {
+	// Rule with no ai_enabled key in actions — should default to true
+	rules := []models.RoutingRule{
+		makeRoutingRule(10,
+			models.JSONB{"source": []interface{}{"prometheus"}},
+			models.JSONB{"severity_override": "critical"},
+		),
+	}
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: rules})
+	alert := makeAlert("prometheus", "warning", nil)
+
+	decision, err := engine.EvaluateAlert(alert)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !decision.AIEnabled {
+		t.Error("expected AIEnabled=true when ai_enabled is absent from rule actions")
+	}
+}
+
+func TestExtractAIEnabled_FalseWhenExplicitlySet(t *testing.T) {
+	// Rule with ai_enabled: false — should propagate false
+	rules := []models.RoutingRule{
+		makeRoutingRule(10,
+			models.JSONB{"source": []interface{}{"prometheus"}},
+			models.JSONB{"ai_enabled": false},
+		),
+	}
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: rules})
+	alert := makeAlert("prometheus", "critical", nil)
+
+	decision, err := engine.EvaluateAlert(alert)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if decision.AIEnabled {
+		t.Error("expected AIEnabled=false when ai_enabled is explicitly set to false in rule actions")
+	}
+}
+
+func TestRoutingDecision_NoMatch_AIEnabledTrue(t *testing.T) {
+	// No rules at all — no match means default decision with AIEnabled=true
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: nil})
+	alert := makeAlert("prometheus", "critical", nil)
+
+	decision, err := engine.EvaluateAlert(alert)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !decision.AIEnabled {
+		t.Error("expected AIEnabled=true when no rules match")
+	}
+}

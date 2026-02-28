@@ -229,7 +229,16 @@ export function GanttCalendar({
 
           {/* ── Data rows ── */}
           <tbody>
-            {rows.map((row) => {
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={days + 1}
+                  className="px-4 py-8 text-center text-sm text-text-tertiary italic"
+                >
+                  No layers configured
+                </td>
+              </tr>
+            ) : rows.map((row) => {
               const hasSegments = row.segments.length > 0
 
               return (
@@ -292,8 +301,10 @@ export function GanttCalendar({
                             >
                               {showLabel && (
                                 <span className="text-xs font-medium truncate leading-none">
-                                  {seg.is_override ? '↪ ' : ''}
                                   {seg.user_name}
+                                  {seg.is_override && (
+                                    <span className="opacity-60 ml-1 text-[10px]">(override)</span>
+                                  )}
                                 </span>
                               )}
                             </div>

@@ -39,6 +39,10 @@ func NewTestCoordinator(postMortemAgent Agent) *AICoordinator {
 // Start subscribes to the event stream and blocks until ctx is cancelled.
 // Run this in a goroutine: go coordinator.Start(appCtx)
 func (c *AICoordinator) Start(ctx context.Context) {
+	if c.redis == nil {
+		slog.Error("coordinator: Start called without Redis client — use New() not NewTestCoordinator()")
+		return
+	}
 	sub := c.redis.PSubscribe(ctx, "events:incident.*")
 	defer sub.Close()
 	slog.Info("AI coordinator started")
@@ -52,14 +56,19 @@ func (c *AICoordinator) Start(ctx context.Context) {
 			if !ok {
 				return
 			}
-			go c.RoutePayload(msg.Channel, []byte(msg.Payload))
+			go c.RoutePayload(ctx, msg.Channel, []byte(msg.Payload))
 		}
 	}
 }
 
 // RoutePayload parses a raw event payload and dispatches to the correct agent.
 // Exported for testability (called from Start and unit tests).
-func (c *AICoordinator) RoutePayload(channel string, payload []byte) {
+func (c *AICoordinator) RoutePayload(ctx context.Context, channel string, payload []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("coordinator: panic in route handler", "recover", r, "channel", channel)
+		}
+	}()
 	switch channel {
 	case "events:incident.resolved":
 		var p resolvedPayload
@@ -77,11 +86,6 @@ func (c *AICoordinator) RoutePayload(channel string, payload []byte) {
 			return
 		}
 		slog.Info("coordinator: routing to post-mortem agent", "incident_id", id)
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("coordinator: post-mortem agent panicked", "recover", r)
-			}
-		}()
-		c.postMortemAgent.Handle(context.Background(), id)
+		c.postMortemAgent.Handle(ctx, id)
 	}
 }

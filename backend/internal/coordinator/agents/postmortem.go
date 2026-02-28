@@ -11,7 +11,6 @@ import (
 	"github.com/openincident/openincident/internal/models"
 	"github.com/openincident/openincident/internal/repository"
 	"github.com/openincident/openincident/internal/services"
-	"gorm.io/gorm"
 )
 
 const minIncidentDuration = 5 * time.Minute
@@ -88,7 +87,8 @@ func (a *PostMortemAgent) Handle(ctx context.Context, incidentID uuid.UUID) {
 		slog.Info("post-mortem agent: post-mortem already exists, skipping", "incident_id", incidentID)
 		return
 	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	var notFound *repository.NotFoundError
+	if !errors.As(err, &notFound) {
 		slog.Error("post-mortem agent: failed to check existing post-mortem", "error", err)
 		return
 	}

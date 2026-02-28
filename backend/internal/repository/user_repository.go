@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,7 +35,8 @@ type UserRepository interface {
 	CreateAgent(user *models.User) error
 	// SetActive enables or disables a user (used for agent on/off toggle).
 	SetActive(id uuid.UUID, active bool) error
-	// ListAgents returns all users with auth_source='ai'.
+	// ListAgents returns all users with auth_source='ai', including inactive ones.
+	// The coordinator must additionally check the Active flag before dispatching work.
 	ListAgents() ([]models.User, error)
 }
 
@@ -91,13 +93,23 @@ func (r *userRepository) CreateLocal(user *models.User) error {
 }
 
 func (r *userRepository) CreateAgent(user *models.User) error {
+	if user.PasswordHash != nil {
+		return fmt.Errorf("repository: CreateAgent: password_hash must be nil for AI agent accounts")
+	}
 	return r.db.Create(user).Error
 }
 
 func (r *userRepository) SetActive(id uuid.UUID, active bool) error {
-	return r.db.Model(&models.User{}).
+	result := r.db.Model(&models.User{}).
 		Where("id = ?", id).
-		Update("active", active).Error
+		Update("active", active)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return &NotFoundError{Resource: "user", ID: id.String()}
+	}
+	return nil
 }
 
 func (r *userRepository) ListAgents() ([]models.User, error) {

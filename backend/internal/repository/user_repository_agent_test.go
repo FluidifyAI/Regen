@@ -3,6 +3,7 @@ package repository_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/database"
 	"github.com/openincident/openincident/internal/models"
 	"github.com/openincident/openincident/internal/repository"
@@ -32,6 +33,7 @@ func TestUserRepository_CreateAgent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ai", found.AuthSource)
 	assert.Equal(t, "postmortem", *found.AgentType)
+	assert.Nil(t, found.PasswordHash, "AI agent must have no password hash")
 }
 
 func TestUserRepository_SetActive(t *testing.T) {
@@ -60,6 +62,14 @@ func TestUserRepository_ListAgents(t *testing.T) {
 	db := database.SetupTestDB(t)
 	repo := repository.NewUserRepository(db)
 
+	// Insert a human user — must NOT appear in ListAgents
+	human := &models.User{
+		Email: "human@example.com", Name: "Alice Human",
+		AuthSource: "local", Role: models.UserRoleMember, Active: true,
+	}
+	require.NoError(t, db.Create(human).Error)
+
+	// Insert one AI agent
 	agentType := "postmortem"
 	require.NoError(t, repo.CreateAgent(&models.User{
 		Email: "agent-pm@system.internal", Name: "Post-Mortem Agent",
@@ -68,6 +78,17 @@ func TestUserRepository_ListAgents(t *testing.T) {
 
 	agents, err := repo.ListAgents()
 	require.NoError(t, err)
-	assert.Len(t, agents, 1)
+	assert.Len(t, agents, 1, "human user must not appear in ListAgents result")
 	assert.Equal(t, "ai", agents[0].AuthSource)
+}
+
+func TestUserRepository_SetActive_NotFound(t *testing.T) {
+	db := database.SetupTestDB(t)
+	repo := repository.NewUserRepository(db)
+
+	randomID := uuid.New()
+	err := repo.SetActive(randomID, false)
+	require.Error(t, err)
+	var notFound *repository.NotFoundError
+	assert.ErrorAs(t, err, &notFound)
 }

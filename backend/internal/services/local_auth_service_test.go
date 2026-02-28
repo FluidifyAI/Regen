@@ -106,6 +106,16 @@ func (r *stubUserRepo) Count() (int64, error) {
 	return n, nil
 }
 
+func (r *stubUserRepo) CountByRole(role models.UserRole) (int64, error) {
+	var n int64
+	for _, u := range r.users {
+		if u.AuthSource != "deactivated" && u.Role == role {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (r *stubUserRepo) Deactivate(id uuid.UUID) error {
 	for _, u := range r.users {
 		if u.ID == id {
@@ -115,6 +125,34 @@ func (r *stubUserRepo) Deactivate(id uuid.UUID) error {
 		}
 	}
 	return &repository.NotFoundError{Resource: "user", ID: id.String()}
+}
+
+func (r *stubUserRepo) CreateAgent(user *models.User) error {
+	if user.ID == uuid.Nil {
+		user.ID = uuid.New()
+	}
+	r.users[user.Email] = user
+	return nil
+}
+
+func (r *stubUserRepo) SetActive(id uuid.UUID, active bool) error {
+	for _, u := range r.users {
+		if u.ID == id {
+			u.Active = active
+			return nil
+		}
+	}
+	return &repository.NotFoundError{Resource: "user", ID: id.String()}
+}
+
+func (r *stubUserRepo) ListAgents() ([]models.User, error) {
+	var out []models.User
+	for _, u := range r.users {
+		if u.AuthSource == "ai" {
+			out = append(out, *u)
+		}
+	}
+	return out, nil
 }
 
 // ── stubSessionRepo ──────────────────────────────────────────────────────────
@@ -157,6 +195,15 @@ func (r *stubSessionRepo) DeleteExpired() error {
 	now := time.Now()
 	for token, s := range r.sessions {
 		if !now.Before(s.ExpiresAt) {
+			delete(r.sessions, token)
+		}
+	}
+	return nil
+}
+
+func (r *stubSessionRepo) DeleteByUserID(userID uuid.UUID) error {
+	for token, s := range r.sessions {
+		if s.UserID == userID {
 			delete(r.sessions, token)
 		}
 	}

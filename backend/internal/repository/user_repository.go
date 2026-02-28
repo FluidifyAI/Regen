@@ -30,6 +30,12 @@ type UserRepository interface {
 	CountByRole(role models.UserRole) (int64, error)
 	// Deactivate soft-deletes a user by setting auth_source='deactivated'.
 	Deactivate(id uuid.UUID) error
+	// CreateAgent inserts an AI agent user. No password hash is set.
+	CreateAgent(user *models.User) error
+	// SetActive enables or disables a user (used for agent on/off toggle).
+	SetActive(id uuid.UUID, active bool) error
+	// ListAgents returns all users with auth_source='ai'.
+	ListAgents() ([]models.User, error)
 }
 
 type userRepository struct {
@@ -82,6 +88,22 @@ func (r *userRepository) UpdateLastLogin(id uuid.UUID, at time.Time) error {
 
 func (r *userRepository) CreateLocal(user *models.User) error {
 	return r.db.Create(user).Error
+}
+
+func (r *userRepository) CreateAgent(user *models.User) error {
+	return r.db.Create(user).Error
+}
+
+func (r *userRepository) SetActive(id uuid.UUID, active bool) error {
+	return r.db.Model(&models.User{}).
+		Where("id = ?", id).
+		Update("active", active).Error
+}
+
+func (r *userRepository) ListAgents() ([]models.User, error) {
+	var agents []models.User
+	err := r.db.Where("auth_source = ?", "ai").Order("name").Find(&agents).Error
+	return agents, err
 }
 
 func (r *userRepository) ListAll() ([]models.User, error) {

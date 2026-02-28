@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Hash, Calendar, Clock, ExternalLink, Timer, Act
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
 import type { Alert, TimelineEntry } from '../../api/types'
+import { updateIncident } from '../../api/incidents'
 
 type StatusType = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
 type SeverityType = 'critical' | 'high' | 'medium' | 'low'
@@ -23,6 +24,8 @@ interface Incident {
   acknowledged_at?: string
   resolved_at?: string
   commander_id?: string
+  // AI Agents (v0.9+)
+  ai_enabled: boolean
   // Detail fields
   alerts: Alert[]
   timeline: TimelineEntry[]
@@ -30,13 +33,14 @@ interface Incident {
 
 interface PropertiesPanelProps {
   incident: Incident
+  onIncidentUpdated?: () => void
 }
 
 /**
  * Collapsible properties panel for incident details.
  * Shows metadata, duration, last activity, linked alerts, and channel links.
  */
-export function PropertiesPanel({ incident }: PropertiesPanelProps) {
+export function PropertiesPanel({ incident, onIncidentUpdated }: PropertiesPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   const lastActivityTs = getLastActivity(incident.timeline, incident.triggered_at)
@@ -199,6 +203,32 @@ export function PropertiesPanel({ incident }: PropertiesPanelProps) {
               {incident.id}
             </span>
           </PropertySection>
+
+          {/* AI Agents */}
+          <div className="flex items-center justify-between py-2 border-t border-border">
+            <span className="text-xs text-text-tertiary uppercase tracking-wide">AI Agents</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={incident.ai_enabled}
+              onClick={async () => {
+                try {
+                  await updateIncident(incident.id, { ai_enabled: !incident.ai_enabled })
+                  onIncidentUpdated?.()
+                } catch {
+                  // best-effort
+                }
+              }}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                incident.ai_enabled ? 'bg-brand-primary' : 'bg-gray-200'
+              }`}
+              title={incident.ai_enabled ? 'AI agents enabled — click to disable' : 'AI agents disabled — click to enable'}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                incident.ai_enabled ? 'translate-x-4' : 'translate-x-0.5'
+              }`} />
+            </button>
+          </div>
         </div>
       )}
     </div>

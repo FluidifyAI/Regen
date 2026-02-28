@@ -181,7 +181,7 @@ export function IncidentDetailPage() {
 
       {/* Properties Panel — hidden on mobile, visible on large screens */}
       <div className="hidden lg:block w-80 flex-shrink-0">
-        <PropertiesPanel incident={incident} />
+        <PropertiesPanel incident={incident} onIncidentUpdated={refetch} />
       </div>
 
       {/* Toast Notifications */}

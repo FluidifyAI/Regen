@@ -11,6 +11,8 @@ import {
   resetUserPassword,
   UserRecord,
 } from '../api/settings'
+import { listAgents, setAgentStatus } from '../api/client'
+import type { AIAgent } from '../api/types'
 
 export function SettingsUsersPage() {
   const { user: currentUser } = useAuth()
@@ -21,6 +23,7 @@ export function SettingsUsersPage() {
   const [showInvite, setShowInvite] = useState(false)
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null)
   const [setupInfo, setSetupInfo] = useState<{ token: string; email: string } | null>(null)
+  const [agents, setAgents] = useState<AIAgent[]>([])
 
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin') {
@@ -30,6 +33,10 @@ export function SettingsUsersPage() {
 
   useEffect(() => {
     loadUsers()
+  }, [])
+
+  useEffect(() => {
+    listAgents().then(setAgents).catch(() => {})
   }, [])
 
   async function loadUsers() {
@@ -61,6 +68,15 @@ export function SettingsUsersPage() {
       setSetupInfo({ token: setup_token, email: u.email })
     } catch {
       setError('Failed to reset password')
+    }
+  }
+
+  async function handleToggleAgent(agent: AIAgent) {
+    try {
+      await setAgentStatus(agent.id, !agent.active)
+      setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, active: !a.active } : a))
+    } catch {
+      setError('Failed to update agent status')
     }
   }
 
@@ -161,6 +177,58 @@ export function SettingsUsersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* AI Team Members */}
+        {agents.length > 0 && (
+          <div className="mt-8">
+            <h3 className="text-sm font-semibold text-text-primary mb-3">AI Team Members</h3>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-border">
+                    <th className="text-left px-4 py-2.5 font-medium text-text-secondary">Agent</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-text-secondary">Domain</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-text-secondary">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agents.map(agent => (
+                    <tr key={agent.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-text-primary">{agent.name}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-medium">
+                            🤖 AI
+                          </span>
+                        </div>
+                        <p className="text-xs text-text-tertiary mt-0.5">{agent.email}</p>
+                      </td>
+                      <td className="px-4 py-3 text-text-secondary capitalize">
+                        {agent.agent_type === 'postmortem' ? 'Post-mortems' : agent.agent_type}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={agent.active}
+                          onClick={() => handleToggleAgent(agent)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                            agent.active ? 'bg-brand-primary' : 'bg-gray-200'
+                          }`}
+                          title={agent.active ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                            agent.active ? 'translate-x-4' : 'translate-x-0.5'
+                          }`} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {showInvite && (

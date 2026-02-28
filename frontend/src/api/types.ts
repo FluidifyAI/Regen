@@ -25,6 +25,8 @@ export interface Incident {
   // AI Summarization (v0.6+)
   ai_summary?: string
   ai_summary_generated_at?: string
+  // AI Agents (v0.9+)
+  ai_enabled: boolean
 }
 
 // AI response types (v0.6+)
@@ -113,12 +115,25 @@ export interface CreateIncidentRequest {
   title: string
   severity?: 'critical' | 'high' | 'medium' | 'low'
   description?: string
+  ai_enabled?: boolean
 }
 
 export interface UpdateIncidentRequest {
   status?: 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
   severity?: 'critical' | 'high' | 'medium' | 'low'
   summary?: string
+  ai_enabled?: boolean
+}
+
+// AI Agents (v0.9+)
+
+export interface AIAgent {
+  id: string
+  name: string
+  email: string
+  agent_type: string
+  active: boolean
+  updated_at: string
 }
 
 export interface CreateTimelineEntryRequest {

@@ -448,14 +448,14 @@ function MarkdownPreview({ content }: { content: string }) {
     if (ulMatch) {
       if (listType === 'ol') flushList()
       listType = 'ul'
-      listItems.push(<li key={key++}>{parseInline(ulMatch[1], String(key))}</li>)
+      listItems.push(<li key={key++}>{parseInline(ulMatch[1] ?? '', String(key))}</li>)
       continue
     }
     const olMatch = line.match(/^\d+[.] (.*)/)
     if (olMatch) {
       if (listType === 'ul') flushList()
       listType = 'ol'
-      listItems.push(<li key={key++}>{parseInline(olMatch[1], String(key))}</li>)
+      listItems.push(<li key={key++}>{parseInline(olMatch[1] ?? '', String(key))}</li>)
       continue
     }
 

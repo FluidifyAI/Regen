@@ -9,7 +9,7 @@ import {
   AlertCircle,
   Layers,
 } from 'lucide-react'
-import { GanttCalendar, GanttRow, getMondayOf } from '../components/oncall/GanttCalendar'
+import { GanttCalendar, GanttRow, getMondayOf, segmentBg, segmentText } from '../components/oncall/GanttCalendar'
 import { Button } from '../components/ui/Button'
 import { SkeletonDetail } from '../components/ui/Skeleton'
 import { GeneralError } from '../components/ui/ErrorState'
@@ -35,24 +35,6 @@ import type {
 } from '../api/types'
 
 // ─── Colour utilities ─────────────────────────────────────────────────────────
-
-/** djb2 hash of user_name → HSL hue in [0, 359] */
-function userHue(name: string): number {
-  let h = 5381
-  for (let i = 0; i < name.length; i++) {
-    h = ((h << 5) + h) ^ name.charCodeAt(i)
-    h = h | 0
-  }
-  return Math.abs(h) % 360
-}
-
-function userBg(name: string): string {
-  return `hsl(${userHue(name)}, 55%, 88%)`
-}
-
-function userText(name: string): string {
-  return `hsl(${userHue(name)}, 45%, 30%)`
-}
 
 // ─── computeLayerSegments ─────────────────────────────────────────────────────
 
@@ -647,7 +629,7 @@ function LayerCard({ scheduleId, layer, currentOnCallUser, onDeleted, toast }: L
                 </span>
                 <span
                   className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: userBg(p.user_name), border: `1px solid ${userText(p.user_name)}` }}
+                  style={{ backgroundColor: segmentBg(p.user_name), border: `1px solid ${segmentText(p.user_name)}` }}
                 />
                 <span className="flex-1">{p.user_name}</span>
                 {isCurrent && (
@@ -806,9 +788,9 @@ export function ScheduleDetailPage() {
           <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
             currentUser ? '' : 'bg-gray-200'
           }`}
-            style={currentUser ? { backgroundColor: userBg(currentUser) } : undefined}
+            style={currentUser ? { backgroundColor: segmentBg(currentUser) } : undefined}
           >
-            <User className="w-6 h-6" style={currentUser ? { color: userText(currentUser) } : { color: '#9CA3AF' }} />
+            <User className="w-6 h-6" style={currentUser ? { color: segmentText(currentUser) } : { color: '#9CA3AF' }} />
           </div>
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider text-text-tertiary mb-0.5">

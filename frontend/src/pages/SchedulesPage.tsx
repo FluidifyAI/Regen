@@ -137,6 +137,7 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
   const [description, setDescription] = useState('')
   const [timezone, setTimezone] = useState('UTC')
   const [layerForm, setLayerForm] = useState<LayerFormState>(DEFAULT_LAYER_FORM)
+  const [previewWindowStart, setPreviewWindowStart] = useState<Date>(() => getMondayOf(new Date()))
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
@@ -151,6 +152,7 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
         ...DEFAULT_LAYER_FORM,
         rotation_start: new Date().toISOString().split('T')[0] as string,
       })
+      setPreviewWindowStart(getMondayOf(new Date()))
       setError(null)
       setTimeout(() => nameRef.current?.focus(), 50)
     }
@@ -169,7 +171,7 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
     if (filled.length === 0) return []
     const layerDef = {
       shift_duration_seconds: layerForm.shift_duration_seconds,
-      rotation_start: layerForm.rotation_start + 'T00:00:00Z',
+      rotation_start: layerForm.rotation_start + 'T00:00:00',
       participants: filled.map((name, i) => ({
         user_name: name,
         order_index: i,
@@ -210,7 +212,7 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
         await createLayer(created.id, {
           name: layerForm.name || 'Primary',
           rotation_type: layerForm.rotation_type,
-          rotation_start: layerForm.rotation_start + 'T00:00:00Z',
+          rotation_start: layerForm.rotation_start + 'T00:00:00',
           shift_duration_seconds: layerForm.shift_duration_seconds,
           participants: filledParticipants.map((user_name, i) => ({
             user_name,
@@ -440,9 +442,9 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
                 ) : (
                   <GanttCalendar
                     rows={previewRows}
-                    windowStart={getMondayOf(new Date())}
+                    windowStart={previewWindowStart}
                     days={7}
-                    onNavigate={() => {}}
+                    onNavigate={setPreviewWindowStart}
                   />
                 )}
               </div>
@@ -484,11 +486,10 @@ export function SchedulesPage() {
   const scheduleIds = useMemo(() => schedules.map((s) => s.id), [schedules])
   const timelines = useScheduleTimelines(scheduleIds, windowStart, GANTT_DAYS)
 
-  const ganttRows: GanttRow[] = schedules.map((s) => ({
-    id: s.id,
-    label: s.name,
-    segments: timelines[s.id] ?? [],
-  }))
+  const ganttRows: GanttRow[] = useMemo(
+    () => schedules.map((s) => ({ id: s.id, label: s.name, segments: timelines[s.id] ?? [] })),
+    [schedules, timelines],
+  )
 
   return (
     <div className="flex flex-col h-full">

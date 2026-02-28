@@ -34,9 +34,9 @@ export function getMondayOf(date: Date): Date {
   return d
 }
 
-// ─── Private colour helpers ───────────────────────────────────────────────────
+// ─── Colour helpers (exported for use in detail page participant lists) ───────
 
-function userHue(name: string): number {
+export function userHue(name: string): number {
   let h = 5381
   for (let i = 0; i < name.length; i++) {
     h = ((h << 5) + h) ^ name.charCodeAt(i)
@@ -45,11 +45,11 @@ function userHue(name: string): number {
   return Math.abs(h) % 360
 }
 
-function segmentBg(name: string): string {
+export function segmentBg(name: string): string {
   return `hsl(${userHue(name)}, 55%, 88%)`
 }
 
-function segmentText(name: string): string {
+export function segmentText(name: string): string {
   return `hsl(${userHue(name)}, 45%, 30%)`
 }
 
@@ -60,13 +60,13 @@ function getSegmentForDay(segments: TimelineSegment[], day: Date): TimelineSegme
   dayStart.setHours(0, 0, 0, 0)
   const dayEnd = new Date(day)
   dayEnd.setHours(23, 59, 59, 999)
-  return (
-    segments.find((s) => {
-      const segStart = new Date(s.start)
-      const segEnd = new Date(s.end)
-      return segStart <= dayEnd && segEnd >= dayStart
-    }) ?? null
-  )
+  const matches = segments.filter((s) => {
+    const segStart = new Date(s.start)
+    const segEnd = new Date(s.end)
+    return segStart <= dayEnd && segEnd >= dayStart
+  })
+  // Prefer override segments over regular rotation segments
+  return matches.find((s) => s.is_override) ?? matches[0] ?? null
 }
 
 function isStreakStart(

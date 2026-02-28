@@ -194,7 +194,7 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 			result.Created++
 
 			// v0.3+: Evaluate routing rules to determine incident behavior
-			routingDecision := &RoutingDecision{}
+			routingDecision := &RoutingDecision{AIEnabled: true}
 			if s.routingEngine != nil {
 				rd, err := s.routingEngine.EvaluateAlert(alert)
 				if err != nil {
@@ -250,7 +250,7 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 
 					case GroupActionCreateNew:
 						// Create new incident with group_key
-						_, err := s.incidentSvc.CreateIncidentFromAlertWithGrouping(alert, decision.GroupKey)
+						_, err := s.incidentSvc.CreateIncidentFromAlertWithGrouping(alert, decision.GroupKey, routingDecision.AIEnabled)
 						if err != nil {
 							return nil, fmt.Errorf("failed to create incident with grouping: %w", err)
 						}
@@ -258,7 +258,7 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 
 					case GroupActionDefault:
 						// No grouping rule matched — use default behavior
-						_, err := s.incidentSvc.CreateIncidentFromAlert(alert)
+						_, err := s.incidentSvc.CreateIncidentFromAlert(alert, routingDecision.AIEnabled)
 						if err != nil {
 							return nil, fmt.Errorf("failed to create incident: %w", err)
 						}
@@ -266,7 +266,7 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 					}
 				} else {
 					// Grouping disabled - use v0.2 behavior (create without group_key)
-					_, err := s.incidentSvc.CreateIncidentFromAlert(alert)
+					_, err := s.incidentSvc.CreateIncidentFromAlert(alert, routingDecision.AIEnabled)
 					if err != nil {
 						return nil, fmt.Errorf("failed to create incident for alert %s: %w", alert.ID, err)
 					}

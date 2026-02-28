@@ -24,6 +24,7 @@ type CreateIncidentParams struct {
 	Severity    models.IncidentSeverity
 	Description string
 	CreatedBy   string // "user", "system", "api"
+	AIEnabled   bool   // Controls whether AI agents process this incident. Defaults to true.
 }
 
 // UpdateIncidentParams holds parameters for updating an incident
@@ -32,7 +33,8 @@ type UpdateIncidentParams struct {
 	Severity  models.IncidentSeverity
 	Summary   string
 	UpdatedBy string
-	ClientIP  string // For audit logging
+	ClientIP  string  // For audit logging
+	AIEnabled *bool   // Controls whether AI agents process this incident. nil = no change.
 }
 
 // CreateTimelineEntryParams holds parameters for creating a timeline entry
@@ -47,8 +49,8 @@ type CreateTimelineEntryParams struct {
 // IncidentService defines the interface for incident operations
 type IncidentService interface {
 	// Alert-triggered incident creation
-	CreateIncidentFromAlert(alert *models.Alert) (*models.Incident, error)
-	CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string) (*models.Incident, error)
+	CreateIncidentFromAlert(alert *models.Alert, aiEnabled bool) (*models.Incident, error)
+	CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string, aiEnabled bool) (*models.Incident, error)
 	LinkAlertToExistingIncident(alert *models.Alert, incidentID uuid.UUID) error
 	ShouldCreateIncident(severity models.AlertSeverity) bool
 	CreateSlackChannelForIncident(incident *models.Incident, alerts []models.Alert) error
@@ -142,7 +144,7 @@ func (s *incidentService) ShouldCreateIncident(severity models.AlertSeverity) bo
 }
 
 // CreateIncidentFromAlert creates an incident from an alert with full transaction support
-func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert) (*models.Incident, error) {
+func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled bool) (*models.Incident, error) {
 	// Map alert severity to incident severity
 	incidentSeverity := mapAlertSeverityToIncident(alert.Severity)
 
@@ -162,6 +164,7 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert) (*models.
 		TriggeredAt:   time.Now(),
 		Labels:        make(models.JSONB),
 		CustomFields:  make(models.JSONB),
+		AIEnabled:     aiEnabled,
 	}
 
 	// Execute all operations in a transaction for atomicity
@@ -223,7 +226,7 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert) (*models.
 // This method is called when a grouping rule matches and no existing incident is found.
 // It uses PostgreSQL advisory locks to prevent race conditions when concurrent webhooks
 // with the same group_key try to create incidents.
-func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string) (*models.Incident, error) {
+func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string, aiEnabled bool) (*models.Incident, error) {
 	// Map alert severity to incident severity
 	incidentSeverity := mapAlertSeverityToIncident(alert.Severity)
 
@@ -244,6 +247,7 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		Labels:        make(models.JSONB),
 		CustomFields:  make(models.JSONB),
 		GroupKey:      &groupKey, // Set group_key for alert grouping
+		AIEnabled:     aiEnabled,
 	}
 
 	// Track whether a new incident was created vs. an existing one reused (race-condition path).
@@ -670,6 +674,7 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 		TriggeredAt:   time.Now(),
 		Labels:        make(models.JSONB),
 		CustomFields:  make(models.JSONB),
+		AIEnabled:     params.AIEnabled,
 	}
 
 	// Execute in transaction
@@ -810,6 +815,11 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 		// Update summary if provided
 		if params.Summary != "" {
 			incident.Summary = params.Summary
+		}
+
+		// Update ai_enabled if explicitly provided
+		if params.AIEnabled != nil {
+			incident.AIEnabled = *params.AIEnabled
 		}
 
 		// Update incident

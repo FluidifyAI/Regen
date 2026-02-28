@@ -77,8 +77,7 @@ export function Sidebar() {
       id: 'search',
       label: 'Search',
       icon: Search,
-      disabled: true,
-      disabledTooltip: 'Global search — coming soon',
+      onClick: () => window.dispatchEvent(new CustomEvent('open-search')),
     },
   ]
 

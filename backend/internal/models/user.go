@@ -16,10 +16,12 @@ const (
 	UserRoleViewer UserRole = "viewer"
 )
 
-// User represents a person authenticated via SAML SSO or local credentials.
+// User represents a person or AI agent in OpenIncident.
+// Human users authenticate via SAML SSO (auth_source='saml') or local credentials (auth_source='local').
+// AI agent users have auth_source='ai', a non-null AgentType, and no password.
 // SAML users have no password hash; local users have no SAML subject.
-// Users are provisioned automatically on first login (JIT provisioning for SAML)
-// or by an admin (for local auth).
+// Human users are provisioned automatically on first login (JIT provisioning for SAML)
+// or by an admin (for local auth). AI agent users are seeded on startup.
 type User struct {
 	ID   uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	Email string   `gorm:"type:varchar(255);not null;uniqueIndex"          json:"email"`
@@ -40,7 +42,7 @@ type User struct {
 
 	// Active controls whether this user (or agent) can operate.
 	// Defaults to true for all existing rows via migration.
-	Active bool `gorm:"not null;default:true" json:"active"`
+	Active bool `gorm:"not null;default:true;column:active" json:"active"`
 
 	Role        UserRole   `gorm:"type:varchar(50);not null;default:'member'" json:"role"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`

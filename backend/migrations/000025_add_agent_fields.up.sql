@@ -7,8 +7,23 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS agent_type VARCHAR(50);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT true;
 
 -- Extend auth_source CHECK to allow 'ai' agent accounts.
--- Migration 000024 created this constraint with only ('saml', 'local').
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_auth_source_check;
+-- Migration 000024 added an inline (unnamed) CHECK on auth_source.
+-- We must find and drop it by scanning pg_constraint regardless of its auto-generated name,
+-- then add a new named constraint that includes 'ai'.
+DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN
+        SELECT c.conname
+        FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE t.relname = 'users' AND c.contype = 'c'
+          AND pg_get_constraintdef(c.oid) LIKE '%auth_source%'
+    LOOP
+        EXECUTE format('ALTER TABLE users DROP CONSTRAINT IF EXISTS %I', r.conname);
+    END LOOP;
+END;
+$$;
 ALTER TABLE users ADD CONSTRAINT users_auth_source_check
     CHECK (auth_source IN ('saml', 'local', 'ai'));
 

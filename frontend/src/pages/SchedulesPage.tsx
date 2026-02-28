@@ -1,49 +1,54 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Calendar, Trash2, ChevronRight } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyState } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
 import { useSchedules } from '../hooks/useSchedules'
-import { createSchedule, deleteSchedule, getOnCall, COMMON_TIMEZONES } from '../api/schedules'
-import type { OnCallResponse, CreateScheduleRequest } from '../api/types'
+import { createSchedule, getTimeline, COMMON_TIMEZONES } from '../api/schedules'
+import type { CreateScheduleRequest, TimelineSegment } from '../api/types'
+import { GanttCalendar, GanttRow, getMondayOf } from '../components/oncall/GanttCalendar'
 
-// ─── On-call badge (per-row async fetch) ─────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-function OnCallBadge({ scheduleId }: { scheduleId: string }) {
-  const [onCall, setOnCall] = useState<OnCallResponse | null>(null)
-  const [loading, setLoading] = useState(true)
+const GANTT_DAYS = 7
+
+// ─── useScheduleTimelines hook ────────────────────────────────────────────────
+
+function useScheduleTimelines(
+  scheduleIds: string[],
+  windowStart: Date,
+): Record<string, TimelineSegment[]> {
+  const [data, setData] = useState<Record<string, TimelineSegment[]>>({})
 
   useEffect(() => {
-    setLoading(true)
-    getOnCall(scheduleId)
-      .then(setOnCall)
-      .catch(() => setOnCall(null))
-      .finally(() => setLoading(false))
-  }, [scheduleId])
+    if (scheduleIds.length === 0) {
+      setData({})
+      return
+    }
+    const from = windowStart.toISOString()
+    const toDate = new Date(windowStart)
+    toDate.setDate(toDate.getDate() + GANTT_DAYS)
+    const to = toDate.toISOString()
 
-  if (loading) {
-    return <span className="text-xs text-text-tertiary">…</span>
-  }
+    Promise.all(
+      scheduleIds.map((id) =>
+        getTimeline(id, from, to)
+          .then((res) => ({ id, segments: res.segments }))
+          .catch(() => ({ id, segments: [] as TimelineSegment[] })),
+      ),
+    ).then((results) => {
+      const map: Record<string, TimelineSegment[]> = {}
+      results.forEach(({ id, segments }) => {
+        map[id] = segments
+      })
+      setData(map)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleIds.join(','), windowStart.toISOString()])
 
-  if (!onCall || !onCall.user_name) {
-    return <span className="text-xs text-text-tertiary italic">No one configured</span>
-  }
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
-        onCall.is_override
-          ? 'bg-orange-50 text-orange-700'
-          : 'bg-brand-primary/10 text-brand-primary'
-      }`}
-    >
-      <span className="w-1.5 h-1.5 rounded-full bg-current" />
-      {onCall.user_name}
-      {onCall.is_override && <span className="opacity-75">(override)</span>}
-    </span>
-  )
+  return data
 }
 
 // ─── Create schedule modal ────────────────────────────────────────────────────
@@ -176,36 +181,27 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
 
 /**
  * On-call schedules list page.
- * Shows all schedules with current on-call user badge per row.
+ * Shows all schedules in a Gantt calendar view.
  * Routes: GET /on-call
  */
 export function SchedulesPage() {
   const navigate = useNavigate()
   const { schedules, loading, error, refetch } = useSchedules()
   const [modalOpen, setModalOpen] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [windowStart, setWindowStart] = useState<Date>(() => getMondayOf(new Date()))
 
   const handleCreated = (id: string) => {
     navigate(`/on-call/${id}`)
   }
 
-  const handleDelete = async (id: string, name: string, hasLayers: boolean) => {
-    const warning = hasLayers
-      ? `"${name}" has active layers. Deleting it will remove all rotation data. Continue?`
-      : `Delete schedule "${name}"? This cannot be undone.`
-    if (!confirm(warning)) return
-    setDeletingId(id)
-    setDeleteError(null)
-    try {
-      await deleteSchedule(id)
-      await refetch()
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete schedule')
-    } finally {
-      setDeletingId(null)
-    }
-  }
+  const scheduleIds = schedules.map((s) => s.id)
+  const timelines = useScheduleTimelines(scheduleIds, windowStart)
+
+  const ganttRows: GanttRow[] = schedules.map((s) => ({
+    id: s.id,
+    label: s.name,
+    segments: timelines[s.id] ?? [],
+  }))
 
   return (
     <div className="flex flex-col h-full">
@@ -233,12 +229,6 @@ export function SchedulesPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
-        {deleteError && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            {deleteError}
-          </div>
-        )}
-
         {loading ? (
           <SkeletonTable rows={4} />
         ) : error ? (
@@ -252,64 +242,13 @@ export function SchedulesPage() {
             onAction={() => setModalOpen(true)}
           />
         ) : (
-          <div className="bg-white border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-gray-50">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Name</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Timezone</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Layers</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Currently on call</th>
-                  <th className="w-24 px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {schedules.map((s) => (
-                  <tr
-                    key={s.id}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer group"
-                    onClick={() => navigate(`/on-call/${s.id}`)}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-                        <span className="font-medium text-text-primary">{s.name}</span>
-                      </div>
-                      {s.description && (
-                        <div className="text-xs text-text-tertiary mt-0.5 ml-6">{s.description}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-text-secondary font-mono text-xs">{s.timezone}</td>
-                    <td className="px-4 py-3 text-text-secondary">
-                      {s.layers ? s.layers.length : '—'}
-                    </td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <OnCallBadge scheduleId={s.id} />
-                    </td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => navigate(`/on-call/${s.id}`)}
-                          className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-gray-100 rounded transition-colors"
-                          title="View schedule"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(s.id, s.name, (s.layers?.length ?? 0) > 0)}
-                          disabled={deletingId === s.id}
-                          className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                          title="Delete schedule"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <GanttCalendar
+            rows={ganttRows}
+            windowStart={windowStart}
+            days={GANTT_DAYS}
+            onNavigate={setWindowStart}
+            onRowClick={(id) => navigate(`/on-call/${id}`)}
+          />
         )}
       </div>
     </div>

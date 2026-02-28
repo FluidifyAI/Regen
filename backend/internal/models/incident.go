@@ -53,6 +53,10 @@ type Incident struct {
 	// NULL for manually created incidents or incidents created before v0.3
 	GroupKey *string `gorm:"type:varchar(64);index:idx_incidents_group_key_status_created" json:"group_key,omitempty"`
 
+	// AIEnabled controls whether AI agents process this incident.
+	// Default true. Can be set false via routing rules, integration defaults, or the Properties panel.
+	AIEnabled bool `gorm:"not null;default:true;column:ai_enabled" json:"ai_enabled"`
+
 	// AI Summarization (v0.6+)
 	// AISummary is an on-demand AI-generated summary, distinct from the manual Summary field.
 	// AISummaryGeneratedAt records when the summary was last regenerated.

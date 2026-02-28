@@ -116,12 +116,17 @@ export function GanttCalendar({
   onNavigate,
   onRowClick,
 }: GanttCalendarProps) {
-  // Build array of day Date objects for the visible window (local time)
+  // Build full day array, then split into 7-day week chunks
   const dayDates: Date[] = Array.from({ length: days }, (_, i) => {
     const d = new Date(windowStart)
     d.setDate(d.getDate() + i)
     return d
   })
+
+  const weeks: Date[][] = []
+  for (let i = 0; i < dayDates.length; i += 7) {
+    weeks.push(dayDates.slice(i, i + 7))
+  }
 
   // Today reference (local time, midnight) for column highlighting
   const now = new Date()
@@ -132,11 +137,8 @@ export function GanttCalendar({
   const nowFraction =
     (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400
 
-  // Month label derived from the middle day of the window (days >= 1, always defined).
-  const midDay = dayDates[Math.floor(days / 2)] ?? windowStart
-  const monthLabel = `${MONTHS[midDay.getMonth()]} ${midDay.getFullYear()}`
+  const monthLabel = `${MONTHS[windowStart.getMonth()]} ${windowStart.getFullYear()}`
 
-  // Helpers to determine if a given Date object is today
   function isTodayDate(d: Date): boolean {
     const dm = new Date(d)
     dm.setHours(0, 0, 0, 0)
@@ -162,16 +164,20 @@ export function GanttCalendar({
     onNavigate(getMonthStart(new Date()))
   }
 
+  const labelCellClass = `h-12 border-b border-r border-border bg-white px-3 text-sm font-medium text-text-primary align-middle overflow-hidden${
+    onRowClick ? ' cursor-pointer hover:text-brand-primary hover:bg-gray-50 transition-colors' : ''
+  }`
+
   return (
     <div>
       {/* ── Navigation bar ── */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={prevWindow}
             className="p-1.5 rounded hover:bg-gray-100 transition-colors"
-            title="Previous period"
+            title="Previous month"
           >
             <ChevronLeft className="w-4 h-4 text-text-secondary" />
           </button>
@@ -179,7 +185,7 @@ export function GanttCalendar({
             type="button"
             onClick={nextWindow}
             className="p-1.5 rounded hover:bg-gray-100 transition-colors"
-            title="Next period"
+            title="Next month"
           >
             <ChevronRight className="w-4 h-4 text-text-secondary" />
           </button>
@@ -194,153 +200,142 @@ export function GanttCalendar({
         </button>
       </div>
 
-      {/* ── Scrollable table wrapper ── */}
-      <div className="overflow-x-auto">
-        <table
-          className="w-full border-collapse table-fixed"
-          style={{ minWidth: 600 }}
-        >
-          <colgroup>
-            {/* Fixed 144px label column */}
-            <col style={{ width: 144 }} />
-            {/* Equal-width day columns for the rest */}
-            {dayDates.map((_, i) => (
-              <col key={i} />
-            ))}
-          </colgroup>
+      {/* ── Empty state ── */}
+      {rows.length === 0 && (
+        <div className="px-4 py-8 text-center text-sm text-text-tertiary italic border border-border rounded-lg">
+          No layers configured
+        </div>
+      )}
 
-          {/* ── Day header row ── */}
-          <thead>
-            <tr>
-              {/* Empty corner above label column */}
-              <th className="p-0 border-b border-border bg-gray-50" />
+      {/* ── Week blocks stacked vertically ── */}
+      {rows.length > 0 && (
+        <div className="space-y-3">
+          {weeks.map((weekDays, weekIdx) => {
+            const weekStartGlobalIdx = weekIdx * 7
+            return (
+              <table
+                key={weekIdx}
+                className="w-full border-collapse table-fixed"
+              >
+                <colgroup>
+                  {/* Fixed 144px label column */}
+                  <col style={{ width: 144 }} />
+                  {weekDays.map((_, i) => <col key={i} />)}
+                </colgroup>
 
-              {dayDates.map((day, i) => {
-                const today = isTodayDate(day)
-                return (
-                  <th
-                    key={i}
-                    className={`p-0 border-b border-r border-border bg-gray-50 ${
-                      today ? 'text-brand-primary' : 'text-text-tertiary'
-                    }`}
-                  >
-                    <div className="py-2 flex flex-col items-center gap-0.5">
-                      <span className="text-xs font-medium">
-                        {SHORT_DAYS[day.getDay()]}
-                      </span>
-                      <span
-                        className={`text-xs w-5 h-5 flex items-center justify-center rounded-full leading-none ${
-                          today
-                            ? 'bg-brand-primary text-white font-semibold'
-                            : ''
-                        }`}
-                      >
-                        {day.getDate()}
-                      </span>
-                    </div>
-                  </th>
-                )
-              })}
-            </tr>
-          </thead>
-
-          {/* ── Data rows ── */}
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={days + 1}
-                  className="px-4 py-8 text-center text-sm text-text-tertiary italic"
-                >
-                  No layers configured
-                </td>
-              </tr>
-            ) : rows.map((row) => {
-              const hasSegments = row.segments.length > 0
-
-              return (
-                <tr key={row.id}>
-                  {/* Row label cell */}
-                  <td
-                    className={`h-12 border-b border-r border-border bg-white px-3 text-sm font-medium text-text-primary align-middle overflow-hidden ${
-                      onRowClick
-                        ? 'cursor-pointer hover:text-brand-primary hover:bg-gray-50 transition-colors'
-                        : ''
-                    }`}
-                    style={{ maxWidth: 144 }}
-                    onClick={onRowClick ? () => onRowClick(row.id) : undefined}
-                    title={row.label}
-                  >
-                    <span className="block truncate">{row.label}</span>
-                  </td>
-
-                  {/* Empty state: single cell spanning all day columns */}
-                  {!hasSegments && (
-                    <td
-                      colSpan={days}
-                      className="h-12 border-b border-r border-border bg-white px-3 align-middle"
-                    >
-                      <span className="text-xs text-text-tertiary">—</span>
-                    </td>
-                  )}
-
-                  {/* Day cells — only rendered when there are segments */}
-                  {hasSegments &&
-                    dayDates.map((day, dayIdx) => {
+                {/* Day header */}
+                <thead>
+                  <tr>
+                    <th className="p-0 border-b border-border bg-gray-50" />
+                    {weekDays.map((day, i) => {
                       const today = isTodayDate(day)
-                      const seg = getSegmentForDay(row.segments, day)
-                      const showLabel = seg
-                        ? isStreakStart(row.segments, dayDates, dayIdx)
-                        : false
-
                       return (
-                        <td
-                          key={dayIdx}
-                          className={`h-12 border-b border-r border-border relative p-0 ${
-                            today ? 'bg-blue-50/30' : 'bg-white'
+                        <th
+                          key={i}
+                          className={`p-0 border-b border-r border-border bg-gray-50 ${
+                            today ? 'text-brand-primary' : 'text-text-tertiary'
                           }`}
                         >
-                          {/* Coloured segment bar */}
-                          {seg && (
-                            <div
-                              className="absolute inset-1 rounded flex items-center px-1.5 overflow-hidden"
-                              style={{
-                                backgroundColor: segmentBg(seg.user_name),
-                                color: segmentText(seg.user_name),
-                              }}
-                              title={
-                                seg.is_override
-                                  ? `${seg.user_name} (override)`
-                                  : seg.user_name
-                              }
+                          <div className="py-2 flex flex-col items-center gap-0.5">
+                            <span className="text-xs font-medium">
+                              {SHORT_DAYS[day.getDay()]}
+                            </span>
+                            <span
+                              className={`text-xs w-5 h-5 flex items-center justify-center rounded-full leading-none ${
+                                today ? 'bg-brand-primary text-white font-semibold' : ''
+                              }`}
                             >
-                              {showLabel && (
-                                <span className="text-xs font-medium truncate leading-none">
-                                  {seg.user_name}
-                                  {seg.is_override && (
-                                    <span className="opacity-60 ml-1 text-[10px]">(override)</span>
-                                  )}
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          {/* "Now" line — only rendered in today's column */}
-                          {today && (
-                            <div
-                              className="absolute top-0 bottom-0 w-0.5 bg-red-400 z-10 pointer-events-none"
-                              style={{ left: `${nowFraction * 100}%` }}
-                            />
-                          )}
-                        </td>
+                              {day.getDate()}
+                            </span>
+                          </div>
+                        </th>
                       )
                     })}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+                  </tr>
+                </thead>
+
+                {/* Data rows for this week */}
+                <tbody>
+                  {rows.map((row) => {
+                    const hasSegments = row.segments.length > 0
+                    return (
+                      <tr key={row.id}>
+                        {/* Row label */}
+                        <td
+                          className={labelCellClass}
+                          style={{ maxWidth: 144 }}
+                          onClick={onRowClick ? () => onRowClick(row.id) : undefined}
+                          title={row.label}
+                        >
+                          <span className="block truncate">{row.label}</span>
+                        </td>
+
+                        {/* Empty state for this row */}
+                        {!hasSegments && (
+                          <td
+                            colSpan={weekDays.length}
+                            className="h-12 border-b border-r border-border bg-white px-3 align-middle"
+                          >
+                            <span className="text-xs text-text-tertiary">—</span>
+                          </td>
+                        )}
+
+                        {/* Day cells */}
+                        {hasSegments && weekDays.map((day, i) => {
+                          const globalIdx = weekStartGlobalIdx + i
+                          const today = isTodayDate(day)
+                          const seg = getSegmentForDay(row.segments, day)
+                          // Show label at the start of each week block OR at a user-change boundary
+                          const showLabel = seg
+                            ? (i === 0 || isStreakStart(row.segments, dayDates, globalIdx))
+                            : false
+
+                          return (
+                            <td
+                              key={i}
+                              className={`h-12 border-b border-r border-border relative p-0 ${
+                                today ? 'bg-blue-50/30' : 'bg-white'
+                              }`}
+                            >
+                              {seg && (
+                                <div
+                                  className="absolute inset-1 rounded flex items-center px-1.5 overflow-hidden"
+                                  style={{
+                                    backgroundColor: segmentBg(seg.user_name),
+                                    color: segmentText(seg.user_name),
+                                  }}
+                                  title={seg.is_override ? `${seg.user_name} (override)` : seg.user_name}
+                                >
+                                  {showLabel && (
+                                    <span className="text-xs font-medium truncate leading-none">
+                                      {seg.user_name}
+                                      {seg.is_override && (
+                                        <span className="opacity-60 ml-1 text-[10px]">(override)</span>
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* "Now" line — only in today's column */}
+                              {today && (
+                                <div
+                                  className="absolute top-0 bottom-0 w-0.5 bg-red-400 z-10 pointer-events-none"
+                                  style={{ left: `${nowFraction * 100}%` }}
+                                />
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

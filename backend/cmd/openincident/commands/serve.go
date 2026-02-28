@@ -15,6 +15,8 @@ import (
 	"github.com/openincident/openincident/internal/api"
 	"github.com/openincident/openincident/internal/auth"
 	"github.com/openincident/openincident/internal/config"
+	"github.com/openincident/openincident/internal/coordinator"
+	"github.com/openincident/openincident/internal/coordinator/agents"
 	"github.com/openincident/openincident/internal/database"
 	"github.com/openincident/openincident/internal/enterprise"
 	"github.com/openincident/openincident/internal/metrics"
@@ -75,6 +77,12 @@ func runServe(_ *cobra.Command, _ []string) error {
 	slog.Info("running database migrations...")
 	if err := database.RunMigrations(database.DB, "./migrations"); err != nil {
 		return err
+	}
+
+	// Seed AI agent user accounts (idempotent — safe to call on every startup).
+	if err := coordinator.SeedAgents(repository.NewUserRepository(database.DB)); err != nil {
+		slog.Error("failed to seed AI agents", "error", err)
+		// Non-fatal: agents won't run until next restart when DB is healthy.
 	}
 
 	// Create the application lifecycle context before any service that needs it.
@@ -148,6 +156,68 @@ func runServe(_ *cobra.Command, _ []string) error {
 	api.SetupRoutes(router, database.DB, cfg, teamsSvc, samlMiddleware, enterpriseHooks, localAuthSvc)
 
 	worker.StartAll(appCtx, database.DB, cfg, teamsSvc, enterpriseHooks)
+
+	// Start the AI coordinator.
+	pmAgentUser, pmAgentErr := userRepo.GetByEmail(coordinator.PostMortemAgentEmail)
+	if pmAgentErr != nil {
+		slog.Warn("post-mortem agent user not found, AI coordinator not starting", "error", pmAgentErr)
+	} else if pmAgentUser.Active {
+		var agentSlackSvc services.ChatService
+		if cfg.SlackBotToken != "" {
+			if slackSvc, slackErr := services.NewSlackService(cfg.SlackBotToken); slackErr == nil {
+				agentSlackSvc = slackSvc
+			} else {
+				slog.Warn("AI coordinator: slack service init failed", "error", slackErr)
+			}
+		}
+
+		activeChatSvcs := make([]services.ChatService, 0, 2)
+		if agentSlackSvc != nil {
+			activeChatSvcs = append(activeChatSvcs, agentSlackSvc)
+		}
+		if teamsSvc != nil {
+			activeChatSvcs = append(activeChatSvcs, teamsSvc)
+		}
+		var multiChat services.ChatService
+		switch len(activeChatSvcs) {
+		case 1:
+			multiChat = activeChatSvcs[0]
+		case 2:
+			multiChat = services.NewMultiChatService(activeChatSvcs...)
+		}
+
+		aiSvc := services.NewAIService(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIMaxTokens, cfg.OpenAIPostMortemMaxTokens)
+		pmRepo := repository.NewPostMortemRepository(database.DB)
+		pmTemplateRepo := repository.NewPostMortemTemplateRepository(database.DB)
+		agentIncidentRepo := repository.NewIncidentRepository(database.DB)
+		agentTimelineRepo := repository.NewTimelineRepository(database.DB)
+		agentAlertRepo := repository.NewAlertRepository(database.DB)
+		agentIncidentSvc := services.NewIncidentService(
+			agentIncidentRepo, agentTimelineRepo,
+			agentAlertRepo,
+			agentSlackSvc, database.DB, cfg.SlackAutoInviteUserIDs,
+		)
+		services.SetTeamsService(agentIncidentSvc, teamsSvc)
+		pmSvc := services.NewPostMortemService(pmRepo, pmTemplateRepo, agentIncidentSvc, aiSvc)
+
+		pmAgent := agents.NewPostMortemAgent(agents.PostMortemAgentDeps{
+			AgentUserID:   pmAgentUser.ID,
+			AISvc:         aiSvc,
+			IncidentRepo:  agentIncidentRepo,
+			PostMortemSvc: pmSvc,
+			TimelineRepo:  agentTimelineRepo,
+			SlackSvc:      agentSlackSvc,
+			TeamsSvc:      teamsSvc,
+			MultiChat:     multiChat,
+			UserRepo:      userRepo,
+			FrontendURL:   cfg.FrontendURL,
+			WaitDuration:  60 * time.Second,
+		})
+
+		coord := coordinator.New(redis.Client, pmAgent)
+		go coord.Start(appCtx)
+		slog.Info("AI coordinator started")
+	}
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

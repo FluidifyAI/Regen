@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/models"
 	"github.com/openincident/openincident/internal/repository"
+	appredis "github.com/openincident/openincident/internal/redis"
 	"gorm.io/gorm"
 )
 
@@ -864,6 +866,11 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 		}()
 	}
 
+	// Publish event for AICoordinator (Post-Mortem Agent et al.)
+	if statusChanged && (params.Status == models.IncidentStatusResolved || params.Status == models.IncidentStatusCanceled) {
+		go publishResolved(incident.ID, incident.AIEnabled)
+	}
+
 	// Fetch updated incident
 	return s.incidentRepo.GetByID(id)
 }
@@ -1141,6 +1148,8 @@ func (s *incidentService) ResolveIncident(id uuid.UUID, actorType, actorID strin
 		"new_status":      string(models.IncidentStatusResolved),
 		"actor":           actorID,
 	})
+	// Publish event for AICoordinator (Post-Mortem Agent et al.)
+	go publishResolved(id, incident.AIEnabled)
 	// Re-fetch with updated status so postStatusUpdateToTeams sees the correct state.
 	// This also ensures the card update shows "resolved" rather than the previous status.
 	if updatedIncident, err := s.incidentRepo.GetByID(id); err == nil && s.teamsSvc != nil {
@@ -1234,6 +1243,24 @@ func recoverAsyncPanic(op string, extra ...any) {
 	if r := recover(); r != nil {
 		args := append([]any{"panic", fmt.Sprintf("%v", r)}, extra...)
 		slog.Error("panic in async goroutine — recovered", append([]any{"op", op}, args...)...)
+	}
+}
+
+// publishResolved publishes an "incident.resolved" event to Redis so the
+// AICoordinator can trigger the Post-Mortem Agent. Best-effort: log and continue on error.
+func publishResolved(incidentID uuid.UUID, aiEnabled bool) {
+	payload, err := json.Marshal(map[string]interface{}{
+		"incident_id": incidentID.String(),
+		"ai_enabled":  aiEnabled,
+	})
+	if err != nil {
+		slog.Error("publishResolved: marshal failed", "error", err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := appredis.Client.Publish(ctx, "events:incident.resolved", payload).Err(); err != nil {
+		slog.Warn("publishResolved: redis publish failed (agent will not run)", "error", err)
 	}
 }
 

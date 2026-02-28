@@ -343,7 +343,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// Agent management (AI agents — enable/disable)
 		agentsHandler := handlers.NewAgentsHandler(userRepo)
 		protected.GET("/agents", agentsHandler.List)
-		protected.PATCH("/agents/:id/status", agentsHandler.SetStatus)
+		protected.PATCH("/agents/:id/status", middleware.RequireAdmin(), agentsHandler.SetStatus)
 
 		// Settings — admin only
 		settingsGroup := protected.Group("/settings", middleware.RequireAdmin())

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -49,7 +50,12 @@ func (h *AgentsHandler) SetStatus(c *gin.Context) {
 
 	agent, err := h.userRepo.GetByID(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "agent not found"})
+		var notFound *repository.NotFoundError
+		if errors.As(err, &notFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "agent not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch agent"})
+		}
 		return
 	}
 	if agent.AuthSource != "ai" {

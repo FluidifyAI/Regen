@@ -12,7 +12,7 @@ export interface GanttRow {
 
 interface GanttCalendarProps {
   rows: GanttRow[]
-  /** Monday of the visible week */
+  /** First day of the visible window (1st of a month) */
   windowStart: Date
   /** Number of days to show (default 7) */
   days?: number
@@ -22,12 +22,12 @@ interface GanttCalendarProps {
   onRowClick?: (id: string) => void
 }
 
-// ─── Exported helper ──────────────────────────────────────────────────────────
+// ─── Exported helpers ─────────────────────────────────────────────────────────
 
 /** Returns the Monday of the week containing `date`. Uses local calendar date, not UTC. */
 export function getMondayOf(date: Date): Date {
   const d = new Date(date)
-  const day = d.getDay() // 0=Sun…6=Sat
+  const day = d.getDay()
   const diff = day === 0 ? -6 : 1 - day
   d.setDate(d.getDate() + diff)
   d.setHours(0, 0, 0, 0)
@@ -59,14 +59,14 @@ export function userHue(name: string): number {
 }
 
 export function segmentBg(name: string): string {
-  return `hsl(${userHue(name)}, 55%, 88%)`
+  return `hsl(${userHue(name)}, 65%, 82%)`
 }
 
 export function segmentText(name: string): string {
-  return `hsl(${userHue(name)}, 45%, 30%)`
+  return `hsl(${userHue(name)}, 55%, 22%)`
 }
 
-// ─── Private calendar helpers ─────────────────────────────────────────────────
+// ─── Private helpers ──────────────────────────────────────────────────────────
 
 function getSegmentForDay(segments: TimelineSegment[], day: Date): TimelineSegment | null {
   const dayStart = new Date(day)
@@ -82,20 +82,39 @@ function getSegmentForDay(segments: TimelineSegment[], day: Date): TimelineSegme
   return matches.find((s) => s.is_override) ?? matches[0] ?? null
 }
 
-function isStreakStart(
-  segments: TimelineSegment[],
-  dayDates: Date[],
-  dayIdx: number,
-): boolean {
-  if (dayIdx === 0) return true
-  const curDay = dayDates[dayIdx]
-  const prevDay = dayDates[dayIdx - 1]
-  if (!curDay || !prevDay) return true
-  const cur = getSegmentForDay(segments, curDay)
-  const prev = getSegmentForDay(segments, prevDay)
-  if (!cur) return false
-  if (!prev) return true
-  return cur.user_name !== prev.user_name
+interface DayGroup {
+  seg: TimelineSegment | null
+  /** Number of consecutive days in this group */
+  span: number
+  /** Index of the first day of this group within the week (0-based) */
+  weekOffset: number
+}
+
+/** Group consecutive same-user days in a week into spans for colSpan rendering. */
+function groupWeekDays(segments: TimelineSegment[], weekDays: Date[]): DayGroup[] {
+  const groups: DayGroup[] = []
+  let i = 0
+  while (i < weekDays.length) {
+    const day = weekDays[i]
+    if (!day) { i++; continue }
+    const seg = getSegmentForDay(segments, day)
+    if (!seg) {
+      groups.push({ seg: null, span: 1, weekOffset: i })
+      i++
+    } else {
+      let j = i + 1
+      while (j < weekDays.length) {
+        const nextDay = weekDays[j]
+        if (!nextDay) break
+        const nextSeg = getSegmentForDay(segments, nextDay)
+        if (!nextSeg || nextSeg.user_name !== seg.user_name) break
+        j++
+      }
+      groups.push({ seg, span: j - i, weekOffset: i })
+      i = j
+    }
+  }
+  return groups
 }
 
 // ─── Static lookup tables ─────────────────────────────────────────────────────
@@ -107,6 +126,8 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
+const WEEK_SIZE = 7
+
 // ─── GanttCalendar ────────────────────────────────────────────────────────────
 
 export function GanttCalendar({
@@ -116,7 +137,7 @@ export function GanttCalendar({
   onNavigate,
   onRowClick,
 }: GanttCalendarProps) {
-  // Build full day array, then split into 7-day week chunks
+  // Full day array, then split into 7-day week chunks
   const dayDates: Date[] = Array.from({ length: days }, (_, i) => {
     const d = new Date(windowStart)
     d.setDate(d.getDate() + i)
@@ -124,18 +145,15 @@ export function GanttCalendar({
   })
 
   const weeks: Date[][] = []
-  for (let i = 0; i < dayDates.length; i += 7) {
-    weeks.push(dayDates.slice(i, i + 7))
+  for (let i = 0; i < dayDates.length; i += WEEK_SIZE) {
+    weeks.push(dayDates.slice(i, i + WEEK_SIZE))
   }
 
-  // Today reference (local time, midnight) for column highlighting
+  // Today reference
   const now = new Date()
   const todayMidnight = new Date(now)
   todayMidnight.setHours(0, 0, 0, 0)
-
-  // Fraction through the current day for the "now" line position
-  const nowFraction =
-    (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400
+  const nowFraction = (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400
 
   const monthLabel = `${MONTHS[windowStart.getMonth()]} ${windowStart.getFullYear()}`
 
@@ -145,7 +163,6 @@ export function GanttCalendar({
     return dm.getTime() === todayMidnight.getTime()
   }
 
-  // Navigation: month-based so prev/next always land on the 1st of the adjacent month
   function prevWindow() {
     const d = new Date(windowStart)
     d.setDate(1)
@@ -211,16 +228,18 @@ export function GanttCalendar({
       {rows.length > 0 && (
         <div className="space-y-3">
           {weeks.map((weekDays, weekIdx) => {
-            const weekStartGlobalIdx = weekIdx * 7
+            // How many filler columns are needed to pad to WEEK_SIZE
+            const fillerCount = WEEK_SIZE - weekDays.length
+
             return (
               <table
                 key={weekIdx}
                 className="w-full border-collapse table-fixed"
               >
+                {/* Always declare WEEK_SIZE + 1 cols so widths are uniform across all weeks */}
                 <colgroup>
-                  {/* Fixed 144px label column */}
                   <col style={{ width: 144 }} />
-                  {weekDays.map((_, i) => <col key={i} />)}
+                  {Array.from({ length: WEEK_SIZE }, (_, i) => <col key={i} />)}
                 </colgroup>
 
                 {/* Day header */}
@@ -251,13 +270,18 @@ export function GanttCalendar({
                         </th>
                       )
                     })}
+                    {/* Filler header cells for partial weeks */}
+                    {Array.from({ length: fillerCount }, (_, i) => (
+                      <th key={`fh-${i}`} className="p-0 border-b border-border bg-gray-50" />
+                    ))}
                   </tr>
                 </thead>
 
-                {/* Data rows for this week */}
+                {/* Data rows */}
                 <tbody>
                   {rows.map((row) => {
-                    const hasSegments = row.segments.length > 0
+                    const groups = groupWeekDays(row.segments, weekDays)
+
                     return (
                       <tr key={row.id}>
                         {/* Row label */}
@@ -270,63 +294,71 @@ export function GanttCalendar({
                           <span className="block truncate">{row.label}</span>
                         </td>
 
-                        {/* Empty state for this row */}
-                        {!hasSegments && (
-                          <td
-                            colSpan={weekDays.length}
-                            className="h-12 border-b border-r border-border bg-white px-3 align-middle"
-                          >
-                            <span className="text-xs text-text-tertiary">—</span>
-                          </td>
-                        )}
+                        {/* Continuous streak cells via colSpan */}
+                        {groups.map((group, gi) => {
+                          if (!group.seg) {
+                            return (
+                              <td
+                                key={gi}
+                                colSpan={group.span}
+                                className="h-12 border-b border-r border-border bg-white p-0"
+                              />
+                            )
+                          }
 
-                        {/* Day cells */}
-                        {hasSegments && weekDays.map((day, i) => {
-                          const globalIdx = weekStartGlobalIdx + i
-                          const today = isTodayDate(day)
-                          const seg = getSegmentForDay(row.segments, day)
-                          // Show label at the start of each week block OR at a user-change boundary
-                          const showLabel = seg
-                            ? (i === 0 || isStreakStart(row.segments, dayDates, globalIdx))
-                            : false
+                          const { seg, span, weekOffset } = group
+
+                          // Determine if today falls within this group and where
+                          let todayOffsetInGroup = -1
+                          for (let k = 0; k < span; k++) {
+                            const d = weekDays[weekOffset + k]
+                            if (d && isTodayDate(d)) { todayOffsetInGroup = k; break }
+                          }
+                          const containsToday = todayOffsetInGroup >= 0
+
+                          // Position the now-line within the colSpanned cell
+                          const nowLineLeft = containsToday
+                            ? `${((todayOffsetInGroup + nowFraction) / span) * 100}%`
+                            : null
 
                           return (
                             <td
-                              key={i}
-                              className={`h-12 border-b border-r border-border relative p-0 ${
-                                today ? 'bg-blue-50/30' : 'bg-white'
-                              }`}
+                              key={gi}
+                              colSpan={span}
+                              className="h-12 border-b border-r border-border relative p-0"
                             >
-                              {seg && (
-                                <div
-                                  className="absolute inset-1 rounded flex items-center px-1.5 overflow-hidden"
-                                  style={{
-                                    backgroundColor: segmentBg(seg.user_name),
-                                    color: segmentText(seg.user_name),
-                                  }}
-                                  title={seg.is_override ? `${seg.user_name} (override)` : seg.user_name}
-                                >
-                                  {showLabel && (
-                                    <span className="text-xs font-medium truncate leading-none">
-                                      {seg.user_name}
-                                      {seg.is_override && (
-                                        <span className="opacity-60 ml-1 text-[10px]">(override)</span>
-                                      )}
-                                    </span>
+                              {/* Continuous coloured bar — full width, slight vertical inset */}
+                              <div
+                                className="absolute inset-y-1.5 left-0 right-0 flex items-center px-2 overflow-hidden rounded"
+                                style={{
+                                  backgroundColor: segmentBg(seg.user_name),
+                                  color: segmentText(seg.user_name),
+                                }}
+                                title={seg.is_override ? `${seg.user_name} (override)` : seg.user_name}
+                              >
+                                <span className="text-xs font-semibold truncate leading-none">
+                                  {seg.user_name}
+                                  {seg.is_override && (
+                                    <span className="opacity-60 ml-1 text-[10px] font-normal">(override)</span>
                                   )}
-                                </div>
-                              )}
+                                </span>
+                              </div>
 
-                              {/* "Now" line — only in today's column */}
-                              {today && (
+                              {/* "Now" line, fractionally positioned within the colSpanned cell */}
+                              {nowLineLeft && (
                                 <div
                                   className="absolute top-0 bottom-0 w-0.5 bg-red-400 z-10 pointer-events-none"
-                                  style={{ left: `${nowFraction * 100}%` }}
+                                  style={{ left: nowLineLeft }}
                                 />
                               )}
                             </td>
                           )
                         })}
+
+                        {/* Filler cells for partial weeks */}
+                        {Array.from({ length: fillerCount }, (_, i) => (
+                          <td key={`fd-${i}`} className="h-12 border-b bg-gray-50/40" />
+                        ))}
                       </tr>
                     )
                   })}

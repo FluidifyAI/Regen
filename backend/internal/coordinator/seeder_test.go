@@ -17,7 +17,7 @@ func TestSeedAgents_CreatesPostMortemAgent(t *testing.T) {
 	err := coordinator.SeedAgents(userRepo)
 	require.NoError(t, err)
 
-	agent, err := userRepo.GetByEmail("agent-postmortem@system.internal")
+	agent, err := userRepo.GetByEmail(coordinator.PostMortemAgentEmail)
 	require.NoError(t, err)
 	assert.Equal(t, "Post-Mortem Agent", agent.Name)
 	assert.Equal(t, "ai", agent.AuthSource)

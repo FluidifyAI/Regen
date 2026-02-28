@@ -8,12 +8,12 @@ import (
 	"github.com/openincident/openincident/internal/repository"
 )
 
-const postMortemAgentEmail = "agent-postmortem@system.internal"
+const PostMortemAgentEmail = "agent-postmortem@system.internal"
 
 // SeedAgents ensures all AI agent user accounts exist in the database.
 // Safe to call on every startup — existing agents are left unchanged.
 func SeedAgents(userRepo repository.UserRepository) error {
-	if err := seedAgent(userRepo, postMortemAgentEmail, "Post-Mortem Agent", "postmortem"); err != nil {
+	if err := seedAgent(userRepo, PostMortemAgentEmail, "Post-Mortem Agent", "postmortem"); err != nil {
 		return err
 	}
 	slog.Info("AI agents seeded")

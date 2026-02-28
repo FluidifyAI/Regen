@@ -194,7 +194,7 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 			result.Created++
 
 			// v0.3+: Evaluate routing rules to determine incident behavior
-			routingDecision := &RoutingDecision{}
+			routingDecision := &RoutingDecision{AIEnabled: true}
 			if s.routingEngine != nil {
 				rd, err := s.routingEngine.EvaluateAlert(alert)
 				if err != nil {

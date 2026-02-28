@@ -10,6 +10,20 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// NewTestDB creates an in-memory SQLite database for testing.
+// Callers that need a users table should prefer SetupTestDB(t) which also
+// creates the table and registers cleanup. This function is kept for
+// compatibility with test helpers that manage their own schema.
+func NewTestDB() (*gorm.DB, error) {
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
 // testDBCounter is used to create unique in-memory database names per test.
 var testDBCounter uint64
 

@@ -44,6 +44,9 @@ type Config struct {
 	TeamsBotUserID   string // AAD object ID of the bot user; required for direct messages
 	TeamsServiceURL  string // Bot Framework relay URL for this tenant (e.g. https://smba.trafficmanager.net/amer/)
 
+	// Frontend URL (used by agents to build deep links)
+	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
+
 	// SAML SSO (optional — SSO disabled if SAMLIDPMetadataURL is empty)
 	// When disabled all routes are open (backwards-compatible with existing deployments).
 	SAMLIDPMetadataURL   string // SAML_IDP_METADATA_URL — IdP metadata endpoint
@@ -92,6 +95,9 @@ func Load() (*Config, error) {
 		TeamsTeamID:      getEnv("TEAMS_TEAM_ID", ""),
 		TeamsBotUserID:   getEnv("TEAMS_BOT_USER_ID", ""),
 		TeamsServiceURL:  getEnv("TEAMS_SERVICE_URL", "https://smba.trafficmanager.net/amer/"),
+
+		// Frontend
+		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
 
 		// SAML SSO
 		SAMLIDPMetadataURL:    getEnv("SAML_IDP_METADATA_URL", ""),

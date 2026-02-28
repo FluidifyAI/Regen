@@ -34,6 +34,19 @@ export function getMondayOf(date: Date): Date {
   return d
 }
 
+/** Returns midnight on the 1st of the month containing `date`. */
+export function getMonthStart(date: Date): Date {
+  const d = new Date(date)
+  d.setDate(1)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+/** Returns the number of days in the month containing `date`. */
+export function daysInMonth(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+}
+
 // ─── Colour helpers (exported for use in detail page participant lists) ───────
 
 export function userHue(name: string): number {
@@ -130,21 +143,23 @@ export function GanttCalendar({
     return dm.getTime() === todayMidnight.getTime()
   }
 
-  // Navigation
+  // Navigation: month-based so prev/next always land on the 1st of the adjacent month
   function prevWindow() {
     const d = new Date(windowStart)
-    d.setDate(d.getDate() - days)
+    d.setDate(1)
+    d.setMonth(d.getMonth() - 1)
     onNavigate(d)
   }
 
   function nextWindow() {
     const d = new Date(windowStart)
-    d.setDate(d.getDate() + days)
+    d.setDate(1)
+    d.setMonth(d.getMonth() + 1)
     onNavigate(d)
   }
 
   function goToday() {
-    onNavigate(getMondayOf(new Date()))
+    onNavigate(getMonthStart(new Date()))
   }
 
   return (

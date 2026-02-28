@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Settings,
   Shield,
   GitFork,
   GitBranch,
@@ -16,6 +15,7 @@ import {
   LogOut,
   Users,
   Menu,
+  BarChart2,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
 import { useAuth } from '../../hooks/useAuth'
@@ -66,11 +66,6 @@ export function Sidebar() {
     setSectionsExpanded((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }))
   }
 
-  const showToast = (message: string) => {
-    // TODO: Implement toast notification system in OI-041
-    alert(message)
-  }
-
   const topNavItems: NavItem[] = [
     {
       id: 'home',
@@ -82,7 +77,7 @@ export function Sidebar() {
       id: 'search',
       label: 'Search',
       icon: Search,
-      onClick: () => showToast('Search coming soon'),
+      onClick: () => window.dispatchEvent(new CustomEvent('open-search')),
     },
   ]
 
@@ -127,23 +122,27 @@ export function Sidebar() {
           href: '/post-mortem-templates',
           matchPaths: ['/post-mortem-templates'],
         },
-      ],
-    },
-    ...(currentUser?.role === 'admin' ? [{
-      id: 'settings',
-      label: 'Settings',
-      collapsible: false,
-      items: [
         {
-          id: 'settings-users',
-          label: 'Users',
-          icon: Users,
-          href: '/settings/users',
-          matchPaths: ['/settings/users'],
+          id: 'analytics',
+          label: 'Analytics',
+          icon: BarChart2,
+          href: '/analytics',
+          matchPaths: ['/analytics'],
         },
       ],
-    }] : []),
+    },
   ]
+
+  // Admin-only bottom-pinned nav items (appear just above the user profile bar)
+  const adminBottomItems: NavItem[] = currentUser?.role === 'admin' ? [
+    {
+      id: 'settings-users',
+      label: 'Users',
+      icon: Users,
+      href: '/settings/users',
+      matchPaths: ['/settings/users'],
+    },
+  ] : []
 
   const isActive = (item: NavItem): boolean => {
     if (!item.href) return false
@@ -167,7 +166,7 @@ export function Sidebar() {
         `}
         style={active ? { borderLeftWidth: '3px' } : undefined}
       >
-        <Icon className={`flex-shrink-0 w-5 h-5 ${isCollapsed ? 'mx-auto' : 'mr-3'}`} />
+        <Icon className={`flex-shrink-0 w-5 h-5 ${isCollapsed ? 'mx-auto' : 'mr-3'} ${active ? 'text-brand-primary' : ''}`} />
         {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
       </div>
     )
@@ -254,6 +253,13 @@ export function Sidebar() {
         ))}
       </div>
 
+      {/* Admin bottom-pinned nav (Users etc.) — sits just above the profile bar */}
+      {adminBottomItems.length > 0 && (
+        <div className="border-t border-sidebar-border px-2 py-2 space-y-1">
+          {adminBottomItems.map(renderNavItem)}
+        </div>
+      )}
+
       {/* Bottom Bar - User */}
       <div className="border-t border-sidebar-border">
         <div className="flex items-center h-14 px-3">
@@ -268,17 +274,6 @@ export function Sidebar() {
                   <div className="text-xs text-text-tertiary truncate">{currentUser.email}</div>
                 )}
               </div>
-              {currentUser?.role === 'admin' && (
-                <Tooltip content="Settings">
-                  <Link
-                    to="/settings/users"
-                    className="p-1.5 rounded hover:bg-sidebar-hover transition-colors ml-1 text-sidebar-text"
-                    aria-label="Settings"
-                  >
-                    <Settings className="w-4.5 h-4.5" />
-                  </Link>
-                </Tooltip>
-              )}
               {currentUser?.authenticated && (
                 <Tooltip content="Sign out">
                   <button

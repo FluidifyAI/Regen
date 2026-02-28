@@ -132,11 +132,14 @@ export function LoginPage() {
           {/* Divider */}
           <div className="border-t border-[#1E293B] mb-8" />
 
-          {/* In open mode (no accounts yet), skip the login form — nothing to log in to */}
+          {/* In open mode (no accounts yet), show a prominent setup prompt */}
           {openMode && (
-            <p className="text-[#475569] text-sm text-center mb-6">
-              No accounts exist yet. Create the admin account below to get started.
-            </p>
+            <div className="mb-6 rounded-lg border border-[#2563EB]/30 bg-[#1E3A5F]/40 px-4 py-3 text-center">
+              <p className="text-[#93C5FD] text-sm font-medium">Welcome — let's get you set up</p>
+              <p className="text-[#475569] text-xs mt-1">
+                No accounts exist yet. Create the admin account below to get started.
+              </p>
+            </div>
           )}
 
           {/* Local email/password form — hidden when no accounts exist */}

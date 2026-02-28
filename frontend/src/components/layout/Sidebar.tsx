@@ -66,11 +66,6 @@ export function Sidebar() {
     setSectionsExpanded((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }))
   }
 
-  const showToast = (message: string) => {
-    // TODO: Implement toast notification system in OI-041
-    alert(message)
-  }
-
   const topNavItems: NavItem[] = [
     {
       id: 'home',
@@ -82,7 +77,8 @@ export function Sidebar() {
       id: 'search',
       label: 'Search',
       icon: Search,
-      onClick: () => showToast('Search coming soon'),
+      disabled: true,
+      disabledTooltip: 'Global search — coming soon',
     },
   ]
 

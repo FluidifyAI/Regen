@@ -105,3 +105,23 @@ func TestPostMortemAgent_SkipsShortIncidents(t *testing.T) {
 	agent.Handle(context.Background(), incident.ID)
 	assert.False(t, pmSvc.called, "should skip incidents under 5 minutes")
 }
+
+func TestPostMortemAgent_SkipsWhenNotResolved(t *testing.T) {
+	// Incident without a ResolvedAt (e.g. race condition or manual call)
+	incident := &models.Incident{
+		ID:          uuid.New(),
+		Status:      "resolved",
+		TriggeredAt: time.Now().Add(-1 * time.Hour),
+		ResolvedAt:  nil, // no resolved timestamp
+	}
+	pmSvc := &fakePostMortemSvc{existing: false}
+	agent := agents.NewPostMortemAgent(agents.PostMortemAgentDeps{
+		AgentUserID:   uuid.New(),
+		AISvc:         &fakeAISvc{enabled: true},
+		IncidentRepo:  &fakeIncidentRepo{incident: incident},
+		PostMortemSvc: pmSvc,
+		WaitDuration:  0,
+	})
+	agent.Handle(context.Background(), incident.ID)
+	assert.False(t, pmSvc.called, "should skip incident without resolved timestamp")
+}

@@ -75,14 +75,11 @@ func (a *PostMortemAgent) Handle(ctx context.Context, incidentID uuid.UUID) {
 		return
 	}
 
-	// Step 4: precondition — incident duration >= 5 minutes
-	if incident.ResolvedAt != nil {
-		duration := incident.ResolvedAt.Sub(incident.TriggeredAt)
-		if duration < minIncidentDuration {
-			slog.Info("post-mortem agent: incident too short, skipping",
-				"incident_id", incidentID, "duration", duration)
-			return
-		}
+	// Step 4: precondition — incident duration >= 5 minutes (or not yet resolved)
+	if incident.ResolvedAt == nil || incident.ResolvedAt.Sub(incident.TriggeredAt) < minIncidentDuration {
+		slog.Info("post-mortem agent: incident too short or not yet resolved, skipping",
+			"incident_id", incidentID)
+		return
 	}
 
 	// Step 5: precondition — no existing post-mortem

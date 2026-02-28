@@ -24,7 +24,7 @@ interface GanttCalendarProps {
 
 // ─── Exported helper ──────────────────────────────────────────────────────────
 
-/** Returns the Monday of the week containing `date`. */
+/** Returns the Monday of the week containing `date`. Uses local calendar date, not UTC. */
 export function getMondayOf(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay() // 0=Sun…6=Sat
@@ -154,6 +154,7 @@ export function GanttCalendar({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={prevWindow}
             className="p-1.5 rounded hover:bg-gray-100 transition-colors"
             title="Previous period"
@@ -161,6 +162,7 @@ export function GanttCalendar({
             <ChevronLeft className="w-4 h-4 text-text-secondary" />
           </button>
           <button
+            type="button"
             onClick={nextWindow}
             className="p-1.5 rounded hover:bg-gray-100 transition-colors"
             title="Next period"
@@ -170,6 +172,7 @@ export function GanttCalendar({
           <span className="ml-2 text-sm font-semibold text-text-primary">{monthLabel}</span>
         </div>
         <button
+          type="button"
           onClick={goToday}
           className="text-xs font-medium px-2.5 py-1 rounded border border-border text-text-secondary hover:bg-gray-50 transition-colors"
         >
@@ -180,7 +183,7 @@ export function GanttCalendar({
       {/* ── Scrollable table wrapper ── */}
       <div className="overflow-x-auto">
         <table
-          className="border-collapse table-fixed"
+          className="w-full border-collapse table-fixed"
           style={{ minWidth: 600 }}
         >
           <colgroup>
@@ -263,9 +266,7 @@ export function GanttCalendar({
                       colSpan={days}
                       className="h-12 border-b border-r border-border bg-white px-3 align-middle"
                     >
-                      <span className="text-xs italic text-text-tertiary">
-                        No layers configured
-                      </span>
+                      <span className="text-xs text-text-tertiary">—</span>
                     </td>
                   )}
 

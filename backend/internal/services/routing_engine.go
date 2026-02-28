@@ -29,6 +29,10 @@ type RoutingDecision struct {
 	// EscalationPolicyID is the escalation policy to trigger for this alert (nil = no escalation).
 	// Set from the "escalation_policy_id" key in the matching rule's actions JSONB.
 	EscalationPolicyID *uuid.UUID
+
+	// AIEnabled controls whether AI agents process the resulting incident.
+	// Defaults to true; can be set false via the "ai_enabled" key in the rule's actions JSONB.
+	AIEnabled bool
 }
 
 // RoutingEngine evaluates alerts against routing rules to determine incident routing behavior
@@ -111,7 +115,7 @@ func (r *routingEngine) EvaluateAlert(alert *models.Alert) (*RoutingDecision, er
 	slog.Info("routing: no rule matched, using default behavior (create incident)",
 		"alert_id", alert.ID,
 	)
-	return &RoutingDecision{}, nil
+	return &RoutingDecision{AIEnabled: true}, nil
 }
 
 // RefreshRules reloads routing rules from the database
@@ -267,7 +271,20 @@ func (r *routingEngine) buildDecision(rule *models.RoutingRule) *RoutingDecision
 		}
 	}
 
+	decision.AIEnabled = extractAIEnabled(actions)
+
 	return decision
+}
+
+// extractAIEnabled reads the ai_enabled key from routing rule actions.
+// Returns true if the key is absent (opt-out requires explicit false).
+func extractAIEnabled(actions models.JSONB) bool {
+	if v, ok := actions["ai_enabled"]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return true
 }
 
 // toStringSlice converts an interface{} (from JSONB) to []string.

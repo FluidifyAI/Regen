@@ -14,6 +14,7 @@ import { EscalationPolicyDetailPage } from './pages/EscalationPolicyDetailPage'
 import { AlertDetailPage } from './pages/AlertDetailPage'
 import { PostMortemTemplatesPage } from './pages/PostMortemTemplatesPage'
 import { SettingsUsersPage } from './pages/SettingsUsersPage'
+import { AnalyticsPage } from './pages/AnalyticsPage'
 import { LogoutPage } from './pages/LogoutPage'
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
               <Route path="/escalation-policies/:id" element={<EscalationPolicyDetailPage />} />
               <Route path="/alerts/:id" element={<AlertDetailPage />} />
               <Route path="/post-mortem-templates" element={<PostMortemTemplatesPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/settings" element={<Navigate to="/settings/users" replace />} />
               <Route path="/settings/users" element={<SettingsUsersPage />} />
             </Route>

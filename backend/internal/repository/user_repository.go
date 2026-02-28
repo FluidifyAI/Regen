@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -51,7 +52,7 @@ func NewUserRepository(db *gorm.DB) UserRepository {
 func (r *userRepository) GetBySubject(subject string) (*models.User, error) {
 	var user models.User
 	err := r.db.Where("saml_subject = ?", subject).First(&user).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &NotFoundError{Resource: "user", ID: subject}
 	}
 	return &user, err
@@ -60,7 +61,7 @@ func (r *userRepository) GetBySubject(subject string) (*models.User, error) {
 func (r *userRepository) GetByEmail(email string) (*models.User, error) {
 	var user models.User
 	err := r.db.Where("email = ?", email).First(&user).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &NotFoundError{Resource: "user", ID: email}
 	}
 	return &user, err
@@ -127,7 +128,7 @@ func (r *userRepository) ListAll() ([]models.User, error) {
 func (r *userRepository) GetByID(id uuid.UUID) (*models.User, error) {
 	var user models.User
 	err := r.db.First(&user, "id = ?", id).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &NotFoundError{Resource: "user", ID: id.String()}
 	}
 	return &user, err

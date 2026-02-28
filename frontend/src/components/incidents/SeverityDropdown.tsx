@@ -16,9 +16,28 @@ interface SeverityDropdownProps {
 
 const SEVERITY_OPTIONS: SeverityType[] = ['critical', 'high', 'medium', 'low']
 
+const SEVERITY_INFO: Record<SeverityType, { description: string; dotColor: string }> = {
+  critical: {
+    description: 'Major customer impact, all hands on deck',
+    dotColor: 'bg-red-500',
+  },
+  high: {
+    description: 'Significant impact, core team engaged',
+    dotColor: 'bg-orange-500',
+  },
+  medium: {
+    description: 'Partial impact or degraded performance',
+    dotColor: 'bg-yellow-500',
+  },
+  low: {
+    description: 'Minor issue, low customer impact',
+    dotColor: 'bg-green-500',
+  },
+}
+
 /**
- * Severity dropdown with optimistic updates
- * Updates UI immediately, calls API, rolls back on error
+ * Severity dropdown with descriptions for each level.
+ * Updates UI immediately, calls API, rolls back on error.
  */
 export function SeverityDropdown({
   incidentId,
@@ -36,21 +55,13 @@ export function SeverityDropdown({
 
     setIsOpen(false)
     setIsUpdating(true)
-
-    // Save previous severity for rollback
     const previousSeverity = currentSeverity
 
     try {
-      // Make API call
       await updateIncident(incidentId, { severity: newSeverity })
-
-      // Refetch to get the updated data from server
       await onRefetch()
-
-      // Show success toast AFTER refetch completes
       onSuccess(`Severity updated to ${newSeverity}`)
     } catch (error) {
-      // Rollback on error
       onSeverityChange(previousSeverity)
       onError(error instanceof Error ? error.message : 'Failed to update severity')
     } finally {
@@ -75,27 +86,34 @@ export function SeverityDropdown({
 
       {isOpen && !isUpdating && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
-          />
-
-          {/* Dropdown Menu */}
-          <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-border rounded-lg shadow-lg z-20 py-1">
-            {SEVERITY_OPTIONS.map((severity) => (
-              <button
-                key={severity}
-                onClick={() => handleSeverityChange(severity)}
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-secondary transition-colors flex items-center gap-2 ${
-                  severity === currentSeverity ? 'bg-surface-secondary' : ''
-                }`}
-              >
-                <Badge variant={severity} type="severity">
-                  {severity}
-                </Badge>
-              </button>
-            ))}
+          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+          <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-border rounded-lg shadow-lg z-20 py-1">
+            {SEVERITY_OPTIONS.map((severity) => {
+              const info = SEVERITY_INFO[severity]
+              const isSelected = severity === currentSeverity
+              return (
+                <button
+                  key={severity}
+                  onClick={() => handleSeverityChange(severity)}
+                  className={`w-full px-3 py-2.5 text-left hover:bg-surface-secondary transition-colors flex items-start gap-3 ${
+                    isSelected ? 'bg-surface-secondary' : ''
+                  }`}
+                >
+                  <span className={`mt-1.5 flex-shrink-0 w-2 h-2 rounded-full ${info.dotColor}`} />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={severity} type="severity">{severity}</Badge>
+                      {isSelected && (
+                        <span className="text-xs text-text-tertiary">current</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
+                      {info.description}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </>
       )}

@@ -114,7 +114,10 @@ export function IncidentsListPage() {
         )}
 
         {!loading && !error && filteredIncidents.length === 0 && (
-          <EmptyIncidentsList onDeclare={handleDeclareIncident} />
+          <EmptyIncidentsList
+            onDeclare={handleDeclareIncident}
+            hasFilters={!!(statusFilter || severityFilter || searchQuery)}
+          />
         )}
 
         {!loading && !error && filteredIncidents.length > 0 && (

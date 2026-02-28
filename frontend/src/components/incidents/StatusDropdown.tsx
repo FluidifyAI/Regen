@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, AlertTriangle } from 'lucide-react'
 import { updateIncident } from '../../api/incidents'
 import { Badge } from '../ui/Badge'
 
@@ -16,9 +16,17 @@ interface StatusDropdownProps {
 
 const STATUS_OPTIONS: StatusType[] = ['triggered', 'acknowledged', 'resolved', 'canceled']
 
+// Terminal statuses that require a confirmation step before committing
+const CONFIRM_REQUIRED: StatusType[] = ['resolved', 'canceled']
+
+const CONFIRM_MESSAGES: Partial<Record<StatusType, string>> = {
+  resolved: 'Mark this incident as resolved?',
+  canceled: 'Cancel this incident? This cannot be undone.',
+}
+
 /**
- * Status dropdown with optimistic updates
- * Updates UI immediately, calls API, rolls back on error
+ * Status dropdown with inline confirmation for terminal status changes.
+ * resolved/canceled show a confirmation step before committing.
  */
 export function StatusDropdown({
   incidentId,
@@ -30,33 +38,38 @@ export function StatusDropdown({
 }: StatusDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [pendingStatus, setPendingStatus] = useState<StatusType | null>(null)
 
-  const handleStatusChange = async (newStatus: StatusType) => {
-    if (newStatus === currentStatus || isUpdating) return
+  const handleStatusClick = (status: StatusType) => {
+    if (status === currentStatus || isUpdating) return
 
+    if (CONFIRM_REQUIRED.includes(status)) {
+      // Show inline confirmation instead of immediately committing
+      setPendingStatus(status)
+    } else {
+      commitStatusChange(status)
+    }
+  }
+
+  const commitStatusChange = async (newStatus: StatusType) => {
     setIsOpen(false)
+    setPendingStatus(null)
     setIsUpdating(true)
-
-    // Save previous status for rollback
     const previousStatus = currentStatus
 
     try {
-      // Make API call
       await updateIncident(incidentId, { status: newStatus })
-
-      // Refetch to get the updated data from server
       await onRefetch()
-
-      // Show success toast AFTER refetch completes
       onSuccess(`Status updated to ${newStatus}`)
     } catch (error) {
-      // Rollback on error
       onStatusChange(previousStatus)
       onError(error instanceof Error ? error.message : 'Failed to update status')
     } finally {
       setIsUpdating(false)
     }
   }
+
+  const cancelPending = () => setPendingStatus(null)
 
   return (
     <div className="relative">
@@ -75,27 +88,51 @@ export function StatusDropdown({
 
       {isOpen && !isUpdating && (
         <>
-          {/* Backdrop */}
           <div
             className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
+            onClick={() => { setIsOpen(false); setPendingStatus(null) }}
           />
-
-          {/* Dropdown Menu */}
-          <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-border rounded-lg shadow-lg z-20 py-1">
-            {STATUS_OPTIONS.map((status) => (
-              <button
-                key={status}
-                onClick={() => handleStatusChange(status)}
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-secondary transition-colors flex items-center gap-2 ${
-                  status === currentStatus ? 'bg-surface-secondary' : ''
-                }`}
-              >
-                <Badge variant={status} type="status">
-                  {status}
-                </Badge>
-              </button>
-            ))}
+          <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-border rounded-lg shadow-lg z-20 py-1">
+            {pendingStatus ? (
+              /* Inline confirmation step */
+              <div className="px-3 py-3">
+                <div className="flex items-start gap-2 mb-3">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-text-primary leading-snug">
+                    {CONFIRM_MESSAGES[pendingStatus]}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => commitStatusChange(pendingStatus)}
+                    className="flex-1 px-3 py-1.5 rounded-md bg-brand-primary hover:bg-brand-primary/90 text-white text-xs font-medium transition-colors"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={cancelPending}
+                    className="flex-1 px-3 py-1.5 rounded-md border border-border text-text-secondary hover:text-text-primary text-xs font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Normal status list */
+              STATUS_OPTIONS.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => handleStatusClick(status)}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-secondary transition-colors flex items-center gap-2 ${
+                    status === currentStatus ? 'bg-surface-secondary' : ''
+                  }`}
+                >
+                  <Badge variant={status} type="status">
+                    {status}
+                  </Badge>
+                </button>
+              ))
+            )}
           </div>
         </>
       )}

@@ -153,11 +153,17 @@ func CreateIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 		}
 
 		// Create incident via service
+		aiEnabled := true
+		if req.AIEnabled != nil {
+			aiEnabled = *req.AIEnabled
+		}
+
 		params := services.CreateIncidentParams{
 			Title:       req.Title,
 			Severity:    models.IncidentSeverity(req.Severity),
 			Description: req.Description,
 			CreatedBy:   "user", // For v0.1, hardcoded. Will use auth context in v0.2+
+			AIEnabled:   aiEnabled,
 		}
 
 		// Default severity to medium if not specified
@@ -232,6 +238,7 @@ func UpdateIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 			Summary:   req.Summary,
 			UpdatedBy: "user",        // For v0.1, hardcoded
 			ClientIP:  c.ClientIP(), // For audit logging
+			AIEnabled: req.AIEnabled,
 		}
 
 		updatedIncident, err := incidentSvc.UpdateIncident(incident.ID, &params)

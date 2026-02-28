@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { IncidentTable } from '../components/incidents/IncidentTable'
@@ -7,33 +7,45 @@ import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyIncidentsList } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
 import { useIncidents } from '../hooks/useIncidents'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Incident } from '../api/types'
 
+const PAGE_SIZE = 20
+
 /**
- * Incidents list page with filtering and search
- * Features: status/severity filters, search, pagination, declare incident button
+ * Incidents list page with filtering, search, and pagination
  */
 export function IncidentsListPage() {
   const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [severityFilter, setSeverityFilter] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
   const [showCreateModal, setShowCreateModal] = useState(false)
+
+  // Reset to page 1 whenever server-side filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [statusFilter, severityFilter])
 
   const { incidents, loading, error, total, refetch } = useIncidents({
     status: statusFilter || undefined,
     severity: severityFilter || undefined,
-    limit: 50,
+    limit: PAGE_SIZE,
+    offset: (currentPage - 1) * PAGE_SIZE,
   })
 
-  // Filter incidents by search query (client-side)
+  // Client-side search filters the current page's results
   const filteredIncidents = searchQuery
     ? incidents.filter((inc) =>
         inc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         `INC-${inc.incident_number}`.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : incidents
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pageStart = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
+  const pageEnd = Math.min(currentPage * PAGE_SIZE, total)
 
   const handleDeclareIncident = () => setShowCreateModal(true)
 
@@ -100,7 +112,10 @@ export function IncidentsListPage() {
 
           {/* Results Count */}
           <div className="text-sm text-text-secondary">
-            {loading ? '...' : `${filteredIncidents.length} of ${total}`}
+            {loading ? '...' : searchQuery
+              ? `${filteredIncidents.length} result${filteredIncidents.length !== 1 ? 's' : ''}`
+              : `${pageStart}–${pageEnd} of ${total}`
+            }
           </div>
         </div>
       </div>
@@ -121,7 +136,39 @@ export function IncidentsListPage() {
         )}
 
         {!loading && !error && filteredIncidents.length > 0 && (
-          <IncidentTable incidents={filteredIncidents} />
+          <>
+            <IncidentTable incidents={filteredIncidents} />
+
+            {/* Pagination — only shown when not in search mode and there are multiple pages */}
+            {!searchQuery && totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
+                <span className="text-sm text-text-secondary">
+                  Showing {pageStart}–{pageEnd} of {total} incidents
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                    disabled={currentPage === 1}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm border border-border rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Previous
+                  </button>
+                  <span className="text-sm text-text-secondary px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    disabled={currentPage >= totalPages}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm border border-border rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

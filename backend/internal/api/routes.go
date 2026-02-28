@@ -33,6 +33,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	groupingRuleRepo := repository.NewGroupingRuleRepository(db)
 	routingRuleRepo := repository.NewRoutingRuleRepository(db)
 	escalationPolicyRepo := repository.NewEscalationPolicyRepository(db)
+	userRepo := repository.NewUserRepository(db)
 
 	// Initialize Slack service (optional - graceful degradation if not configured)
 	var chatService services.ChatService
@@ -338,6 +339,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.POST("/escalation-policies/:id/tiers", handlers.CreateEscalationTier(escalationPolicyRepo))
 		protected.PATCH("/escalation-policies/:id/tiers/:tier_id", handlers.UpdateEscalationTier(escalationPolicyRepo))
 		protected.DELETE("/escalation-policies/:id/tiers/:tier_id", handlers.DeleteEscalationTier(escalationPolicyRepo))
+
+		// Agent management (AI agents — enable/disable)
+		agentsHandler := handlers.NewAgentsHandler(userRepo)
+		protected.GET("/agents", agentsHandler.List)
+		protected.PATCH("/agents/:id/status", agentsHandler.SetStatus)
 
 		// Settings — admin only
 		settingsGroup := protected.Group("/settings", middleware.RequireAdmin())

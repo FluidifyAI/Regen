@@ -119,9 +119,8 @@ export function GanttCalendar({
   const nowFraction =
     (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400
 
-  // Month label derived from the middle day of the window
-  // dayDates always has `days` entries (days >= 1), so midDay is always defined.
-  const midDay = dayDates[Math.floor(days / 2)] ?? dayDates[0] ?? windowStart
+  // Month label derived from the middle day of the window (days >= 1, always defined).
+  const midDay = dayDates[Math.floor(days / 2)] ?? windowStart
   const monthLabel = `${MONTHS[midDay.getMonth()]} ${midDay.getFullYear()}`
 
   // Helpers to determine if a given Date object is today

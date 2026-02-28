@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import {
   ChevronRight,
@@ -81,9 +81,9 @@ function computeLayerSegments(
     dayEnd.setHours(23, 59, 59, 999)
 
     const elapsed = dayStart.getTime() - rotationStart
-    const slotIndex = elapsed >= 0
-      ? Math.floor(elapsed / shiftMs)
-      : -Math.ceil(Math.abs(elapsed) / shiftMs)
+    // Math.floor handles negative elapsed correctly (days before rotationStart).
+    // Note: uses browser local time; schedule.timezone is not applied here.
+    const slotIndex = Math.floor(elapsed / shiftMs)
     const normalizedIndex =
       ((slotIndex % sorted.length) + sorted.length) % sorted.length
 
@@ -704,13 +704,17 @@ export function ScheduleDetailPage() {
     refetch()
   }, [refetch])
 
-  const ganttRows: GanttRow[] = (schedule?.layers ?? [])
-    .sort((a, b) => a.order_index - b.order_index)
-    .map((layer) => ({
-      id: layer.id,
-      label: layer.name,
-      segments: computeLayerSegments(layer, windowStart, GANTT_DAYS),
-    }))
+  const ganttRows: GanttRow[] = useMemo(
+    () =>
+      (schedule?.layers ?? [])
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((layer) => ({
+          id: layer.id,
+          label: layer.name,
+          segments: computeLayerSegments(layer, windowStart, GANTT_DAYS),
+        })),
+    [schedule?.layers, windowStart],
+  )
 
   const handleOverrideSaved = () => {
     toast.success('Override created')

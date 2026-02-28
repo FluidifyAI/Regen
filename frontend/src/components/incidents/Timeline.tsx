@@ -100,6 +100,21 @@ function TimelineEntryItem({ entry }: { entry: TimelineEntry }) {
 }
 
 /**
+ * Strips Slack/Teams wire-format markup so raw API text is readable.
+ * Handles: <@U12345|name> user mentions, <#C12345|name> channel refs,
+ * <http://url|label> links, and Teams <at>Name</at> mentions.
+ */
+function cleanChatText(text: string): string {
+  return text
+    .replace(/<@[A-Z0-9]+\|([^>]+)>/g, '@$1')        // <@UID|name> → @name
+    .replace(/<@([A-Z0-9]+)>/g, '@$1')                 // <@UID> → @UID
+    .replace(/<#[A-Z0-9]+\|([^>]+)>/g, '#$1')         // <#CID|name> → #name
+    .replace(/<(https?:\/\/[^|>]+)\|([^>]+)>/g, '$2') // <url|label> → label
+    .replace(/<(https?:\/\/[^>]+)>/g, '$1')            // <url> → url
+    .replace(/<at>([^<]+)<\/at>/g, '@$1')              // Teams <at>Name</at> → @Name
+}
+
+/**
  * Renders entry content based on type. No raw JSON is ever shown.
  */
 function EntryContent({ entry }: { entry: TimelineEntry }) {
@@ -144,14 +159,14 @@ function EntryContent({ entry }: { entry: TimelineEntry }) {
     case 'slack_message':
       return (
         <div className="text-sm text-text-primary whitespace-pre-wrap">
-          {content.text || content.message || 'No message'}
+          {cleanChatText(content.text || content.message || 'No message')}
         </div>
       )
 
     case 'teams_message':
       return (
         <div className="text-sm text-text-primary whitespace-pre-wrap">
-          {content.text || content.message || 'No message'}
+          {cleanChatText(content.text || content.message || 'No message')}
         </div>
       )
 

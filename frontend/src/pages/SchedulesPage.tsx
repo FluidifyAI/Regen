@@ -8,11 +8,7 @@ import { GeneralError } from '../components/ui/ErrorState'
 import { useSchedules } from '../hooks/useSchedules'
 import { createSchedule, createLayer, getTimeline, COMMON_TIMEZONES } from '../api/schedules'
 import type { CreateScheduleRequest, TimelineSegment } from '../api/types'
-import { GanttCalendar, GanttRow, getMondayOf } from '../components/oncall/GanttCalendar'
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const GANTT_DAYS = 7
+import { GanttCalendar, GanttRow, getMondayOf, getMonthStart, daysInMonth } from '../components/oncall/GanttCalendar'
 
 // ─── useScheduleTimelines hook ────────────────────────────────────────────────
 
@@ -477,7 +473,8 @@ export function SchedulesPage() {
   const navigate = useNavigate()
   const { schedules, loading, error, refetch } = useSchedules()
   const [modalOpen, setModalOpen] = useState(false)
-  const [windowStart, setWindowStart] = useState<Date>(() => getMondayOf(new Date()))
+  const [windowStart, setWindowStart] = useState<Date>(() => getMonthStart(new Date()))
+  const GANTT_DAYS = daysInMonth(windowStart)
 
   const handleCreated = (id: string) => {
     navigate(`/on-call/${id}`)

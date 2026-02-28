@@ -9,7 +9,7 @@ import {
   AlertCircle,
   Layers,
 } from 'lucide-react'
-import { GanttCalendar, GanttRow, getMondayOf, segmentBg, segmentText } from '../components/oncall/GanttCalendar'
+import { GanttCalendar, GanttRow, getMonthStart, daysInMonth, segmentBg, segmentText } from '../components/oncall/GanttCalendar'
 import { Button } from '../components/ui/Button'
 import { SkeletonDetail } from '../components/ui/Skeleton'
 import { GeneralError } from '../components/ui/ErrorState'
@@ -663,8 +663,8 @@ export function ScheduleDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [addLayerOpen, setAddLayerOpen] = useState(false)
   const [overrideModalOpen, setOverrideModalOpen] = useState(false)
-  const [windowStart, setWindowStart] = useState<Date>(() => getMondayOf(new Date()))
-  const GANTT_DAYS = 7
+  const [windowStart, setWindowStart] = useState<Date>(() => getMonthStart(new Date()))
+  const GANTT_DAYS = daysInMonth(windowStart)
 
   const handleScheduleDeleted = async () => {
     if (!schedule) return
@@ -695,7 +695,7 @@ export function ScheduleDetailPage() {
           label: layer.name,
           segments: computeLayerSegments(layer, windowStart, GANTT_DAYS),
         })),
-    [schedule?.layers, windowStart],
+    [schedule?.layers, windowStart, GANTT_DAYS],
   )
 
   const handleOverrideSaved = () => {

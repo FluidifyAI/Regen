@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,6 +31,13 @@ type UserRepository interface {
 	CountByRole(role models.UserRole) (int64, error)
 	// Deactivate soft-deletes a user by setting auth_source='deactivated'.
 	Deactivate(id uuid.UUID) error
+	// CreateAgent inserts an AI agent user. No password hash is set.
+	CreateAgent(user *models.User) error
+	// SetActive enables or disables a user (used for agent on/off toggle).
+	SetActive(id uuid.UUID, active bool) error
+	// ListAgents returns all users with auth_source='ai', including inactive ones.
+	// The coordinator must additionally check the Active flag before dispatching work.
+	ListAgents() ([]models.User, error)
 }
 
 type userRepository struct {
@@ -82,6 +90,32 @@ func (r *userRepository) UpdateLastLogin(id uuid.UUID, at time.Time) error {
 
 func (r *userRepository) CreateLocal(user *models.User) error {
 	return r.db.Create(user).Error
+}
+
+func (r *userRepository) CreateAgent(user *models.User) error {
+	if user.PasswordHash != nil {
+		return fmt.Errorf("repository: CreateAgent: password_hash must be nil for AI agent accounts")
+	}
+	return r.db.Create(user).Error
+}
+
+func (r *userRepository) SetActive(id uuid.UUID, active bool) error {
+	result := r.db.Model(&models.User{}).
+		Where("id = ?", id).
+		Update("active", active)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return &NotFoundError{Resource: "user", ID: id.String()}
+	}
+	return nil
+}
+
+func (r *userRepository) ListAgents() ([]models.User, error) {
+	var agents []models.User
+	err := r.db.Where("auth_source = ?", "ai").Order("name").Find(&agents).Error
+	return agents, err
 }
 
 func (r *userRepository) ListAll() ([]models.User, error) {

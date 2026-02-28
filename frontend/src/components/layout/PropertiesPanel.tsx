@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Hash, Calendar, Clock, ExternalLink } from 'lucide-react'
+import { ChevronDown, ChevronUp, Hash, Calendar, Clock, ExternalLink, Timer, Activity, AlertCircle } from 'lucide-react'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
+import type { Alert, TimelineEntry } from '../../api/types'
 
 type StatusType = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
 type SeverityType = 'critical' | 'high' | 'medium' | 'low'
@@ -22,6 +23,9 @@ interface Incident {
   acknowledged_at?: string
   resolved_at?: string
   commander_id?: string
+  // Detail fields
+  alerts: Alert[]
+  timeline: TimelineEntry[]
 }
 
 interface PropertiesPanelProps {
@@ -29,11 +33,13 @@ interface PropertiesPanelProps {
 }
 
 /**
- * Collapsible properties panel for incident details
- * Shows metadata, status, severity, timestamps, and related info
+ * Collapsible properties panel for incident details.
+ * Shows metadata, duration, last activity, linked alerts, and channel links.
  */
 export function PropertiesPanel({ incident }: PropertiesPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
+
+  const lastActivityTs = getLastActivity(incident.timeline, incident.triggered_at)
 
   return (
     <div className="bg-white border-l border-border h-full overflow-y-auto">
@@ -69,7 +75,7 @@ export function PropertiesPanel({ incident }: PropertiesPanelProps) {
             </Badge>
           </PropertySection>
 
-          {/* Commander */}
+          {/* Incident Commander */}
           <PropertySection title="Incident Commander">
             {incident.commander_id ? (
               <div className="flex items-center gap-2">
@@ -80,6 +86,39 @@ export function PropertiesPanel({ incident }: PropertiesPanelProps) {
               <span className="text-sm text-text-tertiary">Unassigned</span>
             )}
           </PropertySection>
+
+          {/* Duration */}
+          <PropertySection title="Duration">
+            <div className="flex items-center gap-2">
+              <Timer className="w-4 h-4 text-text-tertiary" />
+              <span className="text-sm text-text-primary">
+                {formatDuration(incident.triggered_at, incident.resolved_at)}
+              </span>
+              {!incident.resolved_at && (
+                <span className="text-xs text-text-tertiary">(ongoing)</span>
+              )}
+            </div>
+          </PropertySection>
+
+          {/* Last activity */}
+          <PropertySection title="Last Activity">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-text-tertiary" />
+              <span className="text-sm text-text-primary" title={formatDateTime(lastActivityTs)}>
+                {formatRelativeTime(lastActivityTs)}
+              </span>
+            </div>
+          </PropertySection>
+
+          {/* Linked Alerts */}
+          {incident.alerts.length > 0 && (
+            <PropertySection title="Linked Alerts">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-text-tertiary" />
+                <span className="text-sm text-text-primary">{incident.alerts.length} alert{incident.alerts.length !== 1 ? 's' : ''}</span>
+              </div>
+            </PropertySection>
+          )}
 
           {/* Timeline */}
           <PropertySection title="Timeline">
@@ -129,7 +168,7 @@ export function PropertiesPanel({ incident }: PropertiesPanelProps) {
             </PropertySection>
           )}
 
-          {/* Teams Channel (v0.8+) */}
+          {/* Teams Channel */}
           {incident.teams_channel_name && (
             <PropertySection title="Teams Channel">
               <div className="flex items-center gap-2">
@@ -166,9 +205,8 @@ export function PropertiesPanel({ incident }: PropertiesPanelProps) {
   )
 }
 
-/**
- * Property section with title
- */
+// ── Subcomponents ─────────────────────────────────────────────────────────────
+
 function PropertySection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -180,9 +218,6 @@ function PropertySection({ title, children }: { title: string; children: React.R
   )
 }
 
-/**
- * Timeline item with icon, label, and value
- */
 function TimelineItem({
   icon,
   label,
@@ -203,9 +238,18 @@ function TimelineItem({
   )
 }
 
-/**
- * Format timestamp as date and time
- */
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Returns the timestamp of the most recent timeline entry, or falls back to triggered_at. */
+function getLastActivity(timeline: TimelineEntry[], fallback: string): string {
+  if (timeline.length === 0) return fallback
+  const latest = timeline.reduce((a, b) =>
+    new Date(a.timestamp) > new Date(b.timestamp) ? a : b
+  )
+  return latest.timestamp
+}
+
+/** Format a timestamp as absolute date + time, e.g. "Feb 5, 2026, 2:45 PM" */
 function formatDateTime(timestamp: string): string {
   const date = new Date(timestamp)
   return date.toLocaleString('en-US', {
@@ -216,4 +260,27 @@ function formatDateTime(timestamp: string): string {
     minute: '2-digit',
     hour12: true,
   })
+}
+
+/** Format duration between two timestamps. If endTs is omitted, use now. */
+function formatDuration(startTs: string, endTs?: string): string {
+  const start = new Date(startTs)
+  const end = endTs ? new Date(endTs) : new Date()
+  const diffSeconds = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000))
+
+  if (diffSeconds < 60) return `${diffSeconds}s`
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m`
+  const hours = Math.floor(diffSeconds / 3600)
+  const mins = Math.floor((diffSeconds % 3600) / 60)
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
+}
+
+/** Format a timestamp as relative time, e.g. "3m ago" */
+function formatRelativeTime(timestamp: string): string {
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000))
+
+  if (diffSeconds < 60) return 'Just now'
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`
+  if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`
+  return `${Math.floor(diffSeconds / 86400)}d ago`
 }

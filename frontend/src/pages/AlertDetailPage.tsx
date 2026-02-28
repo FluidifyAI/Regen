@@ -28,7 +28,7 @@ function AckStatusBadge({ status }: { status?: string }) {
   }
   if (status === 'acknowledged') {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-brand-primary/10 text-brand-primary border border-brand-primary/20">
         <CheckCircle2 className="w-3 h-3" />
         Acknowledged
       </span>
@@ -75,7 +75,7 @@ function AcknowledgeModal({ alertId, isOpen, onClose, onAcknowledged }: AckModal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-surface-primary border border-border-subtle rounded-xl shadow-xl w-full max-w-sm p-6">
+      <div className="bg-white border border-border rounded-xl shadow-xl w-full max-w-sm p-6">
         <h2 className="text-lg font-semibold text-text-primary mb-4">Acknowledge Alert</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -83,7 +83,7 @@ function AcknowledgeModal({ alertId, isOpen, onClose, onAcknowledged }: AckModal
               Your name <span className="text-red-500">*</span>
             </label>
             <input
-              className="w-full px-3 py-2 rounded-lg border border-border-subtle bg-surface-secondary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-surface-secondary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
               value={userName}
               onChange={e => setUserName(e.target.value)}
               placeholder="e.g. alice"
@@ -185,7 +185,7 @@ export function AlertDetailPage() {
 
       {/* Escalation status card */}
       {alert.escalation_policy_id && (
-        <div className="border border-border-subtle rounded-xl bg-surface-primary p-4 mb-4">
+        <div className="border border-border rounded-xl bg-white p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <GitBranch className="w-4 h-4 text-text-tertiary" />
             <h2 className="text-sm font-semibold text-text-primary">Escalation Status</h2>
@@ -234,7 +234,7 @@ export function AlertDetailPage() {
       )}
 
       {/* Alert metadata */}
-      <div className="border border-border-subtle rounded-xl bg-surface-primary p-4 mb-4">
+      <div className="border border-border rounded-xl bg-white p-4 mb-4">
         <h2 className="text-sm font-semibold text-text-primary mb-3">Details</h2>
         <dl className="grid grid-cols-2 gap-3 text-sm">
           <div>
@@ -265,7 +265,7 @@ export function AlertDetailPage() {
           </div>
         </dl>
         {alert.description && (
-          <div className="mt-3 pt-3 border-t border-border-subtle">
+          <div className="mt-3 pt-3 border-t border-border">
             <dt className="text-text-tertiary text-xs mb-1">Description</dt>
             <dd className="text-sm text-text-secondary">{alert.description}</dd>
           </div>
@@ -274,7 +274,7 @@ export function AlertDetailPage() {
 
       {/* Labels */}
       {Object.keys(alert.labels ?? {}).length > 0 && (
-        <div className="border border-border-subtle rounded-xl bg-surface-primary p-4">
+        <div className="border border-border rounded-xl bg-white p-4">
           <h2 className="text-sm font-semibold text-text-primary mb-3">Labels</h2>
           <div className="flex flex-wrap gap-2">
             {Object.entries(alert.labels).map(([k, v]) => (

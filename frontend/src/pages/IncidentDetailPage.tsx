@@ -38,8 +38,8 @@ export function IncidentDetailPage() {
             <SkeletonLoader />
           </div>
         </div>
-        {/* Properties Panel */}
-        <div className="w-80">
+        {/* Properties Panel skeleton */}
+        <div className="hidden lg:block w-80">
           <div className="bg-white border-l border-border h-full" />
         </div>
       </div>
@@ -179,8 +179,8 @@ export function IncidentDetailPage() {
         </div>
       </div>
 
-      {/* Properties Panel */}
-      <div className="w-80 flex-shrink-0">
+      {/* Properties Panel — hidden on mobile, visible on large screens */}
+      <div className="hidden lg:block w-80 flex-shrink-0">
         <PropertiesPanel incident={incident} />
       </div>
 

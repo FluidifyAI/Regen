@@ -34,6 +34,14 @@ type User struct {
 	PasswordHash *string `gorm:"type:text;column:password_hash" json:"-"`
 	AuthSource   string  `gorm:"type:varchar(20);not null;default:'saml';column:auth_source" json:"-"`
 
+	// AgentType identifies AI agent accounts. NULL for all human users.
+	// Valid values: "postmortem", "triage", "comms", "oncall", "commander"
+	AgentType *string `gorm:"type:varchar(50);column:agent_type" json:"agent_type,omitempty"`
+
+	// Active controls whether this user (or agent) can operate.
+	// Defaults to true for all existing rows via migration.
+	Active bool `gorm:"not null;default:true" json:"active"`
+
 	Role        UserRole   `gorm:"type:varchar(50);not null;default:'member'" json:"role"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
 

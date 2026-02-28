@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import {
-  ChevronLeft,
   ChevronRight,
   Plus,
   Trash2,
@@ -10,6 +9,7 @@ import {
   AlertCircle,
   Layers,
 } from 'lucide-react'
+import { GanttCalendar, GanttRow, getMondayOf, segmentBg, segmentText } from '../components/oncall/GanttCalendar'
 import { Button } from '../components/ui/Button'
 import { SkeletonDetail } from '../components/ui/Skeleton'
 import { GeneralError } from '../components/ui/ErrorState'
@@ -22,7 +22,6 @@ import {
   deleteLayer,
   createOverride,
   deleteOverride,
-  getTimeline,
   COMMON_TIMEZONES,
 } from '../api/schedules'
 import type {
@@ -37,216 +36,48 @@ import type {
 
 // ─── Colour utilities ─────────────────────────────────────────────────────────
 
-/** djb2 hash of user_name → HSL hue in [0, 359] */
-function userHue(name: string): number {
-  let h = 5381
-  for (let i = 0; i < name.length; i++) {
-    h = ((h << 5) + h) ^ name.charCodeAt(i)
-    h = h | 0
-  }
-  return Math.abs(h) % 360
-}
+// ─── computeLayerSegments ─────────────────────────────────────────────────────
 
-function userBg(name: string): string {
-  return `hsl(${userHue(name)}, 55%, 88%)`
-}
+/**
+ * Computes on-call segments for a single layer over [windowStart, windowStart+days).
+ * One segment per day, derived entirely from the layer's rotation definition.
+ */
+function computeLayerSegments(
+  layer: ScheduleLayer,
+  windowStart: Date,
+  days: number,
+): TimelineSegment[] {
+  const participants = layer.participants ?? []
+  if (participants.length === 0) return []
 
-function userText(name: string): string {
-  return `hsl(${userHue(name)}, 45%, 30%)`
-}
+  const shiftMs = (layer.shift_duration_seconds || 86400) * 1000
+  const rotationStart = new Date(layer.rotation_start).getTime()
+  const sorted = [...participants].sort((a, b) => a.order_index - b.order_index)
+  const segments: TimelineSegment[] = []
 
-// ─── Calendar helpers ─────────────────────────────────────────────────────────
+  for (let i = 0; i < days; i++) {
+    const dayStart = new Date(windowStart)
+    dayStart.setDate(dayStart.getDate() + i)
+    dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(dayStart)
+    dayEnd.setHours(23, 59, 59, 999)
 
-/** Returns the Monday of the week containing `date`. */
-function getMondayOf(date: Date): Date {
-  const d = new Date(date)
-  const day = d.getUTCDay() // 0=Sun … 6=Sat
-  const diff = day === 0 ? -6 : 1 - day
-  d.setUTCDate(d.getUTCDate() + diff)
-  d.setUTCHours(0, 0, 0, 0)
-  return d
-}
+    const elapsed = dayStart.getTime() - rotationStart
+    // Math.floor handles negative elapsed correctly (days before rotationStart).
+    // Note: uses browser local time; schedule.timezone is not applied here.
+    const slotIndex = Math.floor(elapsed / shiftMs)
+    const normalizedIndex =
+      ((slotIndex % sorted.length) + sorted.length) % sorted.length
 
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-
-// ─── OnCallCalendar ───────────────────────────────────────────────────────────
-
-interface OnCallCalendarProps {
-  scheduleId: string
-  /** Increments when parent wants a forced refetch (e.g., after creating an override). */
-  refetchKey: number
-}
-
-function OnCallCalendar({ scheduleId, refetchKey }: OnCallCalendarProps) {
-  const [windowStart, setWindowStart] = useState(() => getMondayOf(new Date()))
-  const [segments, setSegments] = useState<TimelineSegment[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const fetchTimeline = useCallback(async () => {
-    setLoading(true)
-    try {
-      const end = new Date(windowStart)
-      end.setUTCDate(end.getUTCDate() + 14)
-      const r = await getTimeline(scheduleId, windowStart.toISOString(), end.toISOString())
-      setSegments(r.segments)
-    } catch {
-      setSegments([])
-    } finally {
-      setLoading(false)
-    }
-  }, [scheduleId, windowStart, refetchKey])
-
-  const windowEnd = new Date(windowStart)
-  windowEnd.setUTCDate(windowEnd.getUTCDate() + 14)
-
-  useEffect(() => {
-    fetchTimeline()
-  }, [fetchTimeline])
-
-  /** Find the segment covering noon UTC on a given day. */
-  function segmentForDay(day: Date): TimelineSegment | null {
-    const noon = new Date(day)
-    noon.setUTCHours(12, 0, 0, 0)
-    return (
-      segments.find(
-        (s) => new Date(s.start) <= noon && noon < new Date(s.end),
-      ) ?? null
-    )
+    segments.push({
+      start: dayStart.toISOString(),
+      end: dayEnd.toISOString(),
+      user_name: sorted[normalizedIndex]?.user_name ?? '?',
+      is_override: false,
+    })
   }
 
-  const prevWeek = () => {
-    const d = new Date(windowStart)
-    d.setUTCDate(d.getUTCDate() - 7)
-    setWindowStart(d)
-  }
-
-  const nextWeek = () => {
-    const d = new Date(windowStart)
-    d.setUTCDate(d.getUTCDate() + 7)
-    setWindowStart(d)
-  }
-
-  // Build 14 day objects
-  const days = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(windowStart)
-    d.setUTCDate(d.getUTCDate() + i)
-    return d
-  })
-
-  const now = new Date()
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-
-  const windowLabel = `${formatDate(windowStart)} – ${formatDate(new Date(windowEnd.getTime() - 86400000))}`
-
-  return (
-    <div>
-      {/* Calendar header */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-text-primary">Shift calendar</h2>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-text-secondary">{windowLabel}</span>
-          <button
-            onClick={prevWeek}
-            className="p-1 rounded hover:bg-gray-100 transition-colors"
-            title="Previous 2 weeks"
-          >
-            <ChevronLeft className="w-4 h-4 text-text-secondary" />
-          </button>
-          <button
-            onClick={nextWeek}
-            className="p-1 rounded hover:bg-gray-100 transition-colors"
-            title="Next 2 weeks"
-          >
-            <ChevronRight className="w-4 h-4 text-text-secondary" />
-          </button>
-        </div>
-      </div>
-
-      {/* Desktop grid */}
-      {loading ? (
-        <div className="h-28 bg-gray-50 rounded-lg animate-pulse" />
-      ) : (
-        <>
-          {/* Desktop: 7-column grid, 2 rows */}
-          <div className="hidden sm:block border border-border rounded-lg overflow-hidden">
-            {/* Day-of-week header */}
-            <div className="grid grid-cols-7 border-b border-border bg-gray-50">
-              {DAY_LABELS.map((d) => (
-                <div key={d} className="px-2 py-1.5 text-center text-xs font-medium text-text-tertiary">
-                  {d}
-                </div>
-              ))}
-            </div>
-            {/* Two week rows */}
-            {[0, 7].map((offset) => (
-              <div key={offset} className={`grid grid-cols-7 ${offset === 7 ? '' : 'border-b border-border'}`}>
-                {days.slice(offset, offset + 7).map((day, idx) => {
-                  const seg = segmentForDay(day)
-                  const isToday = day.getTime() === today.getTime()
-                  return (
-                    <div
-                      key={idx}
-                      className={`px-2 py-2 min-h-[56px] ${idx < 6 ? 'border-r border-border' : ''} ${isToday ? 'bg-blue-50' : ''}`}
-                    >
-                      <div className={`text-xs mb-1 font-medium ${isToday ? 'text-blue-600' : 'text-text-tertiary'}`}>
-                        {day.getUTCDate()}
-                      </div>
-                      {seg && seg.user_name !== '(nobody)' ? (
-                        <div
-                          className="text-xs px-1.5 py-0.5 rounded font-medium truncate"
-                          style={{
-                            backgroundColor: userBg(seg.user_name),
-                            color: userText(seg.user_name),
-                            border: seg.is_override ? `1px solid ${userText(seg.user_name)}` : 'none',
-                          }}
-                          title={seg.is_override ? `${seg.user_name} (override)` : seg.user_name}
-                        >
-                          {seg.is_override ? '↪ ' : ''}{seg.user_name}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-text-tertiary italic">—</div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-
-          {/* Mobile: vertical list */}
-          <div className="sm:hidden space-y-1">
-            {days.map((day, idx) => {
-              const seg = segmentForDay(day)
-              const isToday = day.getTime() === today.getTime()
-              return (
-                <div
-                  key={idx}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}
-                >
-                  <span className={`font-medium w-24 ${isToday ? 'text-blue-700' : 'text-text-secondary'}`}>
-                    {day.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                  </span>
-                  {seg && seg.user_name !== '(nobody)' ? (
-                    <span
-                      className="text-xs px-2 py-0.5 rounded font-medium"
-                      style={{ backgroundColor: userBg(seg.user_name), color: userText(seg.user_name) }}
-                    >
-                      {seg.is_override ? '↪ ' : ''}{seg.user_name}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-text-tertiary italic">No one</span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </>
-      )}
-    </div>
-  )
+  return segments
 }
 
 // ─── Edit schedule modal ──────────────────────────────────────────────────────
@@ -798,7 +629,7 @@ function LayerCard({ scheduleId, layer, currentOnCallUser, onDeleted, toast }: L
                 </span>
                 <span
                   className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: userBg(p.user_name), border: `1px solid ${userText(p.user_name)}` }}
+                  style={{ backgroundColor: segmentBg(p.user_name), border: `1px solid ${segmentText(p.user_name)}` }}
                 />
                 <span className="flex-1">{p.user_name}</span>
                 {isCurrent && (
@@ -832,8 +663,8 @@ export function ScheduleDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [addLayerOpen, setAddLayerOpen] = useState(false)
   const [overrideModalOpen, setOverrideModalOpen] = useState(false)
-  // Incrementing this key forces the calendar to re-fetch the timeline
-  const [calendarRefetchKey, setCalendarRefetchKey] = useState(0)
+  const [windowStart, setWindowStart] = useState<Date>(() => getMondayOf(new Date()))
+  const GANTT_DAYS = 7
 
   const handleScheduleDeleted = async () => {
     if (!schedule) return
@@ -853,8 +684,19 @@ export function ScheduleDetailPage() {
 
   const invalidateAll = useCallback(() => {
     refetch()
-    setCalendarRefetchKey((k) => k + 1)
   }, [refetch])
+
+  const ganttRows: GanttRow[] = useMemo(
+    () =>
+      (schedule?.layers ?? [])
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((layer) => ({
+          id: layer.id,
+          label: layer.name,
+          segments: computeLayerSegments(layer, windowStart, GANTT_DAYS),
+        })),
+    [schedule?.layers, windowStart],
+  )
 
   const handleOverrideSaved = () => {
     toast.success('Override created')
@@ -946,9 +788,9 @@ export function ScheduleDetailPage() {
           <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
             currentUser ? '' : 'bg-gray-200'
           }`}
-            style={currentUser ? { backgroundColor: userBg(currentUser) } : undefined}
+            style={currentUser ? { backgroundColor: segmentBg(currentUser) } : undefined}
           >
-            <User className="w-6 h-6" style={currentUser ? { color: userText(currentUser) } : { color: '#9CA3AF' }} />
+            <User className="w-6 h-6" style={currentUser ? { color: segmentText(currentUser) } : { color: '#9CA3AF' }} />
           </div>
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider text-text-tertiary mb-0.5">
@@ -971,7 +813,12 @@ export function ScheduleDetailPage() {
         </div>
 
         {/* Shift calendar */}
-        <OnCallCalendar scheduleId={schedule.id} refetchKey={calendarRefetchKey} />
+        <GanttCalendar
+          rows={ganttRows}
+          windowStart={windowStart}
+          days={GANTT_DAYS}
+          onNavigate={setWindowStart}
+        />
 
         {/* Overrides */}
         <OverridesTable

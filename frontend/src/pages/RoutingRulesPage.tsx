@@ -355,7 +355,7 @@ export function RoutingRulesPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {rules.map((rule) => (
-                  <tr key={rule.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={rule.id} className="hover:bg-gray-50 transition-colors group">
                     <td className="px-4 py-3 font-mono text-text-secondary">{rule.priority}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-text-primary">{rule.name}</div>
@@ -373,7 +373,7 @@ export function RoutingRulesPage() {
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                           rule.enabled
-                            ? 'bg-green-50 text-green-700'
+                            ? 'bg-brand-primary/10 text-brand-primary'
                             : 'bg-gray-100 text-gray-500'
                         }`}
                       >
@@ -381,7 +381,7 @@ export function RoutingRulesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => handleEdit(rule)}
                           className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-gray-100 rounded transition-colors"

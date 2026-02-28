@@ -46,14 +46,30 @@ export function EmptyState({
 }
 
 /**
- * Pre-configured empty state for incidents list
+ * Pre-configured empty state for incidents list.
+ * hasFilters=true → "no matches" message; false → true first-time empty state.
  */
-export function EmptyIncidentsList({ onDeclare }: { onDeclare?: () => void }) {
+export function EmptyIncidentsList({
+  onDeclare,
+  hasFilters = false,
+}: {
+  onDeclare?: () => void
+  hasFilters?: boolean
+}) {
+  if (hasFilters) {
+    return (
+      <EmptyState
+        icon="shield"
+        title="No incidents match your filters"
+        description="Try adjusting your search, status, or severity filters to find what you're looking for."
+      />
+    )
+  }
   return (
     <EmptyState
       icon="shield"
-      title="No incidents found"
-      description="Adjust your filters or declare a new incident."
+      title="No incidents yet"
+      description="Declare your first incident manually, or connect a monitoring tool to receive alerts automatically."
       actionLabel={onDeclare ? 'Declare incident' : undefined}
       onAction={onDeclare}
     />

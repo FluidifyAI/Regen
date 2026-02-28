@@ -44,6 +44,7 @@ export function PostMortemPanel({ incidentId }: PostMortemPanelProps) {
   const [editedContent, setEditedContent] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editorMode, setEditorMode] = useState<'write' | 'preview'>('write')
 
   const fetchPm = useCallback(async () => {
     try {
@@ -231,8 +232,33 @@ export function PostMortemPanel({ incidentId }: PostMortemPanelProps) {
       {/* Content editor */}
       {pm && (
         <div className="border border-border rounded-lg overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 bg-surface-secondary border-b border-border">
-            <span className="text-xs text-text-tertiary">
+          {/* Toolbar */}
+          <div className="flex items-center gap-3 px-3 py-2 bg-surface-secondary border-b border-border">
+            {/* Write / Preview toggle */}
+            <div className="flex rounded border border-border overflow-hidden text-xs">
+              <button
+                onClick={() => setEditorMode('write')}
+                className={`px-2.5 py-1 font-medium transition-colors ${
+                  editorMode === 'write'
+                    ? 'bg-white text-text-primary'
+                    : 'text-text-tertiary hover:text-text-primary'
+                }`}
+              >
+                Write
+              </button>
+              <button
+                onClick={() => setEditorMode('preview')}
+                className={`px-2.5 py-1 font-medium border-l border-border transition-colors ${
+                  editorMode === 'preview'
+                    ? 'bg-white text-text-primary'
+                    : 'text-text-tertiary hover:text-text-primary'
+                }`}
+              >
+                Preview
+              </button>
+            </div>
+            {/* Meta info */}
+            <span className="text-xs text-text-tertiary flex-1">
               {pm.template_name} · by {pm.generated_by === 'ai' ? 'AI' : 'Manual'}
               {pm.generated_at && ` · ${formatRelativeTime(pm.generated_at)}`}
             </span>
@@ -242,18 +268,26 @@ export function PostMortemPanel({ incidentId }: PostMortemPanelProps) {
               </Button>
             )}
           </div>
-          <textarea
-            value={editedContent}
-            onChange={(e) => {
-              setEditedContent(e.target.value)
-              setIsDirty(true)
-            }}
-            readOnly={isPublished}
-            className={`w-full min-h-96 p-4 font-mono text-sm text-text-primary resize-y focus:outline-none ${
-              isPublished ? 'bg-surface-secondary text-text-secondary cursor-default' : 'bg-white'
-            }`}
-            placeholder="Post-mortem content..."
-          />
+          {/* Write mode: editable textarea */}
+          {editorMode === 'write' ? (
+            <textarea
+              value={editedContent}
+              onChange={(e) => {
+                setEditedContent(e.target.value)
+                setIsDirty(true)
+              }}
+              readOnly={isPublished}
+              className={`w-full min-h-96 p-4 font-mono text-sm text-text-primary resize-y focus:outline-none ${
+                isPublished ? 'bg-surface-secondary text-text-secondary cursor-default' : 'bg-white'
+              }`}
+              placeholder="Post-mortem content..."
+            />
+          ) : (
+            /* Preview mode: render markdown as React elements */
+            <div className="w-full min-h-96 p-4 bg-white">
+              <MarkdownPreview content={editedContent} />
+            </div>
+          )}
         </div>
       )}
 
@@ -329,4 +363,112 @@ function formatRelativeTime(isoString: string): string {
   const diffHours = Math.floor(diffMins / 60)
   if (diffHours < 24) return `${diffHours}h ago`
   return date.toLocaleDateString()
+}
+
+// ── Markdown preview renderer ─────────────────────────────────────────────────
+// Converts markdown to React elements — no raw HTML injection.
+
+/** Parses inline markdown (**bold**, *italic*, `code`) into React nodes. */
+function parseInline(text: string, baseKey: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = []
+  const re = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`)/g
+  let last = 0
+  let i = 0
+  for (const m of text.matchAll(re)) {
+    if ((m.index ?? 0) > last) parts.push(text.slice(last, m.index))
+    const k = `${baseKey}-${i++}`
+    if (m[0].startsWith('**'))
+      parts.push(<strong key={k}>{m[2]}</strong>)
+    else if (m[0].startsWith('*'))
+      parts.push(<em key={k}>{m[3]}</em>)
+    else
+      parts.push(<code key={k} className="bg-gray-100 px-1 py-0.5 rounded text-xs font-mono">{m[4]}</code>)
+    last = (m.index ?? 0) + m[0].length
+  }
+  if (last < text.length) parts.push(text.slice(last))
+  return parts
+}
+
+/** Renders a markdown string as structured React block elements. */
+function MarkdownPreview({ content }: { content: string }) {
+  const nodes: React.ReactNode[] = []
+  let key = 0
+  let inCode = false
+  let codeLines: string[] = []
+  let listItems: React.ReactNode[] = []
+  let listType: 'ul' | 'ol' | null = null
+
+  const flushList = () => {
+    if (!listType) return
+    const k = key++
+    nodes.push(
+      listType === 'ul'
+        ? <ul key={k} className="list-disc list-inside space-y-0.5 my-1.5 text-sm text-text-secondary">{[...listItems]}</ul>
+        : <ol key={k} className="list-decimal list-inside space-y-0.5 my-1.5 text-sm text-text-secondary">{[...listItems]}</ol>
+    )
+    listItems = []
+    listType = null
+  }
+
+  for (const line of content.split('\n')) {
+    if (line.startsWith('```')) {
+      if (inCode) {
+        nodes.push(
+          <pre key={key++} className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2 my-2 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
+            <code>{codeLines.join('\n')}</code>
+          </pre>
+        )
+        codeLines = []
+        inCode = false
+      } else {
+        flushList()
+        inCode = true
+      }
+      continue
+    }
+    if (inCode) { codeLines.push(line); continue }
+
+    if (line.startsWith('### ')) {
+      flushList()
+      nodes.push(<h3 key={key++} className="text-sm font-semibold text-text-primary mt-4 mb-1">{parseInline(line.slice(4), String(key))}</h3>)
+      continue
+    }
+    if (line.startsWith('## ')) {
+      flushList()
+      nodes.push(<h2 key={key++} className="text-base font-semibold text-text-primary mt-5 mb-1">{parseInline(line.slice(3), String(key))}</h2>)
+      continue
+    }
+    if (line.startsWith('# ')) {
+      flushList()
+      nodes.push(<h1 key={key++} className="text-lg font-bold text-text-primary mt-6 mb-2">{parseInline(line.slice(2), String(key))}</h1>)
+      continue
+    }
+
+    const ulMatch = line.match(/^[-*] (.*)/)
+    if (ulMatch) {
+      if (listType === 'ol') flushList()
+      listType = 'ul'
+      listItems.push(<li key={key++}>{parseInline(ulMatch[1], String(key))}</li>)
+      continue
+    }
+    const olMatch = line.match(/^\d+[.] (.*)/)
+    if (olMatch) {
+      if (listType === 'ul') flushList()
+      listType = 'ol'
+      listItems.push(<li key={key++}>{parseInline(olMatch[1], String(key))}</li>)
+      continue
+    }
+
+    if (line.trim() === '') {
+      flushList()
+      nodes.push(<div key={key++} className="my-1" />)
+      continue
+    }
+
+    flushList()
+    nodes.push(<p key={key++} className="text-sm text-text-secondary leading-relaxed">{parseInline(line, String(key))}</p>)
+  }
+
+  flushList()
+  return <>{nodes}</>
 }

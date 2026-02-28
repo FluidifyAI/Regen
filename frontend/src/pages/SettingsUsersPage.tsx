@@ -20,7 +20,7 @@ export function SettingsUsersPage() {
   const [error, setError] = useState('')
   const [showInvite, setShowInvite] = useState(false)
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null)
-  const [setupToken, setSetupToken] = useState('')
+  const [setupInfo, setSetupInfo] = useState<{ token: string; email: string } | null>(null)
 
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin') {
@@ -58,7 +58,7 @@ export function SettingsUsersPage() {
   async function handleResetPassword(u: UserRecord) {
     try {
       const { setup_token } = await resetUserPassword(u.id)
-      setSetupToken(setup_token)
+      setSetupInfo({ token: setup_token, email: u.email })
     } catch {
       setError('Failed to reset password')
     }
@@ -88,8 +88,8 @@ export function SettingsUsersPage() {
           </div>
         )}
 
-        {setupToken && (
-          <SetupLinkBox token={setupToken} onClose={() => setSetupToken('')} />
+        {setupInfo && (
+          <SetupLinkBox token={setupInfo.token} email={setupInfo.email} onClose={() => setSetupInfo(null)} />
         )}
 
         {/* Table — matches Incidents table style */}
@@ -166,8 +166,8 @@ export function SettingsUsersPage() {
       {showInvite && (
         <InviteModal
           onClose={() => setShowInvite(false)}
-          onCreated={(token) => {
-            setSetupToken(token)
+          onCreated={(token, email) => {
+            setSetupInfo({ token, email })
             setShowInvite(false)
             loadUsers()
           }}
@@ -198,7 +198,7 @@ function RoleBadge({ role }: { role: string }) {
   )
 }
 
-function SetupLinkBox({ token, onClose }: { token: string; onClose: () => void }) {
+function SetupLinkBox({ token, email, onClose }: { token: string; email?: string; onClose: () => void }) {
   const url = `${window.location.origin}/login?setup=${token}`
   const [copied, setCopied] = useState(false)
   function copyLink() {
@@ -206,6 +206,9 @@ function SetupLinkBox({ token, onClose }: { token: string; onClose: () => void }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
+  const mailtoHref = email
+    ? `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("You've been invited to OpenIncident")}&body=${encodeURIComponent(`Hi,\n\nYou've been invited to join OpenIncident.\n\nClick the link below to set up your account:\n${url}\n\nThis link expires in 7 days.\n`)}`
+    : undefined
   return (
     <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
       <div className="flex items-center justify-between mb-2">
@@ -224,6 +227,14 @@ function SetupLinkBox({ token, onClose }: { token: string; onClose: () => void }
         >
           {copied ? 'Copied!' : 'Copy'}
         </button>
+        {mailtoHref && (
+          <a
+            href={mailtoHref}
+            className="px-4 py-2 text-xs border border-border bg-white hover:bg-gray-50 text-text-primary rounded-lg transition-colors font-medium whitespace-nowrap"
+          >
+            Send email
+          </a>
+        )}
       </div>
     </div>
   )
@@ -253,7 +264,7 @@ function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClos
   )
 }
 
-function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (token: string) => void }) {
+function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (token: string, email: string) => void }) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState('member')
@@ -267,7 +278,7 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     setLoading(true); setError('')
     try {
       const res = await createUser({ email, name, role, password })
-      onCreated(res.setup_token)
+      onCreated(res.setup_token, email)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create user'
       setError(msg)

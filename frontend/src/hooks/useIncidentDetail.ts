@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { getIncident } from '../api/incidents'
 import type { Alert, TimelineEntry } from '../api/types'
 
@@ -36,10 +36,18 @@ interface UseIncidentDetailResult {
   refetch: () => Promise<void>
 }
 
+/** Poll every 20 seconds. Stops automatically when the incident reaches a terminal state. */
+const POLL_INTERVAL_MS = 20_000
+const TERMINAL_STATUSES: StatusType[] = ['resolved', 'canceled']
+
 export function useIncidentDetail(id: string): UseIncidentDetailResult {
   const [incident, setIncident] = useState<IncidentDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Ref so the polling interval can read the latest status without a stale closure
+  const incidentRef = useRef<IncidentDetail | null>(null)
+  incidentRef.current = incident
 
   const fetchIncident = useCallback(async () => {
     if (!id) return
@@ -58,9 +66,30 @@ export function useIncidentDetail(id: string): UseIncidentDetailResult {
     }
   }, [id])
 
+  // Initial fetch
   useEffect(() => {
     fetchIncident()
   }, [fetchIncident])
+
+  // Background polling — silent (no loading state, no error overlay on failure)
+  // Only runs while the incident is in an active (non-terminal) state.
+  useEffect(() => {
+    if (!id) return
+
+    const timer = setInterval(async () => {
+      const current = incidentRef.current
+      if (current && TERMINAL_STATUSES.includes(current.status)) return
+
+      try {
+        const data = await getIncident(id)
+        setIncident(data)
+      } catch {
+        // Silently ignore poll failures — keep the last known data visible
+      }
+    }, POLL_INTERVAL_MS)
+
+    return () => clearInterval(timer)
+  }, [id])
 
   return {
     incident,

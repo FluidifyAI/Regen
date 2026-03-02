@@ -21,6 +21,7 @@ import type { PostMortem, PostMortemTemplate } from '../../api/types'
 
 interface PostMortemPanelProps {
   incidentId: string
+  onPostMortemLoaded?: (exists: boolean) => void
 }
 
 /**
@@ -32,7 +33,7 @@ interface PostMortemPanelProps {
  * - Export as .md download
  * - Action items CRUD
  */
-export function PostMortemPanel({ incidentId }: PostMortemPanelProps) {
+export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPanelProps) {
   const [pm, setPm] = useState<PostMortem | null>(null)
   const [loading, setLoading] = useState(true)
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null)
@@ -44,20 +45,22 @@ export function PostMortemPanel({ incidentId }: PostMortemPanelProps) {
   const [editedContent, setEditedContent] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [editorMode, setEditorMode] = useState<'write' | 'preview'>('write')
+  const [editorMode, setEditorMode] = useState<'write' | 'preview'>('preview')
 
   const fetchPm = useCallback(async () => {
     try {
       const data = await getPostMortem(incidentId)
       setPm(data)
+      onPostMortemLoaded?.(!!data)
       if (data) {
         setEditedContent(data.content)
         setIsDirty(false)
       }
     } catch {
       setPm(null)
+      onPostMortemLoaded?.(false)
     }
-  }, [incidentId])
+  }, [incidentId, onPostMortemLoaded])
 
   useEffect(() => {
     setLoading(true)
@@ -79,6 +82,8 @@ export function PostMortemPanel({ incidentId }: PostMortemPanelProps) {
       setPm(data)
       setEditedContent(data.content)
       setIsDirty(false)
+      setEditorMode('preview')
+      onPostMortemLoaded?.(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate post-mortem')
     } finally {

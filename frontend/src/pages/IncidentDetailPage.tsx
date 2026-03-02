@@ -9,21 +9,21 @@ import { SeverityDropdown } from '../components/incidents/SeverityDropdown'
 import { AddTimelineEntry } from '../components/incidents/AddTimelineEntry'
 import { GroupedAlerts } from '../components/incidents/GroupedAlerts'
 import { AISummaryPanel } from '../components/incidents/AISummaryPanel'
-import { HandoffDigest } from '../components/incidents/HandoffDigest'
 import { PostMortemPanel } from '../components/incidents/PostMortemPanel'
 import { ToastContainer, useToast } from '../components/ui/Toast'
 import { GeneralError } from '../components/ui/ErrorState'
 
-type TabType = 'activity' | 'alerts' | 'ai' | 'postmortem'
+type TabType = 'activity' | 'alerts' | 'postmortem'
 
 /**
  * Incident detail page with two-panel layout
- * Left: Content area with tabs (Activity, Alerts)
- * Right: Collapsible properties panel
+ * Left: Content area with tabs (Activity, Alerts, Post-Mortem)
+ * Right: Collapsible properties panel (includes Handoff Digest)
  */
 export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState<TabType>('activity')
+  const [hasPostMortem, setHasPostMortem] = useState(false)
   const { toasts, dismissToast, success, error: showError } = useToast()
 
   const { incident, loading, error, refetch } = useIncidentDetail(id || '')
@@ -56,6 +56,13 @@ export function IncidentDetailPage() {
       </div>
     )
   }
+
+  // Latest timeline activity timestamp for AI stale detection
+  const lastActivityAt = incident.timeline.length > 0
+    ? incident.timeline.reduce((a, b) =>
+        new Date(a.timestamp) > new Date(b.timestamp) ? a : b
+      ).timestamp
+    : incident.triggered_at
 
   return (
     <div className="flex h-full">
@@ -110,6 +117,15 @@ export function IncidentDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* AI Summary — inline in header */}
+            <AISummaryPanel
+              incidentId={incident.id}
+              existingSummary={incident.ai_summary}
+              existingSummaryGeneratedAt={incident.ai_summary_generated_at}
+              lastActivityAt={lastActivityAt}
+              onSummaryGenerated={refetch}
+            />
           </div>
 
           {/* Tabs */}
@@ -128,16 +144,10 @@ export function IncidentDetailPage() {
                 count={incident.alerts.length}
               />
               <TabButton
-                active={activeTab === 'ai'}
-                onClick={() => setActiveTab('ai')}
-                label="AI"
-                count={incident.ai_summary ? 1 : 0}
-              />
-              <TabButton
                 active={activeTab === 'postmortem'}
                 onClick={() => setActiveTab('postmortem')}
                 label="Post-Mortem"
-                count={0}
+                count={hasPostMortem ? 1 : 0}
               />
             </div>
           </div>
@@ -158,22 +168,8 @@ export function IncidentDetailPage() {
             {activeTab === 'alerts' && (
               <GroupedAlerts alerts={incident.alerts} incident={incident} />
             )}
-            {activeTab === 'ai' && (
-              <div className="space-y-4">
-                <AISummaryPanel
-                  incidentId={incident.id}
-                  existingSummary={incident.ai_summary}
-                  existingSummaryGeneratedAt={incident.ai_summary_generated_at}
-                  onSummaryGenerated={refetch}
-                />
-                <HandoffDigest
-                  incidentId={incident.id}
-                  aiEnabled={true}
-                />
-              </div>
-            )}
             {activeTab === 'postmortem' && (
-              <PostMortemPanel incidentId={incident.id} />
+              <PostMortemPanel incidentId={incident.id} onPostMortemLoaded={setHasPostMortem} />
             )}
           </div>
         </div>
@@ -181,7 +177,7 @@ export function IncidentDetailPage() {
 
       {/* Properties Panel — hidden on mobile, visible on large screens */}
       <div className="hidden lg:block w-80 flex-shrink-0">
-        <PropertiesPanel incident={incident} onIncidentUpdated={refetch} />
+        <PropertiesPanel incident={incident} onIncidentUpdated={refetch} lastActivityAt={lastActivityAt} />
       </div>
 
       {/* Toast Notifications */}
@@ -261,4 +257,3 @@ function SkeletonLoader() {
     </div>
   )
 }
-

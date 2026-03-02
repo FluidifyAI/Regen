@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Hash, Calendar, Clock, ExternalLink, Timer, Activity, AlertCircle } from 'lucide-react'
+import { ChevronDown, ChevronUp, Hash, Clock, ExternalLink, Timer, Activity, AlertCircle } from 'lucide-react'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
+import { HandoffDigest } from '../incidents/HandoffDigest'
 import type { Alert, TimelineEntry } from '../../api/types'
 import { updateIncident } from '../../api/incidents'
 
@@ -34,16 +35,35 @@ interface Incident {
 interface PropertiesPanelProps {
   incident: Incident
   onIncidentUpdated?: () => void
+  lastActivityAt?: string
 }
 
 /**
  * Collapsible properties panel for incident details.
  * Shows metadata, duration, last activity, linked alerts, and channel links.
  */
-export function PropertiesPanel({ incident, onIncidentUpdated }: PropertiesPanelProps) {
+export function PropertiesPanel({ incident, onIncidentUpdated, lastActivityAt }: PropertiesPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
+  // Optimistic toggle — flips immediately, reverts on error
+  const [aiEnabled, setAiEnabled] = useState(incident.ai_enabled)
+
+  // Sync if parent refetches with a new value
+  if (aiEnabled !== incident.ai_enabled && !collapsed) {
+    setAiEnabled(incident.ai_enabled)
+  }
 
   const lastActivityTs = getLastActivity(incident.timeline, incident.triggered_at)
+
+  async function handleAIToggle() {
+    const next = !aiEnabled
+    setAiEnabled(next) // optimistic
+    try {
+      await updateIncident(incident.id, { ai_enabled: next })
+      onIncidentUpdated?.()
+    } catch {
+      setAiEnabled(!next) // revert
+    }
+  }
 
   return (
     <div className="bg-white border-l border-border h-full overflow-y-auto">
@@ -64,7 +84,18 @@ export function PropertiesPanel({ incident, onIncidentUpdated }: PropertiesPanel
 
       {/* Content */}
       {!collapsed && (
-        <div className="p-4 space-y-6">
+        <div className="p-4 space-y-5">
+
+          {/* ── Identity ─────────────────────────────── */}
+          <div className="flex items-center justify-between">
+            <span className="text-lg font-bold text-text-primary font-mono">
+              INC-{incident.incident_number}
+            </span>
+            <Badge variant={incident.severity} type="severity">
+              {incident.severity}
+            </Badge>
+          </div>
+
           {/* Status */}
           <PropertySection title="Status">
             <Badge variant={incident.status} type="status">
@@ -72,14 +103,7 @@ export function PropertiesPanel({ incident, onIncidentUpdated }: PropertiesPanel
             </Badge>
           </PropertySection>
 
-          {/* Severity */}
-          <PropertySection title="Severity">
-            <Badge variant={incident.severity} type="severity">
-              {incident.severity}
-            </Badge>
-          </PropertySection>
-
-          {/* Incident Commander */}
+          {/* ── People ───────────────────────────────── */}
           <PropertySection title="Incident Commander">
             {incident.commander_id ? (
               <div className="flex items-center gap-2">
@@ -91,7 +115,7 @@ export function PropertiesPanel({ incident, onIncidentUpdated }: PropertiesPanel
             )}
           </PropertySection>
 
-          {/* Duration */}
+          {/* ── Time ─────────────────────────────────── */}
           <PropertySection title="Duration">
             <div className="flex items-center gap-2">
               <Timer className="w-4 h-4 text-text-tertiary" />
@@ -99,39 +123,13 @@ export function PropertiesPanel({ incident, onIncidentUpdated }: PropertiesPanel
                 {formatDuration(incident.triggered_at, incident.resolved_at)}
               </span>
               {!incident.resolved_at && (
-                <span className="text-xs text-text-tertiary">(ongoing)</span>
+                <span className="text-xs text-amber-500 font-medium">ongoing</span>
               )}
             </div>
           </PropertySection>
 
-          {/* Last activity */}
-          <PropertySection title="Last Activity">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-text-tertiary" />
-              <span className="text-sm text-text-primary" title={formatDateTime(lastActivityTs)}>
-                {formatRelativeTime(lastActivityTs)}
-              </span>
-            </div>
-          </PropertySection>
-
-          {/* Linked Alerts */}
-          {incident.alerts.length > 0 && (
-            <PropertySection title="Linked Alerts">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-text-tertiary" />
-                <span className="text-sm text-text-primary">{incident.alerts.length} alert{incident.alerts.length !== 1 ? 's' : ''}</span>
-              </div>
-            </PropertySection>
-          )}
-
-          {/* Timeline */}
           <PropertySection title="Timeline">
             <div className="space-y-2">
-              <TimelineItem
-                icon={<Calendar className="w-4 h-4" />}
-                label="Created"
-                value={formatDateTime(incident.created_at)}
-              />
               <TimelineItem
                 icon={<Clock className="w-4 h-4" />}
                 label="Triggered"
@@ -151,84 +149,96 @@ export function PropertiesPanel({ incident, onIncidentUpdated }: PropertiesPanel
                   value={formatDateTime(incident.resolved_at)}
                 />
               )}
+              <TimelineItem
+                icon={<Activity className="w-4 h-4" />}
+                label="Last activity"
+                value={formatRelativeTime(lastActivityTs)}
+              />
             </div>
           </PropertySection>
 
-          {/* Slack Channel */}
-          {incident.slack_channel_name && (
-            <PropertySection title="Slack Channel">
-              <div className="flex items-center gap-2">
-                <Hash className="w-4 h-4 text-text-tertiary" />
-                <a
-                  href={`https://slack.com/app_redirect?channel=${incident.slack_channel_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-brand-primary hover:underline inline-flex items-center gap-1"
-                >
-                  #{incident.slack_channel_name}
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+          {/* ── Channels ─────────────────────────────── */}
+          {(incident.slack_channel_name || incident.teams_channel_name) && (
+            <PropertySection title="Channels">
+              <div className="space-y-2">
+                {incident.slack_channel_name && (
+                  <div className="flex items-center gap-2">
+                    <Hash className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+                    <a
+                      href={`https://slack.com/app_redirect?channel=${incident.slack_channel_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-brand-primary hover:underline inline-flex items-center gap-1 truncate"
+                    >
+                      {incident.slack_channel_name}
+                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                    </a>
+                  </div>
+                )}
+                {incident.teams_channel_name && (
+                  <div className="flex items-center gap-2">
+                    <Hash className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+                    <a
+                      href={`https://teams.microsoft.com/l/channel/${encodeURIComponent(incident.teams_channel_id ?? '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-brand-primary hover:underline inline-flex items-center gap-1 truncate"
+                    >
+                      {incident.teams_channel_name}
+                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                    </a>
+                  </div>
+                )}
               </div>
             </PropertySection>
           )}
 
-          {/* Teams Channel */}
-          {incident.teams_channel_name && (
-            <PropertySection title="Teams Channel">
+          {/* ── Alerts ───────────────────────────────── */}
+          {incident.alerts.length > 0 && (
+            <PropertySection title="Linked Alerts">
               <div className="flex items-center gap-2">
-                <Hash className="w-4 h-4 text-text-tertiary" />
-                <a
-                  href={`https://teams.microsoft.com/l/channel/${encodeURIComponent(incident.teams_channel_id ?? '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-brand-primary hover:underline inline-flex items-center gap-1"
-                >
-                  #{incident.teams_channel_name}
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+                <AlertCircle className="w-4 h-4 text-text-tertiary" />
+                <span className="text-sm text-text-primary">
+                  {incident.alerts.length} alert{incident.alerts.length !== 1 ? 's' : ''}
+                </span>
               </div>
             </PropertySection>
           )}
 
-          {/* Incident Number */}
-          <PropertySection title="Incident Number">
-            <span className="text-sm font-mono text-text-primary">
-              INC-{incident.incident_number}
-            </span>
-          </PropertySection>
-
-          {/* Incident ID */}
-          <PropertySection title="Incident ID">
-            <span className="text-xs font-mono text-text-tertiary break-all">
-              {incident.id}
-            </span>
-          </PropertySection>
-
-          {/* AI Agents */}
-          <div className="flex items-center justify-between py-2 border-t border-border">
-            <span className="text-xs text-text-tertiary uppercase tracking-wide">AI Agents</span>
+          {/* ── AI ───────────────────────────────────── */}
+          <div className="flex items-center justify-between pt-2 border-t border-border">
+            <div>
+              <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">AI Agents</span>
+              <p className="text-xs text-text-tertiary mt-0.5">
+                {aiEnabled ? 'Auto post-mortem on resolve' : 'Disabled for this incident'}
+              </p>
+            </div>
             <button
               type="button"
               role="switch"
-              aria-checked={incident.ai_enabled}
-              onClick={async () => {
-                try {
-                  await updateIncident(incident.id, { ai_enabled: !incident.ai_enabled })
-                  onIncidentUpdated?.()
-                } catch {
-                  // best-effort
-                }
-              }}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                incident.ai_enabled ? 'bg-brand-primary' : 'bg-gray-200'
+              aria-checked={aiEnabled}
+              onClick={handleAIToggle}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
+                aiEnabled ? 'bg-brand-primary' : 'bg-gray-200'
               }`}
-              title={incident.ai_enabled ? 'AI agents enabled — click to disable' : 'AI agents disabled — click to enable'}
+              title={aiEnabled ? 'AI agents enabled — click to disable' : 'AI agents disabled — click to enable'}
             >
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                incident.ai_enabled ? 'translate-x-4' : 'translate-x-0.5'
+                aiEnabled ? 'translate-x-4' : 'translate-x-0.5'
               }`} />
             </button>
           </div>
+
+          {/* Handoff Digest */}
+          <HandoffDigest incidentId={incident.id} lastActivityAt={lastActivityAt} />
+
+          {/* ── Debug ────────────────────────────────── */}
+          <div className="pt-2 border-t border-border">
+            <span className="text-xs font-mono text-text-tertiary break-all select-all">
+              {incident.id}
+            </span>
+          </div>
+
         </div>
       )}
     </div>

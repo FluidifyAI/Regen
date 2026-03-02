@@ -30,6 +30,9 @@ type IncidentResponse struct {
 	// AI Summarization (v0.6+)
 	AISummary            *string    `json:"ai_summary,omitempty"`
 	AISummaryGeneratedAt *time.Time `json:"ai_summary_generated_at,omitempty"`
+
+	// AI Agents (v0.9+)
+	AIEnabled bool `json:"ai_enabled"`
 }
 
 // SlackChannelInfo contains Slack channel details
@@ -89,6 +92,9 @@ func ToIncidentResponse(incident *models.Incident) IncidentResponse {
 		// AI fields (v0.6+)
 		AISummary:            incident.AISummary,
 		AISummaryGeneratedAt: incident.AISummaryGeneratedAt,
+
+		// AI Agents (v0.9+)
+		AIEnabled: incident.AIEnabled,
 	}
 
 	// Add Slack channel info if available

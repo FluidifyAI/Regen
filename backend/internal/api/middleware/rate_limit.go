@@ -36,9 +36,9 @@ end
 return current
 `
 
-// RateLimit returns a Gin middleware that allows at most limit requests per
-// windowSecs seconds per client IP. tier is used in the Redis key and log fields.
-func RateLimit(tier string, limit int, windowSecs int) gin.HandlerFunc {
+// rateLimitWithIdentity returns a Gin middleware that limits to limit requests
+// per windowSecs for the identity returned by identityFn.
+func rateLimitWithIdentity(tier string, limit int, windowSecs int, identityFn func(*gin.Context) string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if redis.Client == nil {
 			// Redis not initialised — fail open.
@@ -46,9 +46,9 @@ func RateLimit(tier string, limit int, windowSecs int) gin.HandlerFunc {
 			return
 		}
 
-		ip := c.ClientIP()
+		identity := identityFn(c)
 		windowIdx := time.Now().Unix() / int64(windowSecs)
-		key := fmt.Sprintf("rl:%s:%s:%d", tier, ip, windowIdx)
+		key := fmt.Sprintf("rl:%s:%s:%d", tier, identity, windowIdx)
 
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 200*time.Millisecond)
 		defer cancel()
@@ -56,7 +56,7 @@ func RateLimit(tier string, limit int, windowSecs int) gin.HandlerFunc {
 		res, err := redis.Client.Eval(ctx, luaIncr, []string{key}, windowSecs).Int64()
 		if err != nil {
 			slog.Warn("rate limiter redis error — failing open",
-				"tier", tier, "ip", ip, "error", err)
+				"tier", tier, "identity", identity, "error", err)
 			c.Next()
 			return
 		}
@@ -79,20 +79,43 @@ func RateLimit(tier string, limit int, windowSecs int) gin.HandlerFunc {
 	}
 }
 
+// RateLimit returns a Gin middleware that allows at most limit requests per
+// windowSecs seconds per client IP. tier is used in the Redis key and log fields.
+func RateLimit(tier string, limit int, windowSecs int) gin.HandlerFunc {
+	return rateLimitWithIdentity(tier, limit, windowSecs, func(c *gin.Context) string {
+		return c.ClientIP()
+	})
+}
+
 // RateLimitWebhooks allows 300 requests per minute per IP.
 // Sized for Prometheus Alertmanager bursts (many alerts firing simultaneously).
 func RateLimitWebhooks() gin.HandlerFunc {
 	return RateLimit("webhook", 300, 60)
 }
 
-// RateLimitAPI allows 120 requests per minute per IP.
-// Covers normal UI usage; aggressive API scripts will hit this.
+// RateLimitAPI limits authenticated requests by user-ID (600 req/min) and
+// falls back to IP-based limiting (120 req/min) for unauthenticated requests.
+//
+// The higher authenticated limit prevents false positives when the UI fires
+// many parallel requests (e.g. Gantt calendar loading one timeline per
+// schedule). IP-based limits are insufficient for multi-user teams sharing an
+// office NAT, and unnecessary once the user is already authenticated.
 func RateLimitAPI() gin.HandlerFunc {
-	return RateLimit("api", 120, 60)
+	return func(c *gin.Context) {
+		if user := GetLocalUser(c); user != nil {
+			// Authenticated: key by user ID, higher limit.
+			rateLimitWithIdentity("api_user", 600, 60, func(*gin.Context) string {
+				return user.ID.String()
+			})(c)
+			return
+		}
+		// Unauthenticated: fall back to IP-based limit.
+		RateLimit("api", 120, 60)(c)
+	}
 }
 
 // RateLimitAuth allows 10 requests per minute per IP.
-// Applied to SAML login endpoints to prevent brute-force attacks.
+// Applied to login endpoints to prevent brute-force attacks.
 func RateLimitAuth() gin.HandlerFunc {
 	return RateLimit("auth", 10, 60)
 }

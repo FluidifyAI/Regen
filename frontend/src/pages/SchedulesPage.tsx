@@ -6,8 +6,9 @@ import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyState } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
 import { useSchedules } from '../hooks/useSchedules'
-import { createSchedule, createLayer, getTimeline, COMMON_TIMEZONES } from '../api/schedules'
+import { createSchedule, createLayer, getTimeline, deleteSchedule, COMMON_TIMEZONES } from '../api/schedules'
 import type { CreateScheduleRequest, TimelineSegment } from '../api/types'
+import { listUsers, type UserSummary } from '../api/users'
 import { GanttCalendar, GanttRow, getMondayOf, getMonthStart, daysInMonth } from '../components/oncall/GanttCalendar'
 
 // ─── useScheduleTimelines hook ────────────────────────────────────────────────
@@ -136,7 +137,13 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
   const [previewWindowStart, setPreviewWindowStart] = useState<Date>(() => getMondayOf(new Date()))
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [users, setUsers] = useState<UserSummary[]>([])
   const nameRef = useRef<HTMLInputElement>(null)
+
+  // Load users for participant picker
+  useEffect(() => {
+    listUsers().then(setUsers).catch(() => {})
+  }, [])
 
   // Reset all form state when the modal opens
   useEffect(() => {
@@ -167,7 +174,7 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
     if (filled.length === 0) return []
     const layerDef = {
       shift_duration_seconds: layerForm.shift_duration_seconds,
-      rotation_start: layerForm.rotation_start + 'T00:00:00',
+      rotation_start: layerForm.rotation_start + 'T00:00:00Z',
       participants: filled.map((name, i) => ({
         user_name: name,
         order_index: i,
@@ -208,7 +215,7 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
         await createLayer(created.id, {
           name: layerForm.name || 'Primary',
           rotation_type: layerForm.rotation_type,
-          rotation_start: layerForm.rotation_start + 'T00:00:00',
+          rotation_start: layerForm.rotation_start + 'T00:00:00Z',
           shift_duration_seconds: layerForm.shift_duration_seconds,
           participants: filledParticipants.map((user_name, i) => ({
             user_name,
@@ -375,20 +382,44 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
                     <div className="space-y-2">
                       {layerForm.participants.map((p, i) => (
                         <div key={i} className="flex gap-2">
-                          <input
-                            type="text"
-                            value={p}
-                            onChange={(e) =>
-                              setLayerForm((f) => {
-                                const ps = [...f.participants]
-                                ps[i] = e.target.value
-                                return { ...f, participants: ps }
-                              })
-                            }
-                            placeholder="Name"
-                            className={inputClass}
-                            disabled={isSubmitting}
-                          />
+                          {users.length > 0 ? (
+                            <select
+                              value={p}
+                              onChange={(e) =>
+                                setLayerForm((f) => {
+                                  const ps = [...f.participants]
+                                  ps[i] = e.target.value
+                                  return { ...f, participants: ps }
+                                })
+                              }
+                              className={inputClass}
+                              disabled={isSubmitting}
+                            >
+                              <option value="">Select participant…</option>
+                              {users
+                                .filter((u) => !layerForm.participants.includes(u.email) || u.email === p)
+                                .map((u) => (
+                                  <option key={u.id} value={u.email}>
+                                    {u.name || u.email}
+                                  </option>
+                                ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={p}
+                              onChange={(e) =>
+                                setLayerForm((f) => {
+                                  const ps = [...f.participants]
+                                  ps[i] = e.target.value
+                                  return { ...f, participants: ps }
+                                })
+                              }
+                              placeholder="Email or name"
+                              className={inputClass}
+                              disabled={isSubmitting}
+                            />
+                          )}
                           <button
                             type="button"
                             onClick={() =>
@@ -480,6 +511,13 @@ export function SchedulesPage() {
     navigate(`/on-call/${id}`)
   }
 
+  async function handleDeleteSchedule(id: string) {
+    const schedule = schedules.find((s) => s.id === id)
+    if (!confirm(`Delete schedule "${schedule?.name ?? id}"? This cannot be undone.`)) return
+    await deleteSchedule(id)
+    refetch()
+  }
+
   const scheduleIds = useMemo(() => schedules.map((s) => s.id), [schedules])
   const timelines = useScheduleTimelines(scheduleIds, windowStart, GANTT_DAYS)
 
@@ -533,6 +571,7 @@ export function SchedulesPage() {
             days={GANTT_DAYS}
             onNavigate={setWindowStart}
             onRowClick={(id) => navigate(`/on-call/${id}`)}
+            onRowDelete={handleDeleteSchedule}
           />
         )}
       </div>

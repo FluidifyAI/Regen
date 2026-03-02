@@ -21,6 +21,7 @@ export interface Incident {
   created_by_type: string
   created_by_id?: string
   commander_id?: string
+  commander_name?: string
 
   // AI Summarization (v0.6+)
   ai_summary?: string
@@ -123,6 +124,7 @@ export interface UpdateIncidentRequest {
   severity?: 'critical' | 'high' | 'medium' | 'low'
   summary?: string
   ai_enabled?: boolean
+  commander_id?: string | null
 }
 
 // AI Agents (v0.9+)

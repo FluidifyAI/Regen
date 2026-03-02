@@ -42,6 +42,7 @@ type Incident struct {
 	CreatedByType string     `gorm:"type:varchar(20);not null" json:"created_by_type"`
 	CreatedByID   string     `gorm:"type:varchar(100)" json:"created_by_id,omitempty"`
 	CommanderID   *uuid.UUID `gorm:"type:uuid" json:"commander_id,omitempty"`
+	CommanderName string     `gorm:"-" json:"-"` // resolved at service layer, never stored
 
 	// Metadata
 	Labels       JSONB `gorm:"type:jsonb;default:'{}'" json:"labels"`

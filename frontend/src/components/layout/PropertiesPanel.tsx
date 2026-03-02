@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp, Hash, Clock, ExternalLink, Timer, Activity, AlertCircle } from 'lucide-react'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
 import { HandoffDigest } from '../incidents/HandoffDigest'
 import type { Alert, TimelineEntry } from '../../api/types'
 import { updateIncident } from '../../api/incidents'
+import { useAuth } from '../../contexts/AuthContext'
+import { listUsers, type UserSummary } from '../../api/users'
 
 type StatusType = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
 type SeverityType = 'critical' | 'high' | 'medium' | 'low'
@@ -25,6 +27,7 @@ interface Incident {
   acknowledged_at?: string
   resolved_at?: string
   commander_id?: string
+  commander_name?: string
   // AI Agents (v0.9+)
   ai_enabled: boolean
   // Detail fields
@@ -44,24 +47,39 @@ interface PropertiesPanelProps {
  */
 export function PropertiesPanel({ incident, onIncidentUpdated, lastActivityAt }: PropertiesPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
-  // Optimistic toggle — flips immediately, reverts on error
-  const [aiEnabled, setAiEnabled] = useState(incident.ai_enabled)
 
-  // Sync if parent refetches with a new value
-  if (aiEnabled !== incident.ai_enabled && !collapsed) {
-    setAiEnabled(incident.ai_enabled)
-  }
+  const { user: currentUser } = useAuth()
+  const [users, setUsers] = useState<UserSummary[]>([])
+  const [assigningCommander, setAssigningCommander] = useState(false)
 
   const lastActivityTs = getLastActivity(incident.timeline, incident.triggered_at)
 
-  async function handleAIToggle() {
-    const next = !aiEnabled
-    setAiEnabled(next) // optimistic
+  useEffect(() => {
+    if (!collapsed) {
+      listUsers().then(setUsers).catch(() => {})
+    }
+  }, [collapsed])
+
+  async function handleClaimCommander() {
+    if (!currentUser?.id) return
+    setAssigningCommander(true)
     try {
-      await updateIncident(incident.id, { ai_enabled: next })
+      await updateIncident(incident.id, { commander_id: currentUser.id })
       onIncidentUpdated?.()
-    } catch {
-      setAiEnabled(!next) // revert
+    } finally {
+      setAssigningCommander(false)
+    }
+  }
+
+  const CLEAR_COMMANDER = '00000000-0000-0000-0000-000000000000'
+
+  async function handleAssignCommander(userId: string | null) {
+    setAssigningCommander(true)
+    try {
+      await updateIncident(incident.id, { commander_id: userId ?? CLEAR_COMMANDER })
+      onIncidentUpdated?.()
+    } finally {
+      setAssigningCommander(false)
     }
   }
 
@@ -105,14 +123,48 @@ export function PropertiesPanel({ incident, onIncidentUpdated, lastActivityAt }:
 
           {/* ── People ───────────────────────────────── */}
           <PropertySection title="Incident Commander">
-            {incident.commander_id ? (
-              <div className="flex items-center gap-2">
-                <Avatar name="Commander" size="sm" />
-                <span className="text-sm text-text-primary">Commander</span>
-              </div>
-            ) : (
-              <span className="text-sm text-text-tertiary">Unassigned</span>
-            )}
+            <div className="space-y-2">
+              {incident.commander_id ? (
+                <div className="flex items-center gap-2">
+                  <Avatar name={incident.commander_name || 'Commander'} size="sm" />
+                  <span className="text-sm text-text-primary flex-1 truncate">
+                    {incident.commander_name || 'Unknown'}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-text-tertiary flex-1">Unassigned</span>
+                  {currentUser?.id && (
+                    <button
+                      onClick={handleClaimCommander}
+                      disabled={assigningCommander}
+                      className="text-xs text-brand-primary hover:underline disabled:opacity-50 font-medium"
+                    >
+                      Claim
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Assign / Reassign dropdown */}
+              {users.length > 0 && (
+                <select
+                  value={incident.commander_id || ''}
+                  onChange={(e) => handleAssignCommander(e.target.value || null)}
+                  disabled={assigningCommander}
+                  className="w-full text-xs border border-border rounded px-2 py-1 text-text-secondary bg-white disabled:opacity-50"
+                >
+                  <option value="">
+                    {incident.commander_id ? 'Reassign commander…' : 'Assign commander…'}
+                  </option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name || u.email}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </PropertySection>
 
           {/* ── Time ─────────────────────────────────── */}
@@ -209,24 +261,11 @@ export function PropertiesPanel({ incident, onIncidentUpdated, lastActivityAt }:
           <div className="flex items-center justify-between pt-2 border-t border-border">
             <div>
               <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide">AI Agents</span>
-              <p className="text-xs text-text-tertiary mt-0.5">
-                {aiEnabled ? 'Auto post-mortem on resolve' : 'Disabled for this incident'}
-              </p>
+              <p className="text-xs text-text-tertiary mt-0.5">Coming soon</p>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={aiEnabled}
-              onClick={handleAIToggle}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-                aiEnabled ? 'bg-brand-primary' : 'bg-gray-200'
-              }`}
-              title={aiEnabled ? 'AI agents enabled — click to disable' : 'AI agents disabled — click to enable'}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                aiEnabled ? 'translate-x-4' : 'translate-x-0.5'
-              }`} />
-            </button>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-medium flex-shrink-0">
+              Soon
+            </span>
           </div>
 
           {/* Handoff Digest */}

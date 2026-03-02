@@ -38,8 +38,8 @@ interface UseIncidentDetailResult {
   refetch: () => Promise<void>
 }
 
-/** Poll every 20 seconds. Stops automatically when the incident reaches a terminal state. */
-const POLL_INTERVAL_MS = 20_000
+/** Poll every 5 seconds. Stops automatically when the incident reaches a terminal state. */
+const POLL_INTERVAL_MS = 5_000
 const TERMINAL_STATUSES: StatusType[] = ['resolved', 'canceled']
 
 export function useIncidentDetail(id: string): UseIncidentDetailResult {

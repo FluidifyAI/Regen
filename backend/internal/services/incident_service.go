@@ -29,12 +29,13 @@ type CreateIncidentParams struct {
 
 // UpdateIncidentParams holds parameters for updating an incident
 type UpdateIncidentParams struct {
-	Status    models.IncidentStatus
-	Severity  models.IncidentSeverity
-	Summary   string
-	UpdatedBy string
-	ClientIP  string  // For audit logging
-	AIEnabled *bool   // Controls whether AI agents process this incident. nil = no change.
+	Status      models.IncidentStatus
+	Severity    models.IncidentSeverity
+	Summary     string
+	UpdatedBy   string
+	ClientIP    string     // For audit logging
+	AIEnabled   *bool      // Controls whether AI agents process this incident. nil = no change.
+	CommanderID *uuid.UUID // nil = no change
 }
 
 // CreateTimelineEntryParams holds parameters for creating a timeline entry
@@ -88,6 +89,9 @@ type incidentService struct {
 	db                *gorm.DB             // For transaction management
 	autoInviteUserIDs []string             // User IDs to auto-invite to incident channels
 	aiService         AIService            // Optional - can be nil if OpenAI not configured
+	userRepo          repository.UserRepository     // Optional — for commander name resolution
+	scheduleRepo      repository.ScheduleRepository // Optional — for on-call auto-assign
+	evaluator         ScheduleEvaluator             // Optional — for on-call auto-assign
 }
 
 // NewIncidentService creates a new incident service
@@ -129,6 +133,72 @@ func SetTeamsService(svc IncidentService, teams *TeamsService) {
 	if is, ok := svc.(*incidentService); ok {
 		is.teamsSvc = teams
 	}
+}
+
+// SetCommanderDeps wires the optional user/schedule dependencies for commander auto-assignment.
+// Called by routes.go after construction. Safe to skip in tests that don't test this feature.
+func SetCommanderDeps(svc IncidentService, userRepo repository.UserRepository, scheduleRepo repository.ScheduleRepository, evaluator ScheduleEvaluator) {
+	if s, ok := svc.(*incidentService); ok {
+		s.userRepo = userRepo
+		s.scheduleRepo = scheduleRepo
+		s.evaluator = evaluator
+	}
+}
+
+// resolveCommanderName looks up a user's display name by UUID.
+// Returns "" if userRepo is not wired or the user is not found.
+func (s *incidentService) resolveCommanderName(id *uuid.UUID) string {
+	if id == nil || s.userRepo == nil {
+		return ""
+	}
+	user, err := s.userRepo.GetByID(*id)
+	if err != nil {
+		return ""
+	}
+	if user.Name != "" {
+		return user.Name
+	}
+	return user.Email
+}
+
+// findOnCallUserID returns the UUID of the first on-call user across all schedules.
+// Returns nil if no schedule is configured, no one is on-call, or the user cannot be resolved.
+func (s *incidentService) findOnCallUserID() *uuid.UUID {
+	if s.scheduleRepo == nil || s.evaluator == nil || s.userRepo == nil {
+		return nil
+	}
+	schedules, err := s.scheduleRepo.GetAll()
+	if err != nil || len(schedules) == 0 {
+		return nil
+	}
+	now := time.Now()
+	for _, sch := range schedules {
+		username, err := s.evaluator.WhoIsOnCall(sch.ID, now)
+		if err != nil || username == "" {
+			continue
+		}
+		// Try email match first (most reliable — new UI stores email as user_name)
+		if user, err := s.userRepo.GetByEmail(username); err == nil {
+			return &user.ID
+		}
+		// Fall back: scan all users for name or email-prefix match (legacy free-form entries)
+		if users, err := s.userRepo.ListAll(); err == nil {
+			for _, u := range users {
+				if strings.EqualFold(u.Name, username) {
+					id := u.ID
+					return &id
+				}
+				// email prefix match: "alice" matches "alice@company.com"
+				if idx := strings.Index(u.Email, "@"); idx > 0 {
+					if strings.EqualFold(u.Email[:idx], username) {
+						id := u.ID
+						return &id
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // ShouldCreateIncident determines if an alert should trigger incident creation
@@ -214,6 +284,17 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 		s.launchChannelCreation(incident, []models.Alert{*alert})
 		return incident, nil
 	}
+
+	// Auto-assign on-call engineer as commander (best-effort)
+	if reloadedIncident.CommanderID == nil {
+		if onCallID := s.findOnCallUserID(); onCallID != nil {
+			reloadedIncident.CommanderID = onCallID
+			if err := s.incidentRepo.Update(reloadedIncident); err != nil {
+				slog.Warn("failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
+			}
+		}
+	}
+	reloadedIncident.CommanderName = s.resolveCommanderName(reloadedIncident.CommanderID)
 
 	// Create Slack + Teams channels asynchronously (non-blocking)
 	s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
@@ -335,6 +416,18 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 			s.launchChannelCreation(incident, []models.Alert{*alert})
 			return incident, nil
 		}
+
+		// Auto-assign on-call engineer as commander (best-effort)
+		if reloadedIncident.CommanderID == nil {
+			if onCallID := s.findOnCallUserID(); onCallID != nil {
+				reloadedIncident.CommanderID = onCallID
+				if err := s.incidentRepo.Update(reloadedIncident); err != nil {
+					slog.Warn("failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
+				}
+			}
+		}
+		reloadedIncident.CommanderName = s.resolveCommanderName(reloadedIncident.CommanderID)
+
 		s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
 		return reloadedIncident, nil
 	}
@@ -639,15 +732,53 @@ func randomHex(n int) string {
 
 // ListIncidents retrieves incidents with filtering and pagination
 func (s *incidentService) ListIncidents(filters repository.IncidentFilters, pagination repository.Pagination) ([]models.Incident, int64, error) {
-	return s.incidentRepo.List(filters, pagination)
+	incidents, total, err := s.incidentRepo.List(filters, pagination)
+	if err != nil {
+		return nil, 0, err
+	}
+	// Resolve commander names in a single batch (collect unique IDs first)
+	commanderNames := make(map[uuid.UUID]string)
+	for _, inc := range incidents {
+		if inc.CommanderID != nil {
+			commanderNames[*inc.CommanderID] = "" // seed the map
+		}
+	}
+	if s.userRepo != nil {
+		for id := range commanderNames {
+			user, err := s.userRepo.GetByID(id)
+			if err == nil {
+				if user.Name != "" {
+					commanderNames[id] = user.Name
+				} else {
+					commanderNames[id] = user.Email
+				}
+			}
+		}
+	}
+	for i := range incidents {
+		if incidents[i].CommanderID != nil {
+			incidents[i].CommanderName = commanderNames[*incidents[i].CommanderID]
+		}
+	}
+	return incidents, total, nil
 }
 
 // GetIncident retrieves an incident by UUID or incident number
 func (s *incidentService) GetIncident(id uuid.UUID, number int) (*models.Incident, error) {
+	var (
+		incident *models.Incident
+		err      error
+	)
 	if id != uuid.Nil {
-		return s.incidentRepo.GetByID(id)
+		incident, err = s.incidentRepo.GetByID(id)
+	} else {
+		incident, err = s.incidentRepo.GetByNumber(number)
 	}
-	return s.incidentRepo.GetByNumber(number)
+	if err != nil {
+		return nil, err
+	}
+	incident.CommanderName = s.resolveCommanderName(incident.CommanderID)
+	return incident, nil
 }
 
 // GetIncidentBySlackChannelID looks up an incident by its Slack channel ID.
@@ -713,6 +844,17 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 	if err != nil {
 		return nil, fmt.Errorf("failed to reload incident after creation: %w", err)
 	}
+
+	// Auto-assign on-call engineer as commander (best-effort)
+	if reloadedIncident.CommanderID == nil {
+		if onCallID := s.findOnCallUserID(); onCallID != nil {
+			reloadedIncident.CommanderID = onCallID
+			if err := s.incidentRepo.Update(reloadedIncident); err != nil {
+				slog.Warn("failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
+			}
+		}
+	}
+	reloadedIncident.CommanderName = s.resolveCommanderName(reloadedIncident.CommanderID)
 
 	// Create Slack + Teams channels asynchronously
 	s.launchChannelCreation(reloadedIncident, []models.Alert{})
@@ -822,6 +964,21 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 			incident.AIEnabled = *params.AIEnabled
 		}
 
+		// Update commander if explicitly provided
+		if params.CommanderID != nil {
+			if *params.CommanderID == uuid.Nil {
+				// zero UUID = explicit clear
+				incident.CommanderID = nil
+			} else if s.userRepo != nil {
+				if _, err := s.userRepo.GetByID(*params.CommanderID); err != nil {
+					return fmt.Errorf("commander user not found: %w", err)
+				}
+				incident.CommanderID = params.CommanderID
+			} else {
+				incident.CommanderID = params.CommanderID
+			}
+		}
+
 		// Update incident
 		if err := s.incidentRepo.Update(incident); err != nil {
 			return err
@@ -882,7 +1039,12 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 	}
 
 	// Fetch updated incident
-	return s.incidentRepo.GetByID(id)
+	updatedIncident, err := s.incidentRepo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	updatedIncident.CommanderName = s.resolveCommanderName(updatedIncident.CommanderID)
+	return updatedIncident, nil
 }
 
 // GetIncidentAlerts retrieves all alerts linked to an incident

@@ -94,6 +94,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	// Initialize services
 	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
 	services.SetAIService(incidentSvc, aiSvc)
+	services.SetCommanderDeps(incidentSvc, userRepo, scheduleRepo, scheduleEvaluator)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 	alertSvc.SetGroupingEngine(groupingEngine)
 	alertSvc.SetRoutingEngine(routingEngine)
@@ -260,6 +261,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// Protected routes — require session (no-op when auth disabled).
 		// RBAC middleware runs after auth; the OSS no-op allows all requests through.
 		protected := v1.Group("", middleware.RequireAuth(samlMiddleware, localAuth), hooks.RBAC.Middleware("api", "access"), middleware.RateLimitAPI())
+
+		// Users — available to all authenticated users for commander assignment
+		protected.GET("/users", handlers.ListUsersForAssignment(userRepo))
 
 		// Incidents
 		protected.GET("/incidents", handlers.ListIncidents(incidentSvc))

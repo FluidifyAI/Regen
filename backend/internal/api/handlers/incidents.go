@@ -233,12 +233,13 @@ func UpdateIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 
 		// Update incident
 		params := services.UpdateIncidentParams{
-			Status:    models.IncidentStatus(req.Status),
-			Severity:  models.IncidentSeverity(req.Severity),
-			Summary:   req.Summary,
-			UpdatedBy: "user",        // For v0.1, hardcoded
-			ClientIP:  c.ClientIP(), // For audit logging
-			AIEnabled: req.AIEnabled,
+			Status:      models.IncidentStatus(req.Status),
+			Severity:    models.IncidentSeverity(req.Severity),
+			Summary:     req.Summary,
+			UpdatedBy:   "user",        // For v0.1, hardcoded
+			ClientIP:    c.ClientIP(), // For audit logging
+			AIEnabled:   req.AIEnabled,
+			CommanderID: req.CommanderID,
 		}
 
 		updatedIncident, err := incidentSvc.UpdateIncident(incident.ID, &params)

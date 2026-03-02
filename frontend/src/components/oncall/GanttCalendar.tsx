@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import type { TimelineSegment } from '../../api/types'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -20,6 +20,8 @@ interface GanttCalendarProps {
   onNavigate: (newStart: Date) => void
   /** Optional: clicking a row label navigates somewhere */
   onRowClick?: (id: string) => void
+  /** Optional: delete button shown on hover in the row label */
+  onRowDelete?: (id: string) => void
 }
 
 // ─── Exported helpers ─────────────────────────────────────────────────────────
@@ -49,21 +51,27 @@ export function daysInMonth(date: Date): number {
 
 // ─── Colour helpers (exported for use in detail page participant lists) ───────
 
+// Curated hues that complement the navy/blue app UI.
+// Covers blue, sky, teal, emerald, violet, indigo, amber, slate-blue —
+// intentionally avoids pink, red, and tan/beige regions.
+const PALETTE_HUES = [217, 196, 172, 145, 258, 230, 36, 186]
+
 export function userHue(name: string): number {
   let h = 5381
   for (let i = 0; i < name.length; i++) {
     h = ((h << 5) + h) ^ name.charCodeAt(i)
     h = h | 0
   }
-  return Math.abs(h) % 360
+  const idx = Math.abs(h) % PALETTE_HUES.length
+  return PALETTE_HUES[idx] as number
 }
 
 export function segmentBg(name: string): string {
-  return `hsl(${userHue(name)}, 65%, 82%)`
+  return `hsl(${userHue(name)}, 50%, 78%)`
 }
 
 export function segmentText(name: string): string {
-  return `hsl(${userHue(name)}, 55%, 22%)`
+  return `hsl(${userHue(name)}, 60%, 20%)`
 }
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
@@ -136,6 +144,7 @@ export function GanttCalendar({
   days = 7,
   onNavigate,
   onRowClick,
+  onRowDelete,
 }: GanttCalendarProps) {
   // Full day array, then split into 7-day week chunks
   const dayDates: Date[] = Array.from({ length: days }, (_, i) => {
@@ -181,7 +190,7 @@ export function GanttCalendar({
     onNavigate(getMonthStart(new Date()))
   }
 
-  const labelCellClass = `h-12 border-b border-r border-border bg-white px-3 text-sm font-medium text-text-primary align-middle overflow-hidden${
+  const labelCellClass = `h-12 border-b border-r border-border bg-white px-3 text-sm font-medium text-text-primary align-middle overflow-hidden group${
     onRowClick ? ' cursor-pointer hover:text-brand-primary hover:bg-gray-50 transition-colors' : ''
   }`
 
@@ -291,7 +300,19 @@ export function GanttCalendar({
                           onClick={onRowClick ? () => onRowClick(row.id) : undefined}
                           title={row.label}
                         >
-                          <span className="block truncate">{row.label}</span>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="block truncate">{row.label}</span>
+                            {onRowDelete && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); onRowDelete(row.id) }}
+                                className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 hover:text-red-500 text-text-tertiary transition-all"
+                                title={`Delete ${row.label}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
 
                         {/* Continuous streak cells via colSpan */}

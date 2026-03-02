@@ -19,7 +19,6 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
   const [title, setTitle] = useState('')
   const [severity, setSeverity] = useState<'critical' | 'high' | 'medium' | 'low'>('high')
   const [summary, setSummary] = useState('')
-  const [aiEnabled, setAiEnabled] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,7 +38,6 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
       setTitle('')
       setSeverity('high')
       setSummary('')
-      setAiEnabled(true)
       setError(null)
     }
   }, [isOpen])
@@ -59,7 +57,7 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
         title: title.trim(),
         severity,
         description: summary.trim() || undefined,
-        ai_enabled: aiEnabled,
+        ai_enabled: false,
       })
       onCreated(incident)
       onClose()
@@ -157,26 +155,6 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
             />
           </div>
 
-          {/* AI Agents toggle */}
-          <div className="flex items-center justify-between py-2 border-t border-border mt-2">
-            <div>
-              <p className="text-sm font-medium text-text-primary">AI Agents</p>
-              <p className="text-xs text-text-tertiary">Auto-draft post-mortem when resolved</p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={aiEnabled}
-              onClick={() => setAiEnabled(v => !v)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                aiEnabled ? 'bg-brand-primary' : 'bg-gray-200'
-              }`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                aiEnabled ? 'translate-x-4' : 'translate-x-0.5'
-              }`} />
-            </button>
-          </div>
         </form>
 
         {/* Footer */}

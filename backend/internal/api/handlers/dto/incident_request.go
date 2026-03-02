@@ -3,6 +3,7 @@ package dto
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/models"
 	"github.com/openincident/openincident/internal/repository"
 )
@@ -23,6 +24,8 @@ type UpdateIncidentRequest struct {
 	Summary  string `json:"summary" binding:"max=5000"` // Max 5K chars for summary
 	// AIEnabled can toggle AI agent processing on/off after creation.
 	AIEnabled *bool `json:"ai_enabled"`
+	// CommanderID assigns the incident commander. Use null/omit to leave unchanged.
+	CommanderID *uuid.UUID `json:"commander_id"`
 }
 
 // IncidentFilters holds query parameters for filtering incidents

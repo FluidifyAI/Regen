@@ -26,6 +26,7 @@ type IncidentResponse struct {
 	CreatedByType  string            `json:"created_by_type"`
 	CreatedByID    string            `json:"created_by_id,omitempty"`
 	CommanderID    *uuid.UUID        `json:"commander_id,omitempty"`
+	CommanderName  string            `json:"commander_name,omitempty"`
 
 	// AI Summarization (v0.6+)
 	AISummary            *string    `json:"ai_summary,omitempty"`
@@ -88,6 +89,7 @@ func ToIncidentResponse(incident *models.Incident) IncidentResponse {
 		CreatedByType:  incident.CreatedByType,
 		CreatedByID:    incident.CreatedByID,
 		CommanderID:    incident.CommanderID,
+		CommanderName:  incident.CommanderName,
 
 		// AI fields (v0.6+)
 		AISummary:            incident.AISummary,

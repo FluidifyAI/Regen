@@ -116,6 +116,17 @@ func (m *mockEscalationRepo) RecordAcknowledgment(alertID uuid.UUID, by string, 
 	return nil
 }
 
+func (m *mockEscalationRepo) ListSeverityRules() ([]models.EscalationSeverityRule, error) {
+	return nil, nil
+}
+func (m *mockEscalationRepo) GetSeverityRule(_ string) (*models.EscalationSeverityRule, error) {
+	return nil, nil
+}
+func (m *mockEscalationRepo) UpsertSeverityRule(_ string, _ uuid.UUID) (*models.EscalationSeverityRule, error) {
+	return nil, nil
+}
+func (m *mockEscalationRepo) DeleteSeverityRule(_ string) error { return nil }
+
 var _ repository.EscalationPolicyRepository = &mockEscalationRepo{}
 
 // ── Mock schedule evaluator ───────────────────────────────────────────────────

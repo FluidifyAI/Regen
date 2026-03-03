@@ -232,3 +232,16 @@ func (s *EscalationState) IsActive() bool {
 	return s.AcknowledgedAt == nil &&
 		s.Status != EscalationStateCompleted
 }
+
+// EscalationSeverityRule maps an alert severity to a default escalation policy.
+// At most one rule exists per severity (UNIQUE on severity).
+type EscalationSeverityRule struct {
+	ID                 uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Severity           string    `gorm:"type:varchar(50);not null;uniqueIndex"          json:"severity"`
+	EscalationPolicyID uuid.UUID `gorm:"type:uuid;not null"                             json:"escalation_policy_id"`
+	CreatedAt          time.Time `gorm:"not null;default:now()"                         json:"created_at"`
+	UpdatedAt          time.Time `gorm:"not null;default:now()"                         json:"updated_at"`
+}
+
+// TableName specifies the database table name.
+func (EscalationSeverityRule) TableName() string { return "escalation_severity_rules" }

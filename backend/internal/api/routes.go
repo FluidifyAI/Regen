@@ -272,6 +272,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.PATCH("/incidents/:id", handlers.UpdateIncident(incidentSvc))
 		protected.GET("/incidents/:id/timeline", handlers.GetIncidentTimeline(incidentSvc))
 		protected.POST("/incidents/:id/timeline", handlers.CreateTimelineEntry(incidentSvc))
+		protected.POST("/incidents/:id/escalate", handlers.EscalateIncident(escalationEngine))
 
 		// Alerts
 		protected.GET("/alerts", handlers.ListAlerts(alertRepo))

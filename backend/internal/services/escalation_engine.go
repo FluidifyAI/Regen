@@ -30,6 +30,7 @@ type EscalationNotifier interface {
 //   - MarkAlertCompleted: called when an alert resolves before being acknowledged.
 type EscalationEngine interface {
 	TriggerEscalation(alert *models.Alert) error
+	TriggerIncidentEscalation(incidentID uuid.UUID, policyID uuid.UUID) error
 	EvaluateEscalations() error
 	AcknowledgeAlert(alertID uuid.UUID, by string, via models.AcknowledgmentVia) error
 	MarkAlertCompleted(alertID uuid.UUID) error
@@ -76,11 +77,13 @@ func (e *escalationEngine) TriggerEscalation(alert *models.Alert) error {
 		return fmt.Errorf("escalation policy not found: %w", err)
 	}
 
+	alertID := alert.ID
 	state := &models.EscalationState{
-		AlertID:          alert.ID,
+		AlertID:          &alertID,
 		PolicyID:         *alert.EscalationPolicyID,
 		CurrentTierIndex: 0,
 		Status:           models.EscalationStatePending,
+		SourceType:       "alert",
 	}
 
 	if err := e.repo.CreateState(state); err != nil {
@@ -96,6 +99,34 @@ func (e *escalationEngine) TriggerEscalation(alert *models.Alert) error {
 		"alert_id", alert.ID,
 		"policy_id", alert.EscalationPolicyID,
 	)
+	return nil
+}
+
+// ── TriggerIncidentEscalation ─────────────────────────────────────────────────
+
+// TriggerIncidentEscalation creates an EscalationState for a manually escalated
+// incident. If an escalation is already running for this incident, this is a no-op.
+func (e *escalationEngine) TriggerIncidentEscalation(incidentID uuid.UUID, policyID uuid.UUID) error {
+	if _, err := e.repo.GetPolicyByID(policyID); err != nil {
+		return fmt.Errorf("escalation policy not found: %w", err)
+	}
+
+	state := &models.EscalationState{
+		IncidentID:       &incidentID,
+		PolicyID:         policyID,
+		CurrentTierIndex: 0,
+		Status:           models.EscalationStatePending,
+		SourceType:       "incident",
+	}
+
+	if err := e.repo.CreateState(state); err != nil {
+		var alreadyExists *repository.AlreadyExistsError
+		if errors.As(err, &alreadyExists) {
+			return nil // idempotent
+		}
+		return fmt.Errorf("failed to create escalation state: %w", err)
+	}
+	slog.Info("incident escalation triggered", "incident_id", incidentID, "policy_id", policyID)
 	return nil
 }
 
@@ -150,9 +181,13 @@ func (e *escalationEngine) processState(state *models.EscalationState, policyByI
 		return e.markCompleted(state)
 	}
 
-	alert, err := e.lookupAlert(state.AlertID)
-	if err != nil {
-		return fmt.Errorf("alert %s not found: %w", state.AlertID, err)
+	var alert *models.Alert
+	if state.AlertID != nil {
+		var err error
+		alert, err = e.lookupAlert(*state.AlertID)
+		if err != nil {
+			return fmt.Errorf("alert %s not found: %w", state.AlertID, err)
+		}
 	}
 
 	// Pending state: notify tier 0 now (possibly skipping to next if empty).

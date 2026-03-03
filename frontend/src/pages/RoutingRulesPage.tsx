@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Zap, Filter, Bell } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -9,274 +9,411 @@ import { createRoutingRule, updateRoutingRule, deleteRoutingRule } from '../api/
 import { listEscalationPolicies } from '../api/escalation'
 import type { RoutingRule, CreateRoutingRuleRequest, EscalationPolicy } from '../api/types'
 
-// ─── Modal ────────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-interface RuleModalProps {
+const SOURCES = [
+  { id: 'prometheus', label: 'Prometheus' },
+  { id: 'grafana',    label: 'Grafana'    },
+  { id: 'cloudwatch', label: 'CloudWatch' },
+  { id: 'generic',    label: 'Generic'    },
+] as const
+
+const SEVERITIES = ['critical', 'high', 'warning', 'info', 'low'] as const
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: 'bg-red-100 text-red-700 border-red-200',
+  high:     'bg-orange-100 text-orange-700 border-orange-200',
+  warning:  'bg-yellow-100 text-yellow-700 border-yellow-200',
+  info:     'bg-blue-100 text-blue-700 border-blue-200',
+  low:      'bg-gray-100 text-gray-600 border-gray-200',
+}
+
+// ─── Yes/No toggle ────────────────────────────────────────────────────────────
+
+function YesNo({
+  value, onChange, disabled,
+}: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <div className="flex rounded-lg border border-border overflow-hidden text-sm">
+      <button
+        type="button"
+        onClick={() => onChange(true)}
+        disabled={disabled}
+        className={`px-3 py-1.5 font-medium transition-colors ${
+          value
+            ? 'bg-brand-primary text-white'
+            : 'bg-surface-primary text-text-secondary hover:bg-surface-secondary'
+        }`}
+      >
+        Yes
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        disabled={disabled}
+        className={`px-3 py-1.5 font-medium transition-colors border-l border-border ${
+          !value
+            ? 'bg-brand-primary text-white'
+            : 'bg-surface-primary text-text-secondary hover:bg-surface-secondary'
+        }`}
+      >
+        No
+      </button>
+    </div>
+  )
+}
+
+// ─── Route builder modal ──────────────────────────────────────────────────────
+
+interface RouteBuilderModalProps {
   isOpen: boolean
-  rule: RoutingRule | null // null = create mode, non-null = edit mode
+  rule: RoutingRule | null
   onClose: () => void
   onSaved: () => void
 }
 
-function RuleModal({ isOpen, rule, onClose, onSaved }: RuleModalProps) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [priority, setPriority] = useState(100)
-  const [enabled, setEnabled] = useState(true)
-  const [matchCriteriaText, setMatchCriteriaText] = useState('{}')
-  const [actionsText, setActionsText] = useState('{"create_incident": true}')
-  const [error, setError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModalProps) {
+  // ── form state ──
+  const [name, setName]               = useState('')
+  const [enabled, setEnabled]         = useState(true)
+  const [priority, setPriority]       = useState(100)
+  const [sources, setSources]         = useState<string[]>([])       // empty = all
+  const [severities, setSeverities]   = useState<string[]>([])       // empty = all
+  const [createIncident, setCreate]   = useState(true)
+  const [suppress, setSuppress]       = useState(false)
+  const [escalate, setEscalate]       = useState(false)
+  const [escalationPolicyId, setEpId] = useState('')
+  const [severityOverride, setSevOvr] = useState('')
+
   const [policies, setPolicies] = useState<EscalationPolicy[]>([])
-  const [escalationPolicyId, setEscalationPolicyId] = useState('')
+  const [error, setError]       = useState<string | null>(null)
+  const [saving, setSaving]     = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
 
-  // Populate form when editing an existing rule
+  // ── load policies ──
   useEffect(() => {
+    if (isOpen) listEscalationPolicies().then((r) => setPolicies(r.data)).catch(() => {})
+  }, [isOpen])
+
+  // ── populate from existing rule ──
+  useEffect(() => {
+    if (!isOpen) return
     if (rule) {
       setName(rule.name)
-      setDescription(rule.description)
-      setPriority(rule.priority)
       setEnabled(rule.enabled)
-      setMatchCriteriaText(JSON.stringify(rule.match_criteria, null, 2))
-      setActionsText(JSON.stringify(rule.actions, null, 2))
-      try {
-        const parsed = JSON.parse(JSON.stringify(rule.actions))
-        setEscalationPolicyId(parsed.escalation_policy_id ?? '')
-      } catch { setEscalationPolicyId('') }
+      setPriority(rule.priority)
+
+      const mc = rule.match_criteria as Record<string, unknown>
+      setSources(Array.isArray(mc.source) ? (mc.source as string[]) : [])
+      setSeverities(Array.isArray(mc.severity) ? (mc.severity as string[]) : [])
+
+      const ac = rule.actions as Record<string, unknown>
+      setCreate(ac.create_incident !== false)
+      setSuppress(Boolean(ac.suppress))
+      setEscalate(Boolean(ac.escalation_policy_id))
+      setEpId(typeof ac.escalation_policy_id === 'string' ? ac.escalation_policy_id : '')
+      setSevOvr(typeof ac.severity_override === 'string' ? ac.severity_override : '')
     } else {
       setName('')
-      setDescription('')
-      setPriority(100)
       setEnabled(true)
-      setMatchCriteriaText('{}')
-      setActionsText('{"create_incident": true}')
-      setEscalationPolicyId('')
+      setPriority(100)
+      setSources([])
+      setSeverities([])
+      setCreate(true)
+      setSuppress(false)
+      setEscalate(false)
+      setEpId('')
+      setSevOvr('')
     }
     setError(null)
   }, [rule, isOpen])
 
-  // Load policies when modal opens
+  // ── focus name on open ──
   useEffect(() => {
-    if (isOpen) {
-      listEscalationPolicies().then(r => setPolicies(r.data)).catch(() => {})
-    }
+    if (isOpen) setTimeout(() => nameRef.current?.focus(), 50)
   }, [isOpen])
 
+  // ── close on Escape ──
   useEffect(() => {
-    if (isOpen) nameRef.current?.focus()
-  }, [isOpen])
-
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     if (isOpen) document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [isOpen, onClose])
 
   if (!isOpen) return null
 
+  const toggleSource = (id: string) =>
+    setSources((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id])
+
+  const toggleSeverity = (s: string) =>
+    setSeverities((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])
+
+  const handleCreateChange = (v: boolean) => {
+    setCreate(v)
+    if (v) setSuppress(false)
+  }
+
+  const handleSuppressChange = (v: boolean) => {
+    setSuppress(v)
+    if (v) setCreate(false)
+  }
+
+  const handleEscalateChange = (v: boolean) => {
+    setEscalate(v)
+    if (!v) setEpId('')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!name.trim()) return
+
+    // Serialise structured state → API JSON
+    const match_criteria: Record<string, unknown> = {}
+    if (sources.length > 0)    match_criteria.source   = sources
+    if (severities.length > 0) match_criteria.severity = severities
+
+    const actions: Record<string, unknown> = {}
+    if (createIncident)          actions.create_incident = true
+    if (suppress)                actions.suppress        = true
+    if (escalate && escalationPolicyId) actions.escalation_policy_id = escalationPolicyId
+    if (severityOverride)        actions.severity_override = severityOverride
+
+    setSaving(true)
     setError(null)
-
-    // Validate JSON fields
-    let matchCriteria: Record<string, unknown>
-    let actions: Record<string, unknown>
-    try {
-      matchCriteria = JSON.parse(matchCriteriaText)
-    } catch {
-      setError('match_criteria must be valid JSON')
-      return
-    }
-    try {
-      actions = JSON.parse(actionsText)
-    } catch {
-      setError('actions must be valid JSON')
-      return
-    }
-
-    setIsSubmitting(true)
     try {
       if (rule) {
-        await updateRoutingRule(rule.id, { name, description, priority, enabled, match_criteria: matchCriteria, actions })
+        await updateRoutingRule(rule.id, { name: name.trim(), priority, enabled, match_criteria, actions })
       } else {
-        const body: CreateRoutingRuleRequest = { name, description, priority, enabled, match_criteria: matchCriteria, actions }
+        const body: CreateRoutingRuleRequest = { name: name.trim(), description: '', priority, enabled, match_criteria, actions }
         await createRoutingRule(body)
       }
       onSaved()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save routing rule')
+      setError(err instanceof Error ? err.message : 'Failed to save route')
     } finally {
-      setIsSubmitting(false)
+      setSaving(false)
     }
   }
 
-  const inputClass = 'w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent disabled:opacity-50'
-  const labelClass = 'block text-sm font-medium text-text-primary mb-1'
+  const sectionClass = 'bg-surface-primary border border-border rounded-xl p-5 space-y-4'
+  const labelClass   = 'text-xs font-semibold uppercase tracking-wide text-text-tertiary'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-
-      {/* Modal */}
       <div
-        className="relative z-10 w-full max-w-lg bg-white rounded-xl shadow-xl mx-4 flex flex-col max-h-[90vh]"
+        className="relative z-10 w-full max-w-lg bg-surface-secondary rounded-t-2xl sm:rounded-2xl shadow-2xl mx-0 sm:mx-4 flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-border">
-          <h2 className="text-lg font-semibold text-text-primary">
-            {rule ? 'Edit routing rule' : 'New routing rule'}
-          </h2>
+        <div className="px-6 py-4 border-b border-border bg-surface-primary rounded-t-2xl flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-text-primary">
+              {rule ? 'Edit alert route' : 'New alert route'}
+            </h2>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={enabled}
+                  onChange={(e) => setEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-border text-brand-primary focus:ring-brand-primary"
+                />
+                Enabled
+              </label>
+            </div>
+          </div>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
             {error && (
               <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {error}
               </div>
             )}
 
-            <div>
-              <label className={labelClass} htmlFor="rule-name">Name</label>
-              <input
-                ref={nameRef}
-                id="rule-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Suppress info alerts"
-                className={inputClass}
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-
-            <div>
-              <label className={labelClass} htmlFor="rule-description">Description</label>
-              <input
-                id="rule-description"
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="What does this rule do?"
-                className={inputClass}
-                disabled={isSubmitting}
-              />
-            </div>
-
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className={labelClass} htmlFor="rule-priority">Priority</label>
+            {/* Name + priority */}
+            <div className={sectionClass}>
+              <div>
+                <label className={`${labelClass} block mb-1.5`}>Route name</label>
                 <input
-                  id="rule-priority"
+                  ref={nameRef}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Critical SRE alerts"
+                  required
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className={`${labelClass} block mb-1.5`}>Priority <span className="normal-case font-normal text-text-tertiary">(lower = evaluated first)</span></label>
+                <input
                   type="number"
                   value={priority}
                   onChange={(e) => setPriority(Number(e.target.value))}
-                  min={1}
-                  max={10000}
-                  className={inputClass}
-                  disabled={isSubmitting}
-                  required
+                  min={1} max={10000}
+                  className="w-28 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                 />
-                <p className="mt-1 text-xs text-text-tertiary">Lower number = higher priority</p>
-              </div>
-
-              <div className="flex items-center gap-2 pt-6">
-                <input
-                  id="rule-enabled"
-                  type="checkbox"
-                  checked={enabled}
-                  onChange={(e) => setEnabled(e.target.checked)}
-                  className="h-4 w-4 rounded border-border text-brand-primary focus:ring-brand-primary"
-                  disabled={isSubmitting}
-                />
-                <label htmlFor="rule-enabled" className="text-sm font-medium text-text-primary">
-                  Enabled
-                </label>
               </div>
             </div>
 
-            <div>
-              <label className={labelClass} htmlFor="rule-match">Match criteria (JSON)</label>
-              <textarea
-                id="rule-match"
-                value={matchCriteriaText}
-                onChange={(e) => setMatchCriteriaText(e.target.value)}
-                rows={4}
-                className={`${inputClass} font-mono text-xs`}
-                disabled={isSubmitting}
-                placeholder={'{\n  "severity": ["critical"],\n  "source": ["prometheus"]\n}'}
-              />
-              <p className="mt-1 text-xs text-text-tertiary">
-                Keys: <code>source</code> (list), <code>severity</code> (list), <code>labels</code> (map, * wildcard). Empty = match all.
-              </p>
-            </div>
-
-            <div>
-              <label className={labelClass} htmlFor="rule-actions">Actions (JSON)</label>
-              <textarea
-                id="rule-actions"
-                value={actionsText}
-                onChange={(e) => setActionsText(e.target.value)}
-                rows={4}
-                className={`${inputClass} font-mono text-xs`}
-                disabled={isSubmitting}
-                placeholder={'{\n  "create_incident": true\n}'}
-              />
-              <p className="mt-1 text-xs text-text-tertiary">
-                Keys: <code>create_incident</code>, <code>suppress</code>, <code>severity_override</code>, <code>channel_override</code>
-              </p>
-            </div>
-
-            <div>
-              <label className={labelClass}>Escalation Policy</label>
-              <div className="relative">
-                <select
-                  className={`${inputClass} pr-8 appearance-none`}
-                  value={escalationPolicyId}
-                  onChange={e => {
-                    const id = e.target.value
-                    setEscalationPolicyId(id)
-                    try {
-                      const parsed = JSON.parse(actionsText)
-                      if (id) {
-                        parsed.escalation_policy_id = id
-                      } else {
-                        delete parsed.escalation_policy_id
-                      }
-                      setActionsText(JSON.stringify(parsed, null, 2))
-                    } catch {}
-                  }}
-                  disabled={isSubmitting}
-                >
-                  <option value="">— No escalation —</option>
-                  {policies.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2.5 top-2.5 w-4 h-4 text-text-tertiary pointer-events-none" />
+            {/* Step 1 — Sources */}
+            <div className={sectionClass}>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-brand-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-3.5 h-3.5 text-brand-primary" />
+                </div>
+                <span className="text-sm font-semibold text-text-primary">Alert sources</span>
+                <span className="text-xs text-text-tertiary ml-auto">empty = all sources</span>
               </div>
-              <p className="mt-1 text-xs text-text-tertiary">
-                When set, this policy is triggered for alerts matching this rule.
-              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {SOURCES.map((src) => (
+                  <label
+                    key={src.id}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors text-sm ${
+                      sources.includes(src.id)
+                        ? 'bg-brand-primary/5 border-brand-primary text-brand-primary font-medium'
+                        : 'bg-surface-primary border-border text-text-secondary hover:border-brand-primary/40'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={sources.includes(src.id)}
+                      onChange={() => toggleSource(src.id)}
+                      className="sr-only"
+                    />
+                    <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                      sources.includes(src.id) ? 'bg-brand-primary border-brand-primary' : 'border-border bg-white'
+                    }`}>
+                      {sources.includes(src.id) && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10">
+                          <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    {src.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Step 2 — Filters */}
+            <div className={sectionClass}>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
+                  <Filter className="w-3.5 h-3.5 text-amber-600" />
+                </div>
+                <span className="text-sm font-semibold text-text-primary">Severity filter</span>
+                <span className="text-xs text-text-tertiary ml-auto">empty = all severities</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {SEVERITIES.map((sev) => (
+                  <button
+                    key={sev}
+                    type="button"
+                    onClick={() => toggleSeverity(sev)}
+                    className={`px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide transition-colors ${
+                      severities.includes(sev)
+                        ? SEVERITY_COLORS[sev]
+                        : 'bg-surface-primary border-border text-text-tertiary hover:border-brand-primary/40'
+                    }`}
+                  >
+                    {sev}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Step 3 — Actions */}
+            <div className={sectionClass}>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                  <Bell className="w-3.5 h-3.5 text-red-500" />
+                </div>
+                <span className="text-sm font-semibold text-text-primary">Actions</span>
+              </div>
+
+              <div className="space-y-3">
+                {/* Create incident */}
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Create incident</p>
+                    <p className="text-xs text-text-tertiary">Automatically open an incident for matching alerts</p>
+                  </div>
+                  <YesNo value={createIncident} onChange={handleCreateChange} disabled={suppress} />
+                </div>
+
+                {/* Escalate */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-text-primary">Escalate</p>
+                      <p className="text-xs text-text-tertiary">Page the on-call team via an escalation path</p>
+                    </div>
+                    <YesNo value={escalate} onChange={handleEscalateChange} />
+                  </div>
+                  {escalate && (
+                    <div className="ml-4 pl-3 border-l-2 border-brand-primary/20">
+                      <label className="block text-xs font-medium text-text-secondary mb-1">Escalation path</label>
+                      <div className="relative">
+                        <select
+                          value={escalationPolicyId}
+                          onChange={(e) => setEpId(e.target.value)}
+                          className="w-full appearance-none px-3 py-2 pr-8 border border-border rounded-lg text-sm bg-surface-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                        >
+                          <option value="">— Select a path —</option>
+                          {policies.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-2.5 w-4 h-4 text-text-tertiary pointer-events-none" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Suppress */}
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Suppress alert</p>
+                    <p className="text-xs text-text-tertiary">Drop matching alerts silently — no incident, no page</p>
+                  </div>
+                  <YesNo value={suppress} onChange={handleSuppressChange} disabled={createIncident} />
+                </div>
+
+                {/* Severity override */}
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Severity override</p>
+                    <p className="text-xs text-text-tertiary">Override the alert's severity before incident creation</p>
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={severityOverride}
+                      onChange={(e) => setSevOvr(e.target.value)}
+                      className="appearance-none pl-3 pr-8 py-1.5 border border-border rounded-lg text-sm bg-surface-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    >
+                      <option value="">None</option>
+                      {SEVERITIES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2 top-2 w-4 h-4 text-text-tertiary pointer-events-none" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
+          <div className="px-6 py-4 border-t border-border bg-surface-primary rounded-b-2xl flex justify-end gap-3 flex-shrink-0">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving…' : rule ? 'Save changes' : 'Create rule'}
+            <Button type="submit" variant="primary" disabled={saving || !name.trim()}>
+              {saving ? 'Saving…' : rule ? 'Save changes' : 'Create route'}
             </Button>
           </div>
         </form>
@@ -287,72 +424,58 @@ function RuleModal({ isOpen, rule, onClose, onSaved }: RuleModalProps) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-/**
- * Routing rules management page
- * Shows all routing rules in priority order with create/edit/delete actions.
- * Rules determine whether alerts create incidents, suppress them, or override channel/severity.
- */
 export function RoutingRulesPage() {
   const { rules, loading, error, refetch } = useRoutingRules()
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingRule, setEditingRule] = useState<RoutingRule | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [policies, setPolicies] = useState<EscalationPolicy[]>([])
+  const [modalOpen, setModalOpen]         = useState(false)
+  const [editingRule, setEditingRule]     = useState<RoutingRule | null>(null)
+  const [deletingId, setDeletingId]       = useState<string | null>(null)
+  const [deleteError, setDeleteError]     = useState<string | null>(null)
+  const [policies, setPolicies]           = useState<EscalationPolicy[]>([])
 
   useEffect(() => {
-    listEscalationPolicies().then(r => setPolicies(r.data)).catch(() => {})
+    listEscalationPolicies().then((r) => setPolicies(r.data)).catch(() => {})
   }, [])
 
-  const handleCreate = () => {
-    setEditingRule(null)
-    setModalOpen(true)
-  }
-
-  const handleEdit = (rule: RoutingRule) => {
-    setEditingRule(rule)
-    setModalOpen(true)
-  }
+  const handleCreate = () => { setEditingRule(null); setModalOpen(true) }
+  const handleEdit   = (rule: RoutingRule) => { setEditingRule(rule); setModalOpen(true) }
 
   const handleDelete = async (rule: RoutingRule) => {
-    if (!confirm(`Delete routing rule "${rule.name}"? This cannot be undone.`)) return
+    if (!confirm(`Delete alert route "${rule.name}"? This cannot be undone.`)) return
     setDeletingId(rule.id)
     setDeleteError(null)
     try {
       await deleteRoutingRule(rule.id)
       await refetch()
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete rule')
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete route')
     } finally {
       setDeletingId(null)
     }
   }
 
-  const summarizeActions = (actions: Record<string, unknown>): string => {
+  const summariseActions = (actions: Record<string, unknown>): string => {
     const parts: string[] = []
-    if (actions.suppress) parts.push('Suppress')
-    if (actions.create_incident) parts.push('Create incident')
+    if (actions.suppress)         parts.push('Suppress')
+    if (actions.create_incident)  parts.push('Create incident')
     if (actions.severity_override) parts.push(`Severity → ${actions.severity_override}`)
-    if (actions.channel_override) parts.push(`Channel → ${actions.channel_override}`)
     if (actions.escalation_policy_id) {
-      const policy = policies.find(p => p.id === actions.escalation_policy_id)
+      const policy = policies.find((p) => p.id === actions.escalation_policy_id)
       parts.push(`Escalate → ${policy?.name ?? String(actions.escalation_policy_id).slice(0, 8) + '…'}`)
     }
     return parts.length > 0 ? parts.join(', ') : 'No action'
   }
 
-  const summarizeCriteria = (criteria: Record<string, unknown>): string => {
+  const summariseCriteria = (criteria: Record<string, unknown>): string => {
     if (Object.keys(criteria).length === 0) return 'All alerts'
     const parts: string[] = []
-    if (criteria.source) parts.push(`source: ${(criteria.source as string[]).join(', ')}`)
+    if (criteria.source)   parts.push(`source: ${(criteria.source as string[]).join(', ')}`)
     if (criteria.severity) parts.push(`severity: ${(criteria.severity as string[]).join(', ')}`)
-    if (criteria.labels) parts.push('labels: ...')
     return parts.join(' · ')
   }
 
   return (
     <div className="flex flex-col h-full">
-      <RuleModal
+      <RouteBuilderModal
         isOpen={modalOpen}
         rule={editingRule}
         onClose={() => setModalOpen(false)}
@@ -360,18 +483,18 @@ export function RoutingRulesPage() {
       />
 
       {/* Page Header */}
-      <div className="border-b border-border bg-white px-6 py-4">
+      <div className="border-b border-border bg-surface-primary px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-text-primary">Routing Rules</h1>
+            <h1 className="text-2xl font-semibold text-text-primary">Alert Routes</h1>
             <p className="mt-1 text-sm text-text-secondary">
-              Route alerts to the right channels and control which alerts create incidents.
-              Rules are evaluated in priority order — first match wins.
+              Route alerts to the right escalation path and control which alerts create incidents.
+              Routes are evaluated in priority order — first match wins.
             </p>
           </div>
           <Button variant="primary" onClick={handleCreate}>
             <Plus className="w-4 h-4" />
-            Add rule
+            Add route
           </Button>
         </div>
       </div>
@@ -391,13 +514,13 @@ export function RoutingRulesPage() {
         ) : rules.length === 0 ? (
           <EmptyState
             icon="check"
-            title="No routing rules"
-            description="Create a routing rule to control how alerts are routed to incidents and channels."
-            actionLabel="Add rule"
+            title="No alert routes"
+            description="Create an alert route to control how alerts are routed to incidents and escalation paths."
+            actionLabel="Add route"
             onAction={handleCreate}
           />
         ) : (
-          <div className="bg-white border border-border rounded-lg overflow-hidden">
+          <div className="bg-surface-primary border border-border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-gray-50">
@@ -415,24 +538,17 @@ export function RoutingRulesPage() {
                     <td className="px-4 py-3 font-mono text-text-secondary">{rule.priority}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-text-primary">{rule.name}</div>
-                      {rule.description && (
-                        <div className="text-xs text-text-tertiary mt-0.5">{rule.description}</div>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-text-secondary">
-                      {summarizeCriteria(rule.match_criteria)}
+                      {summariseCriteria(rule.match_criteria)}
                     </td>
                     <td className="px-4 py-3 text-text-secondary">
-                      {summarizeActions(rule.actions)}
+                      {summariseActions(rule.actions)}
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          rule.enabled
-                            ? 'bg-brand-primary/10 text-brand-primary'
-                            : 'bg-gray-100 text-gray-500'
-                        }`}
-                      >
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        rule.enabled ? 'bg-brand-primary/10 text-brand-primary' : 'bg-gray-100 text-gray-500'
+                      }`}>
                         {rule.enabled ? 'Active' : 'Disabled'}
                       </span>
                     </td>
@@ -441,7 +557,7 @@ export function RoutingRulesPage() {
                         <button
                           onClick={() => handleEdit(rule)}
                           className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-gray-100 rounded transition-colors"
-                          title="Edit rule"
+                          title="Edit route"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
@@ -449,7 +565,7 @@ export function RoutingRulesPage() {
                           onClick={() => handleDelete(rule)}
                           disabled={deletingId === rule.id}
                           className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                          title="Delete rule"
+                          title="Delete route"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -465,4 +581,3 @@ export function RoutingRulesPage() {
     </div>
   )
 }
-

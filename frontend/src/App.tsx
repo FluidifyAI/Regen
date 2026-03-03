@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { GlobalSearch } from './components/GlobalSearch'
 import { AuthGate } from './components/auth/AuthGate'
@@ -8,16 +8,21 @@ import { LoginPage } from './pages/LoginPage'
 import { HomePage } from './pages/HomePage'
 import { IncidentsListPage } from './pages/IncidentsListPage'
 import { IncidentDetailPage } from './pages/IncidentDetailPage'
-import { RoutingRulesPage } from './pages/RoutingRulesPage'
-import { SchedulesPage } from './pages/SchedulesPage'
+import { OnCallPage } from './pages/OnCallPage'
 import { ScheduleDetailPage } from './pages/ScheduleDetailPage'
-import { EscalationPoliciesPage } from './pages/EscalationPoliciesPage'
 import { EscalationPolicyDetailPage } from './pages/EscalationPolicyDetailPage'
 import { AlertDetailPage } from './pages/AlertDetailPage'
 import { PostMortemTemplatesPage } from './pages/PostMortemTemplatesPage'
 import { SettingsUsersPage } from './pages/SettingsUsersPage'
 import { AnalyticsPage } from './pages/AnalyticsPage'
+import { IntegrationsPage } from './pages/IntegrationsPage'
 import { LogoutPage } from './pages/LogoutPage'
+
+/** Redirect /escalation-policies/:id → /on-call/escalation-paths/:id */
+function EscalationPoliciesRedirect() {
+  const { id } = useParams<{ id: string }>()
+  return <Navigate to={`/on-call/escalation-paths/${id ?? ''}`} replace />
+}
 
 function App() {
   const [showSearch, setShowSearch] = useState(false)
@@ -52,14 +57,24 @@ function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/incidents" element={<IncidentsListPage />} />
               <Route path="/incidents/:id" element={<IncidentDetailPage />} />
-              <Route path="/routing-rules" element={<RoutingRulesPage />} />
-              <Route path="/on-call" element={<SchedulesPage />} />
+
+              {/* On-call unified section */}
+              <Route path="/on-call" element={<OnCallPage />} />
+              <Route path="/on-call/escalation-paths" element={<OnCallPage />} />
+              <Route path="/on-call/schedules" element={<OnCallPage />} />
+              {/* Detail pages (nested under on-call) */}
+              <Route path="/on-call/escalation-paths/:id" element={<EscalationPolicyDetailPage />} />
               <Route path="/on-call/:id" element={<ScheduleDetailPage />} />
-              <Route path="/escalation-policies" element={<EscalationPoliciesPage />} />
-              <Route path="/escalation-policies/:id" element={<EscalationPolicyDetailPage />} />
+
+              {/* Backwards-compat redirects */}
+              <Route path="/routing-rules" element={<Navigate to="/on-call" replace />} />
+              <Route path="/escalation-policies" element={<Navigate to="/on-call/escalation-paths" replace />} />
+              <Route path="/escalation-policies/:id" element={<EscalationPoliciesRedirect />} />
+
               <Route path="/alerts/:id" element={<AlertDetailPage />} />
               <Route path="/post-mortem-templates" element={<PostMortemTemplatesPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/integrations" element={<IntegrationsPage />} />
               <Route path="/settings" element={<Navigate to="/settings/users" replace />} />
               <Route path="/settings/users" element={<SettingsUsersPage />} />
             </Route>

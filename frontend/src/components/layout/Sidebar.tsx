@@ -9,13 +9,12 @@ import {
   ChevronRight,
   ChevronDown,
   Shield,
-  GitFork,
-  GitBranch,
   FileText,
   LogOut,
   Users,
   Menu,
   BarChart2,
+  Puzzle,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
 import { useAuth } from '../../hooks/useAuth'
@@ -95,25 +94,11 @@ export function Sidebar() {
           matchPaths: ['/incidents', '/incidents/'],
         },
         {
-          id: 'routing-rules',
-          label: 'Routing Rules',
-          icon: GitFork,
-          href: '/routing-rules',
-          matchPaths: ['/routing-rules'],
-        },
-        {
           id: 'oncall',
           label: 'On-call',
           icon: Phone,
           href: '/on-call',
           matchPaths: ['/on-call'],
-        },
-        {
-          id: 'escalation-policies',
-          label: 'Escalation',
-          icon: GitBranch,
-          href: '/escalation-policies',
-          matchPaths: ['/escalation-policies'],
         },
         {
           id: 'post-mortem-templates',
@@ -128,6 +113,13 @@ export function Sidebar() {
           icon: BarChart2,
           href: '/analytics',
           matchPaths: ['/analytics'],
+        },
+        {
+          id: 'integrations',
+          label: 'Integrations',
+          icon: Puzzle,
+          href: '/integrations',
+          matchPaths: ['/integrations'],
         },
       ],
     },

@@ -66,7 +66,7 @@ export function SettingsUsersPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Page Header — matches Incidents page pattern */}
-      <div className="border-b border-border bg-white px-6 py-4">
+      <div className="border-b border-border bg-surface-primary px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-text-primary">Users</h1>
@@ -92,7 +92,7 @@ export function SettingsUsersPage() {
         )}
 
         {/* Table — matches Incidents table style */}
-        <div className="bg-white border border-border rounded-lg overflow-hidden">
+        <div className="bg-surface-primary border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">

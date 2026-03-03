@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -9,9 +9,9 @@ import {
   Users,
   Calendar,
   ChevronDown,
-  ArrowDown,
   ToggleLeft,
   ToggleRight,
+  Bell,
 } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { SkeletonTable } from '../components/ui/Skeleton'
@@ -23,26 +23,16 @@ import {
   deleteEscalationTier,
   updateEscalationPolicy,
 } from '../api/escalation'
+import { listSchedules } from '../api/schedules'
+import { listUsers } from '../api/users'
+import type { UserSummary } from '../api/users'
 import type {
   EscalationTier,
   EscalationTargetType,
   CreateEscalationTierRequest,
   UpdateEscalationTierRequest,
+  Schedule,
 } from '../api/types'
-
-// ─── Tier flowchart ───────────────────────────────────────────────────────────
-
-function targetTypeLabel(t: EscalationTargetType): string {
-  if (t === 'schedule') return 'On-call schedule'
-  if (t === 'users') return 'Specific users'
-  return 'Schedule + users'
-}
-
-function targetTypeIcon(t: EscalationTargetType) {
-  if (t === 'schedule') return <Calendar className="w-4 h-4 text-blue-500" />
-  if (t === 'users') return <Users className="w-4 h-4 text-violet-500" />
-  return <Users className="w-4 h-4 text-orange-500" />
-}
 
 function formatTimeout(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
@@ -50,77 +40,111 @@ function formatTimeout(seconds: number): string {
   return `${(seconds / 3600).toFixed(1)}h`
 }
 
+// ─── Tier card ────────────────────────────────────────────────────────────────
+
 interface TierCardProps {
   tier: EscalationTier
   index: number
+  schedules: Schedule[]
   onEdit: (tier: EscalationTier) => void
   onDelete: (id: string) => void
   deletingId: string | null
 }
 
-function TierCard({ tier, index, onEdit, onDelete, deletingId }: TierCardProps) {
+function TierCard({ tier, index, schedules, onEdit, onDelete, deletingId }: TierCardProps) {
+  const scheduleName = schedules.find(s => s.id === tier.schedule_id)?.name
+
   return (
-    <div className="flex flex-col items-center">
-      <div className="w-full max-w-md border border-border-subtle rounded-xl bg-surface-primary shadow-sm">
-        <div className="flex items-start justify-between p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center flex-shrink-0">
-              {index + 1}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                {targetTypeIcon(tier.target_type)}
-                <span className="text-sm font-medium text-text-primary">
-                  {targetTypeLabel(tier.target_type)}
-                </span>
-              </div>
-              {tier.target_type !== 'schedule' && tier.user_names.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {tier.user_names.map(u => (
-                    <span
-                      key={u}
-                      className="px-2 py-0.5 rounded bg-surface-secondary text-xs text-text-secondary"
-                    >
-                      @{u}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {tier.target_type !== 'users' && tier.schedule_id && (
-                <span className="text-xs text-text-tertiary mt-1 block">
-                  Schedule: {tier.schedule_id.slice(0, 8)}…
-                </span>
-              )}
-            </div>
+    <div className="w-full border border-border rounded-xl bg-surface-primary shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-brand-primary-light flex items-center justify-center">
+            <Bell className="w-3.5 h-3.5 text-brand-primary" />
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => onEdit(tier)}
-              className="p-1.5 rounded hover:bg-surface-secondary text-text-tertiary hover:text-text-primary transition-colors"
-              title="Edit tier"
-            >
-              <Edit2 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onDelete(tier.id)}
-              disabled={deletingId === tier.id}
-              className="p-1.5 rounded hover:bg-red-50 text-text-tertiary hover:text-red-600 transition-colors disabled:opacity-50"
-              title="Delete tier"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-        <div className="border-t border-border-subtle px-4 py-2 bg-surface-secondary/50 rounded-b-xl flex items-center gap-2">
-          <Clock className="w-3.5 h-3.5 text-text-tertiary" />
-          <span className="text-xs text-text-tertiary">
-            Wait <span className="font-medium text-text-secondary">{formatTimeout(tier.timeout_seconds)}</span> before escalating
+          <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wide">
+            Level {index + 1}
           </span>
+          <span className="text-text-tertiary text-xs">·</span>
+          <span className="text-sm font-medium text-text-primary">Notify</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onEdit(tier)}
+            className="p-2 rounded hover:bg-surface-secondary text-text-tertiary hover:text-text-primary transition-colors"
+            aria-label="Edit tier"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => onDelete(tier.id)}
+            disabled={deletingId === tier.id}
+            className="p-2 rounded hover:bg-red-50 text-text-tertiary hover:text-red-600 transition-colors disabled:opacity-50"
+            aria-label="Delete tier"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
-      <div className="flex flex-col items-center my-1 text-text-tertiary">
-        <ArrowDown className="w-5 h-5" />
+
+      {/* Targets */}
+      <div className="px-4 py-3 space-y-2">
+        {(tier.target_type === 'schedule' || tier.target_type === 'both') && (
+          <div className="flex items-center gap-2">
+            <Calendar className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+            <span className="text-sm text-text-primary">
+              {scheduleName ?? tier.schedule_id?.slice(0, 8) + '…'}
+            </span>
+          </div>
+        )}
+        {(tier.target_type === 'users' || tier.target_type === 'both') &&
+          tier.user_names.length > 0 && (
+            <div className="flex items-start gap-2">
+              <Users className="w-3.5 h-3.5 text-violet-500 flex-shrink-0 mt-0.5" />
+              <div className="flex flex-wrap gap-1">
+                {tier.user_names.map(u => (
+                  <span
+                    key={u}
+                    className="px-2 py-0.5 rounded-full bg-violet-50 border border-violet-100 text-xs text-violet-700 font-medium"
+                  >
+                    {u}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
       </div>
+
+      {/* Footer: timeout chip */}
+      <div className="px-4 py-2 bg-surface-secondary/40 border-t border-border flex items-center gap-1.5">
+        <Clock className="w-3.5 h-3.5 text-text-tertiary" />
+        <span className="text-xs text-text-tertiary">
+          Wait{' '}
+          <span className="font-semibold text-text-secondary">
+            {formatTimeout(tier.timeout_seconds)}
+          </span>{' '}
+          before escalating
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ─── Flow connector with + button ────────────────────────────────────────────
+
+function FlowConnector({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className="flex flex-col items-center py-1">
+      <div className="w-0.5 h-5 bg-border-strong" />
+      <button
+        onClick={onAdd}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-dashed border-border hover:border-brand-primary hover:bg-brand-primary-light/40 text-text-tertiary hover:text-brand-primary transition-all text-xs font-medium min-h-[36px]"
+        aria-label="Add escalation tier"
+      >
+        <Plus className="w-3.5 h-3.5 flex-shrink-0" />
+        <span>Add tier</span>
+      </button>
+      <div className="w-0.5 h-5 bg-border-strong" />
     </div>
   )
 }
@@ -133,25 +157,54 @@ interface TierModalProps {
   isOpen: boolean
   onClose: () => void
   onSaved: () => void
+  users: UserSummary[]
+  schedules: Schedule[]
 }
 
-function TierModal({ policyId, existing, isOpen, onClose, onSaved }: TierModalProps) {
+function TierModal({
+  policyId, existing, isOpen, onClose, onSaved, users, schedules,
+}: TierModalProps) {
   const [timeoutSeconds, setTimeoutSeconds] = useState(
     existing ? String(existing.timeout_seconds) : '300'
   )
-  const [targetType, setTargetType] = useState<EscalationTargetType>(
-    existing?.target_type ?? 'users'
-  )
-  const [userNamesRaw, setUserNamesRaw] = useState(
-    existing?.user_names.join(', ') ?? ''
-  )
   const [scheduleId, setScheduleId] = useState(existing?.schedule_id ?? '')
+  // Each row holds one user email; empty string = unset slot
+  const [userRows, setUserRows] = useState<string[]>(
+    existing?.user_names?.length ? existing.user_names : []
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Reset whenever modal opens/switches between create and edit
+  useEffect(() => {
+    if (isOpen) {
+      setTimeoutSeconds(existing ? String(existing.timeout_seconds) : '300')
+      setScheduleId(existing?.schedule_id ?? '')
+      setUserRows(existing?.user_names?.length ? existing.user_names : [])
+      setError(null)
+    }
+  }, [isOpen, existing])
 
   if (!isOpen) return null
 
   const isEdit = !!existing
+
+  // Derive target_type from what the user has selected — no explicit dropdown needed
+  const validUsers = userRows.filter(Boolean)
+  const hasSchedule = Boolean(scheduleId)
+  const hasUsers = validUsers.length > 0
+  const derivedTargetType: EscalationTargetType =
+    hasSchedule && hasUsers ? 'both' : hasSchedule ? 'schedule' : 'users'
+
+  function addUserRow() {
+    setUserRows(rows => [...rows, ''])
+  }
+  function removeUserRow(i: number) {
+    setUserRows(rows => rows.filter((_, idx) => idx !== i))
+  }
+  function updateUserRow(i: number, val: string) {
+    setUserRows(rows => rows.map((r, idx) => (idx === i ? val : r)))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -160,29 +213,23 @@ function TierModal({ policyId, existing, isOpen, onClose, onSaved }: TierModalPr
       setError('Timeout must be at least 1 second')
       return
     }
+    if (!hasSchedule && !hasUsers) {
+      setError('Select an on-call schedule or add at least one user to notify')
+      return
+    }
     setSaving(true)
     setError(null)
-    const userNames = userNamesRaw
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean)
     try {
+      const base = {
+        timeout_seconds: secs,
+        target_type: derivedTargetType,
+        user_names: validUsers,
+        schedule_id: hasSchedule ? scheduleId : undefined,
+      }
       if (isEdit) {
-        const req: UpdateEscalationTierRequest = {
-          timeout_seconds: secs,
-          target_type: targetType,
-          user_names: userNames,
-          schedule_id: (targetType !== 'users' && scheduleId) ? scheduleId : undefined,
-        }
-        await updateEscalationTier(policyId, existing.id, req)
+        await updateEscalationTier(policyId, existing.id, base as UpdateEscalationTierRequest)
       } else {
-        const req: CreateEscalationTierRequest = {
-          timeout_seconds: secs,
-          target_type: targetType,
-          user_names: userNames,
-          schedule_id: (targetType !== 'users' && scheduleId) ? scheduleId : undefined,
-        }
-        await createEscalationTier(policyId, req)
+        await createEscalationTier(policyId, base as CreateEscalationTierRequest)
       }
       onSaved()
     } catch (err) {
@@ -192,91 +239,138 @@ function TierModal({ policyId, existing, isOpen, onClose, onSaved }: TierModalPr
     }
   }
 
-  function handleClose() {
-    setError(null)
-    onClose()
-  }
+  const inputCls =
+    'w-full px-3 py-2 border border-border rounded-lg text-sm bg-surface-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50'
+  const labelCls = 'flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-1.5'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-surface-primary border border-border-subtle rounded-xl shadow-xl w-full max-w-md p-6">
-        <h2 className="text-lg font-semibold text-text-primary mb-4">
-          {isEdit ? 'Edit Tier' : 'Add Escalation Tier'}
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Target type */}
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">
-              Notify
-            </label>
-            <div className="relative">
-              <select
-                className="w-full px-3 py-2 pr-8 rounded-lg border border-border-subtle bg-surface-secondary text-text-primary text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={targetType}
-                onChange={e => setTargetType(e.target.value as EscalationTargetType)}
+      <div
+        className="bg-surface-primary border border-border rounded-xl shadow-xl w-full max-w-md mx-4"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Modal header */}
+        <div className="px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-text-primary">
+            {isEdit ? 'Edit Escalation Tier' : 'Add Escalation Tier'}
+          </h2>
+          <p className="text-xs text-text-tertiary mt-0.5">
+            Notify a schedule, specific users, or both when this tier is reached.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="px-6 py-5 space-y-5 max-h-[65vh] overflow-y-auto">
+
+            {/* On-call schedule */}
+            <div>
+              <label className={labelCls}>
+                <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                On-call schedule
+                <span className="ml-1 text-text-tertiary font-normal text-xs">(optional)</span>
+              </label>
+              <div className="relative">
+                <select
+                  className={`${inputCls} pr-8 appearance-none`}
+                  value={scheduleId}
+                  onChange={e => setScheduleId(e.target.value)}
+                  disabled={saving}
+                >
+                  <option value="">— No schedule —</option>
+                  {schedules.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-2.5 w-4 h-4 text-text-tertiary pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Specific users */}
+            <div>
+              <label className={labelCls}>
+                <Users className="w-3.5 h-3.5 text-violet-500" />
+                Specific users
+                <span className="ml-1 text-text-tertiary font-normal text-xs">(optional)</span>
+              </label>
+              <div className="space-y-2">
+                {userRows.map((row, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    {users.length > 0 ? (
+                      <select
+                        value={row}
+                        onChange={e => updateUserRow(i, e.target.value)}
+                        className={`${inputCls} flex-1`}
+                        disabled={saving}
+                      >
+                        <option value="">— Select user —</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.email}>
+                            {u.name} ({u.email})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={row}
+                        onChange={e => updateUserRow(i, e.target.value)}
+                        placeholder="User email"
+                        className={`${inputCls} flex-1`}
+                        disabled={saving}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeUserRow(i)}
+                      className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      disabled={saving}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={addUserRow}
+                className="mt-2 text-sm text-brand-primary hover:text-brand-primary-hover font-medium transition-colors"
+                disabled={saving}
               >
-                <option value="users">Specific users</option>
-                <option value="schedule">On-call schedule</option>
-                <option value="both">Schedule + specific users</option>
-              </select>
-              <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-text-tertiary pointer-events-none" />
+                + Add user
+              </button>
             </div>
-          </div>
 
-          {/* User names */}
-          {(targetType === 'users' || targetType === 'both') && (
+            {/* Timeout */}
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">
-                Users <span className="text-text-tertiary font-normal">(comma-separated)</span>
+              <label className={labelCls}>
+                <Clock className="w-3.5 h-3.5 text-text-tertiary" />
+                Timeout <span className="text-red-500 ml-0.5">*</span>
               </label>
               <input
-                className="w-full px-3 py-2 rounded-lg border border-border-subtle bg-surface-secondary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={userNamesRaw}
-                onChange={e => setUserNamesRaw(e.target.value)}
-                placeholder="alice, bob, charlie"
+                type="number"
+                min={1}
+                className={inputCls}
+                value={timeoutSeconds}
+                onChange={e => setTimeoutSeconds(e.target.value)}
+                placeholder="300"
+                disabled={saving}
               />
+              {timeoutSeconds && parseInt(timeoutSeconds) > 0 && (
+                <p className="text-xs text-text-tertiary mt-1">
+                  = {formatTimeout(parseInt(timeoutSeconds))} before escalating to next tier
+                </p>
+              )}
             </div>
-          )}
 
-          {/* Schedule ID */}
-          {(targetType === 'schedule' || targetType === 'both') && (
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">
-                Schedule ID
-              </label>
-              <input
-                className="w-full px-3 py-2 rounded-lg border border-border-subtle bg-surface-secondary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                value={scheduleId}
-                onChange={e => setScheduleId(e.target.value)}
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              />
-            </div>
-          )}
-
-          {/* Timeout */}
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">
-              Timeout (seconds) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min={1}
-              className="w-full px-3 py-2 rounded-lg border border-border-subtle bg-surface-secondary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={timeoutSeconds}
-              onChange={e => setTimeoutSeconds(e.target.value)}
-              placeholder="300"
-            />
-            <p className="text-xs text-text-tertiary mt-1">
-              {timeoutSeconds && parseInt(timeoutSeconds) > 0
-                ? `= ${formatTimeout(parseInt(timeoutSeconds))}`
-                : ''}
-            </p>
+            {error && (
+              <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {error}
+              </div>
+            )}
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={handleClose} disabled={saving}>
+          <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
             <Button type="submit" disabled={saving}>
@@ -289,7 +383,7 @@ function TierModal({ policyId, existing, isOpen, onClose, onSaved }: TierModalPr
   )
 }
 
-// ─── Main detail page ─────────────────────────────────────────────────────────
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export function EscalationPolicyDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -299,6 +393,14 @@ export function EscalationPolicyDetailPage() {
   const [editingTier, setEditingTier] = useState<EscalationTier | null>(null)
   const [deletingTierId, setDeletingTierId] = useState<string | null>(null)
   const [togglingEnabled, setTogglingEnabled] = useState(false)
+  const [users, setUsers] = useState<UserSummary[]>([])
+  const [schedules, setSchedules] = useState<Schedule[]>([])
+
+  // Pre-load users and schedules so selectors are ready when the modal opens
+  useEffect(() => {
+    listUsers().then(setUsers).catch(() => {})
+    listSchedules().then(r => setSchedules(r.data)).catch(() => {})
+  }, [])
 
   async function handleDeleteTier(tierId: string) {
     if (!confirm('Remove this escalation tier?')) return
@@ -326,14 +428,20 @@ export function EscalationPolicyDetailPage() {
     }
   }
 
+  function openAddTier() {
+    setEditingTier(null)
+    setShowTierModal(true)
+  }
+
   if (loading) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
-        <div className="mb-6">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-primary mb-4">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
-        </div>
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-primary mb-6"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
         <SkeletonTable rows={3} />
       </div>
     )
@@ -351,91 +459,98 @@ export function EscalationPolicyDetailPage() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      {/* Header */}
+      {/* Back */}
       <button
-        onClick={() => navigate('/escalation-policies')}
-        className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-primary mb-4 transition-colors"
+        onClick={() => navigate('/on-call/escalation-paths')}
+        className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-primary mb-5 transition-colors"
       >
-        <ArrowLeft className="w-4 h-4" /> Escalation Policies
+        <ArrowLeft className="w-4 h-4" /> Escalation Paths
       </button>
 
-      <div className="flex items-start justify-between mb-6">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">{policy.name}</h1>
           {policy.description && (
-            <p className="text-sm text-text-tertiary mt-1">{policy.description}</p>
+            <p className="text-sm text-text-tertiary mt-1 max-w-lg">{policy.description}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleToggleEnabled}
-            disabled={togglingEnabled}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-border-subtle hover:bg-surface-secondary transition-colors disabled:opacity-50"
-          >
-            {policy.enabled ? (
-              <>
-                <ToggleRight className="w-4 h-4 text-brand-primary" />
-                <span className="text-brand-primary font-medium">Enabled</span>
-              </>
-            ) : (
-              <>
-                <ToggleLeft className="w-4 h-4 text-text-tertiary" />
-                <span className="text-text-tertiary">Disabled</span>
-              </>
-            )}
-          </button>
-        </div>
+        <button
+          onClick={handleToggleEnabled}
+          disabled={togglingEnabled}
+          className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-border hover:bg-surface-secondary transition-colors disabled:opacity-50 flex-shrink-0 ml-4"
+        >
+          {policy.enabled ? (
+            <>
+              <ToggleRight className="w-4 h-4 text-blue-600" />
+              <span className="text-blue-600 font-medium">Enabled</span>
+            </>
+          ) : (
+            <>
+              <ToggleLeft className="w-4 h-4 text-text-tertiary" />
+              <span className="text-text-tertiary">Disabled</span>
+            </>
+          )}
+        </button>
       </div>
 
-      {/* Escalation flowchart */}
-      <div className="mb-6">
+      {/* Flow */}
+      <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-text-primary">Escalation Tiers</h2>
-          <Button
-            onClick={() => { setEditingTier(null); setShowTierModal(true) }}
-            variant="ghost"
-            className="text-sm"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Tier
+          <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">
+            Escalation Path
+          </h2>
+          <Button onClick={openAddTier} variant="ghost" className="text-sm">
+            <Plus className="w-4 h-4 mr-1" /> Add Tier
           </Button>
         </div>
 
-        {sortedTiers.length === 0 ? (
-          <div className="border border-dashed border-border-subtle rounded-xl p-8 text-center">
-            <p className="text-text-tertiary text-sm mb-3">No escalation tiers yet.</p>
-            <Button onClick={() => { setEditingTier(null); setShowTierModal(true) }}>
-              <Plus className="w-4 h-4 mr-1" />
-              Add First Tier
-            </Button>
+        <div className="flex flex-col items-center">
+          {/* Start node */}
+          <div className="w-full border border-amber-200 bg-amber-50 rounded-xl px-4 py-3 text-center">
+            <span className="text-sm font-medium text-amber-700">Alert Triggered</span>
           </div>
-        ) : (
-          <div className="flex flex-col items-center">
-            {/* Alert trigger node */}
-            <div className="w-full max-w-md border border-orange-200 bg-orange-50 rounded-xl px-4 py-3 text-center mb-1">
-              <span className="text-sm font-medium text-orange-700">Alert Triggered</span>
-            </div>
-            <div className="flex flex-col items-center my-1 text-text-tertiary">
-              <ArrowDown className="w-5 h-5" />
-            </div>
 
-            {sortedTiers.map((tier, index) => (
-              <TierCard
-                key={tier.id}
-                tier={tier}
-                index={index}
-                onEdit={t => { setEditingTier(t); setShowTierModal(true) }}
-                onDelete={handleDeleteTier}
-                deletingId={deletingTierId}
-              />
-            ))}
+          {sortedTiers.length === 0 ? (
+            <>
+              <div className="w-0.5 h-8 bg-border-strong my-1" />
+              <button
+                onClick={openAddTier}
+                className="w-full border border-dashed border-border rounded-xl p-5 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-colors group"
+              >
+                <Plus className="w-5 h-5 text-text-tertiary group-hover:text-blue-500 mx-auto mb-1 transition-colors" />
+                <span className="text-sm text-text-tertiary group-hover:text-blue-600 transition-colors">
+                  Add first escalation tier
+                </span>
+              </button>
+              <div className="w-0.5 h-8 bg-border-strong my-1" />
+            </>
+          ) : (
+            sortedTiers.map((tier, index) => (
+              <div key={tier.id} className="w-full flex flex-col items-center">
+                <FlowConnector onAdd={openAddTier} />
+                <TierCard
+                  tier={tier}
+                  index={index}
+                  schedules={schedules}
+                  onEdit={t => { setEditingTier(t); setShowTierModal(true) }}
+                  onDelete={handleDeleteTier}
+                  deletingId={deletingTierId}
+                />
+              </div>
+            ))
+          )}
 
-            {/* Final fallback node */}
-            <div className="w-full max-w-md border border-red-200 bg-red-50 rounded-xl px-4 py-3 text-center">
-              <span className="text-sm font-medium text-red-700">Unacknowledged — incident escalation exhausted</span>
-            </div>
+          {/* End connector + exhausted node */}
+          {sortedTiers.length > 0 && (
+            <FlowConnector onAdd={openAddTier} />
+          )}
+          <div className="w-full border border-red-200 bg-red-50 rounded-xl px-4 py-3 text-center">
+            <span className="text-sm font-medium text-red-600">
+              Unacknowledged — escalation exhausted
+            </span>
           </div>
-        )}
+        </div>
       </div>
 
       <TierModal
@@ -448,6 +563,8 @@ export function EscalationPolicyDetailPage() {
           setEditingTier(null)
           await refetch()
         }}
+        users={users}
+        schedules={schedules}
       />
     </div>
   )

@@ -142,7 +142,7 @@ export function HomePage() {
         onCancel={() => setPendingDrag(null)}
       />
       {/* Page Header */}
-      <div className="border-b border-border bg-white px-6 py-4">
+      <div className="border-b border-border bg-surface-primary px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-text-primary">Home</h1>

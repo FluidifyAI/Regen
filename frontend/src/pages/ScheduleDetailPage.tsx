@@ -111,7 +111,7 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
-        className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl mx-4"
+        className="relative z-10 w-full max-w-md bg-surface-primary rounded-xl shadow-xl mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-border">
@@ -266,7 +266,7 @@ function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, onClose, onSaved }:
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
-        className="relative z-10 w-full max-w-lg bg-white rounded-xl shadow-xl mx-4 flex flex-col max-h-[90vh]"
+        className="relative z-10 w-full max-w-lg bg-surface-primary rounded-xl shadow-xl mx-4 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-border">
@@ -486,7 +486,7 @@ function EditLayerModal({ isOpen, scheduleId, layer, onClose, onSaved }: EditLay
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
-        className="relative z-10 w-full max-w-lg bg-white rounded-xl shadow-xl mx-4 flex flex-col max-h-[90vh]"
+        className="relative z-10 w-full max-w-lg bg-surface-primary rounded-xl shadow-xl mx-4 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-border">
@@ -653,7 +653,7 @@ function OverrideModal({ isOpen, scheduleId, onClose, onSaved }: OverrideModalPr
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
-        className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl mx-4"
+        className="relative z-10 w-full max-w-md bg-surface-primary rounded-xl shadow-xl mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-border">
@@ -947,7 +947,7 @@ export function ScheduleDetailPage() {
     try {
       await deleteSchedule(schedule.id)
       toast.success('Schedule deleted')
-      navigate('/on-call')
+      navigate('/on-call/schedules')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete schedule')
     }
@@ -1034,9 +1034,9 @@ export function ScheduleDetailPage() {
       )}
 
       {/* Page Header */}
-      <div className="border-b border-border bg-white px-6 py-4">
+      <div className="border-b border-border bg-surface-primary px-6 py-4">
         <div className="flex items-center gap-2 text-sm text-text-secondary mb-2">
-          <Link to="/on-call" className="hover:text-text-primary transition-colors">On-call</Link>
+          <Link to="/on-call/schedules" className="hover:text-text-primary transition-colors">On-call</Link>
           <ChevronRight className="w-3.5 h-3.5" />
           <span className="text-text-primary font-medium">{schedule.name}</span>
         </div>

@@ -32,7 +32,7 @@ export function AnalyticsPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b border-border bg-white px-6 py-4">
+      <div className="border-b border-border bg-surface-primary px-6 py-4">
         <h1 className="text-2xl font-semibold text-text-primary">Analytics</h1>
         <p className="text-sm text-text-secondary mt-0.5">Incident metrics and on-call insights</p>
       </div>

@@ -61,7 +61,7 @@ export function IncidentsListPage() {
         onCreated={handleIncidentCreated}
       />
       {/* Page Header */}
-      <div className="border-b border-border bg-white px-6 py-4">
+      <div className="border-b border-border bg-surface-primary px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-semibold text-text-primary">Incidents</h1>
           <Button variant="primary" onClick={handleDeclareIncident}>

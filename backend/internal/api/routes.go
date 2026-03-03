@@ -324,10 +324,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.DELETE("/schedules/:id", handlers.DeleteSchedule(scheduleRepo))
 
 		protected.POST("/schedules/:id/layers", handlers.CreateLayer(scheduleRepo))
+		protected.PATCH("/schedules/:id/layers/:layer_id", handlers.UpdateLayer(scheduleRepo))
 		protected.DELETE("/schedules/:id/layers/:layer_id", handlers.DeleteLayer(scheduleRepo))
 
 		protected.GET("/schedules/:id/oncall", handlers.GetOnCall(scheduleRepo, scheduleEvaluator))
 		protected.GET("/schedules/:id/oncall/timeline", handlers.GetOnCallTimeline(scheduleEvaluator))
+		protected.GET("/schedules/:id/layer-timelines", handlers.GetLayerTimelines(scheduleEvaluator))
 
 		protected.GET("/schedules/:id/overrides", handlers.ListOverrides(scheduleRepo))
 		protected.POST("/schedules/:id/overrides", handlers.CreateOverride(scheduleRepo))

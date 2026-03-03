@@ -20,6 +20,8 @@ type TimelineSegment struct {
 	UserName string `json:"user_name"`
 	// IsOverride is true when this segment is covered by an explicit override.
 	IsOverride bool `json:"is_override"`
+	// LayerID is the layer this segment belongs to. nil for effective/merged timeline.
+	LayerID *uuid.UUID `json:"layer_id,omitempty"`
 }
 
 // ScheduleEvaluator computes who is on call at any given time.
@@ -31,6 +33,11 @@ type ScheduleEvaluator interface {
 	// GetTimeline returns the on-call schedule broken into contiguous segments
 	// for the window [from, to). Defaults to next 7 days if from/to are zero.
 	GetTimeline(scheduleID uuid.UUID, from, to time.Time) ([]TimelineSegment, error)
+
+	// GetLayerTimelines returns per-layer timelines and the effective merged timeline.
+	// layerTimelines is keyed by layer UUID. Each layer is computed independently
+	// (no override application). effective is the fully-merged timeline (same as GetTimeline).
+	GetLayerTimelines(scheduleID uuid.UUID, from, to time.Time) (layerTimelines map[uuid.UUID][]TimelineSegment, effective []TimelineSegment, err error)
 }
 
 // scheduleEvaluator implements ScheduleEvaluator.
@@ -91,6 +98,49 @@ func (e *scheduleEvaluator) GetTimeline(scheduleID uuid.UUID, from, to time.Time
 	return buildTimeline(schedule, overrides, from, to), nil
 }
 
+func (e *scheduleEvaluator) GetLayerTimelines(scheduleID uuid.UUID, from, to time.Time) (map[uuid.UUID][]TimelineSegment, []TimelineSegment, error) {
+	// Apply default window: next 7 days.
+	now := time.Now().UTC()
+	if from.IsZero() {
+		from = now
+	}
+	if to.IsZero() {
+		to = now.Add(7 * 24 * time.Hour)
+	}
+	if !to.After(from) {
+		return nil, nil, fmt.Errorf("to must be after from")
+	}
+
+	schedule, err := e.repo.GetWithLayers(scheduleID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load schedule: %w", err)
+	}
+
+	overrides, err := e.repo.GetOverridesInWindow(scheduleID, from, to)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load overrides: %w", err)
+	}
+
+	// Per-layer timelines: each layer computed independently, no overrides applied.
+	layerTimelines := make(map[uuid.UUID][]TimelineSegment, len(schedule.Layers))
+	for _, layer := range schedule.Layers {
+		singleLayer := *schedule // shallow copy preserves ID, Timezone, etc.
+		singleLayer.Layers = []models.ScheduleLayer{layer}
+		segs := buildTimeline(&singleLayer, nil, from, to)
+		// Tag each segment with the layer ID.
+		for i := range segs {
+			layerID := layer.ID
+			segs[i].LayerID = &layerID
+		}
+		layerTimelines[layer.ID] = segs
+	}
+
+	// Effective timeline: all layers + overrides (same as GetTimeline).
+	effective := buildTimeline(schedule, overrides, from, to)
+
+	return layerTimelines, effective, nil
+}
+
 // --- Pure computation helpers (no DB access) ---
 
 // computeOnCallFromLayers determines the on-call user by walking layers.
@@ -122,6 +172,9 @@ func computeSlot(layer models.ScheduleLayer, at time.Time) string {
 		return ""
 	}
 	shiftDur := time.Duration(layer.ShiftDurationSeconds) * time.Second
+	if shiftDur <= 0 {
+		return ""
+	}
 	slotIndex := int(elapsed / shiftDur)
 	participant := layer.Participants[slotIndex%len(layer.Participants)]
 	return participant.UserName

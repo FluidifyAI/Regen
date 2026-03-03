@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -187,6 +188,114 @@ func CreateLayer(repo repository.ScheduleRepository) gin.HandlerFunc {
 	}
 }
 
+// UpdateLayer handles PATCH /api/v1/schedules/:id/layers/:layer_id
+// Updates layer metadata and, if participants are provided, replaces them atomically.
+func UpdateLayer(repo repository.ScheduleRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scheduleID, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid schedule ID", map[string]interface{}{"id": "must be a valid UUID"})
+			return
+		}
+		layerID, err := uuid.Parse(c.Param("layer_id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid layer ID", map[string]interface{}{"layer_id": "must be a valid UUID"})
+			return
+		}
+
+		var req dto.UpdateLayerRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			dto.ValidationError(c, err)
+			return
+		}
+
+		// Load the full schedule (with layers) so we can find and verify this layer.
+		schedule, err := repo.GetWithLayers(scheduleID)
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "schedule", scheduleID.String())
+				return
+			}
+			slog.Error("failed to get schedule for layer update", "error", err, "id", scheduleID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+
+		// Find the layer and verify it belongs to this schedule.
+		var layer *models.ScheduleLayer
+		for i := range schedule.Layers {
+			if schedule.Layers[i].ID == layerID {
+				layer = &schedule.Layers[i]
+				break
+			}
+		}
+		if layer == nil {
+			dto.NotFound(c, "schedule_layer", layerID.String())
+			return
+		}
+
+		// Apply optional field updates.
+		if req.Name != nil {
+			layer.Name = *req.Name
+		}
+		if req.RotationType != nil {
+			switch *req.RotationType {
+			case models.RotationTypeDaily, models.RotationTypeWeekly, models.RotationTypeCustom:
+			default:
+				dto.BadRequest(c, "Invalid rotation_type", map[string]interface{}{
+					"rotation_type": "must be one of: daily, weekly, custom",
+				})
+				return
+			}
+			layer.RotationType = *req.RotationType
+		}
+		if req.RotationStart != nil {
+			layer.RotationStart = *req.RotationStart
+		}
+		if req.ShiftDurationSeconds != nil {
+			layer.ShiftDurationSeconds = *req.ShiftDurationSeconds
+		}
+
+		// Build participant list: nil JSON field means keep existing (pass nil pointer);
+		// non-nil JSON array (even empty) replaces all participants atomically.
+		var participants *[]models.ScheduleParticipant // nil = don't touch participants
+		if req.Participants != nil {
+			newParticipants := make([]models.ScheduleParticipant, len(req.Participants))
+			for i, p := range req.Participants {
+				newParticipants[i] = models.ScheduleParticipant{
+					LayerID:    layer.ID,
+					UserName:   p.UserName,
+					OrderIndex: p.OrderIndex,
+				}
+			}
+			participants = &newParticipants
+		}
+
+		if err := repo.UpdateLayer(layer, participants); err != nil {
+			slog.Error("failed to update layer", "error", err, "layer_id", layerID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+
+		// Reload to get fresh data (new participant IDs after bulk-insert).
+		updatedSchedule, err := repo.GetWithLayers(scheduleID)
+		if err != nil {
+			slog.Error("failed to reload schedule after layer update", "error", err, "id", scheduleID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+		for i := range updatedSchedule.Layers {
+			if updatedSchedule.Layers[i].ID == layerID {
+				slog.Info("schedule layer updated", "layer_id", layerID, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+				c.JSON(http.StatusOK, dto.ToLayerResponse(&updatedSchedule.Layers[i]))
+				return
+			}
+		}
+		// Should not happen — we just saved the layer.
+		dto.InternalError(c, fmt.Errorf("layer not found after update"))
+	}
+}
+
 // DeleteLayer handles DELETE /api/v1/schedules/:id/layers/:layer_id
 func DeleteLayer(repo repository.ScheduleRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -303,6 +412,57 @@ func GetOnCallTimeline(evaluator services.ScheduleEvaluator) gin.HandlerFunc {
 			From:       from,
 			To:         to,
 			Segments:   segments,
+		})
+	}
+}
+
+// GetLayerTimelines handles GET /api/v1/schedules/:id/layer-timelines
+// Returns per-layer on-call timelines plus the effective merged timeline.
+// Query params: from, to (ISO 8601 / RFC3339 timestamps; default = next 7 days)
+func GetLayerTimelines(evaluator services.ScheduleEvaluator) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scheduleID, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid schedule ID", map[string]interface{}{"id": "must be a valid UUID"})
+			return
+		}
+
+		var from, to time.Time
+		if s := c.Query("from"); s != "" {
+			from, err = time.Parse(time.RFC3339, s)
+			if err != nil {
+				dto.BadRequest(c, "Invalid 'from' timestamp", nil)
+				return
+			}
+		}
+		if s := c.Query("to"); s != "" {
+			to, err = time.Parse(time.RFC3339, s)
+			if err != nil {
+				dto.BadRequest(c, "Invalid 'to' timestamp", nil)
+				return
+			}
+		}
+
+		layerTimelines, effective, err := evaluator.GetLayerTimelines(scheduleID, from, to)
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "schedule", scheduleID.String())
+				return
+			}
+			slog.Error("failed to get layer timelines", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+
+		// Convert map[uuid.UUID][]TimelineSegment to map[string][]TimelineSegment for JSON serialization.
+		layersJSON := make(map[string][]services.TimelineSegment, len(layerTimelines))
+		for layerID, segs := range layerTimelines {
+			layersJSON[layerID.String()] = segs
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"layers":    layersJSON,
+			"effective": effective,
 		})
 	}
 }

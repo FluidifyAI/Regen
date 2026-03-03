@@ -254,6 +254,7 @@ export interface TimelineSegment {
   end: string
   user_name: string
   is_override: boolean
+  layer_id?: string  // present on per-layer segments, absent on effective/merged
 }
 
 export interface CreateScheduleRequest {
@@ -277,6 +278,21 @@ export interface CreateLayerRequest {
   rotation_start?: string
   shift_duration_seconds?: number
   participants?: Array<{ user_name: string; order_index: number }>
+}
+
+export interface UpdateLayerRequest {
+  name?: string
+  rotation_type?: 'daily' | 'weekly' | 'custom'
+  rotation_start?: string  // ISO 8601
+  shift_duration_seconds?: number
+  // If present (even empty array), replaces all participants.
+  // If absent (undefined), existing participants are preserved.
+  participants?: Array<{ user_name: string; order_index: number }>
+}
+
+export interface LayerTimelinesResponse {
+  layers: Record<string, TimelineSegment[]>  // keyed by layer UUID string
+  effective: TimelineSegment[]
 }
 
 export interface CreateOverrideRequest {

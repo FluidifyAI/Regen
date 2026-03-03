@@ -183,6 +183,9 @@ func (n *intgNoScheduleEvaluator) WhoIsOnCall(scheduleID uuid.UUID, at time.Time
 func (n *intgNoScheduleEvaluator) GetTimeline(scheduleID uuid.UUID, from, to time.Time) ([]TimelineSegment, error) {
 	return nil, nil
 }
+func (n *intgNoScheduleEvaluator) GetLayerTimelines(scheduleID uuid.UUID, from, to time.Time) (map[uuid.UUID][]TimelineSegment, []TimelineSegment, error) {
+	return nil, nil, nil
+}
 
 func intgMakePolicy(t *testing.T, repo repository.EscalationPolicyRepository, name string) *models.EscalationPolicy {
 	t.Helper()

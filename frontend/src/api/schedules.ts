@@ -1,12 +1,15 @@
 import { apiClient } from './client'
 import type {
   Schedule,
+  ScheduleLayer,
   ScheduleOverride,
   OnCallResponse,
   TimelineSegment,
   CreateScheduleRequest,
   UpdateScheduleRequest,
   CreateLayerRequest,
+  UpdateLayerRequest,
+  LayerTimelinesResponse,
   CreateOverrideRequest,
 } from './types'
 
@@ -70,6 +73,24 @@ export async function createLayer(scheduleId: string, body: CreateLayerRequest):
 
 export async function deleteLayer(scheduleId: string, layerId: string): Promise<void> {
   return apiClient.delete<void>(`/api/v1/schedules/${scheduleId}/layers/${layerId}`)
+}
+
+export async function updateLayer(
+  scheduleId: string,
+  layerId: string,
+  req: UpdateLayerRequest,
+): Promise<ScheduleLayer> {
+  return apiClient.patch<ScheduleLayer>(`/api/v1/schedules/${scheduleId}/layers/${layerId}`, req)
+}
+
+export async function getLayerTimelines(
+  scheduleId: string,
+  from: string,
+  to: string,
+): Promise<LayerTimelinesResponse> {
+  return apiClient.get<LayerTimelinesResponse>(
+    `/api/v1/schedules/${scheduleId}/layer-timelines?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  )
 }
 
 export async function getOnCall(scheduleId: string): Promise<OnCallResponse> {

@@ -19,66 +19,25 @@ import {
   updateSchedule,
   deleteSchedule,
   createLayer,
+  updateLayer,
   deleteLayer,
   createOverride,
   deleteOverride,
+  getLayerTimelines,
   COMMON_TIMEZONES,
 } from '../api/schedules'
+import { listUsers } from '../api/users'
+import type { UserSummary } from '../api/users'
 import type {
   Schedule,
   ScheduleLayer,
   ScheduleOverride,
-  TimelineSegment,
   UpdateScheduleRequest,
   CreateLayerRequest,
+  UpdateLayerRequest,
+  LayerTimelinesResponse,
   CreateOverrideRequest,
 } from '../api/types'
-
-// ─── Colour utilities ─────────────────────────────────────────────────────────
-
-// ─── computeLayerSegments ─────────────────────────────────────────────────────
-
-/**
- * Computes on-call segments for a single layer over [windowStart, windowStart+days).
- * One segment per day, derived entirely from the layer's rotation definition.
- */
-function computeLayerSegments(
-  layer: ScheduleLayer,
-  windowStart: Date,
-  days: number,
-): TimelineSegment[] {
-  const participants = layer.participants ?? []
-  if (participants.length === 0) return []
-
-  const shiftMs = (layer.shift_duration_seconds || 86400) * 1000
-  const rotationStart = new Date(layer.rotation_start).getTime()
-  const sorted = [...participants].sort((a, b) => a.order_index - b.order_index)
-  const segments: TimelineSegment[] = []
-
-  for (let i = 0; i < days; i++) {
-    const dayStart = new Date(windowStart)
-    dayStart.setDate(dayStart.getDate() + i)
-    dayStart.setHours(0, 0, 0, 0)
-    const dayEnd = new Date(dayStart)
-    dayEnd.setHours(23, 59, 59, 999)
-
-    const elapsed = dayStart.getTime() - rotationStart
-    // Math.floor handles negative elapsed correctly (days before rotationStart).
-    // Note: uses browser local time; schedule.timezone is not applied here.
-    const slotIndex = Math.floor(elapsed / shiftMs)
-    const normalizedIndex =
-      ((slotIndex % sorted.length) + sorted.length) % sorted.length
-
-    segments.push({
-      start: dayStart.toISOString(),
-      end: dayEnd.toISOString(),
-      user_name: sorted[normalizedIndex]?.user_name ?? '?',
-      is_override: false,
-    })
-  }
-
-  return segments
-}
 
 // ─── Edit schedule modal ──────────────────────────────────────────────────────
 
@@ -191,6 +150,7 @@ function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, onClose, onSaved }:
   const [customDuration, setCustomDuration] = useState(8)
   const [customUnit, setCustomUnit] = useState<'hours' | 'days'>('hours')
   const [participants, setParticipants] = useState<string[]>([''])
+  const [users, setUsers] = useState<UserSummary[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
@@ -208,6 +168,7 @@ function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, onClose, onSaved }:
       setParticipants([''])
       setError(null)
       setTimeout(() => nameRef.current?.focus(), 50)
+      listUsers().then(setUsers).catch(() => {})
     }
   }, [isOpen])
 
@@ -323,14 +284,28 @@ function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, onClose, onSaved }:
                 {participants.map((p, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <span className="text-xs text-text-tertiary w-5 text-right">{i + 1}.</span>
-                    <input
-                      type="text"
-                      value={p}
-                      onChange={(e) => updateParticipant(i, e.target.value)}
-                      placeholder="Display name or Slack ID"
-                      className={`${inputClass} flex-1`}
-                      disabled={isSubmitting}
-                    />
+                    {users.length > 0 ? (
+                      <select
+                        value={p}
+                        onChange={(e) => updateParticipant(i, e.target.value)}
+                        className={`${inputClass} flex-1`}
+                        disabled={isSubmitting}
+                      >
+                        <option value="">— Select user —</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.email}>{u.name} ({u.email})</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={p}
+                        onChange={(e) => updateParticipant(i, e.target.value)}
+                        placeholder="User email"
+                        className={`${inputClass} flex-1`}
+                        disabled={isSubmitting}
+                      />
+                    )}
                     {participants.length > 1 && (
                       <button type="button" onClick={() => removeParticipant(i)} className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors" disabled={isSubmitting}>
                         <Trash2 className="w-3.5 h-3.5" />
@@ -354,6 +329,226 @@ function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, onClose, onSaved }:
   )
 }
 
+// ─── Edit layer modal ─────────────────────────────────────────────────────────
+
+interface EditLayerModalProps {
+  isOpen: boolean
+  scheduleId: string
+  layer: ScheduleLayer
+  onClose: () => void
+  onSaved: () => void
+}
+
+function EditLayerModal({ isOpen, scheduleId, layer, onClose, onSaved }: EditLayerModalProps) {
+  const rotationStartStr = (() => {
+    const d = new Date(layer.rotation_start)
+    return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 16)
+  })()
+
+  const initialParticipants = (layer.participants ?? [])
+    .sort((a, b) => a.order_index - b.order_index)
+    .map((p) => p.user_name)
+
+  const [name, setName] = useState(layer.name)
+  const [rotationType, setRotationType] = useState<'daily' | 'weekly' | 'custom'>(layer.rotation_type)
+  const [rotationStart, setRotationStart] = useState(rotationStartStr)
+  const [customDuration, setCustomDuration] = useState(() => {
+    const secs = layer.shift_duration_seconds || 3600
+    if (secs % 86400 === 0) return secs / 86400
+    return secs / 3600
+  })
+  const [customUnit, setCustomUnit] = useState<'hours' | 'days'>(() => {
+    const secs = layer.shift_duration_seconds || 3600
+    return secs % 86400 === 0 ? 'days' : 'hours'
+  })
+  const [participants, setParticipants] = useState<string[]>(
+    initialParticipants.length > 0 ? initialParticipants : [''],
+  )
+  const [users, setUsers] = useState<UserSummary[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const nameRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      setName(layer.name)
+      setRotationType(layer.rotation_type)
+      const d = new Date(layer.rotation_start)
+      setRotationStart(isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 16))
+      const secs = layer.shift_duration_seconds || 3600
+      if (secs % 86400 === 0) {
+        setCustomDuration(secs / 86400)
+        setCustomUnit('days')
+      } else {
+        setCustomDuration(secs / 3600)
+        setCustomUnit('hours')
+      }
+      const sorted = (layer.participants ?? [])
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((p) => p.user_name)
+      setParticipants(sorted.length > 0 ? sorted : [''])
+      setError(null)
+      listUsers().then(setUsers).catch(() => {})
+      setTimeout(() => nameRef.current?.focus(), 50)
+    }
+  }, [isOpen, layer])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    if (isOpen) document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [isOpen, onClose])
+
+  if (!isOpen) return null
+
+  const addParticipant = () => setParticipants((p) => [...p, ''])
+  const removeParticipant = (i: number) => setParticipants((p) => p.filter((_, idx) => idx !== i))
+  const updateParticipant = (i: number, val: string) =>
+    setParticipants((p) => p.map((v, idx) => (idx === i ? val : v)))
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    const validParticipants = participants.map((p) => p.trim()).filter(Boolean)
+    if (validParticipants.length === 0) {
+      setError('Add at least one participant')
+      return
+    }
+
+    let shiftDurationSeconds: number | undefined
+    if (rotationType === 'custom') {
+      shiftDurationSeconds = customDuration * (customUnit === 'hours' ? 3600 : 86400)
+      if (shiftDurationSeconds <= 0) {
+        setError('Shift duration must be greater than zero')
+        return
+      }
+    }
+
+    setIsSubmitting(true)
+    try {
+      const body: UpdateLayerRequest = {
+        name,
+        rotation_type: rotationType,
+        rotation_start: (() => {
+          if (!rotationStart) return undefined
+          const d = new Date(rotationStart)
+          if (isNaN(d.getTime())) return undefined
+          return d.toISOString()
+        })(),
+        shift_duration_seconds: shiftDurationSeconds,
+        participants: validParticipants.map((user_name, i) => ({ user_name, order_index: i })),
+      }
+      await updateLayer(scheduleId, layer.id, body)
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update layer')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const inputClass = 'w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent disabled:opacity-50'
+  const labelClass = 'block text-sm font-medium text-text-primary mb-1'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div
+        className="relative z-10 w-full max-w-lg bg-white rounded-xl shadow-xl mx-4 flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-text-primary">Edit layer</h2>
+        </div>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+            {error && (
+              <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+            )}
+            <div>
+              <label className={labelClass} htmlFor="edit-layer-name">Layer name</label>
+              <input ref={nameRef} id="edit-layer-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Primary rotation" className={inputClass} disabled={isSubmitting} required />
+            </div>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className={labelClass} htmlFor="edit-layer-type">Rotation type</label>
+                <select id="edit-layer-type" value={rotationType} onChange={(e) => setRotationType(e.target.value as 'daily' | 'weekly' | 'custom')} className={inputClass} disabled={isSubmitting}>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              {rotationType === 'custom' && (
+                <div className="flex-1">
+                  <label className={labelClass}>Shift duration</label>
+                  <div className="flex gap-2">
+                    <input type="number" min={1} value={customDuration} onChange={(e) => setCustomDuration(Number(e.target.value))} className={`${inputClass} w-20`} disabled={isSubmitting} />
+                    <select value={customUnit} onChange={(e) => setCustomUnit(e.target.value as 'hours' | 'days')} className={`${inputClass} flex-1`} disabled={isSubmitting}>
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit-layer-start">Rotation start (UTC)</label>
+              <input id="edit-layer-start" type="datetime-local" value={rotationStart} onChange={(e) => setRotationStart(e.target.value)} className={inputClass} disabled={isSubmitting} />
+              <p className="mt-1 text-xs text-text-tertiary">The point in time when the rotation begins counting from slot 0.</p>
+            </div>
+            <div>
+              <label className={labelClass}>Participants (in rotation order)</label>
+              <div className="space-y-2">
+                {participants.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-xs text-text-tertiary w-5 text-right">{i + 1}.</span>
+                    {users.length > 0 ? (
+                      <select
+                        value={p}
+                        onChange={(e) => updateParticipant(i, e.target.value)}
+                        className={`${inputClass} flex-1`}
+                        disabled={isSubmitting}
+                      >
+                        <option value="">— Select user —</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.email}>{u.name} ({u.email})</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={p}
+                        onChange={(e) => updateParticipant(i, e.target.value)}
+                        placeholder="User email"
+                        className={`${inputClass} flex-1`}
+                        disabled={isSubmitting}
+                      />
+                    )}
+                    {participants.length > 1 && (
+                      <button type="button" onClick={() => removeParticipant(i)} className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors" disabled={isSubmitting}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={addParticipant} className="mt-2 text-sm text-brand-primary hover:underline" disabled={isSubmitting}>
+                + Add participant
+              </button>
+            </div>
+          </div>
+          <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={isSubmitting}>{isSubmitting ? 'Saving…' : 'Save changes'}</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ─── Override modal ───────────────────────────────────────────────────────────
 
 interface OverrideModalProps {
@@ -365,17 +560,15 @@ interface OverrideModalProps {
 
 function OverrideModal({ isOpen, scheduleId, onClose, onSaved }: OverrideModalProps) {
   const [overrideUser, setOverrideUser] = useState('')
-  const [createdBy, setCreatedBy] = useState('')
+  const [users, setUsers] = useState<UserSummary[]>([])
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const userRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (isOpen) {
       setOverrideUser('')
-      setCreatedBy('')
       // Default start = now (rounded to nearest UTC hour), end = +1 day (UTC)
       const n = new Date()
       const startUTC = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate(), n.getUTCHours()))
@@ -383,7 +576,7 @@ function OverrideModal({ isOpen, scheduleId, onClose, onSaved }: OverrideModalPr
       setStartTime(startUTC.toISOString().slice(0, 16))
       setEndTime(endUTC.toISOString().slice(0, 16))
       setError(null)
-      setTimeout(() => userRef.current?.focus(), 50)
+      listUsers().then(setUsers).catch(() => {})
     }
   }, [isOpen])
 
@@ -412,7 +605,6 @@ function OverrideModal({ isOpen, scheduleId, onClose, onSaved }: OverrideModalPr
         override_user: overrideUser,
         start_time: start.toISOString(),
         end_time: end.toISOString(),
-        created_by: createdBy || 'admin',
       }
       await createOverride(scheduleId, body)
       onSaved()
@@ -445,7 +637,32 @@ function OverrideModal({ isOpen, scheduleId, onClose, onSaved }: OverrideModalPr
             )}
             <div>
               <label className={labelClass} htmlFor="ov-user">On-call user during override</label>
-              <input ref={userRef} id="ov-user" type="text" value={overrideUser} onChange={(e) => setOverrideUser(e.target.value)} placeholder="Display name or Slack ID" className={inputClass} disabled={isSubmitting} required />
+              {users.length > 0 ? (
+                <select
+                  id="ov-user"
+                  value={overrideUser}
+                  onChange={(e) => setOverrideUser(e.target.value)}
+                  className={inputClass}
+                  disabled={isSubmitting}
+                  required
+                >
+                  <option value="">— Select user —</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.email}>{u.name} ({u.email})</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="ov-user"
+                  type="text"
+                  value={overrideUser}
+                  onChange={(e) => setOverrideUser(e.target.value)}
+                  placeholder="User email"
+                  className={inputClass}
+                  disabled={isSubmitting}
+                  required
+                />
+              )}
             </div>
             <div className="flex gap-4">
               <div className="flex-1">
@@ -456,10 +673,6 @@ function OverrideModal({ isOpen, scheduleId, onClose, onSaved }: OverrideModalPr
                 <label className={labelClass} htmlFor="ov-end">End (UTC)</label>
                 <input id="ov-end" type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputClass} disabled={isSubmitting} required />
               </div>
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="ov-created-by">Created by</label>
-              <input id="ov-created-by" type="text" value={createdBy} onChange={(e) => setCreatedBy(e.target.value)} placeholder="Your name (optional)" className={inputClass} disabled={isSubmitting} />
             </div>
           </div>
           <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
@@ -561,10 +774,11 @@ interface LayerCardProps {
   layer: ScheduleLayer
   currentOnCallUser: string | null
   onDeleted: () => void
+  onEdit: (layer: ScheduleLayer) => void
   toast: ReturnType<typeof useToast>
 }
 
-function LayerCard({ scheduleId, layer, currentOnCallUser, onDeleted, toast }: LayerCardProps) {
+function LayerCard({ scheduleId, layer, currentOnCallUser, onDeleted, onEdit, toast }: LayerCardProps) {
   const [deleting, setDeleting] = useState(false)
 
   const handleDelete = async () => {
@@ -602,14 +816,23 @@ function LayerCard({ scheduleId, layer, currentOnCallUser, onDeleted, toast }: L
             <span className="text-xs text-text-tertiary">starts {startDate}</span>
           </div>
         </div>
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-          title="Delete layer"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onEdit(layer)}
+            className="p-1.5 text-text-tertiary hover:text-brand-primary hover:bg-blue-50 rounded transition-colors"
+            title="Edit layer"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+            title="Delete layer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Participants */}
@@ -663,8 +886,26 @@ export function ScheduleDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [addLayerOpen, setAddLayerOpen] = useState(false)
   const [overrideModalOpen, setOverrideModalOpen] = useState(false)
+  const [editLayerOpen, setEditLayerOpen] = useState(false)
+  const [editingLayer, setEditingLayer] = useState<ScheduleLayer | null>(null)
   const [windowStart, setWindowStart] = useState<Date>(() => getMonthStart(new Date()))
-  const GANTT_DAYS = daysInMonth(windowStart)
+  const GANTT_DAYS = useMemo(() => daysInMonth(windowStart), [windowStart])
+
+  const [layerTimelines, setLayerTimelines] = useState<LayerTimelinesResponse | null>(null)
+  const [layerTimelineKey, setLayerTimelineKey] = useState(0)
+
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+    const from = windowStart.toISOString()
+    const toDate = new Date(windowStart)
+    toDate.setDate(toDate.getDate() + GANTT_DAYS)
+    const to = toDate.toISOString()
+    getLayerTimelines(id, from, to)
+      .then((data) => { if (!cancelled) setLayerTimelines(data) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [id, windowStart, GANTT_DAYS, layerTimelineKey])
 
   const handleScheduleDeleted = async () => {
     if (!schedule) return
@@ -684,19 +925,25 @@ export function ScheduleDetailPage() {
 
   const invalidateAll = useCallback(() => {
     refetch()
+    setLayerTimelineKey((k) => k + 1)
   }, [refetch])
 
   const ganttRows: GanttRow[] = useMemo(
     () =>
-      (schedule?.layers ?? [])
+      [...(schedule?.layers ?? [])]
         .sort((a, b) => a.order_index - b.order_index)
         .map((layer) => ({
           id: layer.id,
           label: layer.name,
-          segments: computeLayerSegments(layer, windowStart, GANTT_DAYS),
+          segments: layerTimelines?.layers[layer.id] ?? [],
         })),
-    [schedule?.layers, windowStart, GANTT_DAYS],
+    [schedule?.layers, layerTimelines],
   )
+
+  const handleEditLayer = (layer: ScheduleLayer) => {
+    setEditingLayer(layer)
+    setEditLayerOpen(true)
+  }
 
   const handleOverrideSaved = () => {
     toast.success('Override created')
@@ -734,6 +981,16 @@ export function ScheduleDetailPage() {
           nextOrderIndex={nextOrderIndex}
           onClose={() => setAddLayerOpen(false)}
           onSaved={() => { toast.success('Layer added'); invalidateAll() }}
+        />
+      )}
+
+      {editLayerOpen && editingLayer && (
+        <EditLayerModal
+          isOpen={editLayerOpen}
+          scheduleId={schedule.id}
+          layer={editingLayer}
+          onClose={() => { setEditLayerOpen(false); setEditingLayer(null) }}
+          onSaved={() => { toast.success('Layer updated'); invalidateAll() }}
         />
       )}
 
@@ -850,6 +1107,7 @@ export function ScheduleDetailPage() {
                   layer={layer}
                   currentOnCallUser={currentUser}
                   onDeleted={invalidateAll}
+                  onEdit={handleEditLayer}
                   toast={toast}
                 />
               ))}

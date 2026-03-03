@@ -101,6 +101,18 @@ func (r *CreateLayerRequest) ToParticipants(layerID uuid.UUID) []models.Schedule
 	return participants
 }
 
+// UpdateLayerRequest is the request body for PATCH /api/v1/schedules/:id/layers/:layer_id.
+// All fields are optional; nil means "no change". Participants, if provided (even as an
+// empty slice), replaces the full participant list atomically.
+type UpdateLayerRequest struct {
+	Name                 *string              `json:"name"                   binding:"omitempty,min=1,max=255"`
+	RotationType         *models.RotationType `json:"rotation_type"          binding:"omitempty,oneof=daily weekly custom"`
+	RotationStart        *time.Time           `json:"rotation_start"`
+	ShiftDurationSeconds *int                 `json:"shift_duration_seconds" binding:"omitempty,min=1"`
+	// If non-nil, replaces all participants. nil = no change. [] = clear all.
+	Participants []ParticipantRequest `json:"participants"`
+}
+
 // CreateOverrideRequest is the request body for POST /api/v1/schedules/:id/overrides.
 type CreateOverrideRequest struct {
 	OverrideUser string    `json:"override_user" binding:"required,min=1,max=255"`

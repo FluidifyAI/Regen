@@ -41,6 +41,11 @@ type ScheduleRepository interface {
 	// DeleteLayer removes a layer (cascades to participants).
 	DeleteLayer(layerID uuid.UUID) error
 
+	// UpdateLayer updates layer metadata and optionally replaces participants atomically.
+	// A nil participants pointer means "leave participants untouched".
+	// A non-nil pointer (even pointing to an empty slice) replaces all participants.
+	UpdateLayer(layer *models.ScheduleLayer, participants *[]models.ScheduleParticipant) error
+
 	// CreateParticipantsBulk bulk-inserts participants for a layer.
 	CreateParticipantsBulk(participants []models.ScheduleParticipant) error
 
@@ -200,6 +205,34 @@ func (r *scheduleRepository) DeleteLayer(layerID uuid.UUID) error {
 		return &NotFoundError{Resource: "schedule_layer", ID: layerID.String()}
 	}
 	return nil
+}
+
+func (r *scheduleRepository) UpdateLayer(layer *models.ScheduleLayer, participants *[]models.ScheduleParticipant) error {
+	if err := validateLayer(layer); err != nil {
+		return err
+	}
+	return r.db.Transaction(func(db *gorm.DB) error {
+		if err := db.Model(layer).Updates(map[string]interface{}{
+			"name":                   layer.Name,
+			"rotation_type":          layer.RotationType,
+			"shift_duration_seconds": layer.ShiftDurationSeconds,
+			"rotation_start":         layer.RotationStart,
+		}).Error; err != nil {
+			return fmt.Errorf("failed to update schedule layer: %w", err)
+		}
+		// Only replace participants if explicitly requested (non-nil pointer).
+		if participants != nil {
+			if err := db.Where("layer_id = ?", layer.ID).Delete(&models.ScheduleParticipant{}).Error; err != nil {
+				return fmt.Errorf("failed to delete existing participants: %w", err)
+			}
+			if len(*participants) > 0 {
+				if err := db.Create(participants).Error; err != nil {
+					return fmt.Errorf("failed to bulk create participants: %w", err)
+				}
+			}
+		}
+		return nil
+	})
 }
 
 func (r *scheduleRepository) CreateParticipantsBulk(participants []models.ScheduleParticipant) error {

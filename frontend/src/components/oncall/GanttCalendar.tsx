@@ -66,15 +66,26 @@ export function userHue(name: string): number {
   return PALETTE_HUES[idx] as number
 }
 
+const NOBODY = '(nobody)'
+
 export function segmentBg(name: string): string {
-  return `hsl(${userHue(name)}, 50%, 78%)`
+  if (!name || name === NOBODY) return '#e5e7eb' // gray-200 — neutral empty slot
+  return `hsl(${userHue(name)}, 65%, 63%)`
 }
 
 export function segmentText(name: string): string {
-  return `hsl(${userHue(name)}, 60%, 20%)`
+  if (!name || name === NOBODY) return '#9ca3af' // gray-400
+  return `hsl(${userHue(name)}, 75%, 18%)`
 }
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
+
+/** Strip the @domain part of an email for compact display in the bar. */
+function displayName(name: string): string {
+  if (!name || name === NOBODY) return ''
+  const at = name.indexOf('@')
+  return at > 0 ? name.slice(0, at) : name
+}
 
 function getSegmentForDay(segments: TimelineSegment[], day: Date): TimelineSegment | null {
   const dayStart = new Date(day)
@@ -190,9 +201,8 @@ export function GanttCalendar({
     onNavigate(getMonthStart(new Date()))
   }
 
-  const labelCellClass = `h-12 border-b border-r border-border bg-white px-3 text-sm font-medium text-text-primary align-middle overflow-hidden group${
-    onRowClick ? ' cursor-pointer hover:text-brand-primary hover:bg-gray-50 transition-colors' : ''
-  }`
+  const labelCellBase = `h-14 border-b border-r border-border px-4 text-sm font-semibold text-text-primary align-middle overflow-hidden group`
+  const labelCellHover = onRowClick ? ' cursor-pointer hover:text-brand-primary transition-colors' : ''
 
   return (
     <div>
@@ -243,24 +253,24 @@ export function GanttCalendar({
             return (
               <table
                 key={weekIdx}
-                className="w-full border-collapse table-fixed"
+                className="w-full border-collapse table-fixed rounded-lg overflow-hidden border border-border shadow-sm"
               >
                 {/* Always declare WEEK_SIZE + 1 cols so widths are uniform across all weeks */}
                 <colgroup>
-                  <col style={{ width: 144 }} />
+                  <col style={{ width: 192 }} />
                   {Array.from({ length: WEEK_SIZE }, (_, i) => <col key={i} />)}
                 </colgroup>
 
                 {/* Day header */}
                 <thead>
                   <tr>
-                    <th className="p-0 border-b border-border bg-gray-50" />
+                    <th className="p-0 border-b-2 border-r border-border bg-gray-50" />
                     {weekDays.map((day, i) => {
                       const today = isTodayDate(day)
                       return (
                         <th
                           key={i}
-                          className={`p-0 border-b border-r border-border bg-gray-50 ${
+                          className={`p-0 border-b-2 border-r border-border bg-gray-50 ${
                             today ? 'text-brand-primary' : 'text-text-tertiary'
                           }`}
                         >
@@ -281,22 +291,23 @@ export function GanttCalendar({
                     })}
                     {/* Filler header cells for partial weeks */}
                     {Array.from({ length: fillerCount }, (_, i) => (
-                      <th key={`fh-${i}`} className="p-0 border-b border-border bg-gray-50" />
+                      <th key={`fh-${i}`} className="p-0 border-b-2 border-border bg-gray-50" />
                     ))}
                   </tr>
                 </thead>
 
                 {/* Data rows */}
                 <tbody>
-                  {rows.map((row) => {
+                  {rows.map((row, rowIdx) => {
                     const groups = groupWeekDays(row.segments, weekDays)
+                    const rowBg = rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'
 
                     return (
                       <tr key={row.id}>
                         {/* Row label */}
                         <td
-                          className={labelCellClass}
-                          style={{ maxWidth: 144 }}
+                          className={`${labelCellBase} ${rowBg}${labelCellHover}`}
+                          style={{ maxWidth: 192 }}
                           onClick={onRowClick ? () => onRowClick(row.id) : undefined}
                           title={row.label}
                         >
@@ -322,7 +333,7 @@ export function GanttCalendar({
                               <td
                                 key={gi}
                                 colSpan={group.span}
-                                className="h-12 border-b border-r border-border bg-white p-0"
+                                className={`h-14 border-b border-r border-border p-0 ${rowBg}`}
                               />
                             )
                           }
@@ -346,24 +357,29 @@ export function GanttCalendar({
                             <td
                               key={gi}
                               colSpan={span}
-                              className="h-12 border-b border-r border-border relative p-0"
+                              className={`h-14 border-b border-r border-border relative p-0 ${rowBg}`}
                             >
-                              {/* Continuous coloured bar — full width, slight vertical inset */}
-                              <div
-                                className="absolute inset-y-1.5 left-0 right-0 flex items-center px-2 overflow-hidden rounded"
-                                style={{
-                                  backgroundColor: segmentBg(seg.user_name),
-                                  color: segmentText(seg.user_name),
-                                }}
-                                title={seg.is_override ? `${seg.user_name} (override)` : seg.user_name}
-                              >
-                                <span className="text-xs font-semibold truncate leading-none">
-                                  {seg.user_name}
-                                  {seg.is_override && (
-                                    <span className="opacity-60 ml-1 text-[10px] font-normal">(override)</span>
-                                  )}
-                                </span>
-                              </div>
+                              {/* Coloured bar — full width, slight vertical inset */}
+                              {seg.user_name && seg.user_name !== NOBODY ? (
+                                <div
+                                  className="absolute inset-y-1.5 left-0 right-0 flex items-center px-2.5 overflow-hidden rounded"
+                                  style={{ backgroundColor: segmentBg(seg.user_name) }}
+                                  title={seg.is_override ? `${seg.user_name} (override)` : seg.user_name}
+                                >
+                                  <span className="text-xs font-bold truncate leading-none text-white drop-shadow-sm">
+                                    {displayName(seg.user_name)}
+                                    {seg.is_override && (
+                                      <span className="opacity-80 ml-1 text-[10px] font-medium">(override)</span>
+                                    )}
+                                  </span>
+                                </div>
+                              ) : (
+                                /* Nobody slot — dashed outline, no text */
+                                <div
+                                  className="absolute inset-y-1.5 left-0 right-0 rounded border border-dashed border-gray-300"
+                                  title="Nobody on call"
+                                />
+                              )}
 
                               {/* "Now" line, fractionally positioned within the colSpanned cell */}
                               {nowLineLeft && (
@@ -378,7 +394,7 @@ export function GanttCalendar({
 
                         {/* Filler cells for partial weeks */}
                         {Array.from({ length: fillerCount }, (_, i) => (
-                          <td key={`fd-${i}`} className="h-12 border-b bg-gray-50/40" />
+                          <td key={`fd-${i}`} className="h-14 border-b bg-gray-50/40" />
                         ))}
                       </tr>
                     )

@@ -124,6 +124,9 @@ func (m *mockScheduleEvaluator) WhoIsOnCall(scheduleID uuid.UUID, at time.Time) 
 func (m *mockScheduleEvaluator) GetTimeline(scheduleID uuid.UUID, from, to time.Time) ([]TimelineSegment, error) {
 	return nil, nil
 }
+func (m *mockScheduleEvaluator) GetLayerTimelines(scheduleID uuid.UUID, from, to time.Time) (map[uuid.UUID][]TimelineSegment, []TimelineSegment, error) {
+	return nil, nil, nil
+}
 
 var _ ScheduleEvaluator = &mockScheduleEvaluator{}
 

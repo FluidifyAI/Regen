@@ -165,17 +165,25 @@ func (t *EscalationTier) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// EscalationState tracks the live escalation progress for a single alert.
+// EscalationState tracks the live escalation progress for a single alert or
+// manually escalated incident.
 //
-// There is at most one EscalationState row per alert (UNIQUE on alert_id).
+// Exactly one of AlertID / IncidentID is set, discriminated by SourceType.
+// For alert-sourced states the legacy UNIQUE index on alert_id still applies.
 // The worker queries for active states (acknowledged_at IS NULL) and
 // advances the tier when last_notified_at + tier.timeout_seconds < NOW().
 type EscalationState struct {
 	// ID is the unique identifier for this state row.
 	ID uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 
-	// AlertID is the alert being escalated.
-	AlertID uuid.UUID `gorm:"type:uuid;not null;uniqueIndex" json:"alert_id"`
+	// AlertID is set for alert-sourced escalations (nullable for incident escalations).
+	AlertID *uuid.UUID `gorm:"type:uuid;uniqueIndex" json:"alert_id,omitempty"`
+
+	// IncidentID is set for incident-sourced (manual) escalations.
+	IncidentID *uuid.UUID `gorm:"type:uuid;index" json:"incident_id,omitempty"`
+
+	// SourceType distinguishes alert vs. incident escalations.
+	SourceType string `gorm:"type:varchar(20);not null;default:'alert'" json:"source_type"`
 
 	// PolicyID is the escalation policy driving this escalation.
 	PolicyID uuid.UUID `gorm:"type:uuid;not null;index" json:"policy_id"`

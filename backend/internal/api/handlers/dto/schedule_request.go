@@ -9,28 +9,35 @@ import (
 
 // CreateScheduleRequest is the request body for POST /api/v1/schedules.
 type CreateScheduleRequest struct {
-	Name                string `json:"name"                 binding:"required,min=1,max=255"`
-	Description         string `json:"description"          binding:"max=1000"`
-	Timezone            string `json:"timezone"             binding:"required,max=100"`
-	NotificationChannel string `json:"notification_channel" binding:"max=255"`
+	Name                      string  `json:"name"                         binding:"required,min=1,max=255"`
+	Description               string  `json:"description"                  binding:"max=1000"`
+	Timezone                  string  `json:"timezone"                     binding:"required,max=100"`
+	NotificationChannel       string  `json:"notification_channel"         binding:"max=255"`
+	DefaultEscalationPolicyID *string `json:"default_escalation_policy_id" binding:"omitempty,uuid"`
 }
 
 // ToModel converts CreateScheduleRequest to models.Schedule.
 func (r *CreateScheduleRequest) ToModel() *models.Schedule {
-	return &models.Schedule{
+	s := &models.Schedule{
 		Name:                r.Name,
 		Description:         r.Description,
 		Timezone:            r.Timezone,
 		NotificationChannel: r.NotificationChannel,
 	}
+	if r.DefaultEscalationPolicyID != nil {
+		id, _ := uuid.Parse(*r.DefaultEscalationPolicyID)
+		s.DefaultEscalationPolicyID = &id
+	}
+	return s
 }
 
 // UpdateScheduleRequest is the request body for PATCH /api/v1/schedules/:id.
 type UpdateScheduleRequest struct {
-	Name                *string `json:"name"                 binding:"omitempty,min=1,max=255"`
-	Description         *string `json:"description"          binding:"omitempty,max=1000"`
-	Timezone            *string `json:"timezone"             binding:"omitempty,max=100"`
-	NotificationChannel *string `json:"notification_channel" binding:"omitempty,max=255"`
+	Name                      *string `json:"name"                         binding:"omitempty,min=1,max=255"`
+	Description               *string `json:"description"                  binding:"omitempty,max=1000"`
+	Timezone                  *string `json:"timezone"                     binding:"omitempty,max=100"`
+	NotificationChannel       *string `json:"notification_channel"         binding:"omitempty,max=255"`
+	DefaultEscalationPolicyID *string `json:"default_escalation_policy_id" binding:"omitempty,uuid"`
 }
 
 // ApplyTo applies UpdateScheduleRequest fields to an existing Schedule model.
@@ -46,6 +53,10 @@ func (r *UpdateScheduleRequest) ApplyTo(s *models.Schedule) {
 	}
 	if r.NotificationChannel != nil {
 		s.NotificationChannel = *r.NotificationChannel
+	}
+	if r.DefaultEscalationPolicyID != nil {
+		id, _ := uuid.Parse(*r.DefaultEscalationPolicyID)
+		s.DefaultEscalationPolicyID = &id
 	}
 }
 

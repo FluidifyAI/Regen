@@ -78,21 +78,26 @@ func (w *EscalationWorker) tick() {
 // SendEscalationDM implements services.EscalationNotifier.
 // Sends a Slack DM to userID with alert details and an Acknowledge button.
 // If chatService is nil, the call is a no-op (Slack not configured).
+// alert may be nil for incident-sourced escalations.
 func (w *EscalationWorker) SendEscalationDM(userID string, alert *models.Alert, tierIndex int) error {
+	var alertIDStr string
+	if alert != nil {
+		alertIDStr = alert.ID.String()
+	}
 	if w.chatService == nil {
 		slog.Warn("escalation worker: no chat service; skipping DM",
-			"user_id", userID, "alert_id", alert.ID, "tier", tierIndex)
+			"user_id", userID, "alert_id", alertIDStr, "tier", tierIndex)
 		return nil
 	}
 
 	msg := w.msgBuilder.BuildEscalationDMMessage(alert, tierIndex)
 	if err := w.chatService.SendDirectMessage(userID, msg); err != nil {
 		slog.Error("escalation worker: failed to send DM",
-			"user_id", userID, "alert_id", alert.ID, "tier", tierIndex, "err", err)
+			"user_id", userID, "alert_id", alertIDStr, "tier", tierIndex, "err", err)
 		return err
 	}
 
 	slog.Info("escalation DM sent",
-		"user_id", userID, "alert_id", alert.ID, "tier", tierIndex)
+		"user_id", userID, "alert_id", alertIDStr, "tier", tierIndex)
 	return nil
 }

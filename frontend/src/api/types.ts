@@ -207,6 +207,7 @@ export interface Schedule {
   description: string
   timezone: string
   notification_channel: string
+  default_escalation_policy_id?: string
   created_at: string
   updated_at: string
   layers?: ScheduleLayer[]
@@ -262,6 +263,7 @@ export interface CreateScheduleRequest {
   description?: string
   timezone?: string
   notification_channel?: string
+  default_escalation_policy_id?: string
 }
 
 export interface UpdateScheduleRequest {
@@ -269,6 +271,7 @@ export interface UpdateScheduleRequest {
   description?: string
   timezone?: string
   notification_channel?: string
+  default_escalation_policy_id?: string | null
 }
 
 export interface CreateLayerRequest {

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Bell, ChevronDown } from 'lucide-react'
 import { useIncidentDetail } from '../hooks/useIncidentDetail'
 import { Timeline } from '../components/incidents/Timeline'
 import { PropertiesPanel } from '../components/layout/PropertiesPanel'
@@ -12,6 +12,10 @@ import { AISummaryPanel } from '../components/incidents/AISummaryPanel'
 import { PostMortemPanel } from '../components/incidents/PostMortemPanel'
 import { ToastContainer, useToast } from '../components/ui/Toast'
 import { GeneralError } from '../components/ui/ErrorState'
+import { Button } from '../components/ui/Button'
+import { listEscalationPolicies } from '../api/escalation'
+import { apiClient } from '../api/client'
+import type { EscalationPolicy } from '../api/types'
 
 type TabType = 'activity' | 'alerts' | 'postmortem'
 
@@ -25,6 +29,31 @@ export function IncidentDetailPage() {
   const [activeTab, setActiveTab] = useState<TabType>('activity')
   const [hasPostMortem, setHasPostMortem] = useState(false)
   const { toasts, dismissToast, success, error: showError } = useToast()
+  const [showEscalateModal, setShowEscalateModal] = useState(false)
+  const [escalatePolicies, setEscalatePolicies] = useState<EscalationPolicy[]>([])
+  const [selectedPolicyId, setSelectedPolicyId] = useState('')
+  const [escalating, setEscalating] = useState(false)
+
+  useEffect(() => {
+    listEscalationPolicies().then(r => setEscalatePolicies(r.data)).catch(() => {})
+  }, [])
+
+  async function handleEscalate() {
+    if (!selectedPolicyId || !id) return
+    setEscalating(true)
+    try {
+      await apiClient.post(`/api/v1/incidents/${id}/escalate`, {
+        escalation_policy_id: selectedPolicyId,
+      })
+      setShowEscalateModal(false)
+      setSelectedPolicyId('')
+      success('Escalation triggered')
+    } catch {
+      showError('Failed to trigger escalation')
+    } finally {
+      setEscalating(false)
+    }
+  }
 
   const { incident, loading, error, refetch } = useIncidentDetail(id || '')
 
@@ -108,6 +137,13 @@ export function IncidentDetailPage() {
                     onError={showError}
                     onRefetch={refetch}
                   />
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowEscalateModal(true)}
+                  >
+                    <Bell className="w-4 h-4 mr-1" />
+                    Escalate
+                  </Button>
                 </div>
                 <h1 className="text-2xl font-semibold text-text-primary mb-2">
                   {incident.title}
@@ -182,6 +218,39 @@ export function IncidentDetailPage() {
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Escalate Modal */}
+      {showEscalateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white border border-border rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Escalate Incident</h2>
+            <p className="text-sm text-text-secondary mb-4">
+              Trigger an escalation policy to notify the on-call team.
+            </p>
+            <div className="relative mb-4">
+              <select
+                className="w-full px-3 py-2 pr-8 rounded-lg border border-border bg-surface-secondary text-text-primary text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                value={selectedPolicyId}
+                onChange={e => setSelectedPolicyId(e.target.value)}
+              >
+                <option value="">— Choose escalation policy —</option>
+                {escalatePolicies.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-2.5 w-4 h-4 text-text-tertiary pointer-events-none" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => { setShowEscalateModal(false); setSelectedPolicyId('') }} disabled={escalating}>
+                Cancel
+              </Button>
+              <Button onClick={handleEscalate} disabled={escalating || !selectedPolicyId}>
+                {escalating ? 'Escalating…' : 'Escalate'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

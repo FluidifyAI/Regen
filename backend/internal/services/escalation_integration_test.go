@@ -141,7 +141,9 @@ func setupEscalationIntegrationDB(t *testing.T) (*gorm.DB, func()) {
 
 	_, err = sqlDB.Exec(`CREATE TABLE escalation_states (
 		id TEXT PRIMARY KEY,
-		alert_id TEXT NOT NULL UNIQUE,
+		alert_id TEXT UNIQUE,
+		incident_id TEXT,
+		source_type TEXT NOT NULL DEFAULT 'alert',
 		policy_id TEXT NOT NULL,
 		current_tier_index INTEGER NOT NULL DEFAULT 0,
 		status TEXT NOT NULL DEFAULT 'pending',

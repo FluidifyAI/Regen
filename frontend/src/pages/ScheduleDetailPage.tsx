@@ -28,6 +28,7 @@ import {
 } from '../api/schedules'
 import { listUsers } from '../api/users'
 import type { UserSummary } from '../api/users'
+import { listEscalationPolicies } from '../api/escalation'
 import type {
   Schedule,
   ScheduleLayer,
@@ -37,6 +38,7 @@ import type {
   UpdateLayerRequest,
   LayerTimelinesResponse,
   CreateOverrideRequest,
+  EscalationPolicy,
 } from '../api/types'
 
 // ─── Edit schedule modal ──────────────────────────────────────────────────────
@@ -52,15 +54,22 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
   const [name, setName] = useState(schedule.name)
   const [description, setDescription] = useState(schedule.description)
   const [timezone, setTimezone] = useState(schedule.timezone)
+  const [defaultPolicyId, setDefaultPolicyId] = useState(schedule.default_escalation_policy_id ?? '')
+  const [policies, setPolicies] = useState<EscalationPolicy[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    listEscalationPolicies().then(r => setPolicies(r.data)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (isOpen) {
       setName(schedule.name)
       setDescription(schedule.description)
       setTimezone(schedule.timezone)
+      setDefaultPolicyId(schedule.default_escalation_policy_id ?? '')
       setError(null)
       setTimeout(() => nameRef.current?.focus(), 50)
     }
@@ -79,7 +88,12 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
     setError(null)
     setIsSubmitting(true)
     try {
-      const body: UpdateScheduleRequest = { name, timezone, description }
+      const body: UpdateScheduleRequest = {
+        name,
+        timezone,
+        description,
+        default_escalation_policy_id: defaultPolicyId || null,
+      }
       await updateSchedule(schedule.id, body)
       onSaved()
       onClose()
@@ -121,6 +135,22 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
               <select id="edit-tz" value={timezone} onChange={(e) => setTimezone(e.target.value)} className={inputClass} disabled={isSubmitting}>
                 {COMMON_TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
               </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="edit-default-policy">Default escalation policy</label>
+              <select
+                id="edit-default-policy"
+                value={defaultPolicyId}
+                onChange={(e) => setDefaultPolicyId(e.target.value)}
+                className={inputClass}
+                disabled={isSubmitting}
+              >
+                <option value="">— None —</option>
+                {policies.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-text-tertiary">Used as fallback when no routing rule specifies a policy.</p>
             </div>
           </div>
           <div className="px-6 py-4 border-t border-border flex justify-end gap-3">

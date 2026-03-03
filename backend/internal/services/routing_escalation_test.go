@@ -93,6 +93,7 @@ type mockEscalationEngine struct {
 	triggerErr error
 }
 
+func (m *mockEscalationEngine) TriggerIncidentEscalation(_ uuid.UUID, _ uuid.UUID) error { return nil }
 func (m *mockEscalationEngine) TriggerEscalation(alert *models.Alert) error {
 	if m.triggerErr != nil {
 		return m.triggerErr

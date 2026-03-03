@@ -66,6 +66,9 @@ type EscalationPolicyRepository interface {
 	// GetStateByAlert retrieves the escalation state for a specific alert.
 	GetStateByAlert(alertID uuid.UUID) (*models.EscalationState, error)
 
+	// GetStateByIncident retrieves the active escalation state for a manually escalated incident.
+	GetStateByIncident(incidentID uuid.UUID) (*models.EscalationState, error)
+
 	// GetActiveStates retrieves all escalation states that are still in progress
 	// (not acknowledged and not completed) for worker polling.
 	GetActiveStates() ([]models.EscalationState, error)
@@ -269,10 +272,14 @@ func (r *escalationPolicyRepository) UpdateTier(tier *models.EscalationTier) err
 func (r *escalationPolicyRepository) CreateState(state *models.EscalationState) error {
 	if err := r.db.Create(state).Error; err != nil {
 		if isDuplicateKeyError(err) {
+			val := "nil"
+			if state.AlertID != nil {
+				val = state.AlertID.String()
+			}
 			return &AlreadyExistsError{
 				Resource: "escalation_state",
 				Field:    "alert_id",
-				Value:    state.AlertID.String(),
+				Value:    val,
 			}
 		}
 		return fmt.Errorf("failed to create escalation state: %w", err)
@@ -289,6 +296,19 @@ func (r *escalationPolicyRepository) GetStateByAlert(alertID uuid.UUID) (*models
 			return nil, &NotFoundError{Resource: "escalation_state", ID: alertID.String()}
 		}
 		return nil, fmt.Errorf("failed to get escalation state for alert %s: %w", alertID, err)
+	}
+	return &state, nil
+}
+
+// GetStateByIncident retrieves the active escalation state for a manually escalated incident.
+func (r *escalationPolicyRepository) GetStateByIncident(incidentID uuid.UUID) (*models.EscalationState, error) {
+	var state models.EscalationState
+	err := r.db.Where("incident_id = ? AND source_type = 'incident'", incidentID).First(&state).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, &NotFoundError{Resource: "escalation_state", ID: incidentID.String()}
+		}
+		return nil, fmt.Errorf("failed to get escalation state for incident %s: %w", incidentID, err)
 	}
 	return &state, nil
 }

@@ -43,6 +43,11 @@ type Schedule struct {
 	// Example: "#oncall-platform"
 	NotificationChannel string `gorm:"type:varchar(255);default:''" json:"notification_channel"`
 
+	// DefaultEscalationPolicyID optionally links this schedule to an escalation
+	// policy that fires when alerts are routed to this schedule but no explicit
+	// policy is set on the routing rule.
+	DefaultEscalationPolicyID *uuid.UUID `gorm:"type:uuid" json:"default_escalation_policy_id,omitempty"`
+
 	// CreatedAt is when this schedule was created (immutable, server-generated).
 	CreatedAt time.Time `gorm:"not null;default:now()" json:"created_at"`
 

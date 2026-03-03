@@ -18,6 +18,7 @@ type mockEscalationEngineForWorker struct {
 }
 
 func (m *mockEscalationEngineForWorker) TriggerEscalation(alert *models.Alert) error { return nil }
+func (m *mockEscalationEngineForWorker) TriggerIncidentEscalation(_ uuid.UUID, _ uuid.UUID) error { return nil }
 func (m *mockEscalationEngineForWorker) EvaluateEscalations() error {
 	m.evaluateCalls++
 	return m.evaluateErr

@@ -70,7 +70,9 @@ func (m *mockEscalationRepo) CreateState(s *models.EscalationState) error {
 	if m.createErr != nil {
 		return m.createErr
 	}
-	m.states[s.AlertID] = s
+	if s.AlertID != nil {
+		m.states[*s.AlertID] = s
+	}
 	return nil
 }
 func (m *mockEscalationRepo) GetStateByAlert(alertID uuid.UUID) (*models.EscalationState, error) {
@@ -83,6 +85,9 @@ func (m *mockEscalationRepo) GetStateByAlert(alertID uuid.UUID) (*models.Escalat
 	}
 	return s, nil
 }
+func (m *mockEscalationRepo) GetStateByIncident(id uuid.UUID) (*models.EscalationState, error) {
+	return nil, &repository.NotFoundError{Resource: "escalation_state", ID: id.String()}
+}
 func (m *mockEscalationRepo) GetActiveStates() ([]models.EscalationState, error) {
 	return m.activeStates, nil
 }
@@ -90,7 +95,9 @@ func (m *mockEscalationRepo) UpdateState(s *models.EscalationState) error {
 	if m.updateErr != nil {
 		return m.updateErr
 	}
-	m.states[s.AlertID] = s
+	if s.AlertID != nil {
+		m.states[*s.AlertID] = s
+	}
 	return nil
 }
 func (m *mockEscalationRepo) RecordAcknowledgment(alertID uuid.UUID, by string, via models.AcknowledgmentVia) error {
@@ -263,7 +270,7 @@ func TestEscalationEngine_EvaluateEscalations_NotifiesTier0WhenPending(t *testin
 	alertID := uuid.New()
 	state := models.EscalationState{
 		ID:               uuid.New(),
-		AlertID:          alertID,
+		AlertID:          &alertID,
 		PolicyID:         policyID,
 		CurrentTierIndex: 0,
 		Status:           models.EscalationStatePending,
@@ -327,7 +334,7 @@ func TestEscalationEngine_EvaluateEscalations_AdvancesToNextTierOnTimeout(t *tes
 	notifiedAt := time.Now().Add(-10 * time.Minute)
 	state := models.EscalationState{
 		ID:               uuid.New(),
-		AlertID:          alertID,
+		AlertID:          &alertID,
 		PolicyID:         policyID,
 		CurrentTierIndex: 0,
 		Status:           models.EscalationStateNotified,
@@ -380,7 +387,7 @@ func TestEscalationEngine_EvaluateEscalations_DoesNotAdvanceBeforeTimeout(t *tes
 	recentlyNotified := time.Now().Add(-1 * time.Minute)
 	state := models.EscalationState{
 		ID:               uuid.New(),
-		AlertID:          alertID,
+		AlertID:          &alertID,
 		PolicyID:         policyID,
 		CurrentTierIndex: 0,
 		Status:           models.EscalationStateNotified,
@@ -422,7 +429,7 @@ func TestEscalationEngine_EvaluateEscalations_LastTierExhausted_MarksCompleted(t
 	notifiedAt := time.Now().Add(-10 * time.Minute)
 	state := models.EscalationState{
 		ID:               uuid.New(),
-		AlertID:          alertID,
+		AlertID:          &alertID,
 		PolicyID:         policyID,
 		CurrentTierIndex: 0,
 		Status:           models.EscalationStateNotified,
@@ -465,7 +472,7 @@ func TestEscalationEngine_EvaluateEscalations_ScheduleNoOnCall_SkipsTierAdvances
 	alertID := uuid.New()
 	state := models.EscalationState{
 		ID:               uuid.New(),
-		AlertID:          alertID,
+		AlertID:          &alertID,
 		PolicyID:         policyID,
 		CurrentTierIndex: 0,
 		Status:           models.EscalationStatePending,
@@ -505,7 +512,7 @@ func TestEscalationEngine_AcknowledgeAlert_StopsEscalation(t *testing.T) {
 	repo := newMockEscalationRepo()
 	state := &models.EscalationState{
 		ID:       uuid.New(),
-		AlertID:  alertID,
+		AlertID:  &alertID,
 		PolicyID: policyID,
 		Status:   models.EscalationStateNotified,
 	}
@@ -537,7 +544,7 @@ func TestEscalationEngine_AcknowledgeAlert_Idempotent(t *testing.T) {
 	repo := newMockEscalationRepo()
 	state := &models.EscalationState{
 		ID:             uuid.New(),
-		AlertID:        alertID,
+		AlertID:        &alertID,
 		PolicyID:       policyID,
 		Status:         models.EscalationStateAcknowledged,
 		AcknowledgedAt: &now,
@@ -561,7 +568,7 @@ func TestEscalationEngine_MarkAlertCompleted_SetsCompletedStatus(t *testing.T) {
 	repo := newMockEscalationRepo()
 	state := &models.EscalationState{
 		ID:       uuid.New(),
-		AlertID:  alertID,
+		AlertID:  &alertID,
 		PolicyID: policyID,
 		Status:   models.EscalationStateNotified,
 	}
@@ -603,7 +610,7 @@ func TestEscalationEngine_BothTargetType_NotifiesScheduleAndUsers(t *testing.T) 
 
 	alertID := uuid.New()
 	state := models.EscalationState{
-		ID: uuid.New(), AlertID: alertID, PolicyID: policyID,
+		ID: uuid.New(), AlertID: &alertID, PolicyID: policyID,
 		Status: models.EscalationStatePending,
 	}
 	repo.states[alertID] = &state

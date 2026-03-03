@@ -10,14 +10,15 @@ import (
 
 // ScheduleResponse is the response body for schedule endpoints.
 type ScheduleResponse struct {
-	ID                  uuid.UUID       `json:"id"`
-	Name                string          `json:"name"`
-	Description         string          `json:"description"`
-	Timezone            string          `json:"timezone"`
-	NotificationChannel string          `json:"notification_channel"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
-	Layers              []LayerResponse `json:"layers,omitempty"`
+	ID                        uuid.UUID       `json:"id"`
+	Name                      string          `json:"name"`
+	Description               string          `json:"description"`
+	Timezone                  string          `json:"timezone"`
+	NotificationChannel       string          `json:"notification_channel"`
+	DefaultEscalationPolicyID *uuid.UUID      `json:"default_escalation_policy_id,omitempty"`
+	CreatedAt                 time.Time       `json:"created_at"`
+	UpdatedAt                 time.Time       `json:"updated_at"`
+	Layers                    []LayerResponse `json:"layers,omitempty"`
 }
 
 // LayerResponse is the response body for a schedule layer.
@@ -72,13 +73,14 @@ type TimelineResponse struct {
 // ToScheduleResponse converts a models.Schedule to ScheduleResponse.
 func ToScheduleResponse(s *models.Schedule) ScheduleResponse {
 	resp := ScheduleResponse{
-		ID:                  s.ID,
-		Name:                s.Name,
-		Description:         s.Description,
-		Timezone:            s.Timezone,
-		NotificationChannel: s.NotificationChannel,
-		CreatedAt:           s.CreatedAt,
-		UpdatedAt:           s.UpdatedAt,
+		ID:                        s.ID,
+		Name:                      s.Name,
+		Description:               s.Description,
+		Timezone:                  s.Timezone,
+		NotificationChannel:       s.NotificationChannel,
+		DefaultEscalationPolicyID: s.DefaultEscalationPolicyID,
+		CreatedAt:                 s.CreatedAt,
+		UpdatedAt:                 s.UpdatedAt,
 	}
 	if s.Layers != nil {
 		resp.Layers = make([]LayerResponse, len(s.Layers))

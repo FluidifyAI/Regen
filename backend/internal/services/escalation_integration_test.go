@@ -27,7 +27,7 @@ func setupEscalationIntegrationDB(t *testing.T) (*gorm.DB, func()) {
 
 	tables := []string{
 		"timeline_entries", "incident_alerts", "incidents",
-		"escalation_states", "escalation_tiers", "escalation_policies", "alerts",
+		"escalation_severity_rules", "escalation_states", "escalation_tiers", "escalation_policies", "alerts",
 	}
 	for _, tbl := range tables {
 		sqlDB.Exec("DROP TABLE IF EXISTS " + tbl)
@@ -152,6 +152,15 @@ func setupEscalationIntegrationDB(t *testing.T) (*gorm.DB, func()) {
 		acknowledged_by TEXT,
 		acknowledged_via TEXT,
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`)
+	require.NoError(t, err)
+
+	_, err = sqlDB.Exec(`CREATE TABLE escalation_severity_rules (
+		id TEXT PRIMARY KEY,
+		severity TEXT NOT NULL UNIQUE,
+		escalation_policy_id TEXT NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	)`)
 	require.NoError(t, err)
 

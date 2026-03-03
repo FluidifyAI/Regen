@@ -33,6 +33,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	groupingRuleRepo := repository.NewGroupingRuleRepository(db)
 	routingRuleRepo := repository.NewRoutingRuleRepository(db)
 	escalationPolicyRepo := repository.NewEscalationPolicyRepository(db)
+	systemSettingsRepo := repository.NewSystemSettingsRepository(db)
 	userRepo := repository.NewUserRepository(db)
 
 	// Initialize Slack service (optional - graceful degradation if not configured)
@@ -99,6 +100,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	alertSvc.SetGroupingEngine(groupingEngine)
 	alertSvc.SetRoutingEngine(routingEngine)
 	alertSvc.SetEscalationEngine(escalationEngine)
+	alertSvc.SetEscalationRepos(escalationPolicyRepo, systemSettingsRepo)
 
 	// Post-mortem service (v0.7+)
 	postMortemSvc := services.NewPostMortemService(pmRepo, postMortemTemplateRepo, incidentSvc, aiSvc)
@@ -339,6 +341,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// Escalation Policies (v0.5)
 		protected.GET("/escalation-policies", handlers.ListEscalationPolicies(escalationPolicyRepo))
 		protected.POST("/escalation-policies", handlers.CreateEscalationPolicy(escalationPolicyRepo))
+		// Severity rules registered before /:id to prevent Gin matching "severity-rules" as :id.
+		protected.GET("/escalation-policies/severity-rules", handlers.ListSeverityRules(escalationPolicyRepo))
+		protected.PUT("/escalation-policies/severity-rules/:severity", handlers.UpsertSeverityRule(escalationPolicyRepo))
+		protected.DELETE("/escalation-policies/severity-rules/:severity", handlers.DeleteSeverityRule(escalationPolicyRepo))
 		protected.GET("/escalation-policies/:id", handlers.GetEscalationPolicy(escalationPolicyRepo))
 		protected.PATCH("/escalation-policies/:id", handlers.UpdateEscalationPolicy(escalationPolicyRepo))
 		protected.DELETE("/escalation-policies/:id", handlers.DeleteEscalationPolicy(escalationPolicyRepo))
@@ -360,6 +366,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			settingsGroup.PATCH("/users/:id", handlers.UpdateUser(localAuth))
 			settingsGroup.DELETE("/users/:id", handlers.DeactivateUser(localAuth))
 			settingsGroup.POST("/users/:id/reset-password", handlers.ResetUserPassword(localAuth))
+
+			// Global escalation settings (global fallback policy)
+			settingsGroup.GET("/escalation", handlers.GetEscalationSettings(systemSettingsRepo))
+			settingsGroup.PUT("/escalation", handlers.UpdateEscalationSettings(systemSettingsRepo))
 		}
 	}
 }

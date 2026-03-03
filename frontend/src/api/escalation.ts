@@ -55,3 +55,44 @@ export async function updateEscalationTier(
 export async function deleteEscalationTier(policyId: string, tierId: string): Promise<void> {
   return apiClient.delete<void>(`/api/v1/escalation-policies/${policyId}/tiers/${tierId}`)
 }
+
+// ── Severity rules ────────────────────────────────────────────────────────────
+
+export interface EscalationSeverityRule {
+  id: string
+  severity: string
+  escalation_policy_id: string
+  created_at: string
+  updated_at: string
+}
+
+export async function listSeverityRules(): Promise<{ data: EscalationSeverityRule[] }> {
+  return apiClient.get('/api/v1/escalation-policies/severity-rules')
+}
+
+export async function upsertSeverityRule(
+  severity: string,
+  escalationPolicyId: string,
+): Promise<EscalationSeverityRule> {
+  return apiClient.put(`/api/v1/escalation-policies/severity-rules/${severity}`, {
+    escalation_policy_id: escalationPolicyId,
+  })
+}
+
+export async function deleteSeverityRule(severity: string): Promise<void> {
+  await apiClient.delete(`/api/v1/escalation-policies/severity-rules/${severity}`)
+}
+
+// ── Global escalation settings ────────────────────────────────────────────────
+
+export async function getEscalationSettings(): Promise<{ global_fallback_policy_id: string | null }> {
+  return apiClient.get('/api/v1/settings/escalation')
+}
+
+export async function updateEscalationSettings(
+  globalFallbackPolicyId: string | null,
+): Promise<void> {
+  await apiClient.put('/api/v1/settings/escalation', {
+    global_fallback_policy_id: globalFallbackPolicyId,
+  })
+}

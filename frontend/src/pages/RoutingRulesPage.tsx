@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyState } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
 import { useRoutingRules } from '../hooks/useRoutingRules'
 import { createRoutingRule, updateRoutingRule, deleteRoutingRule } from '../api/routing_rules'
-import type { RoutingRule, CreateRoutingRuleRequest } from '../api/types'
+import { listEscalationPolicies } from '../api/escalation'
+import type { RoutingRule, CreateRoutingRuleRequest, EscalationPolicy } from '../api/types'
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ function RuleModal({ isOpen, rule, onClose, onSaved }: RuleModalProps) {
   const [actionsText, setActionsText] = useState('{"create_incident": true}')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [policies, setPolicies] = useState<EscalationPolicy[]>([])
+  const [escalationPolicyId, setEscalationPolicyId] = useState('')
   const nameRef = useRef<HTMLInputElement>(null)
 
   // Populate form when editing an existing rule
@@ -37,6 +40,10 @@ function RuleModal({ isOpen, rule, onClose, onSaved }: RuleModalProps) {
       setEnabled(rule.enabled)
       setMatchCriteriaText(JSON.stringify(rule.match_criteria, null, 2))
       setActionsText(JSON.stringify(rule.actions, null, 2))
+      try {
+        const parsed = JSON.parse(JSON.stringify(rule.actions))
+        setEscalationPolicyId(parsed.escalation_policy_id ?? '')
+      } catch { setEscalationPolicyId('') }
     } else {
       setName('')
       setDescription('')
@@ -44,9 +51,17 @@ function RuleModal({ isOpen, rule, onClose, onSaved }: RuleModalProps) {
       setEnabled(true)
       setMatchCriteriaText('{}')
       setActionsText('{"create_incident": true}')
+      setEscalationPolicyId('')
     }
     setError(null)
   }, [rule, isOpen])
+
+  // Load policies when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      listEscalationPolicies().then(r => setPolicies(r.data)).catch(() => {})
+    }
+  }, [isOpen])
 
   useEffect(() => {
     if (isOpen) nameRef.current?.focus()
@@ -217,7 +232,40 @@ function RuleModal({ isOpen, rule, onClose, onSaved }: RuleModalProps) {
                 placeholder={'{\n  "create_incident": true\n}'}
               />
               <p className="mt-1 text-xs text-text-tertiary">
-                Keys: <code>create_incident</code>, <code>suppress</code>, <code>severity_override</code>, <code>channel_override</code>, <code>escalation_policy_id</code>
+                Keys: <code>create_incident</code>, <code>suppress</code>, <code>severity_override</code>, <code>channel_override</code>
+              </p>
+            </div>
+
+            <div>
+              <label className={labelClass}>Escalation Policy</label>
+              <div className="relative">
+                <select
+                  className={`${inputClass} pr-8 appearance-none`}
+                  value={escalationPolicyId}
+                  onChange={e => {
+                    const id = e.target.value
+                    setEscalationPolicyId(id)
+                    try {
+                      const parsed = JSON.parse(actionsText)
+                      if (id) {
+                        parsed.escalation_policy_id = id
+                      } else {
+                        delete parsed.escalation_policy_id
+                      }
+                      setActionsText(JSON.stringify(parsed, null, 2))
+                    } catch {}
+                  }}
+                  disabled={isSubmitting}
+                >
+                  <option value="">— No escalation —</option>
+                  {policies.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-2.5 w-4 h-4 text-text-tertiary pointer-events-none" />
+              </div>
+              <p className="mt-1 text-xs text-text-tertiary">
+                When set, this policy is triggered for alerts matching this rule.
               </p>
             </div>
           </div>
@@ -250,6 +298,11 @@ export function RoutingRulesPage() {
   const [editingRule, setEditingRule] = useState<RoutingRule | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [policies, setPolicies] = useState<EscalationPolicy[]>([])
+
+  useEffect(() => {
+    listEscalationPolicies().then(r => setPolicies(r.data)).catch(() => {})
+  }, [])
 
   const handleCreate = () => {
     setEditingRule(null)
@@ -281,7 +334,10 @@ export function RoutingRulesPage() {
     if (actions.create_incident) parts.push('Create incident')
     if (actions.severity_override) parts.push(`Severity → ${actions.severity_override}`)
     if (actions.channel_override) parts.push(`Channel → ${actions.channel_override}`)
-    if (actions.escalation_policy_id) parts.push(`Escalation → ${String(actions.escalation_policy_id).slice(0, 8)}…`)
+    if (actions.escalation_policy_id) {
+      const policy = policies.find(p => p.id === actions.escalation_policy_id)
+      parts.push(`Escalate → ${policy?.name ?? String(actions.escalation_policy_id).slice(0, 8) + '…'}`)
+    }
     return parts.length > 0 ? parts.join(', ') : 'No action'
   }
 

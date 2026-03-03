@@ -37,15 +37,21 @@ type AlertService interface {
 
 	// SetEscalationEngine sets the escalation engine for alert escalation (v0.5+)
 	SetEscalationEngine(engine EscalationEngine)
+
+	// SetEscalationRepos provides repos for the severity-rule and global-fallback
+	// steps in the escalation policy resolution chain.
+	SetEscalationRepos(escalationRepo repository.EscalationPolicyRepository, systemSettingsRepo repository.SystemSettingsRepository)
 }
 
 // alertService implements AlertService
 type alertService struct {
-	alertRepo         repository.AlertRepository
-	incidentSvc       IncidentService
-	groupingEngine    GroupingEngine    // Optional - can be nil if grouping disabled
-	routingEngine     RoutingEngine     // Optional - can be nil if routing disabled
-	escalationEngine  EscalationEngine  // Optional - can be nil if escalation disabled
+	alertRepo          repository.AlertRepository
+	incidentSvc        IncidentService
+	groupingEngine     GroupingEngine             // Optional - can be nil if grouping disabled
+	routingEngine      RoutingEngine              // Optional - can be nil if routing disabled
+	escalationEngine   EscalationEngine           // Optional - can be nil if escalation disabled
+	escalationRepo     repository.EscalationPolicyRepository  // For severity-rule fallback
+	systemSettingsRepo repository.SystemSettingsRepository    // For global-fallback policy
 }
 
 // NewAlertService creates a new alert service
@@ -73,6 +79,16 @@ func (s *alertService) SetRoutingEngine(engine RoutingEngine) {
 // SetEscalationEngine sets the escalation engine (for v0.5+ escalation support)
 func (s *alertService) SetEscalationEngine(engine EscalationEngine) {
 	s.escalationEngine = engine
+}
+
+// SetEscalationRepos provides the repositories used for the severity-rule and
+// global-fallback steps of the escalation policy resolution chain.
+func (s *alertService) SetEscalationRepos(
+	escalationRepo repository.EscalationPolicyRepository,
+	systemSettingsRepo repository.SystemSettingsRepository,
+) {
+	s.escalationRepo = escalationRepo
+	s.systemSettingsRepo = systemSettingsRepo
 }
 
 // ProcessAlertmanagerPayload processes all alerts from an Alertmanager webhook (v0.1 legacy method).
@@ -209,17 +225,22 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 				continue
 			}
 
-			// v0.5+: Trigger escalation policy if the routing rule assigned one.
-			// We persist the policy ID to the alert row so that the frontend can
-			// show the escalation status card and link back to the policy.
-			if s.escalationEngine != nil && routingDecision.EscalationPolicyID != nil {
-				alert.EscalationPolicyID = routingDecision.EscalationPolicyID
-				if err := s.alertRepo.Update(alert); err != nil {
-					slog.Error("failed to persist escalation_policy_id on alert", "alert_id", alert.ID, "err", err)
+			// v0.5+: Resolve escalation policy via fallback chain, then trigger.
+			// Chain: routing rule → severity rule → global fallback.
+			if s.escalationEngine != nil {
+				policyID := routingDecision.EscalationPolicyID
+				if policyID == nil {
+					policyID = s.resolveEscalationPolicy(alert)
 				}
-				if err := s.escalationEngine.TriggerEscalation(alert); err != nil {
-					// Log and continue — escalation failure must not block incident creation.
-					slog.Error("failed to trigger escalation for alert", "alert_id", alert.ID, "err", err)
+				if policyID != nil {
+					alert.EscalationPolicyID = policyID
+					if err := s.alertRepo.Update(alert); err != nil {
+						slog.Error("failed to persist escalation_policy_id on alert", "alert_id", alert.ID, "err", err)
+					}
+					if err := s.escalationEngine.TriggerEscalation(alert); err != nil {
+						// Log and continue — escalation failure must not block incident creation.
+						slog.Error("failed to trigger escalation for alert", "alert_id", alert.ID, "err", err)
+					}
 				}
 			}
 
@@ -327,4 +348,26 @@ func (s *alertService) normalizedAlertToModel(normalized *webhooks.NormalizedAle
 		StartedAt:   normalized.StartedAt,
 		EndedAt:     normalized.EndedAt,
 	}
+}
+
+// resolveEscalationPolicy walks the fallback chain to find an escalation policy
+// for the given alert when the routing rule provides no explicit policy ID.
+//
+// Fallback order:
+//  1. Severity rule (escalation_severity_rules table)
+//  2. Global fallback (system_settings "escalation.global_fallback_policy_id")
+func (s *alertService) resolveEscalationPolicy(alert *models.Alert) *uuid.UUID {
+	// 1. Severity rule
+	if s.escalationRepo != nil {
+		if rule, err := s.escalationRepo.GetSeverityRule(string(alert.Severity)); err == nil && rule != nil {
+			return &rule.EscalationPolicyID
+		}
+	}
+	// 2. Global fallback
+	if s.systemSettingsRepo != nil {
+		if id, err := s.systemSettingsRepo.GetGlobalFallbackPolicyID(); err == nil && id != nil {
+			return id
+		}
+	}
+	return nil
 }

@@ -80,6 +80,18 @@ type EscalationPolicyRepository interface {
 	// RecordAcknowledgment marks an escalation state as acknowledged and updates
 	// the alert's acknowledgment_status in a single transaction.
 	RecordAcknowledgment(alertID uuid.UUID, by string, via models.AcknowledgmentVia) error
+
+	// ListSeverityRules returns all severity → policy mappings.
+	ListSeverityRules() ([]models.EscalationSeverityRule, error)
+
+	// GetSeverityRule returns the rule for a specific severity, or nil if unset.
+	GetSeverityRule(severity string) (*models.EscalationSeverityRule, error)
+
+	// UpsertSeverityRule creates or updates the escalation policy for a severity level.
+	UpsertSeverityRule(severity string, policyID uuid.UUID) (*models.EscalationSeverityRule, error)
+
+	// DeleteSeverityRule removes the escalation rule for a severity level.
+	DeleteSeverityRule(severity string) error
 }
 
 // escalationPolicyRepository implements EscalationPolicyRepository.
@@ -388,6 +400,54 @@ func (r *escalationPolicyRepository) RecordAcknowledgment(
 
 		return nil
 	})
+}
+
+// ── Severity rule methods ─────────────────────────────────────────────────────
+
+// ListSeverityRules returns all severity → policy mappings ordered by severity.
+func (r *escalationPolicyRepository) ListSeverityRules() ([]models.EscalationSeverityRule, error) {
+	var rules []models.EscalationSeverityRule
+	if err := r.db.Order("severity").Find(&rules).Error; err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
+// GetSeverityRule returns the rule for a specific severity, or nil if none exists.
+func (r *escalationPolicyRepository) GetSeverityRule(severity string) (*models.EscalationSeverityRule, error) {
+	var rule models.EscalationSeverityRule
+	err := r.db.Where("severity = ?", severity).First(&rule).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &rule, nil
+}
+
+// UpsertSeverityRule creates or replaces the escalation policy for a severity level.
+func (r *escalationPolicyRepository) UpsertSeverityRule(severity string, policyID uuid.UUID) (*models.EscalationSeverityRule, error) {
+	var rule models.EscalationSeverityRule
+	result := r.db.Where(models.EscalationSeverityRule{Severity: severity}).
+		Assign(models.EscalationSeverityRule{EscalationPolicyID: policyID}).
+		FirstOrCreate(&rule)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	// If row already existed (RowsAffected == 0 from FirstOrCreate), update the policy.
+	if rule.EscalationPolicyID != policyID {
+		if err := r.db.Model(&rule).Update("escalation_policy_id", policyID).Error; err != nil {
+			return nil, err
+		}
+		rule.EscalationPolicyID = policyID
+	}
+	return &rule, nil
+}
+
+// DeleteSeverityRule removes the escalation rule for a severity level (no-op if missing).
+func (r *escalationPolicyRepository) DeleteSeverityRule(severity string) error {
+	return r.db.Where("severity = ?", severity).Delete(&models.EscalationSeverityRule{}).Error
 }
 
 // ── Validation helpers ────────────────────────────────────────────────────────

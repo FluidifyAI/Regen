@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react'
 import { login, bootstrap, exchangeSetupToken } from '../api/auth'
 import { useAuth } from '../hooks/useAuth'
+import { getSlackOAuthStatus } from '../api/slack'
 
 // Returns the post-login destination: the ?next= param if present and safe,
 // otherwise the app root. Prevents open-redirect by only accepting same-origin paths.
@@ -25,6 +26,13 @@ function postLoginRedirect(): string {
 
 export function LoginPage() {
   const { ssoEnabled, openMode, loading: authLoading } = useAuth()
+  const [slackLoginEnabled, setSlackLoginEnabled] = useState(false)
+
+  useEffect(() => {
+    getSlackOAuthStatus()
+      .then((r) => setSlackLoginEnabled(r.enabled))
+      .catch(() => {})
+  }, [])
 
   // Sign-in form state
   const [email, setEmail] = useState('')
@@ -37,10 +45,17 @@ export function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const token = params.get('setup')
-    if (!token) return
-    exchangeSetupToken(token)
-      .then(() => { window.location.href = postLoginRedirect() })
-      .catch(() => setError('This setup link has expired or has already been used.'))
+    if (token) {
+      exchangeSetupToken(token)
+        .then(() => { window.location.href = postLoginRedirect() })
+        .catch(() => setError('This setup link has expired or has already been used.'))
+      return
+    }
+    // Handle error codes from Slack OAuth callback
+    const oauthError = params.get('error')
+    if (oauthError === 'no_account') setError('No OpenIncident account found for this Slack workspace. Ask your admin to invite you.')
+    else if (oauthError === 'slack_auth_failed') setError('Slack authentication failed. Please try again.')
+    else if (oauthError === 'invalid_state') setError('Login session expired. Please try again.')
   }, [])
 
   // First-time setup form state — auto-open when no accounts exist yet
@@ -213,6 +228,25 @@ export function LoginPage() {
             </>
           )}
 
+          {/* Slack login — shown only when OAuth is configured */}
+          {!authLoading && slackLoginEnabled && (
+            <>
+              <div className="flex items-center gap-3 my-6">
+                <div className="flex-1 border-t border-[#1E293B]" />
+                <span className="text-[#334155] text-xs">or</span>
+                <div className="flex-1 border-t border-[#1E293B]" />
+              </div>
+
+              <a
+                href="/api/v1/auth/slack"
+                className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg border border-[#334155] bg-transparent hover:bg-[#1E293B] text-[#94A3B8] hover:text-[#CBD5E1] text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2 focus:ring-offset-[#0F172A]"
+              >
+                <SlackIcon className="w-4 h-4" />
+                Continue with Slack
+              </a>
+            </>
+          )}
+
           {/* First-time setup section */}
           <div className={openMode ? '' : 'mt-6'}>
             {/* Toggle is only shown when there ARE existing accounts (open mode hides it) */}
@@ -357,6 +391,14 @@ function KeyIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
         d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"
       />
+    </svg>
+  )
+}
+
+function SlackIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
     </svg>
   )
 }

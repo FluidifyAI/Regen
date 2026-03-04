@@ -27,6 +27,9 @@ type LocalAuthService interface {
 	// GetUserByEmail returns the user with the given email, regardless of auth source.
 	// Used by middleware to resolve a SAML JWT session to a DB user record.
 	GetUserByEmail(email string) (*models.User, error)
+	// LoginByUserID creates a session for the given user ID without a password check.
+	// Used by Slack OAuth login after the user's identity is verified by Slack.
+	LoginByUserID(id uuid.UUID) (*models.LocalSession, error)
 }
 
 // dummyHash is computed once at startup and used in Login to ensure constant-time
@@ -194,4 +197,14 @@ func (s *localAuthService) CountAdmins() (int64, error) {
 
 func (s *localAuthService) GetUserByEmail(email string) (*models.User, error) {
 	return s.users.GetByEmail(email)
+}
+
+func (s *localAuthService) LoginByUserID(id uuid.UUID) (*models.LocalSession, error) {
+	_ = s.sessions.DeleteExpired()
+	session, err := s.sessions.Create(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+	_ = s.users.UpdateLastLogin(id, time.Now())
+	return session, nil
 }

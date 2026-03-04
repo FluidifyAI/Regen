@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/coordinator/agents"
 	"github.com/openincident/openincident/internal/models"
+	"github.com/openincident/openincident/internal/repository"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/gorm"
 )
 
 // --- Fakes ---
@@ -28,7 +28,7 @@ func (f *fakePostMortemSvc) GetPostMortem(incidentID uuid.UUID) (*models.PostMor
 	if f.existing {
 		return &models.PostMortem{}, nil
 	}
-	return nil, gorm.ErrRecordNotFound
+	return nil, &repository.NotFoundError{Resource: "post_mortem", ID: incidentID.String()}
 }
 
 func (f *fakePostMortemSvc) GeneratePostMortem(incident *models.Incident, templateID *uuid.UUID, createdByID string) (*models.PostMortem, error) {

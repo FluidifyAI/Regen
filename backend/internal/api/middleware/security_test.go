@@ -36,11 +36,11 @@ func TestSecurityHeaders(t *testing.T) {
 	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"),
 		"X-Frame-Options should be set to DENY")
 
-	assert.Equal(t, "1; mode=block", w.Header().Get("X-XSS-Protection"),
-		"X-XSS-Protection should be set to 1; mode=block")
+	assert.Empty(t, w.Header().Get("X-XSS-Protection"),
+		"X-XSS-Protection should not be set (deprecated header)")
 
-	assert.Equal(t, "default-src 'self'", w.Header().Get("Content-Security-Policy"),
-		"Content-Security-Policy should be set to default-src 'self'")
+	assert.Equal(t, "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'", w.Header().Get("Content-Security-Policy"),
+		"Content-Security-Policy should match the hardened policy")
 
 	assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"),
 		"Referrer-Policy should be set to strict-origin-when-cross-origin")

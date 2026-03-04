@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   X, Copy, Check, Webhook,
-  ExternalLink, Lock, MessageSquarePlus, Send,
+  ExternalLink, Lock, MessageSquarePlus, Send, CheckCircle,
 } from 'lucide-react'
 import { apiClient } from '../api/client'
+import { getSlackConfig, type SlackConfigStatus } from '../api/slack'
+import { SlackSetupModal } from '../components/SlackSetupModal'
 
 // ─── Integration definitions ──────────────────────────────────────────────────
 
@@ -596,6 +598,12 @@ export function IntegrationsPage() {
   const [requestModal, setRequestModal] = useState<{ open: boolean; tool: string }>({ open: false, tool: '' })
   const [alertCounts, setAlertCounts] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
+  const [slackStatus, setSlackStatus] = useState<SlackConfigStatus | null>(null)
+  const [showSlackModal, setShowSlackModal] = useState(false)
+
+  useEffect(() => {
+    getSlackConfig().then(setSlackStatus).catch(() => {})
+  }, [])
 
   useEffect(() => {
     Promise.allSettled(
@@ -639,6 +647,15 @@ export function IntegrationsPage() {
           onClose={() => setRequestModal({ open: false, tool: '' })}
         />
       )}
+      {showSlackModal && (
+        <SlackSetupModal
+          onClose={() => setShowSlackModal(false)}
+          onConnected={() => {
+            setShowSlackModal(false)
+            getSlackConfig().then(setSlackStatus).catch(() => {})
+          }}
+        />
+      )}
 
       {/* Page Header */}
       <div className="border-b border-border bg-surface-primary px-6 py-4">
@@ -663,6 +680,46 @@ export function IntegrationsPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
           </svg>
         </div>
+
+        {/* Chat integrations */}
+        <section>
+          <h2 className="text-sm font-semibold text-text-primary mb-3">Chat</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-border bg-surface-primary p-4 flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <img
+                    src="https://cdn.simpleicons.org/slack"
+                    alt="Slack"
+                    className="w-8 h-8 flex-shrink-0"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-text-primary">Slack</p>
+                    <p className="text-xs text-text-tertiary">Incident channels &amp; alerts</p>
+                  </div>
+                </div>
+                {slackStatus?.configured && (
+                  <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Connected
+                  </span>
+                )}
+              </div>
+              {slackStatus?.configured && slackStatus.workspace_name && (
+                <p className="text-xs text-text-tertiary">
+                  Workspace: <span className="text-text-secondary font-medium">{slackStatus.workspace_name}</span>
+                </p>
+              )}
+              <button
+                onClick={() => setShowSlackModal(true)}
+                className="mt-auto flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-primary hover:bg-surface-secondary transition-colors"
+              >
+                {slackStatus?.configured ? 'Reconfigure' : 'Connect Slack'}
+              </button>
+            </div>
+          </div>
+        </section>
 
         {/* Connected */}
         {connected.length > 0 && (

@@ -35,32 +35,24 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	escalationPolicyRepo := repository.NewEscalationPolicyRepository(db)
 	systemSettingsRepo := repository.NewSystemSettingsRepository(db)
 	userRepo := repository.NewUserRepository(db)
+	slackConfigRepo := repository.NewSlackConfigRepository(db)
 
-	// Initialize Slack service (optional - graceful degradation if not configured)
+	// Initialize Slack service — config loaded from DB (no env var fallback).
+	// If slack_config table is empty, the app runs without Slack integration.
+	// Use the Integrations page to configure Slack.
 	var chatService services.ChatService
-	slackToken := os.Getenv("SLACK_BOT_TOKEN")
-	if slackToken != "" {
-		// Validate Slack configuration
-		validator := services.NewSlackValidator(slackToken)
-		if err := validator.ValidateToken(); err != nil {
-			slog.Error("slack token validation failed", "error", err)
-			slog.Warn("continuing without slack integration - incidents will be created but no slack channels will be created")
-		} else if err := validator.ValidateScopes(); err != nil {
-			slog.Error("slack scope validation failed", "error", err)
-			slog.Warn("continuing without slack integration - please check bot permissions")
+	if slackCfg, err := slackConfigRepo.Get(); err != nil {
+		slog.Error("failed to load slack config from db", "error", err)
+	} else if slackCfg != nil && slackCfg.BotToken != "" {
+		if svc, err := services.NewSlackService(slackCfg.BotToken); err != nil {
+			slog.Error("failed to initialize slack service", "error", err)
+			slog.Warn("continuing without slack integration")
 		} else {
-			// Token and scopes validated - initialize Slack service
-			var err error
-			chatService, err = services.NewSlackService(slackToken)
-			if err != nil {
-				slog.Error("failed to initialize slack service", "error", err)
-				slog.Warn("continuing without slack integration")
-			} else {
-				slog.Info("slack integration enabled")
-			}
+			chatService = svc
+			slog.Info("slack integration enabled", "workspace", slackCfg.WorkspaceName)
 		}
 	} else {
-		slog.Warn("SLACK_BOT_TOKEN not set - running in degraded mode without slack integration")
+		slog.Warn("slack not configured — use the Integrations page to connect Slack")
 	}
 
 	// Initialize grouping engine (for alert deduplication and grouping)
@@ -111,12 +103,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		services.SetTeamsService(incidentSvc, teamsSvc)
 	}
 
-	// Start Slack Socket Mode event handler (bidirectional sync)
-	// Requires SLACK_APP_TOKEN in addition to SLACK_BOT_TOKEN
-	if cfg.SlackAppToken != "" && chatService != nil {
+	// Start Slack Socket Mode event handler (bidirectional sync) if app token is configured.
+	if slackCfgForSocket, err := slackConfigRepo.Get(); err == nil &&
+		slackCfgForSocket != nil && slackCfgForSocket.AppToken != "" && chatService != nil {
 		eventHandler, err := services.NewSlackEventHandler(
-			cfg.SlackAppToken,
-			cfg.SlackBotToken,
+			slackCfgForSocket.AppToken,
+			slackCfgForSocket.BotToken,
 			incidentSvc,
 			chatService,
 		)
@@ -126,8 +118,6 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		} else {
 			eventHandler.Start()
 		}
-	} else if cfg.SlackAppToken == "" && chatService != nil {
-		slog.Warn("SLACK_APP_TOKEN not set - bidirectional Slack sync disabled (one-way only)")
 	}
 
 	// Middleware
@@ -238,6 +228,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 				teamsGroup.POST("", handlers.TeamsWebhook(teamsEventHandler))
 			}
 		}
+
+		// Slack OAuth login (always open — these ARE the login flow)
+		v1.GET("/auth/slack", handlers.InitSlackOAuth(slackConfigRepo))
+		v1.GET("/auth/slack/callback", handlers.SlackOAuthCallback(slackConfigRepo, localAuth))
+		// Public: is Slack OAuth login enabled? (LoginPage uses this to show/hide the button)
+		v1.GET("/auth/slack/config", handlers.GetSlackOAuthConfig(slackConfigRepo))
 
 		// Local login/logout endpoints (always open — these ARE the auth actions)
 		if localAuth != nil {
@@ -370,6 +366,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			// Global escalation settings (global fallback policy)
 			settingsGroup.GET("/escalation", handlers.GetEscalationSettings(systemSettingsRepo))
 			settingsGroup.PUT("/escalation", handlers.UpdateEscalationSettings(systemSettingsRepo))
+
+			// Slack integration config (admin only)
+			settingsGroup.GET("/slack", handlers.GetSlackConfig(slackConfigRepo))
+			settingsGroup.POST("/slack", handlers.SaveSlackConfig(slackConfigRepo))
+			settingsGroup.POST("/slack/test", handlers.TestSlackConfig())
+			settingsGroup.DELETE("/slack", handlers.DeleteSlackConfig(slackConfigRepo))
 		}
 	}
 }

@@ -24,7 +24,8 @@ type mockEscalationEngineForHandler struct {
 	AcknowledgeAlertFn func(alertID uuid.UUID, by string, via models.AcknowledgmentVia) error
 }
 
-func (m *mockEscalationEngineForHandler) TriggerEscalation(alert *models.Alert) error { return nil }\nfunc (m *mockEscalationEngineForHandler) TriggerIncidentEscalation(_ uuid.UUID, _ uuid.UUID) error { return nil }
+func (m *mockEscalationEngineForHandler) TriggerEscalation(alert *models.Alert) error { return nil }
+func (m *mockEscalationEngineForHandler) TriggerIncidentEscalation(_ uuid.UUID, _ uuid.UUID) error { return nil }
 func (m *mockEscalationEngineForHandler) EvaluateEscalations() error                  { return nil }
 func (m *mockEscalationEngineForHandler) AcknowledgeAlert(alertID uuid.UUID, by string, via models.AcknowledgmentVia) error {
 	return m.AcknowledgeAlertFn(alertID, by, via)

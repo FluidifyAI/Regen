@@ -1429,6 +1429,10 @@ func publishResolved(incidentID uuid.UUID, aiEnabled bool) {
 		slog.Error("publishResolved: marshal failed", "error", err)
 		return
 	}
+	if appredis.Client == nil {
+		slog.Warn("publishResolved: redis client not initialized, skipping")
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	if err := appredis.Client.Publish(ctx, "events:incident.resolved", payload).Err(); err != nil {

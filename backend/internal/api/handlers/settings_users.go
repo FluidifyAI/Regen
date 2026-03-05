@@ -51,6 +51,13 @@ func CreateUser(localAuth services.LocalAuthService) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": errMsg}})
 			return
 		}
+		if req.SlackUserID != "" {
+			if err := localAuth.UpdateUserSlackID(user.ID, &req.SlackUserID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": err.Error()}})
+				return
+			}
+			user.SlackUserID = &req.SlackUserID
+		}
 		c.JSON(http.StatusCreated, gin.H{
 			"user":        dto.UserToResponse(*user),
 			"setup_token": setupToken,
@@ -95,6 +102,16 @@ func UpdateUser(localAuth services.LocalAuthService) gin.HandlerFunc {
 		if err := localAuth.UpdateUser(id, name, role, password); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": err.Error()}})
 			return
+		}
+		if req.SlackUserID != nil {
+			var slackID *string
+			if *req.SlackUserID != "" {
+				slackID = req.SlackUserID
+			}
+			if err := localAuth.UpdateUserSlackID(id, slackID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": err.Error()}})
+				return
+			}
 		}
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}

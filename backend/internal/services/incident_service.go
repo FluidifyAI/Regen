@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -83,12 +84,11 @@ type incidentService struct {
 	incidentRepo      repository.IncidentRepository
 	timelineRepo      repository.TimelineRepository
 	alertRepo         repository.AlertRepository
-	chatService       ChatService          // Optional - can be nil if Slack not configured
-	messageBuilder    *SlackMessageBuilder // Optional - can be nil if Slack not configured
-	teamsSvc          *TeamsService        // Optional - can be nil if Teams not configured (v0.8+)
-	db                *gorm.DB             // For transaction management
-	autoInviteUserIDs []string             // User IDs to auto-invite to incident channels
-	aiService         AIService            // Optional - can be nil if OpenAI not configured
+	chatService    ChatService          // Optional - can be nil if Slack not configured
+	messageBuilder *SlackMessageBuilder // Optional - can be nil if Slack not configured
+	teamsSvc       *TeamsService        // Optional - can be nil if Teams not configured (v0.8+)
+	db             *gorm.DB             // For transaction management
+	aiService      AIService            // Optional - can be nil if OpenAI not configured
 	userRepo          repository.UserRepository     // Optional — for commander name resolution
 	scheduleRepo      repository.ScheduleRepository // Optional — for on-call auto-assign
 	evaluator         ScheduleEvaluator             // Optional — for on-call auto-assign
@@ -101,7 +101,6 @@ func NewIncidentService(
 	alertRepo repository.AlertRepository,
 	chatService ChatService, // Optional - pass nil if Slack not configured
 	db *gorm.DB,
-	autoInviteUserIDs []string,
 ) IncidentService {
 	var messageBuilder *SlackMessageBuilder
 	if chatService != nil {
@@ -109,13 +108,12 @@ func NewIncidentService(
 	}
 
 	return &incidentService{
-		incidentRepo:      incidentRepo,
-		timelineRepo:      timelineRepo,
-		alertRepo:         alertRepo,
-		chatService:       chatService,
-		messageBuilder:    messageBuilder,
-		db:                db,
-		autoInviteUserIDs: autoInviteUserIDs,
+		incidentRepo:   incidentRepo,
+		timelineRepo:   timelineRepo,
+		alertRepo:      alertRepo,
+		chatService:    chatService,
+		messageBuilder: messageBuilder,
+		db:             db,
 	}
 }
 
@@ -199,6 +197,20 @@ func (s *incidentService) findOnCallUserID() *uuid.UUID {
 		}
 	}
 	return nil
+}
+
+// getOnCallSlackUserIDs returns the Slack member IDs of the current on-call responders.
+// Returns nil when no schedules are configured or no responder has a slack_user_id set.
+func (s *incidentService) getOnCallSlackUserIDs() []string {
+	userID := s.findOnCallUserID()
+	if userID == nil || s.userRepo == nil {
+		return nil
+	}
+	user, err := s.userRepo.GetByID(*userID)
+	if err != nil || user == nil || user.SlackUserID == nil {
+		return nil
+	}
+	return []string{*user.SlackUserID}
 }
 
 // ShouldCreateIncident determines if an alert should trigger incident creation
@@ -534,7 +546,7 @@ func hashGroupKeyForLock(groupKey string) int64 {
 // This method is called asynchronously after incident creation to avoid blocking the webhook response.
 func (s *incidentService) CreateSlackChannelForIncident(incident *models.Incident, alerts []models.Alert) error {
 	if s.chatService == nil {
-		return fmt.Errorf("slack service not configured")
+		return nil // no chat service wired at all — skip silently
 	}
 
 	// Format channel name using incident number and slug
@@ -549,6 +561,10 @@ func (s *incidentService) CreateSlackChannelForIncident(incident *models.Inciden
 	// Create channel
 	channel, err := s.chatService.CreateChannel(channelName, description)
 	if err != nil {
+		if errors.Is(err, ErrSlackNotConfigured) {
+			slog.Debug("slack not configured, skipping channel creation")
+			return nil
+		}
 		// Create timeline entry for failure
 		s.createTimelineEntry(incident.ID, "slack_channel_creation_failed", models.JSONB{
 			"error":        err.Error(),
@@ -594,37 +610,36 @@ func (s *incidentService) CreateSlackChannelForIncident(incident *models.Inciden
 		}
 	}
 
-	// Auto-invite users if configured
-	if len(s.autoInviteUserIDs) > 0 {
-		slog.Info("auto-inviting users to incident channel",
+	// Auto-invite and DM the current on-call responder(s) if they have a Slack user ID set.
+	if slackIDs := s.getOnCallSlackUserIDs(); len(slackIDs) > 0 {
+		slog.Info("auto-inviting on-call user to incident channel",
 			"incident_id", incident.ID,
 			"channel_id", channel.ID,
-			"user_count", len(s.autoInviteUserIDs))
+			"user_count", len(slackIDs))
 
-		err = s.chatService.InviteUsers(channel.ID, s.autoInviteUserIDs)
-		if err != nil {
-			slog.Error("failed to invite users",
+		if invErr := s.chatService.InviteUsers(channel.ID, slackIDs); invErr != nil {
+			slog.Warn("failed to invite on-call user to slack channel",
 				"incident_id", incident.ID,
-				"error", err)
+				"channel_id", channel.ID,
+				"error", invErr)
+			// Non-fatal — channel still works, responder can join manually
+		}
 
-			// Timeline entry for failure
-			s.createTimelineEntry(incident.ID, "user_invitation_failed", models.JSONB{
-				"channel_id": channel.ID,
-				"user_ids":   s.autoInviteUserIDs,
-				"error":      err.Error(),
-			})
-			// Continue - non-fatal
-		} else {
-			slog.Info("users invited successfully",
-				"incident_id", incident.ID,
-				"user_count", len(s.autoInviteUserIDs))
-
-			// Timeline entry for success
-			s.createTimelineEntry(incident.ID, "users_invited", models.JSONB{
-				"channel_id": channel.ID,
-				"user_ids":   s.autoInviteUserIDs,
-				"user_count": len(s.autoInviteUserIDs),
-			})
+		// DM each on-call responder with incident details
+		for _, slackID := range slackIDs {
+			dmMsg := Message{
+				Text: fmt.Sprintf(
+					"🚨 *You're on-call — INC-%d: %s*\n*Severity:* %s\nJoin <#%s> to respond.",
+					incident.IncidentNumber, incident.Title, strings.ToUpper(string(incident.Severity)),
+					channel.ID,
+				),
+			}
+			if dmErr := s.chatService.SendDirectMessage(slackID, dmMsg); dmErr != nil {
+				slog.Warn("failed to DM on-call user",
+					"incident_id", incident.ID,
+					"slack_user_id", slackID,
+					"error", dmErr)
+			}
 		}
 	}
 

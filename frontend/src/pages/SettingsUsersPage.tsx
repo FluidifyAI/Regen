@@ -11,6 +11,7 @@ import {
   resetUserPassword,
   UserRecord,
 } from '../api/settings'
+import { listSlackMembers, SlackMember } from '../api/users'
 
 export function SettingsUsersPage() {
   const { user: currentUser } = useAuth()
@@ -19,6 +20,7 @@ export function SettingsUsersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showInvite, setShowInvite] = useState(false)
+  const [showSlackImport, setShowSlackImport] = useState(false)
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null)
   const [setupInfo, setSetupInfo] = useState<{ token: string; email: string } | null>(null)
   useEffect(() => {
@@ -72,10 +74,19 @@ export function SettingsUsersPage() {
             <h1 className="text-2xl font-semibold text-text-primary">Users</h1>
             <p className="text-sm text-text-secondary mt-0.5">Manage team members and access</p>
           </div>
-          <Button variant="primary" onClick={() => setShowInvite(true)}>
-            <Plus className="w-4 h-4" />
-            Invite user
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSlackImport(true)}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border bg-white hover:bg-gray-50 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <SlackIcon className="w-4 h-4" />
+              Import from Slack
+            </button>
+            <Button variant="primary" onClick={() => setShowInvite(true)}>
+              <Plus className="w-4 h-4" />
+              Invite user
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -181,7 +192,22 @@ export function SettingsUsersPage() {
           onSaved={() => { setEditingUser(null); loadUsers() }}
         />
       )}
+
+      {showSlackImport && (
+        <SlackImportModal
+          onClose={() => setShowSlackImport(false)}
+          onImported={() => { setShowSlackImport(false); loadUsers() }}
+        />
+      )}
     </div>
+  )
+}
+
+function SlackIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
+    </svg>
   )
 }
 
@@ -269,6 +295,7 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [name, setName] = useState('')
   const [role, setRole] = useState('member')
   const [password, setPassword] = useState('')
+  const [slackUserId, setSlackUserId] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -277,7 +304,7 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     if (password.length < 8) { setError('Password must be at least 8 characters'); return }
     setLoading(true); setError('')
     try {
-      const res = await createUser({ email, name, role, password })
+      const res = await createUser({ email, name, role, password, slackUserId: slackUserId || undefined })
       onCreated(res.setup_token, email)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create user'
@@ -300,6 +327,19 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <option value="viewer">Viewer</option>
           </select>
         </Field>
+        <div>
+          <label className="block text-text-secondary text-xs font-medium mb-1.5">
+            Slack Member ID <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={slackUserId}
+            onChange={e => setSlackUserId(e.target.value)}
+            placeholder="e.g. U0AJLLY3678"
+            className={inputCls}
+          />
+          <p className="text-xs text-gray-400 mt-1">Find in Slack: click your profile photo → Copy Member ID</p>
+        </div>
         <Field label="Initial password"><input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} className={inputCls} placeholder="Min. 8 characters" /></Field>
         {error && <p className="text-red-500 text-xs">{error}</p>}
         <div className="flex gap-3 pt-2">
@@ -311,9 +351,133 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   )
 }
 
+function SlackImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [members, setMembers] = useState<SlackMember[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [loadingMembers, setLoadingMembers] = useState(true)
+  const [importing, setImporting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    listSlackMembers()
+      .then(data => { setMembers(data.members); setError('') })
+      .catch(err => setError(err instanceof Error ? err.message : 'Failed to load Slack members'))
+      .finally(() => setLoadingMembers(false))
+  }, [])
+
+  function toggleMember(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function handleImport() {
+    setImporting(true); setError('')
+    const toImport = members.filter(m => selected.has(m.id))
+    try {
+      for (const m of toImport) {
+        const randomPassword = crypto.randomUUID() + crypto.randomUUID()
+        await createUser({
+          email: m.email || `${m.id}@slack.local`,
+          name: m.name,
+          role: 'member',
+          password: randomPassword,
+          slackUserId: m.id,
+        })
+      }
+      onImported()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Import failed'
+      setError(msg)
+      setImporting(false)
+    }
+  }
+
+  const importableSelected = Array.from(selected).filter(id => {
+    const m = members.find(x => x.id === id)
+    return m && !m.already_imported
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative w-full max-w-lg mx-4 bg-white rounded-xl border border-border shadow-xl flex flex-col max-h-[80vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <SlackIcon className="w-5 h-5 text-[#4A154B]" />
+            <h2 className="text-lg font-semibold text-text-primary">Import from Slack</h2>
+          </div>
+          <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary text-lg leading-none">×</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {loadingMembers ? (
+            <p className="text-center text-text-tertiary py-8">Loading Slack members…</p>
+          ) : error ? (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{error}</div>
+          ) : members.length === 0 ? (
+            <p className="text-center text-text-tertiary py-8">No Slack members found.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {members.map(m => (
+                <li
+                  key={m.id}
+                  className={`flex items-center gap-3 py-3 ${m.already_imported ? 'opacity-50' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(m.id)}
+                    onChange={() => toggleMember(m.id)}
+                    disabled={m.already_imported}
+                    className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary"
+                  />
+                  {m.avatar ? (
+                    <img src={m.avatar} alt={m.name} className="w-8 h-8 rounded-full flex-shrink-0" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-xs font-medium text-gray-500">
+                      {m.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">{m.name}</p>
+                    <p className="text-xs text-text-tertiary truncate">{m.email}</p>
+                  </div>
+                  {m.already_imported && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">Imported</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {!loadingMembers && !error && (
+          <div className="px-6 py-4 border-t border-border">
+            {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+            <div className="flex gap-3">
+              <button type="button" onClick={onClose} className={secondaryBtn}>Cancel</button>
+              <button
+                type="button"
+                onClick={handleImport}
+                disabled={importableSelected.length === 0 || importing}
+                className={primaryBtn}
+              >
+                {importing ? 'Importing…' : `Import ${importableSelected.length > 0 ? importableSelected.length + ' selected' : ''}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function EditModal({ user, onClose, onSaved }: { user: UserRecord; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(user.name)
   const [role, setRole] = useState<string>(user.role)
+  const [slackUserId, setSlackUserId] = useState(user.slack_user_id ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -327,6 +491,7 @@ function EditModal({ user, onClose, onSaved }: { user: UserRecord; onClose: () =
         ...(name ? { name } : {}),
         ...(user.auth_source !== 'saml' && role ? { role } : {}),
         ...(password ? { password } : {}),
+        slackUserId: slackUserId || undefined,
       })
       onSaved()
     } catch (err: unknown) {
@@ -352,6 +517,19 @@ function EditModal({ user, onClose, onSaved }: { user: UserRecord; onClose: () =
             </select>
           </Field>
         )}
+        <div>
+          <label className="block text-text-secondary text-xs font-medium mb-1.5">
+            Slack Member ID <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={slackUserId}
+            onChange={e => setSlackUserId(e.target.value)}
+            placeholder="e.g. U0AJLLY3678"
+            className={inputCls}
+          />
+          <p className="text-xs text-gray-400 mt-1">Find in Slack: click your profile photo → Copy Member ID</p>
+        </div>
         {user.auth_source === 'local' && (
           <Field label="New password (optional)">
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} minLength={8} className={inputCls} placeholder="Leave blank to keep current" />

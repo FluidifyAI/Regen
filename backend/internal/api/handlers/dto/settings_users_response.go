@@ -13,6 +13,7 @@ type UserResponse struct {
 	Name        string     `json:"name"`
 	Role        string     `json:"role"`
 	AuthSource  string     `json:"auth_source"`
+	SlackUserID *string    `json:"slack_user_id,omitempty"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 }
@@ -24,6 +25,7 @@ func UserToResponse(u models.User) UserResponse {
 		Name:        u.Name,
 		Role:        string(u.Role),
 		AuthSource:  u.AuthSource,
+		SlackUserID: u.SlackUserID,
 		LastLoginAt: u.LastLoginAt,
 		CreatedAt:   u.CreatedAt,
 	}

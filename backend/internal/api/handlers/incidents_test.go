@@ -199,7 +199,7 @@ func TestListIncidents(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
 
 			// Create test incidents
 			for _, incident := range tt.setupIncidents {
@@ -356,7 +356,7 @@ func TestGetIncident(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
 
 			// Create test incident if provided
 			if tt.setupIncident != nil {
@@ -503,7 +503,7 @@ func TestCreateIncident(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
 
 			// Create test router
 			router := gin.New()
@@ -721,7 +721,7 @@ func TestUpdateIncident(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
 
 			// Create test incident if provided
 			if tt.setupIncident != nil {
@@ -776,7 +776,7 @@ func TestIncidentStatusTransitions(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
 
 			// Create incident with initial status
 			incident := &models.Incident{
@@ -827,7 +827,7 @@ func TestIncidentStatusTransitions(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 			alertRepo := repository.NewAlertRepository(db)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
 
 			// Create incident with initial status
 			incident := &models.Incident{

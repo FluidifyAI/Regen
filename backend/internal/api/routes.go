@@ -16,6 +16,7 @@ import (
 	"github.com/openincident/openincident/internal/models/webhooks"
 	"github.com/openincident/openincident/internal/repository"
 	"github.com/openincident/openincident/internal/services"
+	"github.com/openincident/openincident/ui"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gorm.io/gorm"
 )
@@ -361,5 +362,27 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			settingsGroup.DELETE("/slack", handlers.DeleteSlackConfig(slackConfigRepo))
 			settingsGroup.GET("/slack/members", handlers.ListSlackMembers(slackConfigRepo, userRepo))
 		}
+	}
+
+	// ── Embedded frontend (production) ───────────────────────────────────────
+	// Serve the pre-built React SPA from the same origin as the API.
+	// This eliminates CORS entirely for self-hosted deployments.
+	//
+	// ui.Files() returns nil when the frontend has not been built (e.g. local
+	// development using `npm run dev`), in which case we skip static serving
+	// so the API remains fully functional on its own.
+	if staticFS := ui.Files(); staticFS != nil {
+		slog.Info("serving embedded frontend")
+		// Serve /assets/*, /favicon.ico, etc. directly (long cache headers are
+		// set by Vite's build hashing so we can cache aggressively here).
+		router.StaticFS("/assets", staticFS)
+		router.StaticFileFS("/favicon.ico", "favicon.ico", staticFS)
+		// SPA fallback: any path not matched above serves index.html so that
+		// client-side routing (React Router) works on hard refresh / deep links.
+		router.NoRoute(func(c *gin.Context) {
+			c.FileFromFS("index.html", staticFS)
+		})
+	} else {
+		slog.Info("no embedded frontend found — serving API only (use `npm run dev` for the UI)")
 	}
 }

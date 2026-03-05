@@ -33,6 +33,7 @@ const (
 	TimelineTypeEscalated         = "escalated"
 	TimelineTypeSummaryGenerated  = "summary_generated"
 	TimelineTypePostmortemCreated = "postmortem_created"
+	TimelineTypeCommanderAssigned = "commander_assigned"
 )
 
 // BeforeCreate hook

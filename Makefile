@@ -1,4 +1,4 @@
-.PHONY: help dev dev-docker backend migrate test fmt lint build docker down clean logs health install teams-app-package helm-deps helm-lint helm-template helm-test
+.PHONY: help dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install teams-app-package helm-deps helm-lint helm-template helm-test
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -19,8 +19,9 @@ help:
 	@echo "  fmt          Format Go and TypeScript code"
 	@echo ""
 	@echo "Build & Deploy:"
-	@echo "  build        Build production Go binary + frontend bundle"
-	@echo "  docker       Build Docker images via docker-compose"
+	@echo "  build        Build frontend + copy into backend/ui/dist + compile Go binary"
+	@echo "  build-frontend  Build frontend bundle only (frontend/dist + backend/ui/dist)"
+	@echo "  docker       Build production Docker image (single binary, embedded frontend)"
 	@echo "  teams-app-package  Generate Teams bot app zip for sideloading"
 	@echo ""
 	@echo "Utilities:"
@@ -54,14 +55,13 @@ dev:
 	@echo ""
 	@cd frontend && npm run dev
 
-# Full Docker workflow — everything containerised, no local processes.
-# Use this to test production-like builds or when you don't have Node.js locally.
+# Full Docker workflow — everything containerised (db + redis + api with Air hot-reload).
+# The frontend is served by the Vite proxy via `make dev` — for API-only Docker testing.
 dev-docker:
 	@echo "Starting all services in Docker..."
 	@docker-compose up -d
 	@echo ""
-	@echo "  API:      http://localhost:8080"
-	@echo "  Frontend: http://localhost:3000"
+	@echo "  API: http://localhost:8080"
 	@echo ""
 	@echo "View logs: make logs"
 	@echo "Stop:      make down"
@@ -106,20 +106,35 @@ fmt:
 
 # ── Build & Deploy ────────────────────────────────────────────────────────────
 
-build:
-	@echo "Building backend binary..."
-	@cd backend && CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o bin/openincident cmd/openincident/main.go
+# build-frontend: compile the React SPA and copy it into backend/ui/dist/ so
+# the Go //go:embed picks it up for local binary builds.
+build-frontend:
 	@echo "Building frontend bundle..."
 	@cd frontend && npm run build
-	@echo ""
-	@echo "Artifacts:"
-	@echo "  backend/bin/openincident"
-	@echo "  frontend/dist/"
+	@echo "Copying into backend/ui/dist/ for Go embed..."
+	@rm -rf backend/ui/dist && cp -r frontend/dist backend/ui/dist
+	@echo "  frontend/dist/  →  backend/ui/dist/"
 
+# build: full local production build — frontend embedded in the Go binary.
+# The resulting binary at backend/bin/openincident serves UI + API on :8080.
+build: build-frontend
+	@echo "Compiling Go binary with embedded frontend..."
+	@cd backend && CGO_ENABLED=0 GOOS=linux go build \
+		-ldflags="-w -s -extldflags '-static'" \
+		-o bin/openincident \
+		./cmd/openincident
+	@echo ""
+	@echo "Artifact: backend/bin/openincident (UI + API, no CORS config needed)"
+
+# docker: build the production image using the top-level Dockerfile.
+# The image serves both UI and API from :8080 — single binary, zero config.
+#
+#   docker run -p 8080:8080 -e DATABASE_URL=... -e REDIS_URL=... openincident
 docker:
-	@echo "Building Docker images..."
-	@docker-compose build
-	@echo "Done"
+	@echo "Building production Docker image..."
+	@docker build -t openincident .
+	@echo ""
+	@echo "Run: docker run -p 8080:8080 openincident"
 
 teams-app-package:
 	@./scripts/teams-app-package.sh
@@ -132,6 +147,7 @@ down:
 clean:
 	@echo "Removing build artifacts..."
 	@rm -rf backend/bin backend/coverage.out frontend/dist
+	@rm -rf backend/ui/dist && mkdir -p backend/ui/dist && touch backend/ui/dist/.gitkeep
 	@echo "Removing containers and volumes..."
 	@docker-compose down -v
 	@echo "Clean complete"

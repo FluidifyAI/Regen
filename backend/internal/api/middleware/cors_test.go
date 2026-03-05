@@ -105,18 +105,38 @@ func TestCORS_MultipleAllowedOrigins(t *testing.T) {
 }
 
 func TestCORS_DefaultAllowsLocalhost(t *testing.T) {
-	t.Setenv("CORS_ALLOWED_ORIGINS", "") // unset → default
+	t.Setenv("CORS_ALLOWED_ORIGINS", "") // unset → dev mode allows any localhost port
+	t.Setenv("APP_ENV", "development")
+	r := gin.New()
+	r.Use(CORS())
+	r.GET("/test", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	for _, origin := range []string{"http://localhost:3000", "http://localhost:3001", "http://localhost:5173"} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Origin", origin)
+		r.ServeHTTP(w, req)
+
+		if got := w.Header().Get("Access-Control-Allow-Origin"); got != origin {
+			t.Errorf("dev mode should allow %s, got %q", origin, got)
+		}
+	}
+}
+
+func TestCORS_ProductionBlocksUnlistedLocalhost(t *testing.T) {
+	t.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+	t.Setenv("APP_ENV", "production")
 	r := gin.New()
 	r.Use(CORS())
 	r.GET("/test", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Origin", "http://localhost:3001") // not in allowlist
 	r.ServeHTTP(w, req)
 
-	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
-		t.Errorf("default should allow localhost:3000, got %q", got)
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("production should block unlisted origin, got %q", got)
 	}
 }
 
@@ -125,7 +145,7 @@ func TestParseAllowedOrigins(t *testing.T) {
 		input    string
 		expected []string
 	}{
-		{"", []string{"http://localhost:3000"}},
+		{"", nil}, // empty → no explicit allowlist; dev mode uses isLocalhost instead
 		{"https://a.com", []string{"https://a.com"}},
 		{"https://a.com, https://b.com", []string{"https://a.com", "https://b.com"}},
 		{"  https://a.com  ,  https://b.com  ", []string{"https://a.com", "https://b.com"}},

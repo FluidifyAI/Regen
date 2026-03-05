@@ -199,18 +199,33 @@ func (s *incidentService) findOnCallUserID() *uuid.UUID {
 	return nil
 }
 
-// getOnCallSlackUserIDs returns the Slack member IDs of the current on-call responders.
-// Returns nil when no schedules are configured or no responder has a slack_user_id set.
-func (s *incidentService) getOnCallSlackUserIDs() []string {
+// getOnCallIdentifiers returns identifiers for the current on-call responders to use
+// when inviting them to a Slack channel or sending DMs.
+// Each identifier is either a Slack user ID (when set on the user record) or the
+// user's email address (fallback). slackService.InviteUsers and SendDirectMessage
+// both accept emails and resolve them via the Slack API automatically.
+// Returns nil when no schedule is configured or no on-call user can be found.
+func (s *incidentService) getOnCallIdentifiers() []string {
 	userID := s.findOnCallUserID()
 	if userID == nil || s.userRepo == nil {
+		slog.Debug("no on-call user found, skipping auto-invite")
 		return nil
 	}
 	user, err := s.userRepo.GetByID(*userID)
-	if err != nil || user == nil || user.SlackUserID == nil {
+	if err != nil || user == nil {
+		slog.Debug("could not fetch on-call user record, skipping auto-invite", "user_id", userID)
 		return nil
 	}
-	return []string{*user.SlackUserID}
+	if user.SlackUserID != nil && *user.SlackUserID != "" {
+		return []string{*user.SlackUserID}
+	}
+	if user.Email != "" {
+		slog.Debug("on-call user has no slack_user_id, falling back to email for invite",
+			"user_id", user.ID, "email", user.Email)
+		return []string{user.Email}
+	}
+	slog.Debug("on-call user has no slack_user_id or email, skipping auto-invite", "user_id", user.ID)
+	return nil
 }
 
 // ShouldCreateIncident determines if an alert should trigger incident creation
@@ -610,14 +625,16 @@ func (s *incidentService) CreateSlackChannelForIncident(incident *models.Inciden
 		}
 	}
 
-	// Auto-invite and DM the current on-call responder(s) if they have a Slack user ID set.
-	if slackIDs := s.getOnCallSlackUserIDs(); len(slackIDs) > 0 {
+	// Auto-invite and DM the current on-call responder(s).
+	// Identifiers may be Slack user IDs or emails — InviteUsers and SendDirectMessage
+	// both resolve emails to Slack user IDs internally.
+	if identifiers := s.getOnCallIdentifiers(); len(identifiers) > 0 {
 		slog.Info("auto-inviting on-call user to incident channel",
 			"incident_id", incident.ID,
 			"channel_id", channel.ID,
-			"user_count", len(slackIDs))
+			"user_count", len(identifiers))
 
-		if invErr := s.chatService.InviteUsers(channel.ID, slackIDs); invErr != nil {
+		if invErr := s.chatService.InviteUsers(channel.ID, identifiers); invErr != nil {
 			slog.Warn("failed to invite on-call user to slack channel",
 				"incident_id", incident.ID,
 				"channel_id", channel.ID,
@@ -626,7 +643,7 @@ func (s *incidentService) CreateSlackChannelForIncident(incident *models.Inciden
 		}
 
 		// DM each on-call responder with incident details
-		for _, slackID := range slackIDs {
+		for _, slackID := range identifiers {
 			dmMsg := Message{
 				Text: fmt.Sprintf(
 					"🚨 *You're on-call — INC-%d: %s*\n*Severity:* %s\nJoin <#%s> to respond.",
@@ -887,6 +904,7 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 
 	previousStatus := incident.Status
 	previousSeverity := incident.Severity
+	previousCommanderID := incident.CommanderID
 
 	// Execute update in transaction
 	err = s.db.Transaction(func(tx *gorm.DB) error {
@@ -981,6 +999,8 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 
 		// Update commander if explicitly provided
 		if params.CommanderID != nil {
+			newCommanderChanged := previousCommanderID == nil || *params.CommanderID != *previousCommanderID
+
 			if *params.CommanderID == uuid.Nil {
 				// zero UUID = explicit clear
 				incident.CommanderID = nil
@@ -991,6 +1011,31 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 				incident.CommanderID = params.CommanderID
 			} else {
 				incident.CommanderID = params.CommanderID
+			}
+
+			// Create timeline entry when commander actually changes
+			if newCommanderChanged && *params.CommanderID != uuid.Nil {
+				commanderName := s.resolveCommanderName(params.CommanderID)
+				timelineContent := models.JSONB{
+					"commander_name": commanderName,
+					"commander_id":   params.CommanderID.String(),
+				}
+				if previousCommanderID != nil {
+					timelineContent["previous_commander_id"] = previousCommanderID.String()
+					timelineContent["previous_commander_name"] = s.resolveCommanderName(previousCommanderID)
+				}
+				entry := &models.TimelineEntry{
+					ID:         uuid.New(),
+					IncidentID: id,
+					Timestamp:  time.Now(),
+					Type:       models.TimelineTypeCommanderAssigned,
+					ActorType:  "user",
+					ActorID:    params.UpdatedBy,
+					Content:    timelineContent,
+				}
+				if err := s.timelineRepo.Create(entry); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -1051,6 +1096,53 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 	// Publish event for AICoordinator (Post-Mortem Agent et al.)
 	if statusChanged && (params.Status == models.IncidentStatusResolved || params.Status == models.IncidentStatusCanceled) {
 		go publishResolved(incident.ID, incident.AIEnabled)
+	}
+
+	// DM the new incident commander when the assignment changes.
+	// Uses email as fallback when slack_user_id is not set, matching the auto-invite behaviour.
+	commanderChanged := params.CommanderID != nil &&
+		(previousCommanderID == nil || *params.CommanderID != *previousCommanderID) &&
+		*params.CommanderID != uuid.Nil
+	if commanderChanged && s.chatService != nil && s.userRepo != nil {
+		go func() {
+			commander, err := s.userRepo.GetByID(*params.CommanderID)
+			if err != nil || commander == nil {
+				slog.Warn("could not fetch new commander for DM notification",
+					"incident_id", incident.ID,
+					"commander_id", params.CommanderID,
+					"error", err)
+				return
+			}
+			identifier := ""
+			if commander.SlackUserID != nil && *commander.SlackUserID != "" {
+				identifier = *commander.SlackUserID
+			} else if commander.Email != "" {
+				identifier = commander.Email
+			}
+			if identifier == "" {
+				slog.Debug("new commander has no slack_user_id or email, skipping DM",
+					"incident_id", incident.ID, "commander_id", commander.ID)
+				return
+			}
+			channelRef := ""
+			if incident.SlackChannelID != "" {
+				channelRef = fmt.Sprintf(" — join <#%s> to respond", incident.SlackChannelID)
+			}
+			dmMsg := Message{
+				Text: fmt.Sprintf(
+					"👋 You've been assigned as Incident Commander for *INC-%d: %s*\n*Severity:* %s%s",
+					incident.IncidentNumber, incident.Title,
+					strings.ToUpper(string(incident.Severity)),
+					channelRef,
+				),
+			}
+			if dmErr := s.chatService.SendDirectMessage(identifier, dmMsg); dmErr != nil {
+				slog.Warn("failed to DM new incident commander",
+					"incident_id", incident.ID,
+					"commander_id", commander.ID,
+					"error", dmErr)
+			}
+		}()
 	}
 
 	// Fetch updated incident

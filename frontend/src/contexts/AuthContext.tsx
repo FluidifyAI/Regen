@@ -12,6 +12,8 @@ interface AuthState {
   ssoEnabled: boolean
   /** Call to log out: clears server session then resets auth state. */
   signOut: () => Promise<void>
+  /** Re-fetch the current user (e.g. after a profile update). */
+  refresh: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState>({
@@ -21,6 +23,7 @@ const AuthContext = createContext<AuthState>({
   openMode: false,
   ssoEnabled: false,
   signOut: async () => {},
+  refresh: async () => {},
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -32,6 +35,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(setUser)
       .catch(() => setUser(null))
       .finally(() => setLoading(false))
+  }, [])
+
+  const refresh = useCallback(async () => {
+    try {
+      const u = await getCurrentUser()
+      setUser(u)
+    } catch {
+      // ignore
+    }
   }, [])
 
   const signOut = useCallback(async () => {
@@ -50,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     openMode: user?.mode === 'open',
     ssoEnabled: user?.ssoEnabled === true,
     signOut,
+    refresh,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

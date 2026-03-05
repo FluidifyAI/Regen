@@ -218,6 +218,9 @@ func (s *slackService) ArchiveChannel(channelID string) error {
 }
 
 // InviteUsers invites users to a Slack channel with retry on rate limit.
+// Each identifier in userIDs may be a Slack user ID (e.g. "U01234ABCDE") or an
+// email address / display name — non-Slack-ID strings are resolved via the Slack
+// users.lookupByEmail / users.list API before the invite call.
 func (s *slackService) InviteUsers(channelID string, userIDs []string) error {
 	if len(userIDs) == 0 {
 		return nil // No-op
@@ -227,18 +230,45 @@ func (s *slackService) InviteUsers(channelID string, userIDs []string) error {
 		return fmt.Errorf("channel ID is required")
 	}
 
+	// Resolve any email/name identifiers to Slack user IDs.
+	// Identifiers that already look like Slack user IDs (starts with U, len >= 9) are
+	// used directly; everything else is resolved via lookupUserID (email → users.lookupByEmail,
+	// display name → users.list scan).
+	resolved := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		if strings.HasPrefix(id, "U") && len(id) >= 9 {
+			resolved = append(resolved, id)
+		} else {
+			slackID, err := s.lookupUserID(id)
+			if err != nil {
+				slog.Warn("could not resolve user identifier to Slack ID, skipping invite",
+					"identifier", id,
+					"error", err)
+				continue
+			}
+			resolved = append(resolved, slackID)
+		}
+	}
+
+	if len(resolved) == 0 {
+		slog.Warn("no users could be resolved to Slack user IDs, skipping invite",
+			"channel_id", channelID,
+			"identifiers", userIDs)
+		return nil
+	}
+
 	slog.Info("inviting users to slack channel",
 		"channel_id", channelID,
-		"user_count", len(userIDs),
-		"user_ids", userIDs)
+		"user_count", len(resolved),
+		"user_ids", resolved)
 
 	// Retry with exponential backoff
 	for i := 0; i < 3; i++ {
-		_, err := s.client.InviteUsersToConversation(channelID, userIDs...)
+		_, err := s.client.InviteUsersToConversation(channelID, resolved...)
 		if err == nil {
 			slog.Info("successfully invited users",
 				"channel_id", channelID,
-				"user_count", len(userIDs))
+				"user_count", len(resolved))
 			return nil
 		}
 

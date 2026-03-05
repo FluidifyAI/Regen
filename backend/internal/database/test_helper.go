@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS users (
 	auth_source       TEXT NOT NULL DEFAULT 'saml',
 	agent_type        TEXT,
 	active            INTEGER NOT NULL DEFAULT 1,
+	slack_user_id     TEXT,
 	role              TEXT NOT NULL DEFAULT 'member',
 	last_login_at     DATETIME,
 	created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

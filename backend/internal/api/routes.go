@@ -37,23 +37,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	userRepo := repository.NewUserRepository(db)
 	slackConfigRepo := repository.NewSlackConfigRepository(db)
 
-	// Initialize Slack service — config loaded from DB (no env var fallback).
-	// If slack_config table is empty, the app runs without Slack integration.
-	// Use the Integrations page to configure Slack.
-	var chatService services.ChatService
-	if slackCfg, err := slackConfigRepo.Get(); err != nil {
-		slog.Error("failed to load slack config from db", "error", err)
-	} else if slackCfg != nil && slackCfg.BotToken != "" {
-		if svc, err := services.NewSlackService(slackCfg.BotToken); err != nil {
-			slog.Error("failed to initialize slack service", "error", err)
-			slog.Warn("continuing without slack integration")
-		} else {
-			chatService = svc
-			slog.Info("slack integration enabled", "workspace", slackCfg.WorkspaceName)
-		}
-	} else {
-		slog.Warn("slack not configured — use the Integrations page to connect Slack")
-	}
+	// Slack is initialized lazily: config is read from the DB on each use and
+	// cached until the bot_token changes. This means Slack can be configured or
+	// updated through the Integrations page without restarting the server.
+	chatService := services.NewLazySlackService(slackConfigRepo)
 
 	// Initialize grouping engine (for alert deduplication and grouping)
 	groupingEngine := services.NewGroupingEngine(groupingRuleRepo, incidentRepo, db)
@@ -85,7 +72,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	pmRepo := repository.NewPostMortemRepository(db)
 
 	// Initialize services
-	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db, cfg.SlackAutoInviteUserIDs)
+	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, chatService, db)
 	services.SetAIService(incidentSvc, aiSvc)
 	services.SetCommanderDeps(incidentSvc, userRepo, scheduleRepo, scheduleEvaluator)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
@@ -372,6 +359,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			settingsGroup.POST("/slack", handlers.SaveSlackConfig(slackConfigRepo))
 			settingsGroup.POST("/slack/test", handlers.TestSlackConfig())
 			settingsGroup.DELETE("/slack", handlers.DeleteSlackConfig(slackConfigRepo))
+			settingsGroup.GET("/slack/members", handlers.ListSlackMembers(slackConfigRepo, userRepo))
 		}
 	}
 }

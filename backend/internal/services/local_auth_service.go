@@ -30,6 +30,9 @@ type LocalAuthService interface {
 	// LoginByUserID creates a session for the given user ID without a password check.
 	// Used by Slack OAuth login after the user's identity is verified by Slack.
 	LoginByUserID(id uuid.UUID) (*models.LocalSession, error)
+	// UpdateUserSlackID sets or clears the Slack member ID for a user.
+	// Pass nil to clear, or a pointer to an ID string like "U0AJLLY3678".
+	UpdateUserSlackID(id uuid.UUID, slackUserID *string) error
 }
 
 // dummyHash is computed once at startup and used in Login to ensure constant-time
@@ -207,4 +210,14 @@ func (s *localAuthService) LoginByUserID(id uuid.UUID) (*models.LocalSession, er
 	}
 	_ = s.users.UpdateLastLogin(id, time.Now())
 	return session, nil
+}
+
+func (s *localAuthService) UpdateUserSlackID(id uuid.UUID, slackUserID *string) error {
+	user, err := s.users.GetByID(id)
+	if err != nil {
+		return err
+	}
+	user.SlackUserID = slackUserID
+	user.UpdatedAt = time.Now()
+	return s.users.Update(user)
 }

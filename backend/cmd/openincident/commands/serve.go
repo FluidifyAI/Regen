@@ -195,7 +195,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 		agentIncidentSvc := services.NewIncidentService(
 			agentIncidentRepo, agentTimelineRepo,
 			agentAlertRepo,
-			agentSlackSvc, database.DB, cfg.SlackAutoInviteUserIDs,
+			agentSlackSvc, database.DB,
 		)
 		services.SetTeamsService(agentIncidentSvc, teamsSvc)
 		pmSvc := services.NewPostMortemService(pmRepo, pmTemplateRepo, agentIncidentSvc, aiSvc)

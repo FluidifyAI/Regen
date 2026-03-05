@@ -25,10 +25,9 @@ type Config struct {
 	RedisURL string `default:"redis://localhost:6379"`
 
 	// Slack
-	SlackBotToken          string
-	SlackSigningSecret     string
-	SlackAppToken          string
-	SlackAutoInviteUserIDs []string
+	SlackBotToken      string
+	SlackSigningSecret string
+	SlackAppToken      string
 
 	// OpenAI (optional — AI features disabled if APIKey is empty)
 	OpenAIAPIKey              string
@@ -77,10 +76,9 @@ func Load() (*Config, error) {
 		RedisURL: getEnv("REDIS_URL", "redis://localhost:6379"),
 
 		// Slack
-		SlackBotToken:          getEnv("SLACK_BOT_TOKEN", ""),
-		SlackSigningSecret:     getEnv("SLACK_SIGNING_SECRET", ""),
-		SlackAppToken:          getEnv("SLACK_APP_TOKEN", ""),
-		SlackAutoInviteUserIDs: getEnvAsSlice("SLACK_AUTO_INVITE_USER_IDS", []string{}),
+		SlackBotToken:      getEnv("SLACK_BOT_TOKEN", ""),
+		SlackSigningSecret: getEnv("SLACK_SIGNING_SECRET", ""),
+		SlackAppToken:      getEnv("SLACK_APP_TOKEN", ""),
 
 		// OpenAI
 		OpenAIAPIKey:              getEnv("OPENAI_API_KEY", ""),

@@ -8,10 +8,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/api/handlers/dto"
+	"github.com/openincident/openincident/internal/api/middleware"
 	"github.com/openincident/openincident/internal/models"
 	"github.com/openincident/openincident/internal/repository"
 	"github.com/openincident/openincident/internal/services"
 )
+
+// actorIDFromContext returns the current user's UUID string, or "anonymous" if unauthenticated.
+func actorIDFromContext(c *gin.Context) string {
+	if user := middleware.GetLocalUser(c); user != nil {
+		return user.ID.String()
+	}
+	return "anonymous"
+}
 
 // ListIncidents handles GET /api/v1/incidents
 func ListIncidents(incidentSvc services.IncidentService) gin.HandlerFunc {
@@ -61,7 +70,7 @@ func ListIncidents(incidentSvc services.IncidentService) gin.HandlerFunc {
 }
 
 // GetIncident handles GET /api/v1/incidents/:id
-func GetIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
+func GetIncident(incidentSvc services.IncidentService, userRepo repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idParam := c.Param("id")
 
@@ -127,8 +136,25 @@ func GetIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 			}
 		}
 
+		// Resolve user UUIDs to display names for the embedded timeline
+		userNames := map[uuid.UUID]string{}
+		if userRepo != nil {
+			for _, entry := range timeline {
+				if entry.ActorType == "user" && entry.ActorID != "" {
+					if uid, err := uuid.Parse(entry.ActorID); err == nil {
+						userNames[uid] = ""
+					}
+				}
+			}
+			for uid := range userNames {
+				if user, err := userRepo.GetByID(uid); err == nil {
+					userNames[uid] = user.Name
+				}
+			}
+		}
+
 		for i, entry := range timeline {
-			resp.Timeline[i] = dto.TimelineEntrySummary{
+			s := dto.TimelineEntrySummary{
 				ID:        entry.ID,
 				Timestamp: entry.Timestamp,
 				Type:      entry.Type,
@@ -136,6 +162,12 @@ func GetIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 				ActorID:   entry.ActorID,
 				Content:   entry.Content,
 			}
+			if entry.ActorType == "user" && entry.ActorID != "" {
+				if uid, err := uuid.Parse(entry.ActorID); err == nil {
+					s.ActorName = userNames[uid]
+				}
+			}
+			resp.Timeline[i] = s
 		}
 
 		c.JSON(200, resp)
@@ -162,7 +194,7 @@ func CreateIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 			Title:       req.Title,
 			Severity:    models.IncidentSeverity(req.Severity),
 			Description: req.Description,
-			CreatedBy:   "user", // For v0.1, hardcoded. Will use auth context in v0.2+
+			CreatedBy:   actorIDFromContext(c),
 			AIEnabled:   aiEnabled,
 		}
 
@@ -236,8 +268,8 @@ func UpdateIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 			Status:      models.IncidentStatus(req.Status),
 			Severity:    models.IncidentSeverity(req.Severity),
 			Summary:     req.Summary,
-			UpdatedBy:   "user",        // For v0.1, hardcoded
-			ClientIP:    c.ClientIP(), // For audit logging
+			UpdatedBy:   actorIDFromContext(c),
+			ClientIP:    c.ClientIP(),
 			AIEnabled:   req.AIEnabled,
 			CommanderID: req.CommanderID,
 		}

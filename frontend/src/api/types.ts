@@ -84,6 +84,7 @@ export interface TimelineEntry {
   type: string
   actor_type: string
   actor_id?: string
+  actor_name?: string
   content: Record<string, unknown>
 }
 

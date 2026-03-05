@@ -374,7 +374,8 @@ function getActorName(entry: TimelineEntry): string {
     const content = entry.content as Record<string, string>
     return content.author_name || entry.actor_id || 'Slack User'
   }
-  return entry.actor_id || 'Unknown User'
+  // actor_name is resolved server-side for user entries; fall back to actor_id
+  return entry.actor_name || entry.actor_id || 'Unknown User'
 }
 
 /**

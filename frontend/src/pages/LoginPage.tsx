@@ -9,7 +9,7 @@
  * Background uses a CSS dot-grid for depth without adding visual noise.
  */
 import { useState, useEffect } from 'react'
-import { login, bootstrap, exchangeSetupToken } from '../api/auth'
+import { login, bootstrap, exchangeSetupToken, forgotPassword } from '../api/auth'
 import { useAuth } from '../hooks/useAuth'
 import { getSlackOAuthStatus } from '../api/slack'
 
@@ -53,7 +53,7 @@ export function LoginPage() {
     }
     // Handle error codes from Slack OAuth callback
     const oauthError = params.get('error')
-    if (oauthError === 'no_account') setError('No OpenIncident account found for this Slack workspace. Ask your admin to invite you.')
+    if (oauthError === 'no_account') setError('No account found for your Slack email. Ask your admin to go to Settings → Users → Import from Slack to add you.')
     else if (oauthError === 'slack_auth_failed') setError('Slack authentication failed. Please try again.')
     else if (oauthError === 'invalid_state') setError('Login session expired. Please try again.')
   }, [])
@@ -65,6 +65,40 @@ export function LoginPage() {
   const [setupPassword, setSetupPassword] = useState('')
   const [setupError, setSetupError] = useState('')
   const [setupLoading, setSetupLoading] = useState(false)
+
+  // Forgot password state
+  const [showForgot, setShowForgot] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotToken, setForgotToken] = useState('')
+  const [forgotError, setForgotError] = useState('')
+  const [forgotCopied, setForgotCopied] = useState(false)
+
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault()
+    setForgotLoading(true)
+    setForgotError('')
+    setForgotToken('')
+    try {
+      const res = await forgotPassword(forgotEmail)
+      if (res.setup_token) {
+        setForgotToken(res.setup_token)
+      } else {
+        // Email not found or not a local account — show generic message
+        setForgotError('If that email has a local account, a reset link will appear here.')
+      }
+    } catch {
+      setForgotError('Something went wrong. Please try again.')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
+  function copyForgotLink() {
+    navigator.clipboard.writeText(`${window.location.origin}/login?setup=${forgotToken}`)
+    setForgotCopied(true)
+    setTimeout(() => setForgotCopied(false), 2000)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -207,6 +241,62 @@ export function LoginPage() {
             >
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
+
+            {/* Forgot password */}
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => { setShowForgot(!showForgot); setForgotToken(''); setForgotError('') }}
+                className="text-[#475569] hover:text-[#94A3B8] text-xs transition-colors"
+              >
+                Forgot password?
+              </button>
+            </div>
+
+            {showForgot && (
+              <div className="rounded-lg border border-[#1E293B] p-4 space-y-3">
+                {forgotToken ? (
+                  <>
+                    <p className="text-[#93C5FD] text-xs font-medium">Reset link generated</p>
+                    <p className="text-[#475569] text-xs">Copy this link and send it to the user. It expires in 7 days.</p>
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={`${window.location.origin}/login?setup=${forgotToken}`}
+                        className="flex-1 text-xs rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] px-3 py-2 font-mono focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={copyForgotLink}
+                        className="px-3 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-medium transition-colors min-w-[60px]"
+                      >
+                        {forgotCopied ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <form onSubmit={handleForgot} className="space-y-3">
+                    <p className="text-[#94A3B8] text-xs">Enter the account email and we'll generate a reset link you can share.</p>
+                    <input
+                      type="email"
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full h-9 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-xs px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                    />
+                    {forgotError && <p className="text-[#F87171] text-xs">{forgotError}</p>}
+                    <button
+                      type="submit"
+                      disabled={forgotLoading}
+                      className="w-full h-9 rounded-lg border border-[#334155] hover:bg-[#1E293B] text-[#94A3B8] text-xs font-medium transition-colors disabled:opacity-50"
+                    >
+                      {forgotLoading ? 'Generating…' : 'Generate reset link'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
           </form>
 
           {/* SSO divider + button — shown only when SAML is configured */}

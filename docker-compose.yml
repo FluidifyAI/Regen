@@ -52,7 +52,6 @@ services:
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
       - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
       - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
-      - SLACK_AUTO_INVITE_USER_IDS=${SLACK_AUTO_INVITE_USER_IDS}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TEAMS_APP_ID=${TEAMS_APP_ID}
       - TEAMS_APP_PASSWORD=${TEAMS_APP_PASSWORD}
@@ -60,8 +59,10 @@ services:
       - TEAMS_TEAM_ID=${TEAMS_TEAM_ID}
       - TEAMS_BOT_USER_ID=${TEAMS_BOT_USER_ID}
       - TEAMS_SERVICE_URL=${TEAMS_SERVICE_URL:-https://smba.trafficmanager.net/amer/}
-      # CORS — comma-separated list of allowed origins (default: http://localhost:3000)
-      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      # CORS — only needed for split-origin deployments (CDN + separate API domain).
+      # In development all http://localhost:* origins are allowed automatically.
+      # In production with the embedded frontend (same-origin) this is not needed.
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
       # SAML SSO (optional — leave unset to run in open mode)
       - SAML_IDP_METADATA_URL=${SAML_IDP_METADATA_URL}
       - SAML_BASE_URL=${SAML_BASE_URL:-http://localhost:8080}
@@ -111,34 +112,12 @@ services:
     networks:
       - openincident
 
-  # web:
-  #   # Frontend service will be implemented in Epic-006
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #     target: development
-  #   container_name: openincident-web
-  #   restart: unless-stopped
-  #   environment:
-  #     - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
-  #   volumes:
-  #     - ./frontend:/app
-  #     - node_modules:/app/node_modules
-  #   ports:
-  #     - "${WEB_PORT:-3000}:3000"
-  #   depends_on:
-  #     - api
-  #   networks:
-  #     - openincident
-
 volumes:
   postgres_data:
     driver: local
   redis_data:
     driver: local
   go_modules:
-    driver: local
-  node_modules:
     driver: local
 
 networks:

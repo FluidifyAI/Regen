@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -153,6 +154,15 @@ func (r *stubUserRepo) ListAgents() ([]models.User, error) {
 		}
 	}
 	return out, nil
+}
+
+func (r *stubUserRepo) GetBySlackUserID(slackUserID string) (*models.User, error) {
+	for _, u := range r.users {
+		if u.SlackUserID != nil && *u.SlackUserID == slackUserID {
+			return u, nil
+		}
+	}
+	return nil, fmt.Errorf("user not found")
 }
 
 // ── stubSessionRepo ──────────────────────────────────────────────────────────

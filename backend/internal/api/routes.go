@@ -99,6 +99,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			slackCfgForSocket.BotToken,
 			incidentSvc,
 			chatService,
+			userRepo,
 		)
 		if err != nil {
 			slog.Error("failed to initialize slack socket mode", "error", err)
@@ -253,11 +254,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 
 		// Incidents
 		protected.GET("/incidents", handlers.ListIncidents(incidentSvc))
-		protected.GET("/incidents/:id", handlers.GetIncident(incidentSvc))
+		protected.GET("/incidents/:id", handlers.GetIncident(incidentSvc, userRepo))
 		protected.POST("/incidents", handlers.CreateIncident(incidentSvc))
 		protected.PATCH("/incidents/:id", handlers.UpdateIncident(incidentSvc))
-		protected.GET("/incidents/:id/timeline", handlers.GetIncidentTimeline(incidentSvc))
-		protected.POST("/incidents/:id/timeline", handlers.CreateTimelineEntry(incidentSvc))
+		protected.GET("/incidents/:id/timeline", handlers.GetIncidentTimeline(incidentSvc, userRepo))
+		protected.POST("/incidents/:id/timeline", handlers.CreateTimelineEntry(incidentSvc, userRepo))
 		protected.POST("/incidents/:id/escalate", handlers.EscalateIncident(escalationEngine))
 
 		// Alerts

@@ -68,6 +68,7 @@ type TimelineEntrySummary struct {
 	Type      string                 `json:"type"`
 	ActorType string                 `json:"actor_type"`
 	ActorID   string                 `json:"actor_id,omitempty"`
+	ActorName string                 `json:"actor_name,omitempty"`
 	Content   map[string]interface{} `json:"content"`
 }
 

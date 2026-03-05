@@ -215,6 +215,84 @@ func GetCurrentUser(localAuth services.LocalAuthService, samlConfigured bool) gi
 	}
 }
 
+// UpdateMe handles PATCH /api/v1/auth/me — lets the logged-in user update their
+// own display name and/or password without admin privileges.
+func UpdateMe(localAuth services.LocalAuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+		user := middleware.GetLocalUser(c)
+		if user == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "not authenticated"}})
+			return
+		}
+		var req struct {
+			Name            string `json:"name"`
+			CurrentPassword string `json:"current_password"`
+			NewPassword     string `json:"new_password"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
+			return
+		}
+		// If changing password, verify current password first
+		if req.NewPassword != "" {
+			if req.CurrentPassword == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "current_password is required to set a new password"}})
+				return
+			}
+			if len(req.NewPassword) < 8 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "new password must be at least 8 characters"}})
+				return
+			}
+			if _, err := localAuth.Login(user.Email, req.CurrentPassword); err != nil {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "current password is incorrect"}})
+				return
+			}
+		}
+		name := req.Name
+		password := req.NewPassword
+		if err := localAuth.UpdateUser(user.ID, name, "", password); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to update profile"}})
+			return
+		}
+		slog.Info("auth: user updated own profile", "user_id", user.ID)
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	}
+}
+
+// ForgotPassword handles POST /api/v1/auth/forgot-password.
+// Generates a one-time setup token for the given email and returns it so the
+// caller can share the reset link out-of-band (Slack, email, etc.).
+// Always returns 200 regardless of whether the email exists to avoid user enumeration.
+func ForgotPassword(localAuth services.LocalAuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+		var req struct {
+			Email string `json:"email" binding:"required,email"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "invalid_request", "message": err.Error()}})
+			return
+		}
+
+		user, err := localAuth.GetUserByEmail(req.Email)
+		if err != nil || user == nil || user.AuthSource != "local" {
+			// Return success regardless — don't reveal whether the email exists
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+			return
+		}
+
+		token, err := localAuth.ResetPassword(user.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to generate reset token"}})
+			return
+		}
+
+		slog.Info("auth: password reset requested", "ip", c.ClientIP())
+		c.JSON(http.StatusOK, gin.H{"ok": true, "setup_token": token})
+	}
+}
+
 // emailHash returns a short non-reversible identifier for use in Redis keys.
 // Using the first 8 bytes of SHA-256 keeps keys compact while avoiding PII.
 func emailHash(email string) string {

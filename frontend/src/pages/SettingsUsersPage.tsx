@@ -12,6 +12,7 @@ import {
   UserRecord,
 } from '../api/settings'
 import { listSlackMembers, SlackMember } from '../api/users'
+import { getSlackOAuthStatus } from '../api/slack'
 
 export function SettingsUsersPage() {
   const { user: currentUser } = useAuth()
@@ -355,6 +356,7 @@ function SlackImportModal({ onClose, onImported }: { onClose: () => void; onImpo
   const [members, setMembers] = useState<SlackMember[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loadingMembers, setLoadingMembers] = useState(true)
+  const [slackLoginEnabled, setSlackLoginEnabled] = useState<boolean | null>(null)
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
 
@@ -363,6 +365,9 @@ function SlackImportModal({ onClose, onImported }: { onClose: () => void; onImpo
       .then(data => { setMembers(data.members); setError('') })
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load Slack members'))
       .finally(() => setLoadingMembers(false))
+    getSlackOAuthStatus()
+      .then(r => setSlackLoginEnabled(r.enabled))
+      .catch(() => setSlackLoginEnabled(false))
   }, [])
 
   function toggleMember(id: string) {
@@ -411,6 +416,18 @@ function SlackImportModal({ onClose, onImported }: { onClose: () => void; onImpo
           </div>
           <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary text-lg leading-none">×</button>
         </div>
+
+        {/* Slack login warning */}
+        {slackLoginEnabled === false && (
+          <div className="mx-6 mt-4 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+            <span className="font-medium">⚠ Slack Login is not configured.</span> Imported users won't be able to sign in until you add OAuth credentials in <strong>Integrations → Slack → Reconfigure</strong>.
+          </div>
+        )}
+        {slackLoginEnabled === true && (
+          <div className="mx-6 mt-4 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+            Imported users will log in with <strong>Continue with Slack</strong> — they won't need a password.
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {loadingMembers ? (

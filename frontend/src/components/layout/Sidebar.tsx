@@ -12,11 +12,13 @@ import {
   FileText,
   LogOut,
   Users,
+  UserCog,
   Menu,
   BarChart2,
   Puzzle,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
+import { ProfileModal } from '../ProfileModal'
 import { useAuth } from '../../hooks/useAuth'
 import type { CurrentUser } from '../../api/auth'
 
@@ -53,6 +55,7 @@ export function Sidebar() {
     organization: true,
   })
   const { user: currentUser, signOut } = useAuth()
+  const [showProfile, setShowProfile] = useState(false)
   const navigate = useNavigate()
 
   // Persist collapse state
@@ -267,15 +270,26 @@ export function Sidebar() {
                 )}
               </div>
               {currentUser?.authenticated && (
-                <Tooltip content="Sign out">
-                  <button
-                    onClick={() => signOut().then(() => navigate('/logout'))}
-                    className="p-1.5 rounded hover:bg-sidebar-hover transition-colors ml-1 text-sidebar-text"
-                    aria-label="Sign out"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </Tooltip>
+                <>
+                  <Tooltip content="My profile">
+                    <button
+                      onClick={() => setShowProfile(true)}
+                      className="p-1.5 rounded hover:bg-sidebar-hover transition-colors ml-1 text-sidebar-text"
+                      aria-label="My profile"
+                    >
+                      <UserCog className="w-4 h-4" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Sign out">
+                    <button
+                      onClick={() => signOut().then(() => navigate('/logout'))}
+                      className="p-1.5 rounded hover:bg-sidebar-hover transition-colors ml-1 text-sidebar-text"
+                      aria-label="Sign out"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </button>
+                  </Tooltip>
+                </>
               )}
             </>
           ) : (
@@ -285,6 +299,7 @@ export function Sidebar() {
           )}
         </div>
       </div>
+      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
     </div>
   )
 

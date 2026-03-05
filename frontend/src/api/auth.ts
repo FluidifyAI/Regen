@@ -41,3 +41,11 @@ export async function exchangeSetupToken(token: string): Promise<void> {
 export async function logout(): Promise<void> {
   await apiClient.post<unknown>('/api/v1/auth/logout')
 }
+
+export async function updateMe(req: { name?: string; current_password?: string; new_password?: string }): Promise<void> {
+  await apiClient.patch<unknown>('/api/v1/auth/me', req)
+}
+
+export async function forgotPassword(email: string): Promise<{ setup_token?: string }> {
+  return apiClient.post<{ ok: boolean; setup_token?: string }>('/api/v1/auth/forgot-password', { email })
+}

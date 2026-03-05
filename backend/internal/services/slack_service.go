@@ -275,14 +275,20 @@ func (s *slackService) InviteUsers(channelID string, userIDs []string) error {
 	return fmt.Errorf("failed to invite users after retries")
 }
 
-// SendDirectMessage sends a Slack DM to a user identified by display name or email.
-// It tries users.lookupByEmail first (most reliable), then falls back to scanning
-// users.list for a matching display name or real name.
-// Once the user ID is found, it opens a DM channel and posts the message.
+// SendDirectMessage sends a Slack DM to a user.
+// username may be a Slack user ID (e.g. "U0AJLLY3678"), an email address, or a display name.
+// When a user ID is provided (starts with "U", length ≥ 9) the API lookup is skipped entirely.
 func (s *slackService) SendDirectMessage(username string, message Message) error {
-	userID, err := s.lookupUserID(username)
-	if err != nil {
-		return fmt.Errorf("failed to look up user %q: %w", username, err)
+	var userID string
+	// Slack user IDs look like U0AJLLY3678 — skip expensive lookup when we already have one.
+	if strings.HasPrefix(username, "U") && len(username) >= 9 {
+		userID = username
+	} else {
+		var err error
+		userID, err = s.lookupUserID(username)
+		if err != nil {
+			return fmt.Errorf("failed to look up user %q: %w", username, err)
+		}
 	}
 
 	// Open (or reuse) the DM channel for this user

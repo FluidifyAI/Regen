@@ -206,14 +206,13 @@ func setupSlackTestDB(t *testing.T) (*gorm.DB, func()) {
 }
 
 // buildTestIncidentService builds an incidentService with the given mock and db.
-func buildTestIncidentService(db *gorm.DB, chat ChatService, autoInvite []string) IncidentService {
+func buildTestIncidentService(db *gorm.DB, chat ChatService) IncidentService {
 	return NewIncidentService(
 		repository.NewIncidentRepository(db),
 		repository.NewTimelineRepository(db),
 		repository.NewAlertRepository(db),
 		chat,
 		db,
-		autoInvite,
 	)
 }
 
@@ -265,7 +264,7 @@ func TestUpdateIncident_ArchivesChannelOnResolve(t *testing.T) {
 	defer cleanup()
 
 	mock := newMockChat()
-	svc := buildTestIncidentService(db, mock, nil)
+	svc := buildTestIncidentService(db, mock)
 
 	// Create an incident with a Slack channel already assigned
 	incident := &models.Incident{
@@ -311,7 +310,7 @@ func TestUpdateIncident_ArchivesChannelOnCanceled(t *testing.T) {
 	defer cleanup()
 
 	mock := newMockChat()
-	svc := buildTestIncidentService(db, mock, nil)
+	svc := buildTestIncidentService(db, mock)
 
 	incident := &models.Incident{
 		ID:               uuid.New(),
@@ -359,7 +358,7 @@ func TestUpdateIncident_DoesNotArchiveOnAcknowledge(t *testing.T) {
 		t.Errorf("ArchiveChannel must NOT be called on acknowledge, got %q", channelID)
 		return nil
 	}
-	svc := buildTestIncidentService(db, mock, nil)
+	svc := buildTestIncidentService(db, mock)
 
 	incident := &models.Incident{
 		ID:               uuid.New(),
@@ -386,54 +385,18 @@ func TestUpdateIncident_DoesNotArchiveOnAcknowledge(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 }
 
-// TestCreateSlackChannelForIncident_AutoInvite verifies that configured user IDs
-// are invited after channel creation.
-func TestCreateSlackChannelForIncident_AutoInvite(t *testing.T) {
-	db, cleanup := setupSlackTestDB(t)
-	defer cleanup()
-
-	mock := newMockChat()
-	autoInviteIDs := []string{"U111", "U222"}
-	svc := buildTestIncidentService(db, mock, autoInviteIDs)
-
-	incident := &models.Incident{
-		ID:            uuid.New(),
-		IncidentNumber: 99,
-		Title:          "Auto-invite test",
-		Slug:           "auto-invite-test",
-		Status:        models.IncidentStatusTriggered,
-		Severity:      models.IncidentSeverityHigh,
-		CreatedByType: "system",
-		CreatedByID:   "test",
-		TriggeredAt:   time.Now(),
-	}
-	repo := repository.NewIncidentRepository(db)
-	require.NoError(t, repo.Create(incident))
-
-	err := svc.CreateSlackChannelForIncident(incident, nil)
-	require.NoError(t, err)
-
-	// CreateSlackChannelForIncident is synchronous in tests (called directly)
-	mock.mu.Lock()
-	calls := mock.InviteCalls
-	mock.mu.Unlock()
-
-	require.Len(t, calls, 1)
-	assert.Equal(t, autoInviteIDs, calls[0].UserIDs)
-}
-
-// TestCreateSlackChannelForIncident_NoAutoInviteWhenEmpty verifies that when
-// no user IDs are configured, InviteUsers is never called.
-func TestCreateSlackChannelForIncident_NoAutoInviteWhenEmpty(t *testing.T) {
+// TestCreateSlackChannelForIncident_NoInviteWhenNoOnCallConfigured verifies that
+// InviteUsers is never called when no schedules or on-call users are configured.
+func TestCreateSlackChannelForIncident_NoInviteWhenNoOnCallConfigured(t *testing.T) {
 	db, cleanup := setupSlackTestDB(t)
 	defer cleanup()
 
 	mock := newMockChat()
 	mock.InviteUsersFn = func(channelID string, userIDs []string) error {
-		t.Error("InviteUsers must NOT be called when autoInviteUserIDs is empty")
+		t.Error("InviteUsers must NOT be called when no on-call user is configured")
 		return nil
 	}
-	svc := buildTestIncidentService(db, mock, nil)
+	svc := buildTestIncidentService(db, mock)
 
 	incident := &models.Incident{
 		ID:            uuid.New(),

@@ -24,7 +24,7 @@ func ListUsersForAssignment(userRepo repository.UserRepository) gin.HandlerFunc 
 		}
 		out := make([]userEntry, 0, len(users))
 		for _, u := range users {
-			if u.AuthSource == "deactivated" {
+			if !u.Active {
 				continue
 			}
 			out = append(out, userEntry{

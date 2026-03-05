@@ -44,6 +44,11 @@ type User struct {
 	// Defaults to true for all existing rows via migration.
 	Active bool `gorm:"not null;default:true;column:active" json:"active"`
 
+	// SlackUserID is the Slack member ID (e.g. U0AJLLY3678).
+	// Set automatically when user is imported from Slack, or manually by admin.
+	// Used to invite on-call responders to incident channels and send DMs.
+	SlackUserID *string `gorm:"type:varchar(20);column:slack_user_id" json:"slack_user_id,omitempty"`
+
 	Role        UserRole   `gorm:"type:varchar(50);not null;default:'member'" json:"role"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
 

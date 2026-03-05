@@ -180,7 +180,7 @@ func TestPrometheusWebhookIntegration(t *testing.T) {
 			timelineRepo := repository.NewTimelineRepository(db)
 
 			// Create incident service with all required dependencies (nil for optional ChatService)
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
 			alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 
 			// Create test router
@@ -270,7 +270,7 @@ func TestDuplicateAlertUpdate(t *testing.T) {
 	incidentRepo := repository.NewIncidentRepository(db)
 	timelineRepo := repository.NewTimelineRepository(db)
 
-	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
+	incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
 	alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 
 	router := gin.New()
@@ -438,7 +438,7 @@ func TestInvalidPayloadValidation(t *testing.T) {
 			incidentRepo := repository.NewIncidentRepository(db)
 			timelineRepo := repository.NewTimelineRepository(db)
 
-			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db, nil)
+			incidentSvc := services.NewIncidentService(incidentRepo, timelineRepo, alertRepo, nil, db)
 			alertSvc := services.NewAlertService(alertRepo, incidentSvc)
 
 			router := gin.New()

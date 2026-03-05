@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -34,6 +35,7 @@ type SlackEventHandler struct {
 	client          *socketmode.Client
 	incidentService IncidentService
 	chatService     ChatService
+	userRepo        repository.UserRepository
 	botUserID       string
 }
 
@@ -44,6 +46,7 @@ func NewSlackEventHandler(
 	botToken string,
 	incidentService IncidentService,
 	chatService ChatService,
+	userRepo repository.UserRepository,
 ) (*SlackEventHandler, error) {
 	if appToken == "" {
 		return nil, fmt.Errorf("SLACK_APP_TOKEN is required for Socket Mode")
@@ -76,6 +79,7 @@ func NewSlackEventHandler(
 		client:          client,
 		incidentService: incidentService,
 		chatService:     chatService,
+		userRepo:        userRepo,
 		botUserID:       auth.UserID,
 	}, nil
 }
@@ -108,6 +112,14 @@ func (h *SlackEventHandler) handleInteraction(evt socketmode.Event) {
 				h.handleStatusButton(callback, action, models.IncidentStatusAcknowledged)
 			case "resolve":
 				h.handleStatusButton(callback, action, models.IncidentStatusResolved)
+			case "make_me_lead":
+				h.handleMakeMeLead(callback, action)
+			case "open_note_modal":
+				h.handleOpenNoteModal(callback, action)
+			case "view_overview":
+				h.handleViewOverview(callback, action)
+			case "view_commands":
+				h.handleViewCommands(callback)
 			}
 		}
 	case slack.InteractionTypeViewSubmission:
@@ -143,7 +155,7 @@ func (h *SlackEventHandler) handleStatusButton(
 	// Update incident via the same service used by the HTTP API
 	updated, err := h.incidentService.UpdateIncident(incidentID, &UpdateIncidentParams{
 		Status:    targetStatus,
-		UpdatedBy: callback.User.ID,
+		UpdatedBy: h.resolveActorID(callback.User.ID),
 	})
 	if err != nil {
 		slog.Error("failed to update incident from slack button",
@@ -213,6 +225,21 @@ func (h *SlackEventHandler) handleSlashCommand(evt socketmode.Event) {
 		h.openCreateIncidentModal(cmd)
 	case "list":
 		h.listOpenIncidents(cmd)
+	case "ack", "acknowledge":
+		h.ackIncidentInChannel(cmd)
+	case "resolve":
+		h.resolveIncidentInChannel(cmd)
+	case "note":
+		noteText := strings.TrimSpace(strings.TrimPrefix(cmd.Text, parts[0]))
+		h.addNoteToIncident(cmd, noteText)
+	case "lead":
+		targetArg := ""
+		if len(parts) > 1 {
+			targetArg = strings.Join(parts[1:], " ")
+		}
+		h.assignLeadFromSlash(cmd, targetArg)
+	case "status":
+		h.showIncidentStatus(cmd)
 	case "help":
 		h.sendHelpResponse(cmd)
 	default:
@@ -276,11 +303,18 @@ func (h *SlackEventHandler) openCreateIncidentModal(cmd slack.SlashCommand) {
 	}
 }
 
-// handleModalSubmission processes modal form submissions (create_incident).
+// handleModalSubmission processes modal form submissions.
 func (h *SlackEventHandler) handleModalSubmission(callback slack.InteractionCallback) {
-	if callback.View.CallbackID != "create_incident" {
-		return
+	switch callback.View.CallbackID {
+	case "create_incident":
+		h.handleCreateIncidentSubmission(callback)
+	case "add_note_modal":
+		h.handleAddNoteSubmission(callback)
 	}
+}
+
+// handleCreateIncidentSubmission processes the create_incident modal.
+func (h *SlackEventHandler) handleCreateIncidentSubmission(callback slack.InteractionCallback) {
 
 	values := callback.View.State.Values
 	title := values["title"]["title_input"].Value
@@ -338,9 +372,16 @@ func (h *SlackEventHandler) listOpenIncidents(cmd slack.SlashCommand) {
 // sendHelpResponse posts ephemeral usage instructions.
 func (h *SlackEventHandler) sendHelpResponse(cmd slack.SlashCommand) {
 	h.postEphemeral(cmd.ChannelID, cmd.UserID,
-		"*OpenIncident Slash Commands:*\n"+
+		"*OpenIncident Slash Commands:*\n\n"+
+			"*Declare & Browse*\n"+
 			"• `/incident new [title]` — Declare a new incident (opens form)\n"+
-			"• `/incident list` — List open incidents\n"+
+			"• `/incident list` — List open incidents\n\n"+
+			"*In an Incident Channel*\n"+
+			"• `/incident ack` — Acknowledge this incident\n"+
+			"• `/incident resolve` — Resolve this incident\n"+
+			"• `/incident status` — Show incident status\n"+
+			"• `/incident note <text>` — Add a timeline note (opens form if no text)\n"+
+			"• `/incident lead [me|@user]` — Assign incident commander\n\n"+
 			"• `/incident help` — Show this message")
 }
 
@@ -353,25 +394,46 @@ func (h *SlackEventHandler) handleEventsAPI(evt socketmode.Event) {
 	}
 	h.client.Ack(*evt.Request)
 
+	slog.Info("slack events api event received", "type", eventsAPIEvent.InnerEvent.Type)
 	switch ev := eventsAPIEvent.InnerEvent.Data.(type) {
 	case *slackevents.MessageEvent:
 		h.handleChannelMessage(ev)
+	default:
+		slog.Warn("slack events api: unhandled inner event type", "type", eventsAPIEvent.InnerEvent.Type)
 	}
 }
 
 // handleChannelMessage syncs a Slack channel message to the incident timeline.
 // Skips bot messages and messages in non-incident channels.
 func (h *SlackEventHandler) handleChannelMessage(ev *slackevents.MessageEvent) {
+	slog.Info("slack channel message received",
+		"channel", ev.Channel,
+		"user", ev.User,
+		"subtype", ev.SubType,
+	)
+
 	// Echo prevention: skip bot messages and our own bot's messages
 	if ev.SubType == "bot_message" || ev.User == h.botUserID || ev.User == "" {
+		slog.Info("slack channel message skipped (bot/empty)", "subtype", ev.SubType, "user", ev.User)
 		return
 	}
 
 	// Only process messages in channels linked to incidents
 	incident, err := h.incidentService.GetIncidentBySlackChannelID(ev.Channel)
-	if err != nil || incident == nil {
+	if err != nil {
+		slog.Warn("slack channel message: error looking up incident by channel",
+			"channel", ev.Channel, "error", err)
 		return
 	}
+	if incident == nil {
+		slog.Warn("slack channel message: no incident linked to channel", "channel", ev.Channel)
+		return
+	}
+	slog.Info("slack channel message: syncing to timeline",
+		"channel", ev.Channel,
+		"incident_id", incident.ID,
+		"user", ev.User,
+	)
 
 	// Resolve display name and avatar
 	displayName := ev.User
@@ -408,6 +470,391 @@ func (h *SlackEventHandler) handleChannelMessage(ev *slackevents.MessageEvent) {
 			"incident_id", incident.ID,
 			"error", err)
 	}
+}
+
+// ── Channel-context slash command helpers ──────────────────────────────────
+
+// getIncidentFromChannel looks up the incident linked to a Slack channel.
+func (h *SlackEventHandler) getIncidentFromChannel(channelID string) (*models.Incident, error) {
+	incident, err := h.incidentService.GetIncidentBySlackChannelID(channelID)
+	if err != nil || incident == nil {
+		return nil, fmt.Errorf("no incident is linked to this channel")
+	}
+	return incident, nil
+}
+
+// ackIncidentInChannel acknowledges the incident linked to the slash command channel.
+func (h *SlackEventHandler) ackIncidentInChannel(cmd slack.SlashCommand) {
+	incident, err := h.getIncidentFromChannel(cmd.ChannelID)
+	if err != nil {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID, "No incident is linked to this channel.")
+		return
+	}
+	if !isValidSlackTransition(incident.Status, models.IncidentStatusAcknowledged) {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID,
+			fmt.Sprintf("Cannot acknowledge: incident is already *%s*.", incident.Status))
+		return
+	}
+	updated, err := h.incidentService.UpdateIncident(incident.ID, &UpdateIncidentParams{
+		Status:    models.IncidentStatusAcknowledged,
+		UpdatedBy: h.resolveActorID(cmd.UserID),
+	})
+	if err != nil {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID, "Failed to acknowledge: "+err.Error())
+		return
+	}
+	h.refreshIncidentCard(updated)
+	_, _ = h.chatService.PostMessage(cmd.ChannelID, Message{
+		Text: fmt.Sprintf("<@%s> acknowledged INC-%d", cmd.UserID, updated.IncidentNumber),
+	})
+}
+
+// resolveIncidentInChannel resolves the incident linked to the slash command channel.
+func (h *SlackEventHandler) resolveIncidentInChannel(cmd slack.SlashCommand) {
+	incident, err := h.getIncidentFromChannel(cmd.ChannelID)
+	if err != nil {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID, "No incident is linked to this channel.")
+		return
+	}
+	if !isValidSlackTransition(incident.Status, models.IncidentStatusResolved) {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID,
+			fmt.Sprintf("Cannot resolve: incident is already *%s*.", incident.Status))
+		return
+	}
+	updated, err := h.incidentService.UpdateIncident(incident.ID, &UpdateIncidentParams{
+		Status:    models.IncidentStatusResolved,
+		UpdatedBy: h.resolveActorID(cmd.UserID),
+	})
+	if err != nil {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID, "Failed to resolve: "+err.Error())
+		return
+	}
+	h.refreshIncidentCard(updated)
+	_, _ = h.chatService.PostMessage(cmd.ChannelID, Message{
+		Text: fmt.Sprintf("<@%s> resolved INC-%d", cmd.UserID, updated.IncidentNumber),
+	})
+}
+
+// addNoteToIncident creates a timeline note for the incident in the current channel.
+// If noteText is empty, opens the add-note modal instead.
+func (h *SlackEventHandler) addNoteToIncident(cmd slack.SlashCommand, noteText string) {
+	incident, err := h.getIncidentFromChannel(cmd.ChannelID)
+	if err != nil {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID, "No incident is linked to this channel.")
+		return
+	}
+	if noteText == "" {
+		h.openNoteModalForIncident(cmd.TriggerID, cmd.UserID, incident.ID.String())
+		return
+	}
+	if _, err := h.incidentService.CreateTimelineEntry(&CreateTimelineEntryParams{
+		IncidentID: incident.ID,
+		Type:       models.TimelineTypeMessage,
+		ActorType:  "user",
+		ActorID:    h.resolveActorID(cmd.UserID),
+		Content:    models.JSONB{"text": noteText, "source": "slack_slash_command"},
+	}); err != nil {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID, "Failed to add note: "+err.Error())
+		return
+	}
+	_, _ = h.chatService.PostMessage(cmd.ChannelID, Message{
+		Text: fmt.Sprintf("📝 <@%s> added a note: %s", cmd.UserID, noteText),
+	})
+}
+
+// showIncidentStatus posts an ephemeral status summary for the current channel's incident.
+func (h *SlackEventHandler) showIncidentStatus(cmd slack.SlashCommand) {
+	incident, err := h.getIncidentFromChannel(cmd.ChannelID)
+	if err != nil {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID, "No incident is linked to this channel.")
+		return
+	}
+	commander := "_unassigned_"
+	if incident.CommanderID != nil {
+		if user, err := h.userRepo.GetByID(*incident.CommanderID); err == nil {
+			commander = user.Name
+		}
+	}
+	summary := "_none_"
+	if incident.Summary != "" {
+		summary = incident.Summary
+	}
+	msg := fmt.Sprintf(
+		"*INC-%d: %s*\n*Status:* %s %s\n*Severity:* %s %s\n*Commander:* %s\n*Summary:* %s",
+		incident.IncidentNumber, incident.Title,
+		getStatusEmoji(incident.Status), incident.Status,
+		getSeverityEmoji(incident.Severity), incident.Severity,
+		commander, summary,
+	)
+	h.postEphemeral(cmd.ChannelID, cmd.UserID, msg)
+}
+
+// assignLeadFromSlash assigns an incident commander via /incident lead [me|@user].
+// targetArg="" or "me" → self; "<@UXXXXXX>" or "<@UXXXXXX|name>" → that user.
+func (h *SlackEventHandler) assignLeadFromSlash(cmd slack.SlashCommand, targetArg string) {
+	incident, err := h.getIncidentFromChannel(cmd.ChannelID)
+	if err != nil {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID, "No incident is linked to this channel.")
+		return
+	}
+
+	slackUserID := cmd.UserID // default: self
+	if targetArg != "" && targetArg != "me" {
+		// Parse "<@UXXXXX>" or "<@UXXXXX|displayname>"
+		slackUserID = parseSlackMention(targetArg)
+		if slackUserID == "" {
+			h.postEphemeral(cmd.ChannelID, cmd.UserID,
+				"Could not parse user. Usage: `/incident lead` or `/incident lead @username`")
+			return
+		}
+	}
+
+	internalUser, err := h.resolveSlackUserToInternal(slackUserID)
+	if err != nil {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID,
+			fmt.Sprintf("Could not find user <@%s> in OpenIncident. Make sure they have a profile with a Slack ID set.", slackUserID))
+		return
+	}
+
+	if _, err := h.incidentService.UpdateIncident(incident.ID, &UpdateIncidentParams{
+		CommanderID: &internalUser.ID,
+		UpdatedBy:   h.resolveActorID(cmd.UserID),
+	}); err != nil {
+		h.postEphemeral(cmd.ChannelID, cmd.UserID, "Failed to assign commander: "+err.Error())
+		return
+	}
+	_, _ = h.chatService.PostMessage(cmd.ChannelID, Message{
+		Text: fmt.Sprintf("🎖️ <@%s> is now the Incident Commander for INC-%d", slackUserID, incident.IncidentNumber),
+	})
+}
+
+// ── Button interaction handlers ─────────────────────────────────────────────
+
+// handleMakeMeLead handles the "🎖️ Take Lead" button.
+func (h *SlackEventHandler) handleMakeMeLead(callback slack.InteractionCallback, action *slack.BlockAction) {
+	incidentID, err := uuid.Parse(action.Value)
+	if err != nil {
+		h.postEphemeral(callback.Channel.ID, callback.User.ID, "Failed to process action: invalid incident ID")
+		return
+	}
+
+	if h.userRepo == nil {
+		h.postEphemeral(callback.Channel.ID, callback.User.ID, "User repository not available")
+		return
+	}
+
+	internalUser, err := h.resolveSlackUserToInternal(callback.User.ID)
+	if err != nil {
+		h.postEphemeral(callback.Channel.ID, callback.User.ID,
+			"Could not find your OpenIncident profile. Ask an admin to link your Slack ID.")
+		return
+	}
+
+	updated, err := h.incidentService.UpdateIncident(incidentID, &UpdateIncidentParams{
+		CommanderID: &internalUser.ID,
+		UpdatedBy:   h.resolveActorID(callback.User.ID),
+	})
+	if err != nil {
+		h.postEphemeral(callback.Channel.ID, callback.User.ID, "Failed to assign command: "+err.Error())
+		return
+	}
+
+	h.refreshIncidentCard(updated)
+	_, _ = h.chatService.PostMessage(callback.Channel.ID, Message{
+		Text: fmt.Sprintf("🎖️ <@%s> is now the Incident Commander for INC-%d", callback.User.ID, updated.IncidentNumber),
+	})
+}
+
+// handleOpenNoteModal handles the "📝 Add Note" button — opens the note input modal.
+func (h *SlackEventHandler) handleOpenNoteModal(callback slack.InteractionCallback, action *slack.BlockAction) {
+	h.openNoteModalForIncident(callback.TriggerID, callback.User.ID, action.Value)
+}
+
+// openNoteModalForIncident opens the Add Note modal, storing the incident ID in private_metadata.
+func (h *SlackEventHandler) openNoteModalForIncident(triggerID, userID, incidentID string) {
+	meta, _ := json.Marshal(map[string]string{"incident_id": incidentID})
+
+	modalView := slack.ModalViewRequest{
+		Type:            slack.VTModal,
+		Title:           slack.NewTextBlockObject(slack.PlainTextType, "Add Timeline Note", false, false),
+		Submit:          slack.NewTextBlockObject(slack.PlainTextType, "Add Note", false, false),
+		Close:           slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false),
+		CallbackID:      "add_note_modal",
+		PrivateMetadata: string(meta),
+		Blocks: slack.Blocks{
+			BlockSet: []slack.Block{
+				slack.NewInputBlock("note",
+					slack.NewTextBlockObject(slack.PlainTextType, "Note", false, false),
+					nil,
+					slack.NewPlainTextInputBlockElement(
+						slack.NewTextBlockObject(slack.PlainTextType, "Describe what's happening…", false, false),
+						"note_input",
+					),
+				),
+			},
+		},
+	}
+
+	if _, err := h.client.OpenView(triggerID, modalView); err != nil {
+		slog.Error("failed to open add note modal", "error", err, "user", userID)
+	}
+}
+
+// handleAddNoteSubmission processes the add_note_modal submission.
+// Creates the timeline entry AND posts the note text to the incident channel
+// so it also flows back via handleChannelMessage (Slack → UI sync).
+func (h *SlackEventHandler) handleAddNoteSubmission(callback slack.InteractionCallback) {
+	var meta map[string]string
+	if err := json.Unmarshal([]byte(callback.View.PrivateMetadata), &meta); err != nil {
+		slog.Error("failed to parse add_note_modal metadata", "error", err)
+		return
+	}
+	incidentID, err := uuid.Parse(meta["incident_id"])
+	if err != nil {
+		slog.Error("invalid incident_id in add_note_modal metadata", "error", err)
+		return
+	}
+
+	noteText := strings.TrimSpace(callback.View.State.Values["note"]["note_input"].Value)
+	if noteText == "" {
+		return
+	}
+
+	if _, err := h.incidentService.CreateTimelineEntry(&CreateTimelineEntryParams{
+		IncidentID: incidentID,
+		Type:       models.TimelineTypeMessage,
+		ActorType:  "user",
+		ActorID:    h.resolveActorID(callback.User.ID),
+		Content:    models.JSONB{"text": noteText, "source": "slack_note_modal"},
+	}); err != nil {
+		slog.Error("failed to create timeline note from slack modal",
+			"incident_id", incidentID, "error", err)
+		return
+	}
+
+	// Post the note to the Slack channel so the team sees it.
+	// We look up the incident to get the channel ID.
+	if incident, err := h.incidentService.GetIncident(incidentID, 0); err == nil && incident.SlackChannelID != "" {
+		_, _ = h.chatService.PostMessage(incident.SlackChannelID, Message{
+			Text: fmt.Sprintf("📝 *Note from <@%s>:*\n%s", callback.User.ID, noteText),
+		})
+	}
+}
+
+// handleViewOverview posts an ephemeral incident status summary for the button clicker.
+func (h *SlackEventHandler) handleViewOverview(callback slack.InteractionCallback, action *slack.BlockAction) {
+	incidentID, err := uuid.Parse(action.Value)
+	if err != nil {
+		h.postEphemeral(callback.Channel.ID, callback.User.ID, "Invalid incident ID")
+		return
+	}
+	incident, err := h.incidentService.GetIncident(incidentID, 0)
+	if err != nil {
+		h.postEphemeral(callback.Channel.ID, callback.User.ID, "Could not find incident")
+		return
+	}
+	commander := "_unassigned_"
+	if incident.CommanderID != nil {
+		if user, err := h.userRepo.GetByID(*incident.CommanderID); err == nil {
+			commander = user.Name
+		}
+	}
+	summary := "_none_"
+	if incident.Summary != "" {
+		summary = incident.Summary
+	}
+	msg := fmt.Sprintf(
+		"*INC-%d: %s*\n*Status:* %s %s\n*Severity:* %s %s\n*Commander:* %s\n*Summary:* %s",
+		incident.IncidentNumber, incident.Title,
+		getStatusEmoji(incident.Status), incident.Status,
+		getSeverityEmoji(incident.Severity), incident.Severity,
+		commander, summary,
+	)
+	h.postEphemeral(callback.Channel.ID, callback.User.ID, msg)
+}
+
+// handleViewCommands posts an ephemeral list of available slash commands.
+func (h *SlackEventHandler) handleViewCommands(callback slack.InteractionCallback) {
+	h.postEphemeral(callback.Channel.ID, callback.User.ID,
+		"*OpenIncident Slash Commands:*\n\n"+
+			"*Declare & Browse*\n"+
+			"• `/incident new [title]` — Declare a new incident (opens form)\n"+
+			"• `/incident list` — List open incidents\n\n"+
+			"*In an Incident Channel*\n"+
+			"• `/incident ack` — Acknowledge this incident\n"+
+			"• `/incident resolve` — Resolve this incident\n"+
+			"• `/incident status` — Show incident status\n"+
+			"• `/incident note <text>` — Add a timeline note (opens form if no text)\n"+
+			"• `/incident lead [me|@user]` — Assign incident commander\n\n"+
+			"• `/incident help` — Show this message")
+}
+
+// ── Shared utilities ─────────────────────────────────────────────────────────
+
+// refreshIncidentCard updates the pinned incident card in Slack using the stored message TS.
+func (h *SlackEventHandler) refreshIncidentCard(incident *models.Incident) {
+	if incident.SlackChannelID == "" || incident.SlackMessageTS == "" {
+		return
+	}
+	msg := NewSlackMessageBuilder().BuildIncidentUpdatedMessage(incident)
+	if err := h.chatService.UpdateMessage(incident.SlackChannelID, incident.SlackMessageTS, msg); err != nil {
+		slog.Warn("failed to refresh incident card after slash command",
+			"incident_id", incident.ID, "error", err)
+	}
+}
+
+// resolveSlackUserToInternal maps a Slack user ID to an internal models.User.
+func (h *SlackEventHandler) resolveSlackUserToInternal(slackUserID string) (*models.User, error) {
+	if h.userRepo == nil {
+		return nil, fmt.Errorf("user repository not configured")
+	}
+	user, err := h.userRepo.GetBySlackUserID(slackUserID)
+	if err != nil {
+		return nil, fmt.Errorf("no OpenIncident user found for Slack ID %s: %w", slackUserID, err)
+	}
+	return user, nil
+}
+
+// resolveActorID converts a Slack user ID to the best available actor identifier
+// for timeline entries, in priority order:
+//  1. Internal user UUID (if the user's Slack ID is linked in OpenIncident)
+//  2. Slack display name (so the timeline shows a real name instead of a raw ID)
+//  3. Original Slack user ID (last resort)
+func (h *SlackEventHandler) resolveActorID(slackUserID string) string {
+	// 1. Prefer internal user UUID — frontend can resolve to name+avatar
+	if h.userRepo != nil {
+		if user, err := h.userRepo.GetBySlackUserID(slackUserID); err == nil {
+			return user.ID.String()
+		}
+	}
+	// 2. Fall back to Slack display name so at least a human-readable name shows
+	if userInfo, err := h.client.GetUserInfo(slackUserID); err == nil {
+		if userInfo.Profile.DisplayName != "" {
+			return userInfo.Profile.DisplayName
+		}
+		if userInfo.RealName != "" {
+			return userInfo.RealName
+		}
+	}
+	// 3. Last resort — still better than nothing
+	return slackUserID
+}
+
+// parseSlackMention extracts the Slack user ID from a mention string like "<@U012345>" or "<@U012345|name>".
+// Returns "" if the string is not a valid mention.
+func parseSlackMention(s string) string {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, "<@") || !strings.HasSuffix(s, ">") {
+		return ""
+	}
+	inner := s[2 : len(s)-1] // strip <@ and >
+	if idx := strings.Index(inner, "|"); idx != -1 {
+		inner = inner[:idx]
+	}
+	if strings.HasPrefix(inner, "U") && len(inner) >= 9 {
+		return inner
+	}
+	return ""
 }
 
 // listen processes events from the Socket Mode channel.

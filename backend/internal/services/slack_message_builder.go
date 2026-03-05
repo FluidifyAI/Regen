@@ -104,29 +104,21 @@ func (b *SlackMessageBuilder) BuildIncidentCreatedMessage(
 		blocks = append(blocks, slack.NewDividerBlock())
 	}
 
-	// Action buttons
+	// Quick-action buttons
 	blocks = append(blocks, slack.NewActionBlock(
-		"incident_actions",
-		slack.NewButtonBlockElement(
-			"acknowledge",
-			incident.ID.String(),
-			slack.NewTextBlockObject(
-				slack.PlainTextType,
-				"👀 Acknowledge",
-				false,
-				false,
-			),
-		).WithStyle(slack.StylePrimary),
-		slack.NewButtonBlockElement(
-			"resolve",
-			incident.ID.String(),
-			slack.NewTextBlockObject(
-				slack.PlainTextType,
-				"✅ Resolve",
-				false,
-				false,
-			),
-		).WithStyle(slack.StyleDanger),
+		"incident_quick_actions",
+		slack.NewButtonBlockElement("make_me_lead", incident.ID.String(),
+			slack.NewTextBlockObject(slack.PlainTextType, "🧑‍🚒 Make me Lead", false, false),
+		),
+		slack.NewButtonBlockElement("open_note_modal", incident.ID.String(),
+			slack.NewTextBlockObject(slack.PlainTextType, "📝 Add Note", false, false),
+		),
+		slack.NewButtonBlockElement("view_overview", incident.ID.String(),
+			slack.NewTextBlockObject(slack.PlainTextType, "👀 Overview", false, false),
+		),
+		slack.NewButtonBlockElement("view_commands", incident.ID.String(),
+			slack.NewTextBlockObject(slack.PlainTextType, "🔍 View all commands", false, false),
+		),
 	))
 
 	return Message{
@@ -278,23 +270,22 @@ func (b *SlackMessageBuilder) BuildIncidentUpdatedMessage(incident *models.Incid
 		)
 	}
 
-	switch incident.Status {
-	case models.IncidentStatusTriggered:
+	// Show action buttons for active incidents only
+	if incident.Status == models.IncidentStatusTriggered || incident.Status == models.IncidentStatusAcknowledged {
 		blocks = append(blocks, slack.NewActionBlock(
-			"incident_actions",
-			slack.NewButtonBlockElement("acknowledge", incident.ID.String(),
-				slack.NewTextBlockObject(slack.PlainTextType, "👀 Acknowledge", false, false),
-			).WithStyle(slack.StylePrimary),
-			slack.NewButtonBlockElement("resolve", incident.ID.String(),
-				slack.NewTextBlockObject(slack.PlainTextType, "✅ Resolve", false, false),
-			).WithStyle(slack.StyleDanger),
-		))
-	case models.IncidentStatusAcknowledged:
-		blocks = append(blocks, slack.NewActionBlock(
-			"incident_actions",
-			slack.NewButtonBlockElement("resolve", incident.ID.String(),
-				slack.NewTextBlockObject(slack.PlainTextType, "✅ Resolve", false, false),
-			).WithStyle(slack.StyleDanger),
+			"incident_quick_actions",
+			slack.NewButtonBlockElement("make_me_lead", incident.ID.String(),
+				slack.NewTextBlockObject(slack.PlainTextType, "🧑‍🚒 Make me Lead", false, false),
+			),
+			slack.NewButtonBlockElement("open_note_modal", incident.ID.String(),
+				slack.NewTextBlockObject(slack.PlainTextType, "📝 Add Note", false, false),
+			),
+			slack.NewButtonBlockElement("view_overview", incident.ID.String(),
+				slack.NewTextBlockObject(slack.PlainTextType, "👀 Overview", false, false),
+			),
+			slack.NewButtonBlockElement("view_commands", incident.ID.String(),
+				slack.NewTextBlockObject(slack.PlainTextType, "🔍 View all commands", false, false),
+			),
 		))
 	}
 

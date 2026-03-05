@@ -2,13 +2,49 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/api/handlers/dto"
+	"github.com/openincident/openincident/internal/api/middleware"
 	"github.com/openincident/openincident/internal/repository"
 	"github.com/openincident/openincident/internal/services"
 )
 
+// resolveActorNames takes a slice of timeline responses and fills in ActorName
+// for entries where actor_type == "user" and actor_id is a valid UUID.
+// A single map lookup per unique user avoids N+1 queries.
+func resolveActorNames(entries []dto.TimelineEntryResponse, userRepo repository.UserRepository) {
+	if userRepo == nil {
+		return
+	}
+	// Collect unique user UUIDs
+	seen := map[uuid.UUID]string{} // uuid → resolved name (empty = pending)
+	for _, e := range entries {
+		if e.ActorType == "user" && e.ActorID != "" {
+			if uid, err := uuid.Parse(e.ActorID); err == nil {
+				seen[uid] = ""
+			}
+		}
+	}
+	// Fetch each unique user once
+	for uid := range seen {
+		if user, err := userRepo.GetByID(uid); err == nil {
+			seen[uid] = user.Name
+		}
+	}
+	// Apply resolved names back to entries
+	for i, e := range entries {
+		if e.ActorType == "user" && e.ActorID != "" {
+			if uid, err := uuid.Parse(e.ActorID); err == nil {
+				if name := seen[uid]; name != "" {
+					entries[i].ActorName = name
+				}
+			}
+		}
+	}
+}
+
 // GetIncidentTimeline handles GET /api/v1/incidents/:id/timeline
-func GetIncidentTimeline(incidentSvc services.IncidentService) gin.HandlerFunc {
+func GetIncidentTimeline(incidentSvc services.IncidentService, userRepo repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idParam := c.Param("id")
 
@@ -52,6 +88,7 @@ func GetIncidentTimeline(incidentSvc services.IncidentService) gin.HandlerFunc {
 		for i, entry := range entries {
 			responses[i] = dto.ToTimelineEntryResponse(&entry)
 		}
+		resolveActorNames(responses, userRepo)
 
 		c.JSON(200, dto.PaginatedResponse{
 			Data:   responses,
@@ -63,7 +100,7 @@ func GetIncidentTimeline(incidentSvc services.IncidentService) gin.HandlerFunc {
 }
 
 // CreateTimelineEntry handles POST /api/v1/incidents/:id/timeline
-func CreateTimelineEntry(incidentSvc services.IncidentService) gin.HandlerFunc {
+func CreateTimelineEntry(incidentSvc services.IncidentService, userRepo repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idParam := c.Param("id")
 
@@ -102,13 +139,19 @@ func CreateTimelineEntry(incidentSvc services.IncidentService) gin.HandlerFunc {
 			return
 		}
 
+		// Resolve the logged-in user so timeline entries show the real name.
+		actorID := "anonymous"
+		if user := middleware.GetLocalUser(c); user != nil {
+			actorID = user.ID.String()
+		}
+
 		// Create entry
 		params := services.CreateTimelineEntryParams{
 			IncidentID: incident.ID,
 			Type:       req.Type,
 			Content:    req.Content,
 			ActorType:  "user",
-			ActorID:    "anonymous", // For v0.1. Will use auth context in v0.2+
+			ActorID:    actorID,
 		}
 
 		entry, err := incidentSvc.CreateTimelineEntry(&params)
@@ -117,6 +160,10 @@ func CreateTimelineEntry(incidentSvc services.IncidentService) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(201, dto.ToTimelineEntryResponse(entry))
+		resp := dto.ToTimelineEntryResponse(entry)
+		// Resolve the actor name for the newly created entry
+		single := []dto.TimelineEntryResponse{resp}
+		resolveActorNames(single, userRepo)
+		c.JSON(201, single[0])
 	}
 }

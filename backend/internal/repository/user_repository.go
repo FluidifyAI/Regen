@@ -39,6 +39,8 @@ type UserRepository interface {
 	// ListAgents returns all users with auth_source='ai', including inactive ones.
 	// The coordinator must additionally check the Active flag before dispatching work.
 	ListAgents() ([]models.User, error)
+	// GetBySlackUserID retrieves a user by their Slack user ID (e.g. "U01234ABCDE").
+	GetBySlackUserID(slackUserID string) (*models.User, error)
 }
 
 type userRepository struct {
@@ -167,6 +169,15 @@ func (r *userRepository) Deactivate(id uuid.UUID) error {
 		return &NotFoundError{Resource: "user", ID: id.String()}
 	}
 	return nil
+}
+
+func (r *userRepository) GetBySlackUserID(slackUserID string) (*models.User, error) {
+	var user models.User
+	err := r.db.Where("slack_user_id = ?", slackUserID).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, &NotFoundError{Resource: "user", ID: slackUserID}
+	}
+	return &user, err
 }
 
 func (r *userRepository) Count() (int64, error) {

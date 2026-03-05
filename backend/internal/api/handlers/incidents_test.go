@@ -384,7 +384,7 @@ func TestGetIncident(t *testing.T) {
 
 			// Create test router
 			router := gin.New()
-			router.GET("/api/v1/incidents/:id", GetIncident(incidentSvc))
+			router.GET("/api/v1/incidents/:id", GetIncident(incidentSvc, nil))
 
 			// Execute: Send request
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/incidents/"+tt.idParam, nil)

@@ -4,31 +4,32 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
-      // OpenIncident Design Token System
-      // Derived from logo: Steel blue shield (#2B6CB0), Amber siren (#E8842C)
-      // Differentiates from incident.io's coral/orange brand
+      // Fluidify Design Token System
+      // Palette: Primary #f06292 (pink), Secondary #b02b52 (dark rose)
+      // Light bg #f8f9fa, Dark bg #121212
 
       colors: {
-        // Brand (blue-primary from logo shield)
+        // Brand — dark rose for interactive/focus (AA contrast), pink for gradients
         brand: {
-          primary: '#2563EB',
-          'primary-hover': '#1D4ED8',
-          'primary-light': '#DBEAFE',
+          primary: '#b02b52',
+          'primary-hover': '#8f1e3f',
+          'primary-light': '#fce4ec',
+          accent: '#f06292',
         },
 
-        // Accent (amber from logo siren - semantic use only)
+        // Accent (semantic use only)
         accent: {
           amber: '#F59E0B',
         },
 
-        // Sidebar (dark navy theme)
+        // Sidebar (dark theme)
         sidebar: {
-          bg: '#0F172A',
-          hover: '#1E293B',
-          active: '#1E3A5F',
-          text: '#94A3B8',
-          'text-active': '#F1F5F9',
-          border: '#1E293B',
+          bg: '#121212',
+          hover: '#1c1c1c',
+          active: '#2d1520',
+          text: '#a1a1aa',
+          'text-active': '#ffffff',
+          border: '#2a2a2a',
         },
 
         // Surface (main content area)

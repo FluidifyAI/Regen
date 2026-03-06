@@ -102,12 +102,19 @@ func SlackOAuthCallback(slackRepo repository.SlackConfigRepository, localAuth se
 }
 
 // slackCallbackURI builds the redirect_uri from the incoming request.
+// It prefers X-Forwarded-Host (set by the Vite dev proxy and production
+// reverse proxies) so the URI reflects the port the browser actually sees,
+// not the backend's internal port.
 func slackCallbackURI(c *gin.Context) string {
 	scheme := "http"
 	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
-	return scheme + "://" + c.Request.Host + "/api/v1/auth/slack/callback"
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	return scheme + "://" + host + "/api/v1/auth/slack/callback"
 }
 
 // exchangeSlackCode exchanges an OAuth2 authorization code for the user's email via Slack OpenID.

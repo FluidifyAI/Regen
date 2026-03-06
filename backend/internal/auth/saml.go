@@ -234,7 +234,7 @@ func generateSelfSignedKeyPair() (tls.Certificate, error) {
 
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{Organization: []string{"OpenIncident"}},
+		Subject:      pkix.Name{Organization: []string{"Fluidify Alert"}},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().Add(10 * 365 * 24 * time.Hour), // 10 years
 		// KeyUsageDigitalSignature: sign AuthnRequests sent to the IdP.

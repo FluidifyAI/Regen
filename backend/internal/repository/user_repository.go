@@ -41,6 +41,8 @@ type UserRepository interface {
 	ListAgents() ([]models.User, error)
 	// GetBySlackUserID retrieves a user by their Slack user ID (e.g. "U01234ABCDE").
 	GetBySlackUserID(slackUserID string) (*models.User, error)
+	// GetByTeamsUserID retrieves a user by their Azure AD Object ID.
+	GetByTeamsUserID(teamsUserID string) (*models.User, error)
 }
 
 type userRepository struct {
@@ -138,11 +140,13 @@ func (r *userRepository) GetByID(id uuid.UUID) (*models.User, error) {
 
 func (r *userRepository) Update(user *models.User) error {
 	result := r.db.Model(user).
-		Select("name", "role", "password_hash", "updated_at").
+		Select("name", "role", "password_hash", "slack_user_id", "teams_user_id", "updated_at").
 		Updates(map[string]any{
 			"name":          user.Name,
 			"role":          user.Role,
 			"password_hash": user.PasswordHash,
+			"slack_user_id": user.SlackUserID,
+			"teams_user_id": user.TeamsUserID,
 			"updated_at":    user.UpdatedAt,
 		})
 	if result.Error != nil {
@@ -176,6 +180,15 @@ func (r *userRepository) GetBySlackUserID(slackUserID string) (*models.User, err
 	err := r.db.Where("slack_user_id = ?", slackUserID).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &NotFoundError{Resource: "user", ID: slackUserID}
+	}
+	return &user, err
+}
+
+func (r *userRepository) GetByTeamsUserID(teamsUserID string) (*models.User, error) {
+	var user models.User
+	err := r.db.Where("teams_user_id = ?", teamsUserID).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, &NotFoundError{Resource: "user", ID: teamsUserID}
 	}
 	return &user, err
 }

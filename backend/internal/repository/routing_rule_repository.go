@@ -32,6 +32,14 @@ type RoutingRuleRepository interface {
 	// CheckPriorityConflict checks if another rule already uses this priority.
 	// Returns the conflicting rule if one exists, nil otherwise.
 	CheckPriorityConflict(priority int, excludeID uuid.UUID) (*models.RoutingRule, error)
+
+	// Reorder reassigns priorities in bulk using the supplied ordered slice of IDs.
+	// Priorities become 10, 20, 30 … (multiples of 10) to leave room for future inserts.
+	// Runs inside a single transaction. IDs not present in the slice are unchanged.
+	Reorder(ids []uuid.UUID) error
+
+	// GetMaxPriority returns the highest priority value currently in use (0 if no rules exist).
+	GetMaxPriority() (int, error)
 }
 
 // routingRuleRepository implements RoutingRuleRepository
@@ -169,6 +177,29 @@ func (r *routingRuleRepository) CheckPriorityConflict(priority int, excludeID uu
 	}
 
 	return &rule, nil
+}
+
+// Reorder reassigns priorities in bulk.
+func (r *routingRuleRepository) Reorder(ids []uuid.UUID) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for i, id := range ids {
+			priority := (i + 1) * 10
+			if err := tx.Model(&models.RoutingRule{}).Where("id = ?", id).Update("priority", priority).Error; err != nil {
+				return fmt.Errorf("failed to update priority for rule %s: %w", id, err)
+			}
+		}
+		return nil
+	})
+}
+
+// GetMaxPriority returns the highest priority value in use (0 if none).
+func (r *routingRuleRepository) GetMaxPriority() (int, error) {
+	var max int
+	err := r.db.Model(&models.RoutingRule{}).Select("COALESCE(MAX(priority), 0)").Scan(&max).Error
+	if err != nil {
+		return 0, fmt.Errorf("failed to get max priority: %w", err)
+	}
+	return max, nil
 }
 
 // validateRoutingRule validates a routing rule before database operations

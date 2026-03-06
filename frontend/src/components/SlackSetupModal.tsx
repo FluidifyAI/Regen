@@ -25,11 +25,11 @@ function slackManifest(appUrl: string): string {
       minor_version: 1,
     },
     display_information: {
-      name: 'OpenIncident',
+      name: 'Fluidify Alert',
       description: 'Incident management — alert routing, on-call scheduling, and Slack coordination',
-      background_color: '#0F172A',
+      background_color: '#ffffff',
       long_description:
-        'OpenIncident is an open-source incident management platform. This bot creates dedicated Slack channels for each incident, posts status updates, and accepts /incident commands for managing incidents directly from Slack.',
+        'Fluidify Alert is an open-source incident management platform. This bot creates dedicated Slack channels for each incident, posts status updates, and accepts /incident commands for managing incidents directly from Slack.',
     },
     features: {
       app_home: {
@@ -38,7 +38,7 @@ function slackManifest(appUrl: string): string {
         messages_tab_read_only_enabled: false,
       },
       bot_user: {
-        display_name: 'OpenIncident',
+        display_name: 'Fluidify Alert',
         always_online: true,
       },
       slash_commands: [
@@ -118,7 +118,6 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
 
   const [oauthClientId, setOauthClientId] = useState('')
   const [oauthClientSecret, setOauthClientSecret] = useState('')
-  const [savingOAuth, setSavingOAuth] = useState(false)
 
   const appUrl = window.location.origin
   const isLocal =
@@ -155,6 +154,8 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
         workspace_id: testResult?.workspace_id,
         workspace_name: testResult?.workspace_name,
         bot_user_id: testResult?.bot_user_id,
+        oauth_client_id: oauthClientId || undefined,
+        oauth_client_secret: oauthClientSecret || undefined,
       }
       await saveSlackConfig(req)
       setStep(3)
@@ -162,27 +163,6 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
       setSaveError(e instanceof Error ? e.message : 'Failed to save config')
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function handleSaveOAuth() {
-    if (!oauthClientId || !oauthClientSecret) return
-    setSavingOAuth(true)
-    try {
-      await saveSlackConfig({
-        bot_token: botToken,
-        signing_secret: signingSecret,
-        app_token: appToken || undefined,
-        workspace_id: testResult?.workspace_id,
-        workspace_name: testResult?.workspace_name,
-        bot_user_id: testResult?.bot_user_id,
-        oauth_client_id: oauthClientId,
-        oauth_client_secret: oauthClientSecret,
-      })
-    } catch {
-      // non-fatal — user can retry
-    } finally {
-      setSavingOAuth(false)
     }
   }
 
@@ -284,48 +264,113 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
 
         {/* Step 2 — Paste Tokens */}
         {step === 2 && (
-          <div className="px-6 py-5 space-y-4">
+          <div className="px-6 py-5 space-y-4 overflow-y-auto max-h-[70vh]">
             <p className="text-sm text-text-secondary">
-              From your Slack app settings, copy and paste the tokens below.
+              Open your app at{' '}
+              <a
+                href="https://api.slack.com/apps"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-primary hover:underline inline-flex items-center gap-0.5"
+              >
+                api.slack.com/apps <ExternalLink className="w-3 h-3" />
+              </a>{' '}
+              and copy the values below.
             </p>
-            <div className="space-y-3">
+
+            {/* Bot Token */}
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">
+                Bot Token <span className="text-red-500">*</span>
+              </label>
+              <p className="text-xs text-text-tertiary mb-1.5">
+                Sidebar → <strong>OAuth &amp; Permissions</strong> → scroll to{' '}
+                <strong>OAuth Tokens</strong> section → copy{' '}
+                <strong>Bot User OAuth Token</strong> (starts with <code className="bg-surface-secondary px-1 rounded">xoxb-</code>)
+              </p>
+              <input
+                type="password"
+                value={botToken}
+                onChange={(e) => setBotToken(e.target.value)}
+                placeholder="xoxb-..."
+                className={inputClass}
+              />
+            </div>
+
+            {/* Signing Secret */}
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">
+                Signing Secret <span className="text-red-500">*</span>
+              </label>
+              <p className="text-xs text-text-tertiary mb-1.5">
+                Sidebar → <strong>Basic Information</strong> → <strong>App Credentials</strong>{' '}
+                section → click <strong>Show</strong> next to <strong>Signing Secret</strong> → copy
+              </p>
+              <input
+                type="password"
+                value={signingSecret}
+                onChange={(e) => setSigningSecret(e.target.value)}
+                placeholder="••••••••••••••••"
+                className={inputClass}
+              />
+            </div>
+
+            {/* OAuth Client ID + Secret */}
+            <div className="rounded-lg border border-border bg-surface-secondary/50 px-3 py-3 space-y-3">
+              <div>
+                <p className="text-xs font-medium text-text-primary mb-0.5">Slack Login (recommended)</p>
+                <p className="text-xs text-text-tertiary">
+                  Lets team members sign in with their Slack account. Both values are on the{' '}
+                  <strong>Basic Information</strong> page under <strong>App Credentials</strong>.
+                </p>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1">
-                  Bot Token{' '}
-                  <span className="text-text-tertiary font-normal">
-                    (OAuth &amp; Permissions → Bot User OAuth Token)
-                  </span>
+                  OAuth Client ID
                 </label>
+                <p className="text-xs text-text-tertiary mb-1.5">
+                  <strong>Basic Information</strong> → <strong>App Credentials</strong> → copy{' '}
+                  <strong>Client ID</strong>
+                </p>
                 <input
-                  type="password"
-                  value={botToken}
-                  onChange={(e) => setBotToken(e.target.value)}
-                  placeholder="xoxb-..."
+                  type="text"
+                  value={oauthClientId}
+                  onChange={(e) => setOauthClientId(e.target.value)}
+                  placeholder="1234567890.1234567890"
                   className={inputClass}
                 />
               </div>
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1">
-                  Signing Secret{' '}
-                  <span className="text-text-tertiary font-normal">
-                    (Basic Information → App Credentials)
-                  </span>
+                  OAuth Client Secret
                 </label>
+                <p className="text-xs text-text-tertiary mb-1.5">
+                  <strong>Basic Information</strong> → <strong>App Credentials</strong> → click{' '}
+                  <strong>Show</strong> next to <strong>Client Secret</strong> → copy
+                </p>
                 <input
                   type="password"
-                  value={signingSecret}
-                  onChange={(e) => setSigningSecret(e.target.value)}
+                  value={oauthClientSecret}
+                  onChange={(e) => setOauthClientSecret(e.target.value)}
                   placeholder="••••••••••••••••"
                   className={inputClass}
                 />
               </div>
+            </div>
+
+            {/* App-Level Token (Socket Mode) */}
+            {isLocal && (
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1">
                   App-Level Token{' '}
-                  <span className="text-text-tertiary font-normal">
-                    (optional — enables Socket Mode for bidirectional sync)
-                  </span>
+                  <span className="text-text-tertiary font-normal">(required for Socket Mode)</span>
                 </label>
+                <p className="text-xs text-text-tertiary mb-1.5">
+                  <strong>Basic Information</strong> → <strong>App-Level Tokens</strong> section →
+                  click <strong>Generate Token and Scopes</strong> → add{' '}
+                  <code className="bg-surface-secondary px-1 rounded">connections:write</code> scope
+                  → copy the token (starts with <code className="bg-surface-secondary px-1 rounded">xapp-</code>)
+                </p>
                 <input
                   type="password"
                   value={appToken}
@@ -334,7 +379,7 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
                   className={inputClass}
                 />
               </div>
-            </div>
+            )}
 
             <button
               onClick={handleTest}
@@ -394,41 +439,12 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
               </ul>
             </div>
 
-            <div className="border-t border-border pt-4">
-              <p className="text-sm font-medium text-text-primary mb-0.5">
-                Slack Login{' '}
-                <span className="text-text-tertiary font-normal text-xs">(optional)</span>
-              </p>
-              <p className="text-xs text-text-tertiary mb-3">
-                Let team members sign in with their Slack account. Requires a separate OAuth app or
-                the same app with <code className="bg-surface-secondary px-1 rounded">openid</code>{' '}
-                scope added.
-              </p>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={oauthClientId}
-                  onChange={(e) => setOauthClientId(e.target.value)}
-                  placeholder="OAuth Client ID"
-                  className={inputClass}
-                />
-                <input
-                  type="password"
-                  value={oauthClientSecret}
-                  onChange={(e) => setOauthClientSecret(e.target.value)}
-                  placeholder="OAuth Client Secret"
-                  className={inputClass}
-                />
-                <button
-                  onClick={handleSaveOAuth}
-                  disabled={!oauthClientId || !oauthClientSecret || savingOAuth}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-primary hover:bg-surface-secondary transition-colors disabled:opacity-50"
-                >
-                  {savingOAuth && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Save OAuth Config
-                </button>
+            {oauthClientId && (
+              <div className="border-t border-border pt-4 flex items-center gap-2 text-xs text-green-700">
+                <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                Slack Login enabled — team members can sign in with Slack
               </div>
-            </div>
+            )}
           </div>
         )}
 

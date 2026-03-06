@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, FileText, Lock } from 'lucide-react'
+import { Plus, Pencil, Trash2, FileText, Lock, GripVertical, X } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
@@ -11,6 +11,84 @@ import {
 } from '../api/postmortems'
 import type { PostMortemTemplate } from '../api/types'
 
+// ─── Section Editor ────────────────────────────────────────────────────────────
+
+function SectionEditor({
+  sections,
+  onChange,
+}: {
+  sections: string[]
+  onChange: (sections: string[]) => void
+}) {
+  function update(i: number, value: string) {
+    const next = [...sections]
+    next[i] = value
+    onChange(next)
+  }
+
+  function remove(i: number) {
+    onChange(sections.filter((_, idx) => idx !== i))
+  }
+
+  function addSection() {
+    onChange([...sections, ''])
+    setTimeout(() => {
+      const inputs = document.querySelectorAll<HTMLInputElement>('[data-section-input]')
+      inputs[inputs.length - 1]?.focus()
+    }, 30)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>, i: number) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      addSection()
+    } else if (e.key === 'Backspace' && sections[i] === '' && sections.length > 1) {
+      e.preventDefault()
+      remove(i)
+      setTimeout(() => {
+        const inputs = document.querySelectorAll<HTMLInputElement>('[data-section-input]')
+        inputs[Math.max(0, i - 1)]?.focus()
+      }, 30)
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {sections.map((section, i) => (
+        <div key={i} className="flex items-center gap-2 group">
+          <GripVertical className="w-4 h-4 text-text-tertiary flex-shrink-0 opacity-40 group-hover:opacity-70" />
+          <span className="text-xs text-text-tertiary w-5 text-right flex-shrink-0">{i + 1}.</span>
+          <input
+            data-section-input
+            type="text"
+            value={section}
+            onChange={(e) => update(i, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(e, i)}
+            placeholder={`Section ${i + 1} heading`}
+            className="flex-1 px-2.5 py-1.5 text-sm border border-border rounded focus:outline-none focus:ring-1 focus:ring-brand-primary"
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            disabled={sections.length === 1}
+            className="p-1 rounded text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addSection}
+        className="flex items-center gap-1.5 mt-1 text-sm text-brand-primary hover:text-brand-primary-hover font-medium"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        Add section
+      </button>
+    </div>
+  )
+}
+
 // ─── Template Modal ────────────────────────────────────────────────────────────
 
 interface TemplateModalProps {
@@ -20,10 +98,12 @@ interface TemplateModalProps {
   onSaved: () => void
 }
 
+const DEFAULT_SECTIONS = ['Summary', 'Impact', 'Timeline', 'Root Cause', 'Action Items']
+
 function TemplateModal({ isOpen, template, onClose, onSaved }: TemplateModalProps) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [sectionsText, setSectionsText] = useState('')
+  const [sections, setSections] = useState<string[]>(DEFAULT_SECTIONS)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
@@ -32,11 +112,11 @@ function TemplateModal({ isOpen, template, onClose, onSaved }: TemplateModalProp
     if (template) {
       setName(template.name)
       setDescription(template.description)
-      setSectionsText(template.sections.join('\n'))
+      setSections(template.sections.length > 0 ? template.sections : DEFAULT_SECTIONS)
     } else {
       setName('')
       setDescription('')
-      setSectionsText('Summary\nImpact\nTimeline\nRoot Cause\nAction Items')
+      setSections([...DEFAULT_SECTIONS])
     }
     setError(null)
   }, [template, isOpen])
@@ -46,35 +126,23 @@ function TemplateModal({ isOpen, template, onClose, onSaved }: TemplateModalProp
   }, [isOpen])
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     if (isOpen) document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [isOpen, onClose])
 
   async function handleSubmit() {
-    const sections = sectionsText
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean)
-
-    if (!name.trim()) {
-      setError('Name is required')
-      return
-    }
-    if (sections.length === 0) {
-      setError('At least one section is required')
-      return
-    }
+    const cleaned = sections.map((s) => s.trim()).filter(Boolean)
+    if (!name.trim()) { setError('Name is required'); return }
+    if (cleaned.length === 0) { setError('At least one section is required'); return }
 
     setSubmitting(true)
     setError(null)
     try {
       if (template) {
-        await updatePostMortemTemplate(template.id, { name: name.trim(), description, sections })
+        await updatePostMortemTemplate(template.id, { name: name.trim(), description, sections: cleaned })
       } else {
-        await createPostMortemTemplate({ name: name.trim(), description, sections })
+        await createPostMortemTemplate({ name: name.trim(), description, sections: cleaned })
       }
       onSaved()
       onClose()
@@ -89,18 +157,20 @@ function TemplateModal({ isOpen, template, onClose, onSaved }: TemplateModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
-
-      {/* Dialog */}
-      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
+        {/* Header */}
         <div className="px-6 py-4 border-b border-border">
           <h2 className="text-base font-semibold text-text-primary">
             {template ? 'Edit Template' : 'New Template'}
           </h2>
+          <p className="text-xs text-text-tertiary mt-0.5">
+            Each section becomes a heading in the generated post-mortem document.
+          </p>
         </div>
 
-        <div className="px-6 py-4 space-y-4">
+        {/* Body */}
+        <div className="px-6 py-4 space-y-4 overflow-y-auto">
           {error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
               {error}
@@ -109,7 +179,7 @@ function TemplateModal({ isOpen, template, onClose, onSaved }: TemplateModalProp
 
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1">
-              Name <span className="text-red-500">*</span>
+              Template name <span className="text-red-500">*</span>
             </label>
             <input
               ref={nameRef}
@@ -123,44 +193,30 @@ function TemplateModal({ isOpen, template, onClose, onSaved }: TemplateModalProp
 
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1">
-              Description
+              Description <span className="text-xs text-text-tertiary font-normal">(optional)</span>
             </label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional short description"
+              placeholder="When to use this template"
               className="w-full px-3 py-2 text-sm border border-border rounded focus:outline-none focus:ring-1 focus:ring-brand-primary"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-text-primary mb-1">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               Sections <span className="text-red-500">*</span>
             </label>
-            <p className="text-xs text-text-tertiary mb-1">One section per line</p>
-            <textarea
-              value={sectionsText}
-              onChange={(e) => setSectionsText(e.target.value)}
-              rows={6}
-              placeholder="Summary&#10;Impact&#10;Timeline&#10;Root Cause&#10;Action Items"
-              className="w-full px-3 py-2 text-sm border border-border rounded focus:outline-none focus:ring-1 focus:ring-brand-primary font-mono resize-y"
-            />
+            <SectionEditor sections={sections} onChange={setSections} />
           </div>
         </div>
 
+        {/* Footer */}
         <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleSubmit}
-            loading={submitting}
-            disabled={submitting}
-          >
-            {template ? 'Save Changes' : 'Create Template'}
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={handleSubmit} loading={submitting} disabled={submitting}>
+            {template ? 'Save changes' : 'Create template'}
           </Button>
         </div>
       </div>
@@ -170,10 +226,6 @@ function TemplateModal({ isOpen, template, onClose, onSaved }: TemplateModalProp
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-/**
- * PostMortemTemplatesPage manages post-mortem templates.
- * Displays built-in templates (read-only) and user-created templates (full CRUD).
- */
 export function PostMortemTemplatesPage() {
   const [templates, setTemplates] = useState<PostMortemTemplate[]>([])
   const [loading, setLoading] = useState(true)
@@ -187,8 +239,7 @@ export function PostMortemTemplatesPage() {
     setLoading(true)
     setError(null)
     try {
-      const data = await listPostMortemTemplates()
-      setTemplates(data)
+      setTemplates(await listPostMortemTemplates())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load templates')
     } finally {
@@ -196,19 +247,10 @@ export function PostMortemTemplatesPage() {
     }
   }
 
-  useEffect(() => {
-    fetchTemplates()
-  }, [])
+  useEffect(() => { fetchTemplates() }, [])
 
-  function openCreate() {
-    setEditingTemplate(null)
-    setModalOpen(true)
-  }
-
-  function openEdit(t: PostMortemTemplate) {
-    setEditingTemplate(t)
-    setModalOpen(true)
-  }
+  function openCreate() { setEditingTemplate(null); setModalOpen(true) }
+  function openEdit(t: PostMortemTemplate) { setEditingTemplate(t); setModalOpen(true) }
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this template? This cannot be undone.')) return
@@ -226,40 +268,29 @@ export function PostMortemTemplatesPage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 bg-surface-tertiary rounded animate-pulse" />
-          ))}
-        </div>
+      <div className="max-w-3xl mx-auto px-6 py-8 space-y-3">
+        {[1, 2, 3].map((i) => <div key={i} className="h-20 bg-surface-tertiary rounded-xl animate-pulse" />)}
       </div>
     )
   }
 
   if (error) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <GeneralError message={error} onRetry={fetchTemplates} />
-      </div>
-    )
+    return <div className="flex h-full items-center justify-center"><GeneralError message={error} onRetry={fetchTemplates} /></div>
   }
 
-  const builtIn = templates.filter((t) => t.is_built_in)
-  const custom = templates.filter((t) => !t.is_built_in)
-
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="max-w-3xl mx-auto px-6 py-8">
       {/* Page header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-text-primary">Post-Mortem Templates</h1>
           <p className="text-sm text-text-secondary mt-1">
-            Templates define the sections used when generating post-mortems.
+            Define the sections included when AI generates a post-mortem after an incident.
           </p>
         </div>
         <Button variant="primary" size="sm" onClick={openCreate}>
           <Plus className="w-4 h-4" />
-          New Template
+          New template
         </Button>
       </div>
 
@@ -269,52 +300,27 @@ export function PostMortemTemplatesPage() {
         </div>
       )}
 
-      {/* Built-in templates */}
-      {builtIn.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary mb-2">
-            Built-in
-          </h2>
-          <div className="border border-border rounded-lg divide-y divide-border bg-white">
-            {builtIn.map((t) => (
-              <TemplateRow
-                key={t.id}
-                template={t}
-                deleting={deletingId === t.id}
-                onEdit={openEdit}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
+      {/* Template list — flat, no Built-in/Custom split */}
+      {templates.length === 0 ? (
+        <EmptyState
+          title="No templates yet"
+          description="Create a template to define the structure of your AI-generated post-mortems."
+          actionLabel="Create template"
+          onAction={openCreate}
+        />
+      ) : (
+        <div className="space-y-3">
+          {templates.map((t) => (
+            <TemplateCard
+              key={t.id}
+              template={t}
+              deleting={deletingId === t.id}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+            />
+          ))}
         </div>
       )}
-
-      {/* Custom templates */}
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary mb-2">
-          Custom
-        </h2>
-        {custom.length === 0 ? (
-          <EmptyState
-            title="No custom templates"
-            description="Create your own template to define the structure of your post-mortems."
-            actionLabel="Create template"
-            onAction={openCreate}
-          />
-        ) : (
-          <div className="border border-border rounded-lg divide-y divide-border bg-white">
-            {custom.map((t) => (
-              <TemplateRow
-                key={t.id}
-                template={t}
-                deleting={deletingId === t.id}
-                onEdit={openEdit}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
-        )}
-      </div>
 
       <TemplateModal
         isOpen={modalOpen}
@@ -326,7 +332,7 @@ export function PostMortemTemplatesPage() {
   )
 }
 
-function TemplateRow({
+function TemplateCard({
   template,
   deleting,
   onEdit,
@@ -338,41 +344,55 @@ function TemplateRow({
   onDelete: (id: string) => void
 }) {
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 ${deleting ? 'opacity-50' : ''}`}>
-      <FileText className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-text-primary">{template.name}</span>
-          {template.is_built_in && (
-            <span className="inline-flex items-center gap-1 text-xs text-text-tertiary">
-              <Lock className="w-3 h-3" />
-              Built-in
-            </span>
+    <div className={`bg-white border border-border rounded-xl px-5 py-4 transition-opacity ${deleting ? 'opacity-50' : ''}`}>
+      <div className="flex items-start gap-3">
+        <FileText className="w-4 h-4 text-text-tertiary flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium text-text-primary">{template.name}</span>
+            {template.is_built_in && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-surface-secondary text-text-tertiary border border-border">
+                <Lock className="w-2.5 h-2.5" />
+                Built-in
+              </span>
+            )}
+          </div>
+          {template.description && (
+            <p className="text-xs text-text-tertiary mt-0.5">{template.description}</p>
+          )}
+          {/* Sections as numbered pills */}
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {template.sections.map((s, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-secondary border border-border text-xs text-text-secondary"
+              >
+                <span className="text-text-tertiary">{i + 1}.</span>
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+        {/* Actions — edit always shown; delete hidden for built-in */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={() => onEdit(template)}
+            className="p-1.5 rounded text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-colors"
+            title="Edit template"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          {!template.is_built_in && (
+            <button
+              onClick={() => onDelete(template.id)}
+              disabled={deleting}
+              className="p-1.5 rounded text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-colors"
+              title="Delete template"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
-        {template.description && (
-          <p className="text-xs text-text-tertiary truncate">{template.description}</p>
-        )}
-        <p className="text-xs text-text-tertiary mt-0.5">
-          {template.sections.join(' · ')}
-        </p>
-      </div>
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <button
-          onClick={() => onEdit(template)}
-          className="p-1.5 rounded text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-colors"
-          title="Edit template"
-        >
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => onDelete(template.id)}
-          disabled={deleting}
-          className="p-1.5 rounded text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-colors"
-          title="Delete template"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
       </div>
     </div>
   )

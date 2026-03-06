@@ -37,6 +37,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	systemSettingsRepo := repository.NewSystemSettingsRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	slackConfigRepo := repository.NewSlackConfigRepository(db)
+	teamsConfigRepo := repository.NewTeamsConfigRepository(db)
 
 	// Slack is initialized lazily: config is read from the DB on each use and
 	// cached until the bot_token changes. This means Slack can be configured or
@@ -65,7 +66,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	if aiSvc.IsEnabled() {
 		slog.Info("AI service enabled", "model", cfg.OpenAIModel)
 	} else {
-		slog.Warn("AI service disabled — set OPENAI_API_KEY to enable AI features")
+		// Check if a key was previously saved via the UI
+		if dbKey, err := systemSettingsRepo.GetString(repository.KeyOpenAIAPIKey); err == nil && dbKey != "" {
+			aiSvc.Reload(dbKey)
+			slog.Info("AI service enabled from DB key", "model", cfg.OpenAIModel)
+		} else {
+			slog.Warn("AI service disabled — set OPENAI_API_KEY or configure via Settings → System")
+		}
 	}
 
 	// Post-mortem repositories (v0.7+)
@@ -238,9 +245,6 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// is kept for SAML redirect flows and deep-link compatibility.
 		v1.POST("/auth/logout", handlers.APILogout(samlMiddleware, localAuth))
 
-		// Update own profile (name/password) — requires auth but not admin
-		protected.PATCH("/auth/me", handlers.UpdateMe(localAuth))
-
 		// Auth identity endpoint — no RequireAuth so unauthenticated callers can
 		// read ssoEnabled to show the SSO button. InjectSAMLSession populates the
 		// SAML session in context without aborting, so authenticated SAML users
@@ -253,6 +257,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// Protected routes — require session (no-op when auth disabled).
 		// RBAC middleware runs after auth; the OSS no-op allows all requests through.
 		protected := v1.Group("", middleware.RequireAuth(samlMiddleware, localAuth), hooks.RBAC.Middleware("api", "access"), middleware.RateLimitAPI())
+
+		// Update own profile (name/password) — requires auth but not admin
+		protected.PATCH("/auth/me", handlers.UpdateMe(localAuth))
 
 		// Users — available to all authenticated users for commander assignment
 		protected.GET("/users", handlers.ListUsersForAssignment(userRepo))
@@ -305,43 +312,44 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.GET("/routing-rules", handlers.ListRoutingRules(routingRuleRepo))
 		protected.GET("/routing-rules/:id", handlers.GetRoutingRule(routingRuleRepo))
 		onRoutingRuleMutate := func() { routingEngine.RefreshRules() }
-		protected.POST("/routing-rules", handlers.CreateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
-		protected.PATCH("/routing-rules/:id", handlers.UpdateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
-		protected.DELETE("/routing-rules/:id", handlers.DeleteRoutingRule(routingRuleRepo, onRoutingRuleMutate))
+		// Mutations are admin-only — members can view but not configure alert routing.
+		protected.POST("/routing-rules", middleware.RequireAdmin(), handlers.CreateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
+		protected.PUT("/routing-rules/reorder", middleware.RequireAdmin(), handlers.ReorderRoutingRules(routingRuleRepo, onRoutingRuleMutate))
+		protected.PATCH("/routing-rules/:id", middleware.RequireAdmin(), handlers.UpdateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
+		protected.DELETE("/routing-rules/:id", middleware.RequireAdmin(), handlers.DeleteRoutingRule(routingRuleRepo, onRoutingRuleMutate))
 
 		// Schedules (v0.4)
 		protected.GET("/schedules", handlers.ListSchedules(scheduleRepo))
-		protected.POST("/schedules", handlers.CreateSchedule(scheduleRepo))
 		protected.GET("/schedules/:id", handlers.GetSchedule(scheduleRepo))
-		protected.PATCH("/schedules/:id", handlers.UpdateSchedule(scheduleRepo))
-		protected.DELETE("/schedules/:id", handlers.DeleteSchedule(scheduleRepo))
-
-		protected.POST("/schedules/:id/layers", handlers.CreateLayer(scheduleRepo))
-		protected.PATCH("/schedules/:id/layers/:layer_id", handlers.UpdateLayer(scheduleRepo))
-		protected.DELETE("/schedules/:id/layers/:layer_id", handlers.DeleteLayer(scheduleRepo))
-
 		protected.GET("/schedules/:id/oncall", handlers.GetOnCall(scheduleRepo, scheduleEvaluator))
 		protected.GET("/schedules/:id/oncall/timeline", handlers.GetOnCallTimeline(scheduleEvaluator))
 		protected.GET("/schedules/:id/layer-timelines", handlers.GetLayerTimelines(scheduleEvaluator))
-
 		protected.GET("/schedules/:id/overrides", handlers.ListOverrides(scheduleRepo))
-		protected.POST("/schedules/:id/overrides", handlers.CreateOverride(scheduleRepo))
-		protected.DELETE("/schedules/:id/overrides/:override_id", handlers.DeleteOverride(scheduleRepo))
 
-		// Escalation Policies (v0.5)
+		// Schedule mutations — admin only
+		protected.POST("/schedules", middleware.RequireAdmin(), handlers.CreateSchedule(scheduleRepo))
+		protected.PATCH("/schedules/:id", middleware.RequireAdmin(), handlers.UpdateSchedule(scheduleRepo))
+		protected.DELETE("/schedules/:id", middleware.RequireAdmin(), handlers.DeleteSchedule(scheduleRepo))
+		protected.POST("/schedules/:id/layers", middleware.RequireAdmin(), handlers.CreateLayer(scheduleRepo))
+		protected.PATCH("/schedules/:id/layers/:layer_id", middleware.RequireAdmin(), handlers.UpdateLayer(scheduleRepo))
+		protected.DELETE("/schedules/:id/layers/:layer_id", middleware.RequireAdmin(), handlers.DeleteLayer(scheduleRepo))
+		protected.POST("/schedules/:id/overrides", middleware.RequireAdmin(), handlers.CreateOverride(scheduleRepo))
+		protected.DELETE("/schedules/:id/overrides/:override_id", middleware.RequireAdmin(), handlers.DeleteOverride(scheduleRepo))
+
+		// Escalation Policies (v0.5) — reads open to all, mutations admin-only
 		protected.GET("/escalation-policies", handlers.ListEscalationPolicies(escalationPolicyRepo))
-		protected.POST("/escalation-policies", handlers.CreateEscalationPolicy(escalationPolicyRepo))
 		// Severity rules registered before /:id to prevent Gin matching "severity-rules" as :id.
 		protected.GET("/escalation-policies/severity-rules", handlers.ListSeverityRules(escalationPolicyRepo))
-		protected.PUT("/escalation-policies/severity-rules/:severity", handlers.UpsertSeverityRule(escalationPolicyRepo))
-		protected.DELETE("/escalation-policies/severity-rules/:severity", handlers.DeleteSeverityRule(escalationPolicyRepo))
 		protected.GET("/escalation-policies/:id", handlers.GetEscalationPolicy(escalationPolicyRepo))
-		protected.PATCH("/escalation-policies/:id", handlers.UpdateEscalationPolicy(escalationPolicyRepo))
-		protected.DELETE("/escalation-policies/:id", handlers.DeleteEscalationPolicy(escalationPolicyRepo))
 
-		protected.POST("/escalation-policies/:id/tiers", handlers.CreateEscalationTier(escalationPolicyRepo))
-		protected.PATCH("/escalation-policies/:id/tiers/:tier_id", handlers.UpdateEscalationTier(escalationPolicyRepo))
-		protected.DELETE("/escalation-policies/:id/tiers/:tier_id", handlers.DeleteEscalationTier(escalationPolicyRepo))
+		protected.POST("/escalation-policies", middleware.RequireAdmin(), handlers.CreateEscalationPolicy(escalationPolicyRepo))
+		protected.PUT("/escalation-policies/severity-rules/:severity", middleware.RequireAdmin(), handlers.UpsertSeverityRule(escalationPolicyRepo))
+		protected.DELETE("/escalation-policies/severity-rules/:severity", middleware.RequireAdmin(), handlers.DeleteSeverityRule(escalationPolicyRepo))
+		protected.PATCH("/escalation-policies/:id", middleware.RequireAdmin(), handlers.UpdateEscalationPolicy(escalationPolicyRepo))
+		protected.DELETE("/escalation-policies/:id", middleware.RequireAdmin(), handlers.DeleteEscalationPolicy(escalationPolicyRepo))
+		protected.POST("/escalation-policies/:id/tiers", middleware.RequireAdmin(), handlers.CreateEscalationTier(escalationPolicyRepo))
+		protected.PATCH("/escalation-policies/:id/tiers/:tier_id", middleware.RequireAdmin(), handlers.UpdateEscalationTier(escalationPolicyRepo))
+		protected.DELETE("/escalation-policies/:id/tiers/:tier_id", middleware.RequireAdmin(), handlers.DeleteEscalationTier(escalationPolicyRepo))
 
 		// Agent management (AI agents — enable/disable)
 		agentsHandler := handlers.NewAgentsHandler(userRepo)
@@ -367,6 +375,18 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			settingsGroup.POST("/slack/test", handlers.TestSlackConfig())
 			settingsGroup.DELETE("/slack", handlers.DeleteSlackConfig(slackConfigRepo))
 			settingsGroup.GET("/slack/members", handlers.ListSlackMembers(slackConfigRepo, userRepo))
+
+			// Teams integration config (admin only)
+			settingsGroup.GET("/teams/config", handlers.GetTeamsConfig(teamsConfigRepo))
+			settingsGroup.PUT("/teams/config", handlers.SaveTeamsConfig(teamsConfigRepo))
+			settingsGroup.POST("/teams/config/test", handlers.TestTeamsConfig())
+			settingsGroup.DELETE("/teams/config", handlers.DeleteTeamsConfig(teamsConfigRepo))
+			settingsGroup.GET("/teams/members", handlers.ListTeamsMembers(teamsConfigRepo, userRepo))
+
+			// System settings (OPE-26/27)
+			settingsGroup.GET("/system", handlers.GetSystemSettings(systemSettingsRepo, aiSvc))
+			settingsGroup.PATCH("/system", handlers.UpdateSystemSettings(systemSettingsRepo, aiSvc))
+			settingsGroup.POST("/system/ai/test", handlers.TestOpenAIKey(systemSettingsRepo))
 		}
 	}
 

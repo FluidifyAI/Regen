@@ -91,19 +91,41 @@ func runServe(_ *cobra.Command, _ []string) error {
 	defer appCancel()
 
 	// Initialize TeamsService once — shared by API routes and background workers.
-	// Constructing it twice wastes two OAuth2 token sources and two startup validation calls.
+	// DB config takes precedence over env vars so admins can configure Teams via
+	// the setup wizard without restarting the server.
 	var teamsSvc *services.TeamsService
-	if cfg.TeamsAppID != "" {
-		var err error
-		teamsSvc, err = services.NewTeamsService(appCtx, cfg.TeamsAppID, cfg.TeamsAppPassword, cfg.TeamsTenantID, cfg.TeamsTeamID, cfg.TeamsBotUserID, cfg.TeamsServiceURL)
+	{
+		teamsAppID := cfg.TeamsAppID
+		teamsAppPassword := cfg.TeamsAppPassword
+		teamsTenantID := cfg.TeamsTenantID
+		teamsTeamID := cfg.TeamsTeamID
+		teamsBotUserID := cfg.TeamsBotUserID
+		teamsServiceURL := cfg.TeamsServiceURL
+
+		dbTeamsCfg, err := repository.NewTeamsConfigRepository(database.DB).Get()
 		if err != nil {
-			slog.Error("teams service initialization failed", "error", err)
-			slog.Warn("continuing without Teams integration — check TEAMS_* env vars and Azure app permissions")
-		} else {
-			slog.Info("Teams integration enabled")
+			slog.Warn("failed to load teams config from DB, falling back to env vars", "error", err)
+		} else if dbTeamsCfg != nil && dbTeamsCfg.AppID != "" {
+			slog.Info("using Teams config from database")
+			teamsAppID = dbTeamsCfg.AppID
+			teamsAppPassword = dbTeamsCfg.AppPassword
+			teamsTenantID = dbTeamsCfg.TenantID
+			teamsTeamID = dbTeamsCfg.TeamID
+			teamsBotUserID = dbTeamsCfg.BotUserID
+			teamsServiceURL = dbTeamsCfg.ServiceURL
 		}
-	} else {
-		slog.Warn("TEAMS_APP_ID not set — Teams integration disabled")
+
+		if teamsAppID != "" {
+			teamsSvc, err = services.NewTeamsService(appCtx, teamsAppID, teamsAppPassword, teamsTenantID, teamsTeamID, teamsBotUserID, teamsServiceURL)
+			if err != nil {
+				slog.Error("teams service initialization failed", "error", err)
+				slog.Warn("continuing without Teams integration — check Teams config in Settings or TEAMS_* env vars")
+			} else {
+				slog.Info("Teams integration enabled")
+			}
+		} else {
+			slog.Warn("Teams app_id not configured — Teams integration disabled")
+		}
 	}
 
 	// Initialize user and session repositories for local auth and SAML JIT provisioning.

@@ -5,13 +5,13 @@
  * - Shows the SSO button only when ssoEnabled=true (SAML configured on server).
  * - In open-access mode (no auth configured) this page is never rendered.
  *
- * Design: cohesive with the app's dark navy (#0F172A) + blue (#2563EB) identity.
- * Background uses a CSS dot-grid for depth without adding visual noise.
+ * Design: dark card (#1a1a1a) on near-black page (#0a0a0a), brand rose/pink accents.
  */
 import { useState, useEffect } from 'react'
 import { login, bootstrap, exchangeSetupToken, forgotPassword } from '../api/auth'
 import { useAuth } from '../hooks/useAuth'
 import { getSlackOAuthStatus } from '../api/slack'
+import { BackgroundAnimation } from '../components/ui/BackgroundAnimation'
 
 // Returns the post-login destination: the ?next= param if present and safe,
 // otherwise the app root. Prevents open-redirect by only accepting same-origin paths.
@@ -84,7 +84,6 @@ export function LoginPage() {
       if (res.setup_token) {
         setForgotToken(res.setup_token)
       } else {
-        // Email not found or not a local account — show generic message
         setForgotError('If that email has a local account, a reset link will appear here.')
       }
     } catch {
@@ -120,7 +119,6 @@ export function LoginPage() {
     setSetupLoading(true)
     try {
       await bootstrap({ name: setupName, email: setupEmail, password: setupPassword })
-      // Bootstrap succeeded — immediately log in with the new credentials
       await login({ email: setupEmail, password: setupPassword })
       window.location.href = '/'
     } catch (err: unknown) {
@@ -137,65 +135,62 @@ export function LoginPage() {
     }
   }
 
+  // Shared dark input class
+  const inputClass = 'w-full h-10 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[#1E293B] text-sm px-3 placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#b02b52] focus:border-transparent transition-colors duration-150'
+
   return (
     <div
-      className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4"
+      className="min-h-screen flex items-center justify-center p-4"
       style={{
-        backgroundImage: `radial-gradient(circle, #1E293B 1px, transparent 1px)`,
-        backgroundSize: '28px 28px',
+        background: 'linear-gradient(160deg, #fce4ec 0%, #f8f9fa 60%)',
+        backgroundImage: 'radial-gradient(circle, #f8bbd0 1px, transparent 1px), linear-gradient(160deg, #fce4ec 0%, #f8f9fa 60%)',
+        backgroundSize: '28px 28px, 100% 100%',
       }}
     >
-      {/* Subtle ambient glow behind the card */}
-      <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full pointer-events-none"
-        style={{
-          background: 'radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%)',
-        }}
-      />
-
-      <div className="relative w-full max-w-sm">
+      <BackgroundAnimation />
+      <div className="relative w-full max-w-sm" style={{ zIndex: 1 }}>
         {/* Card */}
         <div
-          className="rounded-2xl border border-[#1E293B] bg-[#0F172A] p-10"
-          style={{ boxShadow: '0 0 0 1px #1E293B, 0 24px 48px rgba(0,0,0,0.4)' }}
+          className="rounded-2xl border border-[#f8bbd0] bg-white p-10"
+          style={{
+            boxShadow: '0 1px 3px rgba(240,98,146,0.08), 0 24px 48px rgba(176,43,82,0.12)',
+          }}
         >
-          {/* Logo + wordmark */}
+          {/* Logo */}
           <div className="flex flex-col items-center mb-10">
-            <div className="relative mb-5">
-              {/* Outer ring */}
-              <div className="absolute inset-0 rounded-full border border-[#2563EB] opacity-20 scale-150" />
-              {/* Icon container */}
-              <div className="w-14 h-14 rounded-xl bg-[#1E3A5F] flex items-center justify-center border border-[#2563EB] border-opacity-30">
-                <ShieldIcon className="w-7 h-7 text-[#2563EB]" />
-              </div>
+            <img
+              src="/logo-icon.png"
+              alt="Fluidify Alert"
+              style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+              draggable={false}
+              className="mb-3"
+            />
+            <div className="text-2xl font-bold tracking-tight text-[#121212]">
+              Fluidify Alert
             </div>
-
-            <h1 className="text-[#F1F5F9] text-xl font-semibold tracking-tight">
-              OpenIncident
-            </h1>
-            <p className="text-[#475569] text-sm mt-1">
-              {openMode ? 'Set up your instance' : 'Incident management, self-hosted'}
+            <p className="text-[#64748B] text-sm mt-1">
+              {openMode ? 'Set up your instance' : 'Stay ahead of every incident'}
             </p>
           </div>
 
           {/* Divider */}
-          <div className="border-t border-[#1E293B] mb-8" />
+          <div className="border-t border-[#E2E8F0] mb-8" />
 
           {/* In open mode (no accounts yet), show a prominent setup prompt */}
           {openMode && (
-            <div className="mb-6 rounded-lg border border-[#2563EB]/30 bg-[#1E3A5F]/40 px-4 py-3 text-center">
-              <p className="text-[#93C5FD] text-sm font-medium">Welcome — let's get you set up</p>
-              <p className="text-[#475569] text-xs mt-1">
+            <div className="mb-6 rounded-lg border border-[#b02b52]/20 bg-[#fce4ec] px-4 py-3 text-center">
+              <p className="text-[#b02b52] text-sm font-medium">Welcome — let's get you set up</p>
+              <p className="text-[#64748B] text-xs mt-1">
                 No accounts exist yet. Create the admin account below to get started.
               </p>
             </div>
           )}
 
-          {/* Local email/password form — hidden when no accounts exist */}
+          {/* Local email/password form */}
           <form onSubmit={handleSubmit} className={`space-y-4 ${openMode ? 'hidden' : ''}`} noValidate>
             <div className="space-y-3">
               <div>
-                <label htmlFor="email" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
+                <label htmlFor="email" className="block text-[#374151] text-xs font-medium mb-1.5">
                   Email
                 </label>
                 <input
@@ -206,12 +201,12 @@ export function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-colors duration-150"
+                  className={inputClass}
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
+                <label htmlFor="password" className="block text-[#a1a1aa] text-xs font-medium mb-1.5">
                   Password
                 </label>
                 <input
@@ -222,14 +217,14 @@ export function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-colors duration-150"
+                  className={inputClass}
                 />
               </div>
             </div>
 
             {/* Inline error */}
             {error && (
-              <p className="text-[#F87171] text-sm text-center" role="alert">
+              <p className="text-[#f87171] text-sm text-center" role="alert">
                 {error}
               </p>
             )}
@@ -237,9 +232,12 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2 focus:ring-offset-[#0F172A]"
+              className="relative group flex items-center justify-center gap-2.5 w-full h-11 rounded-lg bg-[#b02b52] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#b02b52] focus:ring-offset-2 focus:ring-offset-white"
             >
-              {loading ? 'Signing in…' : 'Sign in'}
+              <span className="absolute inset-0 bg-gradient-to-r from-[#b02b52] to-[#f06292] opacity-0 group-hover:opacity-100 group-disabled:opacity-0 transition-opacity duration-300 ease-in-out" />
+              <span className="relative z-10">
+                {loading ? 'Signing in…' : 'Sign in'}
+              </span>
             </button>
 
             {/* Forgot password */}
@@ -247,28 +245,28 @@ export function LoginPage() {
               <button
                 type="button"
                 onClick={() => { setShowForgot(!showForgot); setForgotToken(''); setForgotError('') }}
-                className="text-[#475569] hover:text-[#94A3B8] text-xs transition-colors"
+                className="text-[#94A3B8] hover:text-[#64748B] text-xs transition-colors"
               >
                 Forgot password?
               </button>
             </div>
 
             {showForgot && (
-              <div className="rounded-lg border border-[#1E293B] p-4 space-y-3">
+              <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4 space-y-3">
                 {forgotToken ? (
                   <>
-                    <p className="text-[#93C5FD] text-xs font-medium">Reset link generated</p>
-                    <p className="text-[#475569] text-xs">Copy this link and send it to the user. It expires in 7 days.</p>
+                    <p className="text-[#b02b52] text-xs font-medium">Reset link generated</p>
+                    <p className="text-[#64748B] text-xs">Copy this link and send it to the user. It expires in 7 days.</p>
                     <div className="flex gap-2">
                       <input
                         readOnly
                         value={`${window.location.origin}/login?setup=${forgotToken}`}
-                        className="flex-1 text-xs rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] px-3 py-2 font-mono focus:outline-none"
+                        className="flex-1 text-xs rounded-lg bg-white border border-[#E2E8F0] text-[#1E293B] px-3 py-2 font-mono focus:outline-none"
                       />
                       <button
                         type="button"
                         onClick={copyForgotLink}
-                        className="px-3 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-medium transition-colors min-w-[60px]"
+                        className="px-3 py-2 rounded-lg bg-[#b02b52] hover:bg-[#8f1e3f] text-white text-xs font-medium transition-colors min-w-[60px]"
                       >
                         {forgotCopied ? 'Copied!' : 'Copy'}
                       </button>
@@ -276,20 +274,20 @@ export function LoginPage() {
                   </>
                 ) : (
                   <form onSubmit={handleForgot} className="space-y-3">
-                    <p className="text-[#94A3B8] text-xs">Enter the account email and we'll generate a reset link you can share.</p>
+                    <p className="text-[#64748B] text-xs">Enter the account email and we'll generate a reset link you can share.</p>
                     <input
                       type="email"
                       required
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
                       placeholder="you@example.com"
-                      className="w-full h-9 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-xs px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                      className="w-full h-9 rounded-lg bg-white border border-[#E2E8F0] text-[#1E293B] text-xs px-3 placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#b02b52] focus:border-transparent"
                     />
-                    {forgotError && <p className="text-[#F87171] text-xs">{forgotError}</p>}
+                    {forgotError && <p className="text-[#f87171] text-xs">{forgotError}</p>}
                     <button
                       type="submit"
                       disabled={forgotLoading}
-                      className="w-full h-9 rounded-lg border border-[#334155] hover:bg-[#1E293B] text-[#94A3B8] text-xs font-medium transition-colors disabled:opacity-50"
+                      className="w-full h-9 rounded-lg border border-[#E2E8F0] hover:bg-white text-[#64748B] text-xs font-medium transition-colors disabled:opacity-50"
                     >
                       {forgotLoading ? 'Generating…' : 'Generate reset link'}
                     </button>
@@ -299,18 +297,17 @@ export function LoginPage() {
             )}
           </form>
 
-          {/* SSO divider + button — shown only when SAML is configured */}
+          {/* SSO divider + button */}
           {!authLoading && ssoEnabled && (
             <>
               <div className="flex items-center gap-3 my-6">
-                <div className="flex-1 border-t border-[#1E293B]" />
-                <span className="text-[#334155] text-xs">or</span>
-                <div className="flex-1 border-t border-[#1E293B]" />
+                <div className="flex-1 border-t border-[#E2E8F0]" />
+                <span className="text-[#94A3B8] text-xs">or</span>
+                <div className="flex-1 border-t border-[#2a2a2a]" />
               </div>
-
               <a
                 href="/saml/login"
-                className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg border border-[#334155] bg-transparent hover:bg-[#1E293B] text-[#94A3B8] hover:text-[#CBD5E1] text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2 focus:ring-offset-[#0F172A]"
+                className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] text-[#374151] hover:text-[#1E293B] text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#b02b52] focus:ring-offset-2 focus:ring-offset-[#1a1a1a]"
               >
                 <KeyIcon className="w-4 h-4" />
                 Sign in with SSO
@@ -318,18 +315,17 @@ export function LoginPage() {
             </>
           )}
 
-          {/* Slack login — shown only when OAuth is configured */}
+          {/* Slack login */}
           {!authLoading && slackLoginEnabled && (
             <>
               <div className="flex items-center gap-3 my-6">
-                <div className="flex-1 border-t border-[#1E293B]" />
-                <span className="text-[#334155] text-xs">or</span>
-                <div className="flex-1 border-t border-[#1E293B]" />
+                <div className="flex-1 border-t border-[#2a2a2a]" />
+                <span className="text-[#525252] text-xs">or</span>
+                <div className="flex-1 border-t border-[#2a2a2a]" />
               </div>
-
               <a
                 href="/api/v1/auth/slack"
-                className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg border border-[#334155] bg-transparent hover:bg-[#1E293B] text-[#94A3B8] hover:text-[#CBD5E1] text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2 focus:ring-offset-[#0F172A]"
+                className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg border border-[#333] bg-[#1c1c1c] hover:bg-[#242424] text-[#e4e4e7] hover:text-white text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#b02b52] focus:ring-offset-2 focus:ring-offset-[#1a1a1a]"
               >
                 <SlackIcon className="w-4 h-4" />
                 Continue with Slack
@@ -339,72 +335,43 @@ export function LoginPage() {
 
           {/* First-time setup section */}
           <div className={openMode ? '' : 'mt-6'}>
-            {/* Toggle is only shown when there ARE existing accounts (open mode hides it) */}
             {!openMode && (
               <div className="flex items-center gap-3 mb-4">
-                <div className="flex-1 border-t border-[#1E293B]" />
+                <div className="flex-1 border-t border-[#E2E8F0]" />
                 <button
                   type="button"
                   onClick={() => { setShowSetup(!showSetup); setSetupError('') }}
-                  className="text-[#475569] hover:text-[#94A3B8] text-xs transition-colors whitespace-nowrap"
+                  className="text-[#94A3B8] hover:text-[#64748B] text-xs transition-colors whitespace-nowrap"
                 >
                   {showSetup ? 'Cancel setup' : 'First time here? Create admin account →'}
                 </button>
-                <div className="flex-1 border-t border-[#1E293B]" />
+                <div className="flex-1 border-t border-[#E2E8F0]" />
               </div>
             )}
 
             {showSetup && (
               <form onSubmit={handleSetup} className="space-y-3" noValidate>
                 <div>
-                  <label htmlFor="setup-name" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
+                  <label htmlFor="setup-name" className="block text-[#a1a1aa] text-xs font-medium mb-1.5">
                     Full name
                   </label>
-                  <input
-                    id="setup-name"
-                    type="text"
-                    autoComplete="name"
-                    required
-                    value={setupName}
-                    onChange={(e) => setSetupName(e.target.value)}
-                    placeholder="Jane Smith"
-                    className="w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-colors duration-150"
-                  />
+                  <input id="setup-name" type="text" autoComplete="name" required value={setupName} onChange={(e) => setSetupName(e.target.value)} placeholder="Jane Smith" className={inputClass} />
                 </div>
                 <div>
-                  <label htmlFor="setup-email" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
+                  <label htmlFor="setup-email" className="block text-[#a1a1aa] text-xs font-medium mb-1.5">
                     Email
                   </label>
-                  <input
-                    id="setup-email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={setupEmail}
-                    onChange={(e) => setSetupEmail(e.target.value)}
-                    placeholder="admin@example.com"
-                    className="w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-colors duration-150"
-                  />
+                  <input id="setup-email" type="email" autoComplete="email" required value={setupEmail} onChange={(e) => setSetupEmail(e.target.value)} placeholder="admin@example.com" className={inputClass} />
                 </div>
                 <div>
-                  <label htmlFor="setup-password" className="block text-[#94A3B8] text-xs font-medium mb-1.5">
-                    Password <span className="text-[#475569] font-normal">(min. 8 characters)</span>
+                  <label htmlFor="setup-password" className="block text-[#a1a1aa] text-xs font-medium mb-1.5">
+                    Password <span className="text-[#94A3B8] font-normal">(min. 8 characters)</span>
                   </label>
-                  <input
-                    id="setup-password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    minLength={8}
-                    value={setupPassword}
-                    onChange={(e) => setSetupPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full h-10 rounded-lg bg-[#1E293B] border border-[#334155] text-[#F1F5F9] text-sm px-3 placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-colors duration-150"
-                  />
+                  <input id="setup-password" type="password" autoComplete="new-password" required minLength={8} value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} placeholder="••••••••" className={inputClass} />
                 </div>
 
                 {setupError && (
-                  <p className="text-[#F87171] text-sm text-center" role="alert">
+                  <p className="text-[#f87171] text-sm text-center" role="alert">
                     {setupError}
                   </p>
                 )}
@@ -412,7 +379,7 @@ export function LoginPage() {
                 <button
                   type="submit"
                   disabled={setupLoading}
-                  className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg border border-[#2563EB] bg-transparent hover:bg-[#1E3A5F] disabled:opacity-50 disabled:cursor-not-allowed text-[#60A5FA] text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2 focus:ring-offset-[#0F172A]"
+                  className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg border border-[#b02b52] bg-transparent hover:bg-[#fce4ec] disabled:opacity-50 disabled:cursor-not-allowed text-[#f06292] text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#b02b52] focus:ring-offset-2 focus:ring-offset-white"
                 >
                   {setupLoading ? 'Creating account…' : 'Create admin account & sign in'}
                 </button>
@@ -421,23 +388,23 @@ export function LoginPage() {
           </div>
 
           {/* Footer note */}
-          <p className="mt-6 text-center text-[#334155] text-xs">
+          <p className="mt-6 text-center text-[#94A3B8] text-xs">
             {openMode
               ? 'This account will have full admin access'
               : ssoEnabled
                 ? 'Access is managed by your identity provider or local accounts'
-                : 'Sign in with your OpenIncident credentials'}
+                : 'Sign in with your Fluidify Alert credentials'}
           </p>
         </div>
 
         {/* Below-card help link */}
-        <p className="text-center mt-6 text-[#334155] text-xs">
+        <p className="text-center mt-6 text-[#94A3B8] text-xs">
           Self-hosting?{' '}
           <a
             href="https://github.com/openincident/openincident"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#475569] hover:text-[#94A3B8] transition-colors underline underline-offset-2"
+            className="text-[#64748B] hover:text-[#374151] transition-colors underline underline-offset-2"
           >
             View documentation
           </a>
@@ -449,38 +416,10 @@ export function LoginPage() {
 
 // ── Inline SVG icons (no extra deps) ────────────────────────────────────────
 
-function ShieldIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={1.75}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
-      />
-    </svg>
-  )
-}
-
 function KeyIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"
-      />
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
     </svg>
   )
 }

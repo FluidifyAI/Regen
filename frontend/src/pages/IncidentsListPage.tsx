@@ -32,7 +32,7 @@ export function IncidentsListPage() {
     status: statusFilter || undefined,
     severity: severityFilter || undefined,
     limit: PAGE_SIZE,
-    offset: (currentPage - 1) * PAGE_SIZE,
+    page: currentPage,
   })
 
   // Client-side search filters the current page's results

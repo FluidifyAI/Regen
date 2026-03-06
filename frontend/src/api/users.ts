@@ -25,3 +25,20 @@ export async function listSlackMembers(): Promise<{ members: SlackMember[] }> {
   if (!res.ok) throw new Error('Failed to load Slack members')
   return res.json()
 }
+
+export interface TeamsMember {
+  id: string   // AAD Object ID (teams_user_id)
+  name: string
+  email: string
+  already_imported: boolean
+  openincident_user_id?: string
+}
+
+export async function listTeamsMembers(): Promise<{ members: TeamsMember[] }> {
+  const res = await fetch('/api/v1/settings/teams/members', { credentials: 'include' })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body?.error || 'Failed to load Teams members')
+  }
+  return res.json()
+}

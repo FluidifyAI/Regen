@@ -47,7 +47,6 @@ export function useIncidents(params: ListIncidentsParams = {}): UseIncidentsResu
     params.severity,
     params.limit,
     params.page,
-    params.offset,
   ])
 
   useEffect(() => {
@@ -79,7 +78,6 @@ export function useIncidents(params: ListIncidentsParams = {}): UseIncidentsResu
     params.severity,
     params.limit,
     params.page,
-    params.offset,
   ])
 
   return {

@@ -98,6 +98,53 @@ func teamsAlertLinkedCard(alert *models.Alert) map[string]interface{} {
 	}
 }
 
+// teamsDMCard returns an Adaptive Card for a proactive on-call DM.
+// Uses OpenUrl actions so responders can act even outside the Teams channel context.
+func teamsDMCard(incident *models.Incident, appURL string) map[string]interface{} {
+	statusEmoji := teamsStatusEmoji(string(incident.Status))
+	severityColor := teamsSeverityColor(string(incident.Severity))
+
+	incidentURL := fmt.Sprintf("%s/incidents/%s", appURL, incident.ID)
+
+	return map[string]interface{}{
+		"$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+		"type":    "AdaptiveCard",
+		"version": "1.4",
+		"body": []map[string]interface{}{
+			{
+				"type":   "TextBlock",
+				"size":   "Medium",
+				"weight": "Bolder",
+				"text":   fmt.Sprintf("🚨 You're on-call — new incident"),
+				"wrap":   true,
+			},
+			{
+				"type":   "TextBlock",
+				"size":   "Large",
+				"weight": "Bolder",
+				"text":   fmt.Sprintf("%s INC-%d: %s", statusEmoji, incident.IncidentNumber, incident.Title),
+				"wrap":   true,
+				"color":  severityColor,
+			},
+			{
+				"type": "FactSet",
+				"facts": []map[string]interface{}{
+					{"title": "Severity", "value": string(incident.Severity)},
+					{"title": "Status", "value": string(incident.Status)},
+					{"title": "Triggered", "value": incident.TriggeredAt.Format("2006-01-02 15:04 UTC")},
+				},
+			},
+		},
+		"actions": []map[string]interface{}{
+			{
+				"type":  "Action.OpenUrl",
+				"title": "View Incident",
+				"url":   incidentURL,
+			},
+		},
+	}
+}
+
 func teamsStatusEmoji(status string) string {
 	switch status {
 	case "triggered":

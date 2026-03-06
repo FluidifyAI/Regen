@@ -33,6 +33,9 @@ type LocalAuthService interface {
 	// UpdateUserSlackID sets or clears the Slack member ID for a user.
 	// Pass nil to clear, or a pointer to an ID string like "U0AJLLY3678".
 	UpdateUserSlackID(id uuid.UUID, slackUserID *string) error
+	// UpdateUserTeamsID sets or clears the Azure AD Object ID for a user.
+	// Pass nil to clear, or a pointer to the AAD Object ID string.
+	UpdateUserTeamsID(id uuid.UUID, teamsUserID *string) error
 }
 
 // dummyHash is computed once at startup and used in Login to ensure constant-time
@@ -218,6 +221,16 @@ func (s *localAuthService) UpdateUserSlackID(id uuid.UUID, slackUserID *string) 
 		return err
 	}
 	user.SlackUserID = slackUserID
+	user.UpdatedAt = time.Now()
+	return s.users.Update(user)
+}
+
+func (s *localAuthService) UpdateUserTeamsID(id uuid.UUID, teamsUserID *string) error {
+	user, err := s.users.GetByID(id)
+	if err != nil {
+		return err
+	}
+	user.TeamsUserID = teamsUserID
 	user.UpdatedAt = time.Now()
 	return s.users.Update(user)
 }

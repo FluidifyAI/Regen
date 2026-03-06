@@ -99,6 +99,16 @@ func CreateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 			return
 		}
 
+		// Auto-assign priority: append to the bottom when not specified (0 or omitted).
+		if req.Priority == 0 {
+			maxP, err := ruleRepo.GetMaxPriority()
+			if err != nil {
+				dto.InternalError(c, err)
+				return
+			}
+			req.Priority = maxP + 10
+		}
+
 		conflict, err := ruleRepo.CheckPriorityConflict(req.Priority, uuid.Nil)
 		if err != nil {
 			slog.Error("failed to check priority conflict",
@@ -110,12 +120,9 @@ func CreateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 			return
 		}
 		if conflict != nil {
-			dto.Conflict(c, "routing rule priority already in use", map[string]interface{}{
-				"priority":         req.Priority,
-				"conflicting_id":   conflict.ID,
-				"conflicting_name": conflict.Name,
-			})
-			return
+			// Priority taken — append to bottom instead
+			maxP, _ := ruleRepo.GetMaxPriority()
+			req.Priority = maxP + 10
 		}
 
 		rule := req.ToModel()
@@ -264,6 +271,43 @@ func DeleteRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 		}
 
 		c.JSON(http.StatusNoContent, nil)
+	}
+}
+
+// ReorderRoutingRules handles PUT /api/v1/routing-rules/reorder
+// Body: { "ids": ["uuid1", "uuid2", ...] } — ordered from first-evaluated to last.
+// Assigns priorities 10, 20, 30 … in a single transaction.
+func ReorderRoutingRules(ruleRepo repository.RoutingRuleRepository, onRuleMutate func()) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			IDs []string `json:"ids" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			dto.BadRequest(c, "ids array is required", nil)
+			return
+		}
+
+		ids := make([]uuid.UUID, 0, len(req.IDs))
+		for _, raw := range req.IDs {
+			id, err := uuid.Parse(raw)
+			if err != nil {
+				dto.BadRequest(c, "invalid UUID in ids array", map[string]interface{}{"id": raw})
+				return
+			}
+			ids = append(ids, id)
+		}
+
+		if err := ruleRepo.Reorder(ids); err != nil {
+			slog.Error("failed to reorder routing rules", "error", err, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+
+		slog.Info("routing rules reordered", "count", len(ids), "request_id", c.GetString("request_id"))
+		if onRuleMutate != nil {
+			onRuleMutate()
+		}
+		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }
 

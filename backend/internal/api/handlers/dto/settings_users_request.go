@@ -6,6 +6,7 @@ type CreateUserRequest struct {
 	Role        string `json:"role"     binding:"omitempty,oneof=admin member viewer"`
 	Password    string `json:"password" binding:"required,min=8"`
 	SlackUserID string `json:"slack_user_id"`
+	TeamsUserID string `json:"teams_user_id"`
 }
 
 type UpdateUserRequest struct {
@@ -13,4 +14,5 @@ type UpdateUserRequest struct {
 	Role        *string `json:"role"     binding:"omitempty,oneof=admin member viewer"`
 	Password    *string `json:"password" binding:"omitempty,min=8"`
 	SlackUserID *string `json:"slack_user_id"` // nil = no change; "" = clear
+	TeamsUserID *string `json:"teams_user_id"` // nil = no change; "" = clear
 }

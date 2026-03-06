@@ -1,31 +1,48 @@
 import { Link } from 'react-router-dom'
-import { Shield, LogIn } from 'lucide-react'
+import { LogIn } from 'lucide-react'
+import { BackgroundAnimation } from '../components/ui/BackgroundAnimation'
 
-/**
- * Shown at /logout after a successful sign-out.
- * Gives the user a clear confirmation and a path back to login.
- */
 export function LogoutPage() {
   return (
-    <div className="fixed inset-0 bg-[#0d0f14] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-6 text-center max-w-sm px-4">
-        {/* Shield logo */}
-        <div className="relative">
-          <div className="absolute inset-0 rounded-full bg-blue-500 opacity-10 scale-150" />
-          <Shield className="w-12 h-12 text-blue-500 relative" strokeWidth={1.5} />
-        </div>
+    <div
+      className="fixed inset-0 flex items-center justify-center"
+      style={{
+        backgroundImage: 'radial-gradient(circle, #f8bbd0 1px, transparent 1px), linear-gradient(160deg, #fce4ec 0%, #f8f9fa 60%)',
+        backgroundSize: '28px 28px, 100% 100%',
+      }}
+    >
+      <BackgroundAnimation />
+      <div
+        className="relative flex flex-col items-center gap-6 text-center px-10 py-12 rounded-2xl border border-[#f8bbd0] bg-white"
+        style={{
+          zIndex: 1,
+          boxShadow: '0 1px 3px rgba(240,98,146,0.08), 0 24px 48px rgba(176,43,82,0.12)',
+          maxWidth: '360px',
+          width: '100%',
+        }}
+      >
+        <img
+          src="/logo-icon.png"
+          alt="Fluidify Alert"
+          style={{ width: '72px', height: '72px', objectFit: 'contain' }}
+          draggable={false}
+        />
 
         <div>
-          <h1 className="text-white text-xl font-semibold mb-1">You've been signed out</h1>
-          <p className="text-[#4a5568] text-sm">Your session has been cleared securely.</p>
+          <div className="text-2xl font-bold tracking-tight mb-2 text-[#121212]">
+            Fluidify Alert
+          </div>
+          <h1 className="text-[#1E293B] text-lg font-semibold mb-1">You've been signed out</h1>
+          <p className="text-[#64748B] text-sm">Your session has been cleared securely.</p>
         </div>
 
         <Link
           to="/login"
-          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+          className="relative group flex items-center gap-2 px-5 py-2.5 bg-[#b02b52] text-white text-sm font-medium rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#b02b52] focus:ring-offset-2 focus:ring-offset-white"
         >
-          <LogIn className="w-4 h-4" />
-          Sign in again
+          <span className="absolute inset-0 bg-gradient-to-r from-[#b02b52] to-[#f06292] opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-in-out" />
+          <LogIn className="relative z-10 w-4 h-4" />
+          <span className="relative z-10">Sign in again</span>
         </Link>
       </div>
     </div>

@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   X, Copy, Check, Webhook,
   ExternalLink, Lock, MessageSquarePlus, Send, CheckCircle,
 } from 'lucide-react'
 import { apiClient } from '../api/client'
 import { getSlackConfig, type SlackConfigStatus } from '../api/slack'
+import { getTeamsConfig, type TeamsConfigStatus } from '../api/teams_config'
 import { SlackSetupModal } from '../components/SlackSetupModal'
+import { TeamsSetupModal } from '../components/TeamsSetupModal'
+import { useAuth } from '../hooks/useAuth'
 
 // ─── Integration definitions ──────────────────────────────────────────────────
 
@@ -54,13 +58,13 @@ const INTEGRATIONS: Integration[] = [
         title: 'Add a receiver to alertmanager.yml',
         language: 'yaml',
         content: `receivers:
-  - name: 'openincident'
+  - name: 'fluidify-alert'
     webhook_configs:
       - url: '__WEBHOOK_URL__'
         send_resolved: true
 
 route:
-  receiver: 'openincident'`,
+  receiver: 'fluidify-alert'`,
       },
       {
         title: 'Reload Alertmanager',
@@ -74,7 +78,7 @@ route:
     name: 'Grafana',
     tagline: 'Receive alerts from Grafana',
     description:
-      'Forward Grafana alert notifications to OpenIncident via a webhook contact point.',
+      'Forward Grafana alert notifications to Fluidify Alert via a webhook contact point.',
     source: 'grafana',
     webhookPath: '/api/v1/webhooks/grafana',
     logoSlug: 'grafana',
@@ -92,7 +96,7 @@ route:
     name: 'Amazon CloudWatch',
     tagline: 'Receive alerts from AWS CloudWatch via SNS',
     description:
-      'Route CloudWatch alarms through SNS to OpenIncident for unified incident management.',
+      'Route CloudWatch alarms through SNS to Fluidify Alert for unified incident management.',
     source: 'cloudwatch',
     webhookPath: '/api/v1/webhooks/cloudwatch',
     logoSlug: 'amazoncloudwatch',
@@ -102,7 +106,7 @@ route:
         title: 'Create an SNS subscription',
         language: 'bash',
         content: `# Create an SNS topic
-aws sns create-topic --name openincident-alerts
+aws sns create-topic --name fluidify-alert-alerts
 
 # Subscribe the webhook as an HTTPS endpoint
 aws sns subscribe \\
@@ -194,7 +198,7 @@ function buildGitHubIssueUrl(toolName: string, useCase: string, impact: string):
     '**Business impact:** ' + (impact || 'Not specified'),
     '',
     '---',
-    '_Requested via the OpenIncident integration hub_',
+    '_Requested via the Fluidify Alert integration hub_',
   ].join('\n')
   const params = new URLSearchParams({ title, body, labels: 'integration-request' })
   return `https://github.com/openincident/openincident/issues/new?${params}`
@@ -594,15 +598,26 @@ function RequestCTABanner({ onOpen }: { onOpen: () => void }) {
 interface AlertCountResponse { data: unknown[]; total: number }
 
 export function IntegrationsPage() {
+  const { user: currentUser } = useAuth()
+  const navigate = useNavigate()
   const [selected, setSelected] = useState<Integration | null>(null)
   const [requestModal, setRequestModal] = useState<{ open: boolean; tool: string }>({ open: false, tool: '' })
   const [alertCounts, setAlertCounts] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
   const [slackStatus, setSlackStatus] = useState<SlackConfigStatus | null>(null)
   const [showSlackModal, setShowSlackModal] = useState(false)
+  const [teamsStatus, setTeamsStatus] = useState<TeamsConfigStatus | null>(null)
+  const [showTeamsModal, setShowTeamsModal] = useState(false)
+
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'admin') {
+      navigate('/')
+    }
+  }, [currentUser, navigate])
 
   useEffect(() => {
     getSlackConfig().then(setSlackStatus).catch(() => {})
+    getTeamsConfig().then(setTeamsStatus).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -656,6 +671,15 @@ export function IntegrationsPage() {
           }}
         />
       )}
+      {showTeamsModal && (
+        <TeamsSetupModal
+          onClose={() => setShowTeamsModal(false)}
+          onConnected={() => {
+            setShowTeamsModal(false)
+            getTeamsConfig().then(setTeamsStatus).catch(() => {})
+          }}
+        />
+      )}
 
       {/* Page Header */}
       <div className="border-b border-border bg-surface-primary px-6 py-4">
@@ -685,6 +709,7 @@ export function IntegrationsPage() {
         <section>
           <h2 className="text-sm font-semibold text-text-primary mb-3">Chat</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Slack card */}
             <div className="rounded-xl border border-border bg-surface-primary p-4 flex flex-col gap-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -716,6 +741,41 @@ export function IntegrationsPage() {
                 className="mt-auto flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-primary hover:bg-surface-secondary transition-colors"
               >
                 {slackStatus?.configured ? 'Reconfigure' : 'Connect Slack'}
+              </button>
+            </div>
+
+            {/* Microsoft Teams card */}
+            <div className="rounded-xl border border-border bg-surface-primary p-4 flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <img
+                    src="https://cdn.simpleicons.org/microsoftteams"
+                    alt="Microsoft Teams"
+                    className="w-8 h-8 flex-shrink-0"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-text-primary">Microsoft Teams</p>
+                    <p className="text-xs text-text-tertiary">Incident channels &amp; Adaptive Cards</p>
+                  </div>
+                </div>
+                {teamsStatus?.configured && (
+                  <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Connected
+                  </span>
+                )}
+              </div>
+              {teamsStatus?.configured && teamsStatus.team_name && (
+                <p className="text-xs text-text-tertiary">
+                  Team: <span className="text-text-secondary font-medium">{teamsStatus.team_name}</span>
+                </p>
+              )}
+              <button
+                onClick={() => setShowTeamsModal(true)}
+                className="mt-auto flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-primary hover:bg-surface-secondary transition-colors"
+              >
+                {teamsStatus?.configured ? 'Reconfigure' : 'Connect Teams'}
               </button>
             </div>
           </div>

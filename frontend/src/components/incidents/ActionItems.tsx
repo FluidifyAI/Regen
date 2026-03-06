@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Trash2, Check, ChevronDown } from 'lucide-react'
 import { Button } from '../ui/Button'
 import {
@@ -6,7 +6,9 @@ import {
   updateActionItem,
   deleteActionItem,
 } from '../../api/postmortems'
+import { listUsers } from '../../api/users'
 import type { ActionItem, ActionItemStatus } from '../../api/types'
+import type { UserSummary } from '../../api/users'
 
 interface ActionItemsProps {
   incidentId: string
@@ -25,20 +27,30 @@ const STATUS_COLORS: Record<ActionItemStatus, string> = {
   closed: 'bg-green-100 text-green-700',
 }
 
+/** Convert "YYYY-MM-DD" from <input type="date"> to RFC3339 for the backend. */
+function toRFC3339(dateStr: string): string {
+  return `${dateStr}T00:00:00Z`
+}
+
 /**
  * ActionItems displays the action items for a post-mortem with inline add/delete
  * and status toggling.
  */
 export function ActionItems({ incidentId, initialItems }: ActionItemsProps) {
   const [items, setItems] = useState<ActionItem[]>(initialItems)
+  const [users, setUsers] = useState<UserSummary[]>([])
   const [showAddForm, setShowAddForm] = useState(false)
   const [newTitle, setNewTitle] = useState('')
-  const [newOwner, setNewOwner] = useState('')
+  const [newOwnerName, setNewOwnerName] = useState('')
   const [newDueDate, setNewDueDate] = useState('')
   const [adding, setAdding] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    listUsers().then(setUsers).catch(() => {})
+  }, [])
 
   async function handleAdd() {
     if (!newTitle.trim()) return
@@ -47,12 +59,12 @@ export function ActionItems({ incidentId, initialItems }: ActionItemsProps) {
     try {
       const item = await createActionItem(incidentId, {
         title: newTitle.trim(),
-        owner: newOwner.trim() || undefined,
-        due_date: newDueDate || undefined,
+        owner: newOwnerName || undefined,
+        due_date: newDueDate ? toRFC3339(newDueDate) : undefined,
       })
       setItems((prev) => [...prev, item])
       setNewTitle('')
-      setNewOwner('')
+      setNewOwnerName('')
       setNewDueDate('')
       setShowAddForm(false)
     } catch (err) {
@@ -136,13 +148,18 @@ export function ActionItems({ incidentId, initialItems }: ActionItemsProps) {
               className="w-full px-3 py-1.5 text-sm border border-border rounded focus:outline-none focus:ring-1 focus:ring-brand-primary"
             />
             <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Owner (optional)"
-                value={newOwner}
-                onChange={(e) => setNewOwner(e.target.value)}
-                className="flex-1 px-3 py-1.5 text-sm border border-border rounded focus:outline-none focus:ring-1 focus:ring-brand-primary"
-              />
+              <select
+                value={newOwnerName}
+                onChange={(e) => setNewOwnerName(e.target.value)}
+                className="flex-1 px-3 py-1.5 text-sm border border-border rounded focus:outline-none focus:ring-1 focus:ring-brand-primary text-text-primary"
+              >
+                <option value="">Owner (optional)</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.name}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
               <input
                 type="date"
                 value={newDueDate}
@@ -187,6 +204,7 @@ export function ActionItems({ incidentId, initialItems }: ActionItemsProps) {
             <ActionItemRow
               key={item.id}
               item={item}
+  
               updating={updatingId === item.id}
               deleting={deletingId === item.id}
               onStatusChange={handleStatusChange}
@@ -317,6 +335,7 @@ function ClosedItemsSection({
             <ActionItemRow
               key={item.id}
               item={item}
+  
               updating={updatingId === item.id}
               deleting={deletingId === item.id}
               onStatusChange={onStatusChange}

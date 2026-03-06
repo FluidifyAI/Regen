@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openincident/openincident/internal/models"
 	"golang.org/x/oauth2/clientcredentials"
 )
 
@@ -219,6 +220,42 @@ func (s *TeamsService) PostToConversation(conversationID string, msg Message) (s
 	return s.postToConversation(conversationID, msg)
 }
 
+// SendOnCallDM sends a proactive Adaptive Card DM to the on-call responder via Bot Framework.
+// aadObjectID is the Azure AD Object ID stored in users.teams_user_id.
+// Unlike SendDirectMessage (which uses Graph API chat threads), this uses the Bot Framework
+// relay so it works with the same client credentials scope — no Chat.ReadWrite delegation needed.
+func (s *TeamsService) SendOnCallDM(aadObjectID string, incident *models.Incident, appURL string) error {
+	url := fmt.Sprintf("%sv3/conversations", s.serviceURL)
+	card := teamsDMCard(incident, appURL)
+	activity := map[string]interface{}{
+		"type": "message",
+		"attachments": []map[string]interface{}{
+			{
+				"contentType": "application/vnd.microsoft.card.adaptive",
+				"content":     card,
+			},
+		},
+	}
+	body := map[string]interface{}{
+		"bot": map[string]string{
+			"id":   "28:" + s.botAppID,
+			"name": "Fluidify Alert",
+		},
+		"members": []map[string]string{
+			{"id": "29:" + aadObjectID},
+		},
+		"tenantId": s.tenantID,
+		"activity": activity,
+	}
+	var result struct {
+		ID string `json:"id"`
+	}
+	if err := s.botfwPostJSON(url, body, &result); err != nil {
+		return fmt.Errorf("teams: send on-call DM to %s: %w", aadObjectID, err)
+	}
+	return nil
+}
+
 // UpdateConversationMessage updates an existing message in a Bot Framework conversation.
 // Used to keep the root incident Adaptive Card in sync with the current status.
 func (s *TeamsService) UpdateConversationMessage(conversationID, activityID string, msg Message) error {
@@ -241,7 +278,7 @@ func (s *TeamsService) createChannelConversation(teamsChannelID string, msg Mess
 	body := map[string]interface{}{
 		"bot": map[string]string{
 			"id":   "28:" + s.botAppID,
-			"name": "OpenIncident",
+			"name": "Fluidify Alert",
 		},
 		"channelData": map[string]interface{}{
 			"channel": map[string]string{"id": teamsChannelID},
@@ -291,6 +328,109 @@ func buildBotFWMessageBody(msg Message) map[string]interface{} {
 	return map[string]interface{}{
 		"text": msg.Text,
 	}
+}
+
+// TestTeamsCredentials validates Teams credentials by fetching team info from the Graph API.
+// Returns the team display name on success. Intended for use by the setup wizard test endpoint.
+func TestTeamsCredentials(ctx context.Context, appID, appPassword, tenantID, teamID string) (string, error) {
+	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", tenantID)
+	graphCfg := clientcredentials.Config{
+		ClientID:     appID,
+		ClientSecret: appPassword,
+		TokenURL:     tokenURL,
+		Scopes:       []string{"https://graph.microsoft.com/.default"},
+	}
+	client := graphCfg.Client(context.Background())
+	client.Timeout = 15 * time.Second
+
+	url := fmt.Sprintf("%s/teams/%s", graphBaseURL, teamID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("connection failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, apiResponseSizeLimit))
+	if resp.StatusCode >= 300 {
+		return "", fmt.Errorf("Graph API %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("unexpected response: %w", err)
+	}
+	return result.DisplayName, nil
+}
+
+// TeamMember is a member of the Teams team as returned by the Graph API.
+type TeamMember struct {
+	UserID      string // AAD Object ID — stable identifier for proactive DMs (teams_user_id)
+	DisplayName string
+	Email       string
+}
+
+// ListTeamMembers fetches all members of the configured team from the Graph API.
+// Intended for the "Import from Teams" UI flow; does not require a full TeamsService.
+func ListTeamMembers(ctx context.Context, appID, appPassword, tenantID, teamID string) ([]TeamMember, error) {
+	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", tenantID)
+	graphCfg := clientcredentials.Config{
+		ClientID:     appID,
+		ClientSecret: appPassword,
+		TokenURL:     tokenURL,
+		Scopes:       []string{"https://graph.microsoft.com/.default"},
+	}
+	client := graphCfg.Client(context.Background())
+	client.Timeout = 15 * time.Second
+
+	url := fmt.Sprintf("%s/teams/%s/members", graphBaseURL, teamID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("connection failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, apiResponseSizeLimit))
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("Graph API %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Value []struct {
+			UserID      string `json:"userId"`
+			DisplayName string `json:"displayName"`
+			Email       string `json:"email"`
+		} `json:"value"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("unexpected response: %w", err)
+	}
+
+	members := make([]TeamMember, 0, len(result.Value))
+	for _, m := range result.Value {
+		if m.UserID == "" {
+			continue // skip service accounts / bots with no AAD identity
+		}
+		members = append(members, TeamMember{
+			UserID:      m.UserID,
+			DisplayName: m.DisplayName,
+			Email:       m.Email,
+		})
+	}
+	return members, nil
 }
 
 // ─── Graph API helpers ────────────────────────────────────────────────────────

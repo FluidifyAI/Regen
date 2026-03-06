@@ -253,7 +253,7 @@ func (h *TeamsEventHandler) syncMessageToTimeline(_ context.Context, activity Bo
 }
 
 func (h *TeamsEventHandler) sendHelp(activity BotActivity) {
-	help := "**OpenIncident Bot Commands:**\n\n" +
+	help := "**Fluidify Alert Bot Commands:**\n\n" +
 		"• `new <title>` — Create a new incident\n" +
 		"• `ack` — Acknowledge this channel's incident\n" +
 		"• `resolve` — Resolve this channel's incident\n" +

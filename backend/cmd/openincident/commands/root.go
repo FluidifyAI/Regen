@@ -6,7 +6,7 @@ import "github.com/spf13/cobra"
 func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "openincident",
-		Short: "OpenIncident — open-source incident management platform",
+		Short: "Fluidify Alert — open-source incident management platform",
 	}
 
 	root.AddCommand(newServeCmd())

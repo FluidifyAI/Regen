@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"sync"
+
 	"github.com/openincident/openincident/internal/integrations/openai"
 	"github.com/openincident/openincident/internal/models"
 )
@@ -16,6 +18,10 @@ import (
 type AIService interface {
 	// IsEnabled returns true if the AI service is properly configured.
 	IsEnabled() bool
+
+	// Reload replaces the API key and re-initialises the OpenAI clients in place.
+	// Calling with an empty string disables AI features until a key is set again.
+	Reload(apiKey string)
 
 	// GenerateSummary generates a concise incident summary using all available context.
 	// slackMessages should be the plain-text messages from the incident Slack thread.
@@ -32,65 +38,90 @@ type AIService interface {
 	GeneratePostMortem(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) (string, error)
 }
 
-// NewAIService creates an AIService backed by OpenAI, or a noop if apiKey is empty.
-// postMortemMaxTokens sets a higher token budget used exclusively for post-mortem
-// generation, which produces much longer structured documents than summaries.
+// NewAIService creates a reloadable AIService. If apiKey is empty the service
+// starts disabled; call Reload(key) after saving a key from the UI.
 func NewAIService(apiKey, model string, maxTokens, postMortemMaxTokens int) AIService {
-	if apiKey == "" {
-		return &noopAIService{}
+	svc := &aiService{
+		model:       model,
+		maxTokens:   maxTokens,
+		pmMaxTokens: postMortemMaxTokens,
 	}
-	return &aiService{
-		client:           openai.New(apiKey, model, maxTokens),
-		postMortemClient: openai.New(apiKey, model, postMortemMaxTokens),
+	if apiKey != "" {
+		svc.client = openai.New(apiKey, model, maxTokens)
+		svc.postMortemClient = openai.New(apiKey, model, postMortemMaxTokens)
 	}
+	return svc
 }
 
-// ─── Real implementation ──────────────────────────────────────────────────────
+// ─── Implementation ───────────────────────────────────────────────────────────
 
 type aiService struct {
-	client           *openai.Client // summary / handoff (1 000 tokens)
-	postMortemClient *openai.Client // post-mortem (3 000 tokens)
+	mu              sync.RWMutex
+	client           *openai.Client
+	postMortemClient *openai.Client
+	model            string
+	maxTokens        int
+	pmMaxTokens      int
 }
 
-func (s *aiService) IsEnabled() bool { return true }
+func (s *aiService) IsEnabled() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.client != nil
+}
+
+func (s *aiService) Reload(apiKey string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if apiKey == "" {
+		s.client = nil
+		s.postMortemClient = nil
+	} else {
+		s.client = openai.New(apiKey, s.model, s.maxTokens)
+		s.postMortemClient = openai.New(apiKey, s.model, s.pmMaxTokens)
+	}
+}
 
 func (s *aiService) GenerateSummary(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, slackMessages []string) (string, error) {
+	s.mu.RLock()
+	client := s.client
+	s.mu.RUnlock()
+	if client == nil {
+		return "", fmt.Errorf("AI features are not configured")
+	}
 	messages := []openai.ChatMessage{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: buildSummaryPrompt(incident, timeline, alerts, slackMessages)},
 	}
-	return s.client.Complete(ctx, messages)
+	return client.Complete(ctx, messages)
 }
 
 func (s *aiService) GenerateHandoffDigest(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert) (string, error) {
+	s.mu.RLock()
+	client := s.client
+	s.mu.RUnlock()
+	if client == nil {
+		return "", fmt.Errorf("AI features are not configured")
+	}
 	messages := []openai.ChatMessage{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: buildHandoffPrompt(incident, timeline, alerts)},
 	}
-	return s.client.Complete(ctx, messages)
+	return client.Complete(ctx, messages)
 }
 
 func (s *aiService) GeneratePostMortem(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) (string, error) {
+	s.mu.RLock()
+	client := s.postMortemClient
+	s.mu.RUnlock()
+	if client == nil {
+		return "", fmt.Errorf("AI features are not configured")
+	}
 	messages := []openai.ChatMessage{
 		{Role: "system", Content: postMortemSystemPrompt},
 		{Role: "user", Content: buildPostMortemPrompt(incident, timeline, alerts, sections)},
 	}
-	return s.postMortemClient.Complete(ctx, messages)
-}
-
-// ─── Noop implementation (AI not configured) ─────────────────────────────────
-
-type noopAIService struct{}
-
-func (n *noopAIService) IsEnabled() bool { return false }
-func (n *noopAIService) GenerateSummary(_ context.Context, _ *models.Incident, _ []models.TimelineEntry, _ []models.Alert, _ []string) (string, error) {
-	return "", fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
-}
-func (n *noopAIService) GenerateHandoffDigest(_ context.Context, _ *models.Incident, _ []models.TimelineEntry, _ []models.Alert) (string, error) {
-	return "", fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
-}
-func (n *noopAIService) GeneratePostMortem(_ context.Context, _ *models.Incident, _ []models.TimelineEntry, _ []models.Alert, _ []string) (string, error) {
-	return "", fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
+	return client.Complete(ctx, messages)
 }
 
 // ─── Prompts ──────────────────────────────────────────────────────────────────

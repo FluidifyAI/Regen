@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Shield,
   FileText,
   LogOut,
   Users,
@@ -16,6 +15,7 @@ import {
   Menu,
   BarChart2,
   Puzzle,
+  Settings,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
 import { ProfileModal } from '../ProfileModal'
@@ -117,13 +117,6 @@ export function Sidebar() {
           href: '/analytics',
           matchPaths: ['/analytics'],
         },
-        {
-          id: 'integrations',
-          label: 'Integrations',
-          icon: Puzzle,
-          href: '/integrations',
-          matchPaths: ['/integrations'],
-        },
       ],
     },
   ]
@@ -131,11 +124,25 @@ export function Sidebar() {
   // Admin-only bottom-pinned nav items (appear just above the user profile bar)
   const adminBottomItems: NavItem[] = currentUser?.role === 'admin' ? [
     {
+      id: 'integrations',
+      label: 'Integrations',
+      icon: Puzzle,
+      href: '/integrations',
+      matchPaths: ['/integrations'],
+    },
+    {
       id: 'settings-users',
       label: 'Users',
       icon: Users,
       href: '/settings/users',
       matchPaths: ['/settings/users'],
+    },
+    {
+      id: 'settings-system',
+      label: 'System',
+      icon: Settings,
+      href: '/settings/system',
+      matchPaths: ['/settings/system'],
     },
   ] : []
 
@@ -155,13 +162,12 @@ export function Sidebar() {
       <div
         className={`
           flex items-center h-10 px-3 rounded transition-colors duration-200 group
-          ${active ? 'bg-sidebar-active text-sidebar-text-active' : 'text-sidebar-text hover:bg-sidebar-hover'}
+          ${active ? 'bg-sidebar-active text-sidebar-text-active' : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white'}
           ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-          ${active ? 'border-l-3 border-brand-primary' : ''}
         `}
-        style={active ? { borderLeftWidth: '3px' } : undefined}
+        style={active ? { borderLeft: '3px solid #f06292', paddingLeft: '9px' } : { borderLeft: '3px solid transparent', paddingLeft: '9px' }}
       >
-        <Icon className={`flex-shrink-0 w-5 h-5 ${isCollapsed ? 'mx-auto' : 'mr-3'} ${active ? 'text-brand-primary' : ''}`} />
+        <Icon className={`flex-shrink-0 w-5 h-5 ${isCollapsed ? 'mx-auto' : 'mr-3'} ${active ? 'text-brand-accent' : ''}`} />
         {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
       </div>
     )
@@ -203,16 +209,32 @@ export function Sidebar() {
   const sidebarContent = (
     <div className="h-full flex flex-col bg-sidebar-bg text-sidebar-text">
       {/* Top Bar */}
-      <div className="flex items-center h-14 px-3 border-b border-sidebar-border">
+      <div className="flex items-center h-16 px-3 border-b border-sidebar-border">
         {!isCollapsed && (
           <>
-            <Shield className="text-brand-primary flex-shrink-0 w-6 h-6" />
-            <span className="ml-2 text-sidebar-text-active font-semibold text-base">
-              OpenIncident
+            <img
+              src="/logo-icon.png"
+              alt="Fluidify Alert logo"
+              width={32}
+              height={32}
+              className="flex-shrink-0 object-contain"
+              draggable={false}
+            />
+            <span className="ml-2 font-bold text-lg tracking-tight text-white">
+              Fluidify Alert
             </span>
           </>
         )}
-        {isCollapsed && <Shield className="text-brand-primary mx-auto w-6 h-6" />}
+        {isCollapsed && (
+          <img
+            src="/logo-icon.png"
+            alt="Fluidify Alert"
+            width={30}
+            height={30}
+            className="mx-auto object-contain"
+            draggable={false}
+          />
+        )}
         <button
           onClick={toggleCollapse}
           className="ml-auto p-1.5 rounded hover:bg-sidebar-hover transition-colors"

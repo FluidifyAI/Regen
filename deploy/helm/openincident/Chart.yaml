@@ -1,6 +1,6 @@
 apiVersion: v2
-name: openincident
-description: Open-source incident management platform
+name: fluidify-alert
+description: Fluidify Alert — open-source incident management platform
 type: application
 version: 0.1.0
 appVersion: "0.9.0"
@@ -12,7 +12,7 @@ home: https://github.com/openincident/openincident
 sources:
   - https://github.com/openincident/openincident
 maintainers:
-  - name: OpenIncident Contributors
+  - name: Fluidify Contributors
 dependencies:
   - name: postgresql
     version: ">=16.0.0 <20.0.0"

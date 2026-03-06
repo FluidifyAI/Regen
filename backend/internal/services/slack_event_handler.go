@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/openincident/openincident/internal/models"
@@ -372,7 +373,7 @@ func (h *SlackEventHandler) listOpenIncidents(cmd slack.SlashCommand) {
 // sendHelpResponse posts ephemeral usage instructions.
 func (h *SlackEventHandler) sendHelpResponse(cmd slack.SlashCommand) {
 	h.postEphemeral(cmd.ChannelID, cmd.UserID,
-		"*OpenIncident Slash Commands:*\n\n"+
+		"*Fluidify Alert Slash Commands:*\n\n"+
 			"*Declare & Browse*\n"+
 			"• `/incident new [title]` — Declare a new incident (opens form)\n"+
 			"• `/incident list` — List open incidents\n\n"+
@@ -612,7 +613,7 @@ func (h *SlackEventHandler) assignLeadFromSlash(cmd slack.SlashCommand, targetAr
 	internalUser, err := h.resolveSlackUserToInternal(slackUserID)
 	if err != nil {
 		h.postEphemeral(cmd.ChannelID, cmd.UserID,
-			fmt.Sprintf("Could not find user <@%s> in OpenIncident. Make sure they have a profile with a Slack ID set.", slackUserID))
+			fmt.Sprintf("Could not find user <@%s> in Fluidify Alert. Make sure they have a profile with a Slack ID set.", slackUserID))
 		return
 	}
 
@@ -646,7 +647,7 @@ func (h *SlackEventHandler) handleMakeMeLead(callback slack.InteractionCallback,
 	internalUser, err := h.resolveSlackUserToInternal(callback.User.ID)
 	if err != nil {
 		h.postEphemeral(callback.Channel.ID, callback.User.ID,
-			"Could not find your OpenIncident profile. Ask an admin to link your Slack ID.")
+			"Could not find your Fluidify Alert profile. Ask an admin to link your Slack ID.")
 		return
 	}
 
@@ -776,7 +777,7 @@ func (h *SlackEventHandler) handleViewOverview(callback slack.InteractionCallbac
 // handleViewCommands posts an ephemeral list of available slash commands.
 func (h *SlackEventHandler) handleViewCommands(callback slack.InteractionCallback) {
 	h.postEphemeral(callback.Channel.ID, callback.User.ID,
-		"*OpenIncident Slash Commands:*\n\n"+
+		"*Fluidify Alert Slash Commands:*\n\n"+
 			"*Declare & Browse*\n"+
 			"• `/incident new [title]` — Declare a new incident (opens form)\n"+
 			"• `/incident list` — List open incidents\n\n"+
@@ -804,14 +805,45 @@ func (h *SlackEventHandler) refreshIncidentCard(incident *models.Incident) {
 }
 
 // resolveSlackUserToInternal maps a Slack user ID to an internal models.User.
+// First tries the stored slack_user_id. If not found, falls back to email matching
+// via the Slack API and auto-links the account on first match (JIT linking).
 func (h *SlackEventHandler) resolveSlackUserToInternal(slackUserID string) (*models.User, error) {
 	if h.userRepo == nil {
 		return nil, fmt.Errorf("user repository not configured")
 	}
+
+	// Fast path: Slack ID already linked.
 	user, err := h.userRepo.GetBySlackUserID(slackUserID)
-	if err != nil {
-		return nil, fmt.Errorf("no OpenIncident user found for Slack ID %s: %w", slackUserID, err)
+	if err == nil {
+		return user, nil
 	}
+
+	// Fallback: look up email via Slack API and match against internal accounts.
+	userInfo, apiErr := h.client.GetUserInfo(slackUserID)
+	if apiErr != nil {
+		return nil, fmt.Errorf("no account linked for Slack ID %s (Slack API error: %w)", slackUserID, apiErr)
+	}
+	email := userInfo.Profile.Email
+	if email == "" {
+		return nil, fmt.Errorf("no account linked for Slack ID %s and Slack profile has no email", slackUserID)
+	}
+
+	user, err = h.userRepo.GetByEmail(email)
+	if err != nil {
+		return nil, fmt.Errorf("no Fluidify Alert account found for %s (%s) — ask an admin to create your account", userInfo.RealName, email)
+	}
+
+	// Auto-link: persist the Slack ID so future lookups use the fast path.
+	user.SlackUserID = &slackUserID
+	user.UpdatedAt = time.Now()
+	if updateErr := h.userRepo.Update(user); updateErr != nil {
+		slog.Warn("resolveSlackUserToInternal: failed to auto-link Slack ID",
+			"slack_user_id", slackUserID, "user_id", user.ID, "error", updateErr)
+	} else {
+		slog.Info("resolveSlackUserToInternal: auto-linked Slack ID to account",
+			"slack_user_id", slackUserID, "user_id", user.ID, "email", email)
+	}
+
 	return user, nil
 }
 

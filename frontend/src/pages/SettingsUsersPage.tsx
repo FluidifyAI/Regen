@@ -11,8 +11,9 @@ import {
   resetUserPassword,
   UserRecord,
 } from '../api/settings'
-import { listSlackMembers, SlackMember } from '../api/users'
+import { listSlackMembers, listTeamsMembers, SlackMember, TeamsMember } from '../api/users'
 import { getSlackOAuthStatus } from '../api/slack'
+import { getTeamsConfig } from '../api/teams_config'
 
 export function SettingsUsersPage() {
   const { user: currentUser } = useAuth()
@@ -22,6 +23,8 @@ export function SettingsUsersPage() {
   const [error, setError] = useState('')
   const [showInvite, setShowInvite] = useState(false)
   const [showSlackImport, setShowSlackImport] = useState(false)
+  const [showTeamsImport, setShowTeamsImport] = useState(false)
+  const [teamsConfigured, setTeamsConfigured] = useState(false)
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null)
   const [setupInfo, setSetupInfo] = useState<{ token: string; email: string } | null>(null)
   useEffect(() => {
@@ -32,6 +35,7 @@ export function SettingsUsersPage() {
 
   useEffect(() => {
     loadUsers()
+    getTeamsConfig().then(s => setTeamsConfigured(s.configured)).catch(() => {})
   }, [])
 
   async function loadUsers() {
@@ -83,6 +87,15 @@ export function SettingsUsersPage() {
               <SlackIcon className="w-4 h-4" />
               Import from Slack
             </button>
+            {teamsConfigured && (
+              <button
+                onClick={() => setShowTeamsImport(true)}
+                className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border bg-white hover:bg-gray-50 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+              >
+                <TeamsIcon className="w-4 h-4" />
+                Import from Teams
+              </button>
+            )}
             <Button variant="primary" onClick={() => setShowInvite(true)}>
               <Plus className="w-4 h-4" />
               Invite user
@@ -200,6 +213,150 @@ export function SettingsUsersPage() {
           onImported={() => { setShowSlackImport(false); loadUsers() }}
         />
       )}
+
+      {showTeamsImport && (
+        <TeamsImportModal
+          onClose={() => setShowTeamsImport(false)}
+          onImported={() => { setShowTeamsImport(false); loadUsers() }}
+        />
+      )}
+    </div>
+  )
+}
+
+function TeamsIcon({ className }: { className?: string }) {
+  return (
+    <img
+      src="https://cdn.simpleicons.org/microsoftteams"
+      alt="Microsoft Teams"
+      className={className}
+      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+    />
+  )
+}
+
+function TeamsImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [members, setMembers] = useState<TeamsMember[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [loadingMembers, setLoadingMembers] = useState(true)
+  const [importing, setImporting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    listTeamsMembers()
+      .then(data => { setMembers(data.members); setError('') })
+      .catch(err => setError(err instanceof Error ? err.message : 'Failed to load Teams members'))
+      .finally(() => setLoadingMembers(false))
+  }, [])
+
+  function toggleMember(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function handleImport() {
+    setImporting(true); setError('')
+    const toImport = members.filter(m => selected.has(m.id) && !m.already_imported)
+    try {
+      for (const m of toImport) {
+        const randomPassword = crypto.randomUUID() + crypto.randomUUID()
+        await createUser({
+          email: m.email || `${m.id}@teams.local`,
+          name: m.name,
+          role: 'member',
+          password: randomPassword,
+          teamsUserId: m.id,
+        })
+      }
+      onImported()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Import failed'
+      setError(msg)
+      setImporting(false)
+    }
+  }
+
+  const importableSelected = Array.from(selected).filter(id => {
+    const m = members.find(x => x.id === id)
+    return m && !m.already_imported
+  })
+
+  const secondaryBtn = 'h-9 px-4 rounded-lg border border-border text-sm font-medium text-text-secondary hover:bg-surface-secondary transition-colors'
+  const primaryBtn = 'h-9 px-4 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-medium transition-colors disabled:opacity-50'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative w-full max-w-lg mx-4 bg-white rounded-xl border border-border shadow-xl flex flex-col max-h-[80vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <TeamsIcon className="w-5 h-5" />
+            <h2 className="text-lg font-semibold text-text-primary">Import from Teams</h2>
+          </div>
+          <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary text-lg leading-none">×</button>
+        </div>
+
+        <div className="mx-6 mt-4 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+          Imported users will log in with their <strong>local password</strong> — set a temporary one and ask them to change it. To enable SSO, configure Azure AD in Integrations.
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {loadingMembers ? (
+            <p className="text-center text-text-tertiary py-8">Loading Teams members…</p>
+          ) : error ? (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{error}</div>
+          ) : members.length === 0 ? (
+            <p className="text-center text-text-tertiary py-8">No Teams members found.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {members.map(m => (
+                <li
+                  key={m.id}
+                  className={`flex items-center gap-3 py-3 ${m.already_imported ? 'opacity-50' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(m.id)}
+                    onChange={() => toggleMember(m.id)}
+                    disabled={m.already_imported}
+                    className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary"
+                  />
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 text-xs font-semibold text-blue-700">
+                    {m.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">{m.name}</p>
+                    <p className="text-xs text-text-tertiary truncate">{m.email}</p>
+                  </div>
+                  {m.already_imported && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">Imported</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {!loadingMembers && !error && (
+          <div className="px-6 py-4 border-t border-border">
+            {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+            <div className="flex gap-3">
+              <button type="button" onClick={onClose} className={secondaryBtn}>Cancel</button>
+              <button
+                type="button"
+                onClick={handleImport}
+                disabled={importableSelected.length === 0 || importing}
+                className={primaryBtn}
+              >
+                {importing ? 'Importing…' : `Import ${importableSelected.length > 0 ? importableSelected.length + ' selected' : ''}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -234,7 +391,7 @@ function SetupLinkBox({ token, email, onClose }: { token: string; email?: string
     setTimeout(() => setCopied(false), 2000)
   }
   const mailtoHref = email
-    ? `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("You've been invited to OpenIncident")}&body=${encodeURIComponent(`Hi,\n\nYou've been invited to join OpenIncident.\n\nClick the link below to set up your account:\n${url}\n\nThis link expires in 7 days.\n`)}`
+    ? `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("You've been invited to Fluidify Alert")}&body=${encodeURIComponent(`Hi,\n\nYou've been invited to join Fluidify Alert.\n\nClick the link below to set up your account:\n${url}\n\nThis link expires in 7 days.\n`)}`
     : undefined
   return (
     <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -297,6 +454,7 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [role, setRole] = useState('member')
   const [password, setPassword] = useState('')
   const [slackUserId, setSlackUserId] = useState('')
+  const [teamsUserId, setTeamsUserId] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -305,7 +463,11 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     if (password.length < 8) { setError('Password must be at least 8 characters'); return }
     setLoading(true); setError('')
     try {
-      const res = await createUser({ email, name, role, password, slackUserId: slackUserId || undefined })
+      const res = await createUser({
+        email, name, role, password,
+        slackUserId: slackUserId || undefined,
+        teamsUserId: teamsUserId || undefined,
+      })
       onCreated(res.setup_token, email)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create user'
@@ -340,6 +502,19 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             className={inputCls}
           />
           <p className="text-xs text-gray-400 mt-1">Find in Slack: click your profile photo → Copy Member ID</p>
+        </div>
+        <div>
+          <label className="block text-text-secondary text-xs font-medium mb-1.5">
+            Teams User ID <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={teamsUserId}
+            onChange={e => setTeamsUserId(e.target.value)}
+            placeholder="e.g. 29dcb621-b60b-4b3d-aa41-..."
+            className={inputCls}
+          />
+          <p className="text-xs text-gray-400 mt-1">Azure AD Admin Center → Users → select user → Object ID</p>
         </div>
         <Field label="Initial password"><input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} className={inputCls} placeholder="Min. 8 characters" /></Field>
         {error && <p className="text-red-500 text-xs">{error}</p>}
@@ -495,6 +670,7 @@ function EditModal({ user, onClose, onSaved }: { user: UserRecord; onClose: () =
   const [name, setName] = useState(user.name)
   const [role, setRole] = useState<string>(user.role)
   const [slackUserId, setSlackUserId] = useState(user.slack_user_id ?? '')
+  const [teamsUserId, setTeamsUserId] = useState(user.teams_user_id ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -509,6 +685,7 @@ function EditModal({ user, onClose, onSaved }: { user: UserRecord; onClose: () =
         ...(user.auth_source !== 'saml' && role ? { role } : {}),
         ...(password ? { password } : {}),
         slackUserId: slackUserId || undefined,
+        teamsUserId: teamsUserId || undefined,
       })
       onSaved()
     } catch (err: unknown) {
@@ -546,6 +723,19 @@ function EditModal({ user, onClose, onSaved }: { user: UserRecord; onClose: () =
             className={inputCls}
           />
           <p className="text-xs text-gray-400 mt-1">Find in Slack: click your profile photo → Copy Member ID</p>
+        </div>
+        <div>
+          <label className="block text-text-secondary text-xs font-medium mb-1.5">
+            Teams User ID <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={teamsUserId}
+            onChange={e => setTeamsUserId(e.target.value)}
+            placeholder="e.g. 29dcb621-b60b-4b3d-aa41-..."
+            className={inputCls}
+          />
+          <p className="text-xs text-gray-400 mt-1">Azure AD Admin Center → Users → select user → Object ID</p>
         </div>
         {user.auth_source === 'local' && (
           <Field label="New password (optional)">

@@ -14,6 +14,7 @@ import { EscalationPolicyDetailPage } from './pages/EscalationPolicyDetailPage'
 import { AlertDetailPage } from './pages/AlertDetailPage'
 import { PostMortemTemplatesPage } from './pages/PostMortemTemplatesPage'
 import { SettingsUsersPage } from './pages/SettingsUsersPage'
+import { SystemSettingsPage } from './pages/SystemSettingsPage'
 import { AnalyticsPage } from './pages/AnalyticsPage'
 import { IntegrationsPage } from './pages/IntegrationsPage'
 import { LogoutPage } from './pages/LogoutPage'
@@ -77,6 +78,7 @@ function App() {
               <Route path="/integrations" element={<IntegrationsPage />} />
               <Route path="/settings" element={<Navigate to="/settings/users" replace />} />
               <Route path="/settings/users" element={<SettingsUsersPage />} />
+              <Route path="/settings/system" element={<SystemSettingsPage />} />
             </Route>
           </Routes>
         </AuthGate>

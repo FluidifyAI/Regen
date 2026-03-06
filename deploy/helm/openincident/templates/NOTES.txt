@@ -1,4 +1,4 @@
-OpenIncident has been deployed!
+Fluidify Alert has been deployed!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Get the application URL:

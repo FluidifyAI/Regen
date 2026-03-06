@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:15-alpine
-    container_name: openincident-db
+    container_name: fluidify-alert-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-openincident}
@@ -17,11 +17,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - openincident
+      - fluidify-alert
 
   redis:
     image: redis:7-alpine
-    container_name: openincident-redis
+    container_name: fluidify-alert-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
@@ -34,14 +34,14 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - openincident
+      - fluidify-alert
 
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile
       target: development
-    container_name: openincident-api
+    container_name: fluidify-alert-api
     restart: unless-stopped
     environment:
       - APP_ENV=${APP_ENV:-development}
@@ -82,7 +82,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - openincident
+      - fluidify-alert
 
   # mock-idp + saml-proxy: Local SAML IdP for SSO development/testing.
   # Test credentials: user1 / user1pass  (email: user1@example.com)
@@ -93,16 +93,16 @@ services:
   # the Docker-internal hostname "mock-idp" which browsers cannot resolve.
   mock-idp:
     image: kristophjunge/test-saml-idp
-    container_name: openincident-mock-idp
+    container_name: fluidify-alert-mock-idp
     environment:
       - SIMPLESAMLPHP_SP_ENTITY_ID=http://localhost:8080/saml/metadata
       - SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE=http://localhost:8080/saml/acs
     networks:
-      - openincident
+      - fluidify-alert
 
   saml-proxy:
     image: nginx:alpine
-    container_name: openincident-saml-proxy
+    container_name: fluidify-alert-saml-proxy
     ports:
       - "8082:80"
     volumes:
@@ -110,7 +110,7 @@ services:
     depends_on:
       - mock-idp
     networks:
-      - openincident
+      - fluidify-alert
 
 volumes:
   postgres_data:
@@ -121,5 +121,5 @@ volumes:
     driver: local
 
 networks:
-  openincident:
+  fluidify-alert:
     driver: bridge

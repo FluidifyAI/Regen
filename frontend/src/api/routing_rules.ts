@@ -45,3 +45,11 @@ export async function updateRoutingRule(
 export async function deleteRoutingRule(id: string): Promise<void> {
   return apiClient.delete<void>(`/api/v1/routing-rules/${id}`)
 }
+
+/**
+ * Reorder routing rules by supplying an ordered array of IDs.
+ * Backend assigns priorities 10, 20, 30 … in the given order.
+ */
+export async function reorderRoutingRules(ids: string[]): Promise<void> {
+  await apiClient.put<void>('/api/v1/routing-rules/reorder', { ids })
+}

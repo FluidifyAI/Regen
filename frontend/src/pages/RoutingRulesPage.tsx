@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, Zap, Filter, Bell } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Zap, Filter, Bell, GripVertical } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyState } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
 import { useRoutingRules } from '../hooks/useRoutingRules'
-import { createRoutingRule, updateRoutingRule, deleteRoutingRule } from '../api/routing_rules'
+import { createRoutingRule, updateRoutingRule, deleteRoutingRule, reorderRoutingRules } from '../api/routing_rules'
 import { listEscalationPolicies } from '../api/escalation'
 import type { RoutingRule, CreateRoutingRuleRequest, EscalationPolicy } from '../api/types'
 
@@ -73,12 +73,10 @@ interface RouteBuilderModalProps {
 }
 
 function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModalProps) {
-  // ── form state ──
   const [name, setName]               = useState('')
   const [enabled, setEnabled]         = useState(true)
-  const [priority, setPriority]       = useState(100)
-  const [sources, setSources]         = useState<string[]>([])       // empty = all
-  const [severities, setSeverities]   = useState<string[]>([])       // empty = all
+  const [sources, setSources]         = useState<string[]>([])
+  const [severities, setSeverities]   = useState<string[]>([])
   const [createIncident, setCreate]   = useState(true)
   const [suppress, setSuppress]       = useState(false)
   const [escalate, setEscalate]       = useState(false)
@@ -90,23 +88,18 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
   const [saving, setSaving]     = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
 
-  // ── load policies ──
   useEffect(() => {
     if (isOpen) listEscalationPolicies().then((r) => setPolicies(r.data)).catch(() => {})
   }, [isOpen])
 
-  // ── populate from existing rule ──
   useEffect(() => {
     if (!isOpen) return
     if (rule) {
       setName(rule.name)
       setEnabled(rule.enabled)
-      setPriority(rule.priority)
-
       const mc = rule.match_criteria as Record<string, unknown>
       setSources(Array.isArray(mc.source) ? (mc.source as string[]) : [])
       setSeverities(Array.isArray(mc.severity) ? (mc.severity as string[]) : [])
-
       const ac = rule.actions as Record<string, unknown>
       setCreate(ac.create_incident !== false)
       setSuppress(Boolean(ac.suppress))
@@ -114,26 +107,16 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
       setEpId(typeof ac.escalation_policy_id === 'string' ? ac.escalation_policy_id : '')
       setSevOvr(typeof ac.severity_override === 'string' ? ac.severity_override : '')
     } else {
-      setName('')
-      setEnabled(true)
-      setPriority(100)
-      setSources([])
-      setSeverities([])
-      setCreate(true)
-      setSuppress(false)
-      setEscalate(false)
-      setEpId('')
-      setSevOvr('')
+      setName(''); setEnabled(true); setSources([]); setSeverities([])
+      setCreate(true); setSuppress(false); setEscalate(false); setEpId(''); setSevOvr('')
     }
     setError(null)
   }, [rule, isOpen])
 
-  // ── focus name on open ──
   useEffect(() => {
     if (isOpen) setTimeout(() => nameRef.current?.focus(), 50)
   }, [isOpen])
 
-  // ── close on Escape ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     if (isOpen) document.addEventListener('keydown', handler)
@@ -142,53 +125,36 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
 
   if (!isOpen) return null
 
-  const toggleSource = (id: string) =>
-    setSources((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id])
+  const toggleSource   = (id: string) => setSources((p) => p.includes(id) ? p.filter((s) => s !== id) : [...p, id])
+  const toggleSeverity = (s: string)  => setSeverities((p) => p.includes(s) ? p.filter((x) => x !== s) : [...p, s])
 
-  const toggleSeverity = (s: string) =>
-    setSeverities((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])
-
-  const handleCreateChange = (v: boolean) => {
-    setCreate(v)
-    if (v) setSuppress(false)
-  }
-
-  const handleSuppressChange = (v: boolean) => {
-    setSuppress(v)
-    if (v) setCreate(false)
-  }
-
-  const handleEscalateChange = (v: boolean) => {
-    setEscalate(v)
-    if (!v) setEpId('')
-  }
+  const handleCreateChange   = (v: boolean) => { setCreate(v); if (v) setSuppress(false) }
+  const handleSuppressChange = (v: boolean) => { setSuppress(v); if (v) setCreate(false) }
+  const handleEscalateChange = (v: boolean) => { setEscalate(v); if (!v) setEpId('') }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
 
-    // Serialise structured state → API JSON
     const match_criteria: Record<string, unknown> = {}
     if (sources.length > 0)    match_criteria.source   = sources
     if (severities.length > 0) match_criteria.severity = severities
 
     const actions: Record<string, unknown> = {}
-    if (createIncident)          actions.create_incident = true
-    if (suppress)                actions.suppress        = true
-    if (escalate && escalationPolicyId) actions.escalation_policy_id = escalationPolicyId
-    if (severityOverride)        actions.severity_override = severityOverride
+    if (createIncident)                     actions.create_incident    = true
+    if (suppress)                           actions.suppress           = true
+    if (escalate && escalationPolicyId)     actions.escalation_policy_id = escalationPolicyId
+    if (severityOverride)                   actions.severity_override  = severityOverride
 
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
     try {
       if (rule) {
-        await updateRoutingRule(rule.id, { name: name.trim(), priority, enabled, match_criteria, actions })
+        await updateRoutingRule(rule.id, { name: name.trim(), enabled, match_criteria, actions })
       } else {
-        const body: CreateRoutingRuleRequest = { name: name.trim(), description: '', priority, enabled, match_criteria, actions }
+        const body: CreateRoutingRuleRequest = { name: name.trim(), description: '', priority: 0, enabled, match_criteria, actions }
         await createRoutingRule(body)
       }
-      onSaved()
-      onClose()
+      onSaved(); onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save route')
     } finally {
@@ -212,29 +178,25 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
             <h2 className="text-base font-semibold text-text-primary">
               {rule ? 'Edit alert route' : 'New alert route'}
             </h2>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={enabled}
-                  onChange={(e) => setEnabled(e.target.checked)}
-                  className="h-4 w-4 rounded border-border text-brand-primary focus:ring-brand-primary"
-                />
-                Enabled
-              </label>
-            </div>
+            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={enabled}
+                onChange={(e) => setEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-border text-brand-primary focus:ring-brand-primary"
+              />
+              Enabled
+            </label>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
             {error && (
-              <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {error}
-              </div>
+              <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
             )}
 
-            {/* Name + priority */}
+            {/* Name */}
             <div className={sectionClass}>
               <div>
                 <label className={`${labelClass} block mb-1.5`}>Route name</label>
@@ -247,19 +209,9 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                   className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                 />
               </div>
-              <div>
-                <label className={`${labelClass} block mb-1.5`}>Priority <span className="normal-case font-normal text-text-tertiary">(lower = evaluated first)</span></label>
-                <input
-                  type="number"
-                  value={priority}
-                  onChange={(e) => setPriority(Number(e.target.value))}
-                  min={1} max={10000}
-                  className="w-28 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
-                />
-              </div>
             </div>
 
-            {/* Step 1 — Sources */}
+            {/* Sources */}
             <div className={sectionClass}>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-brand-primary/10 flex items-center justify-center flex-shrink-0">
@@ -278,12 +230,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                         : 'bg-surface-primary border-border text-text-secondary hover:border-brand-primary/40'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={sources.includes(src.id)}
-                      onChange={() => toggleSource(src.id)}
-                      className="sr-only"
-                    />
+                    <input type="checkbox" checked={sources.includes(src.id)} onChange={() => toggleSource(src.id)} className="sr-only" />
                     <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
                       sources.includes(src.id) ? 'bg-brand-primary border-brand-primary' : 'border-border bg-white'
                     }`}>
@@ -299,7 +246,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
               </div>
             </div>
 
-            {/* Step 2 — Filters */}
+            {/* Severity filter */}
             <div className={sectionClass}>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
@@ -311,9 +258,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
               <div className="flex flex-wrap gap-2">
                 {SEVERITIES.map((sev) => (
                   <button
-                    key={sev}
-                    type="button"
-                    onClick={() => toggleSeverity(sev)}
+                    key={sev} type="button" onClick={() => toggleSeverity(sev)}
                     className={`px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide transition-colors ${
                       severities.includes(sev)
                         ? SEVERITY_COLORS[sev]
@@ -326,7 +271,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
               </div>
             </div>
 
-            {/* Step 3 — Actions */}
+            {/* Actions */}
             <div className={sectionClass}>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
@@ -334,9 +279,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                 </div>
                 <span className="text-sm font-semibold text-text-primary">Actions</span>
               </div>
-
               <div className="space-y-3">
-                {/* Create incident */}
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-text-primary">Create incident</p>
@@ -344,8 +287,6 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                   </div>
                   <YesNo value={createIncident} onChange={handleCreateChange} disabled={suppress} />
                 </div>
-
-                {/* Escalate */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -364,17 +305,13 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                           className="w-full appearance-none px-3 py-2 pr-8 border border-border rounded-lg text-sm bg-surface-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
                         >
                           <option value="">— Select a path —</option>
-                          {policies.map((p) => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
+                          {policies.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                         <ChevronDown className="absolute right-2.5 top-2.5 w-4 h-4 text-text-tertiary pointer-events-none" />
                       </div>
                     </div>
                   )}
                 </div>
-
-                {/* Suppress */}
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-text-primary">Suppress alert</p>
@@ -382,8 +319,6 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                   </div>
                   <YesNo value={suppress} onChange={handleSuppressChange} disabled={createIncident} />
                 </div>
-
-                {/* Severity override */}
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-text-primary">Severity override</p>
@@ -396,9 +331,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                       className="appearance-none pl-3 pr-8 py-1.5 border border-border rounded-lg text-sm bg-surface-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     >
                       <option value="">None</option>
-                      {SEVERITIES.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
+                      {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                     <ChevronDown className="absolute right-2 top-2 w-4 h-4 text-text-tertiary pointer-events-none" />
                   </div>
@@ -407,11 +340,8 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
             </div>
           </div>
 
-          {/* Footer */}
           <div className="px-6 py-4 border-t border-border bg-surface-primary rounded-b-2xl flex justify-end gap-3 flex-shrink-0">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
-              Cancel
-            </Button>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
             <Button type="submit" variant="primary" disabled={saving || !name.trim()}>
               {saving ? 'Saving…' : rule ? 'Save changes' : 'Create route'}
             </Button>
@@ -422,16 +352,129 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
   )
 }
 
+// ─── Draggable rule row ────────────────────────────────────────────────────────
+
+function RuleRow({
+  rule,
+  index,
+  policies,
+  deleting,
+  onEdit,
+  onDelete,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  isDragOver,
+}: {
+  rule: RoutingRule
+  index: number
+  policies: EscalationPolicy[]
+  deleting: boolean
+  onEdit: (r: RoutingRule) => void
+  onDelete: (r: RoutingRule) => void
+  onDragStart: (index: number) => void
+  onDragOver: (e: React.DragEvent, index: number) => void
+  onDrop: (index: number) => void
+  isDragOver: boolean
+}) {
+  const mc = rule.match_criteria as Record<string, unknown>
+  const ac = rule.actions as Record<string, unknown>
+
+  const matchSummary = (): string => {
+    if (Object.keys(mc).length === 0) return 'All alerts'
+    const parts: string[] = []
+    if (mc.source)   parts.push((mc.source as string[]).join(', '))
+    if (mc.severity) parts.push((mc.severity as string[]).join(', '))
+    return parts.join(' · ')
+  }
+
+  const actionSummary = (): string => {
+    const parts: string[] = []
+    if (ac.suppress)          parts.push('Suppress')
+    if (ac.create_incident)   parts.push('Create incident')
+    if (ac.severity_override) parts.push(`→ ${ac.severity_override}`)
+    if (ac.escalation_policy_id) {
+      const policy = policies.find((p) => p.id === ac.escalation_policy_id)
+      parts.push(`Escalate → ${policy?.name ?? '…'}`)
+    }
+    return parts.length > 0 ? parts.join(', ') : 'No action'
+  }
+
+  return (
+    <div
+      draggable
+      onDragStart={() => onDragStart(index)}
+      onDragOver={(e) => { e.preventDefault(); onDragOver(e, index) }}
+      onDrop={() => onDrop(index)}
+      className={`flex items-center gap-3 px-4 py-3 bg-white border border-border rounded-xl transition-all group
+        ${deleting ? 'opacity-40' : ''}
+        ${isDragOver ? 'border-brand-primary shadow-sm ring-1 ring-brand-primary/30' : ''}
+      `}
+    >
+      {/* Drag handle */}
+      <div
+        className="cursor-grab active:cursor-grabbing text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        title="Drag to reorder"
+      >
+        <GripVertical className="w-4 h-4" />
+      </div>
+
+      {/* Position badge */}
+      <span className="w-6 text-center text-xs font-mono text-text-tertiary flex-shrink-0">{index + 1}</span>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-text-primary">{rule.name}</span>
+          {!rule.enabled && (
+            <span className="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-500">Disabled</span>
+          )}
+        </div>
+        <p className="text-xs text-text-tertiary mt-0.5">
+          <span className="text-text-secondary">Match:</span> {matchSummary()}
+          <span className="mx-1.5">·</span>
+          <span className="text-text-secondary">Then:</span> {actionSummary()}
+        </p>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={() => onEdit(rule)}
+          className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-gray-100 rounded transition-colors"
+          title="Edit route"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => onDelete(rule)}
+          disabled={deleting}
+          className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+          title="Delete route"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function RoutingRulesPage() {
-  const { rules, loading, error, refetch } = useRoutingRules()
-  const [modalOpen, setModalOpen]         = useState(false)
-  const [editingRule, setEditingRule]     = useState<RoutingRule | null>(null)
-  const [deletingId, setDeletingId]       = useState<string | null>(null)
-  const [deleteError, setDeleteError]     = useState<string | null>(null)
-  const [policies, setPolicies]           = useState<EscalationPolicy[]>([])
+  const { rules: fetchedRules, loading, error, refetch } = useRoutingRules()
+  const [rules, setRules]           = useState<RoutingRule[]>([])
+  const [modalOpen, setModalOpen]   = useState(false)
+  const [editingRule, setEditingRule] = useState<RoutingRule | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [policies, setPolicies]     = useState<EscalationPolicy[]>([])
 
+  // drag state
+  const dragIndex = useRef<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+
+  useEffect(() => { setRules(fetchedRules) }, [fetchedRules])
   useEffect(() => {
     listEscalationPolicies().then((r) => setPolicies(r.data)).catch(() => {})
   }, [])
@@ -453,25 +496,39 @@ export function RoutingRulesPage() {
     }
   }
 
-  const summariseActions = (actions: Record<string, unknown>): string => {
-    const parts: string[] = []
-    if (actions.suppress)         parts.push('Suppress')
-    if (actions.create_incident)  parts.push('Create incident')
-    if (actions.severity_override) parts.push(`Severity → ${actions.severity_override}`)
-    if (actions.escalation_policy_id) {
-      const policy = policies.find((p) => p.id === actions.escalation_policy_id)
-      parts.push(`Escalate → ${policy?.name ?? String(actions.escalation_policy_id).slice(0, 8) + '…'}`)
+  // ── Drag-to-reorder handlers ──
+  const handleDragStart = (index: number) => { dragIndex.current = index }
+
+  const handleDragOver = (_e: React.DragEvent, index: number) => { setDragOverIndex(index) }
+
+  const handleDrop = async (dropIndex: number) => {
+    const fromIndex = dragIndex.current
+    if (fromIndex === null || fromIndex === dropIndex) {
+      dragIndex.current = null
+      setDragOverIndex(null)
+      return
     }
-    return parts.length > 0 ? parts.join(', ') : 'No action'
+
+    // Reorder locally (optimistic)
+    const next = [...rules]
+    const removed = next.splice(fromIndex, 1)
+    if (!removed[0]) { dragIndex.current = null; setDragOverIndex(null); return }
+    next.splice(dropIndex, 0, removed[0])
+    setRules(next)
+
+    dragIndex.current = null
+    setDragOverIndex(null)
+
+    // Persist
+    try {
+      await reorderRoutingRules(next.map((r) => r.id))
+    } catch {
+      // Revert on failure
+      setRules(fetchedRules)
+    }
   }
 
-  const summariseCriteria = (criteria: Record<string, unknown>): string => {
-    if (Object.keys(criteria).length === 0) return 'All alerts'
-    const parts: string[] = []
-    if (criteria.source)   parts.push(`source: ${(criteria.source as string[]).join(', ')}`)
-    if (criteria.severity) parts.push(`severity: ${(criteria.severity as string[]).join(', ')}`)
-    return parts.join(' · ')
-  }
+  const handleDragEnd = () => { dragIndex.current = null; setDragOverIndex(null) }
 
   return (
     <div className="flex flex-col h-full">
@@ -488,8 +545,7 @@ export function RoutingRulesPage() {
           <div>
             <h1 className="text-2xl font-semibold text-text-primary">Alert Routes</h1>
             <p className="mt-1 text-sm text-text-secondary">
-              Route alerts to the right escalation path and control which alerts create incidents.
-              Routes are evaluated in priority order — first match wins.
+              Route alerts to the right escalation path. Drag to change evaluation order — top rule wins.
             </p>
           </div>
           <Button variant="primary" onClick={handleCreate}>
@@ -520,61 +576,25 @@ export function RoutingRulesPage() {
             onAction={handleCreate}
           />
         ) : (
-          <div className="bg-surface-primary border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-gray-50">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider w-20">Priority</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Name</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Match</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Action</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider w-20">Status</th>
-                  <th className="w-24 px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {rules.map((rule) => (
-                  <tr key={rule.id} className="hover:bg-gray-50 transition-colors group">
-                    <td className="px-4 py-3 font-mono text-text-secondary">{rule.priority}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-text-primary">{rule.name}</div>
-                    </td>
-                    <td className="px-4 py-3 text-text-secondary">
-                      {summariseCriteria(rule.match_criteria)}
-                    </td>
-                    <td className="px-4 py-3 text-text-secondary">
-                      {summariseActions(rule.actions)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        rule.enabled ? 'bg-brand-primary/10 text-brand-primary' : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {rule.enabled ? 'Active' : 'Disabled'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleEdit(rule)}
-                          className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-gray-100 rounded transition-colors"
-                          title="Edit route"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(rule)}
-                          disabled={deletingId === rule.id}
-                          className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                          title="Delete route"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div
+            className="space-y-2"
+            onDragEnd={handleDragEnd}
+          >
+            {rules.map((rule, i) => (
+              <RuleRow
+                key={rule.id}
+                rule={rule}
+                index={i}
+                policies={policies}
+                deleting={deletingId === rule.id}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                isDragOver={dragOverIndex === i}
+              />
+            ))}
           </div>
         )}
       </div>

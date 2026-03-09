@@ -25,11 +25,11 @@ function slackManifest(appUrl: string): string {
       minor_version: 1,
     },
     display_information: {
-      name: 'Fluidify Alert',
+      name: 'Fluidify Regen',
       description: 'Incident management — alert routing, on-call scheduling, and Slack coordination',
       background_color: '#ffffff',
       long_description:
-        'Fluidify Alert is an open-source incident management platform. This bot creates dedicated Slack channels for each incident, posts status updates, and accepts /incident commands for managing incidents directly from Slack.',
+        'Fluidify Regen is an open-source incident management platform. This bot creates dedicated Slack channels for each incident, posts status updates, and accepts /incident commands for managing incidents directly from Slack.',
     },
     features: {
       app_home: {
@@ -38,7 +38,7 @@ function slackManifest(appUrl: string): string {
         messages_tab_read_only_enabled: false,
       },
       bot_user: {
-        display_name: 'Fluidify Alert',
+        display_name: 'Fluidify Regen',
         always_online: true,
       },
       slash_commands: [

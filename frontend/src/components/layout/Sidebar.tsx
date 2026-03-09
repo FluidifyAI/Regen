@@ -214,21 +214,21 @@ export function Sidebar() {
           <>
             <img
               src="/logo-icon.png"
-              alt="Fluidify Alert logo"
+              alt="Fluidify Regen logo"
               width={32}
               height={32}
               className="flex-shrink-0 object-contain"
               draggable={false}
             />
             <span className="ml-2 font-bold text-lg tracking-tight text-white">
-              Fluidify Alert
+              Fluidify Regen
             </span>
           </>
         )}
         {isCollapsed && (
           <img
             src="/logo-icon.png"
-            alt="Fluidify Alert"
+            alt="Fluidify Regen"
             width={30}
             height={30}
             className="mx-auto object-contain"

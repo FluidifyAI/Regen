@@ -11,7 +11,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * Button component with Fluidify Alert design system styles
+ * Button component with Fluidify Regen design system styles
  * Supports multiple variants, sizes, and loading state
  */
 export function Button({

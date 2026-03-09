@@ -90,7 +90,7 @@ export function TeamsSetupModal({ onClose, onConnected }: Props) {
         {step === 1 && (
           <div className="px-6 py-5 space-y-4 overflow-y-auto max-h-[70vh]">
             <p className="text-sm text-text-secondary">
-              Fluidify Alert connects to Teams via a registered Azure App and a Bot Framework bot.
+              Fluidify Regen connects to Teams via a registered Azure App and a Bot Framework bot.
               Follow these steps in the Azure portal before entering credentials.
             </p>
 
@@ -108,7 +108,7 @@ export function TeamsSetupModal({ onClose, onConnected }: Props) {
                 {' '}→ <strong>Azure Active Directory</strong> → <strong>App registrations</strong> → <strong>New registration</strong>
               </li>
               <li>
-                Name it <code className="bg-surface-secondary px-1 rounded">Fluidify Alert</code>,
+                Name it <code className="bg-surface-secondary px-1 rounded">Fluidify Regen</code>,
                 set <strong>Accounts in this organizational directory only</strong>, then click <strong>Register</strong>.
                 Copy the <strong>Application (client) ID</strong> and <strong>Directory (tenant) ID</strong>.
               </li>

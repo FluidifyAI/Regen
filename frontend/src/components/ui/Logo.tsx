@@ -5,13 +5,13 @@ interface LogoProps {
 }
 
 /**
- * Fluidify Alert brand logo — uses logo.png from /public.
+ * Fluidify Regen brand logo — uses logo.png from /public.
  */
 export function Logo({ size = 32, className = '' }: LogoProps) {
   return (
     <img
       src="/logo.png"
-      alt="Fluidify Alert"
+      alt="Fluidify Regen"
       width={size}
       height={size}
       className={`object-contain ${className}`}

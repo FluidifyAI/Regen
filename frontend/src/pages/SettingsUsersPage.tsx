@@ -391,7 +391,7 @@ function SetupLinkBox({ token, email, onClose }: { token: string; email?: string
     setTimeout(() => setCopied(false), 2000)
   }
   const mailtoHref = email
-    ? `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("You've been invited to Fluidify Alert")}&body=${encodeURIComponent(`Hi,\n\nYou've been invited to join Fluidify Alert.\n\nClick the link below to set up your account:\n${url}\n\nThis link expires in 7 days.\n`)}`
+    ? `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("You've been invited to Fluidify Regen")}&body=${encodeURIComponent(`Hi,\n\nYou've been invited to join Fluidify Regen.\n\nClick the link below to set up your account:\n${url}\n\nThis link expires in 7 days.\n`)}`
     : undefined
   return (
     <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">

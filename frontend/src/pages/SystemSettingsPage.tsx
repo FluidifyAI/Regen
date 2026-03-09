@@ -156,7 +156,7 @@ export function SystemSettingsPage() {
     <div className="max-w-2xl mx-auto py-8 px-6 space-y-10">
       <div>
         <h1 className="text-2xl font-semibold text-text-primary">System Settings</h1>
-        <p className="mt-1 text-sm text-text-secondary">Configure your Fluidify Alert instance.</p>
+        <p className="mt-1 text-sm text-text-secondary">Configure your Fluidify Regen instance.</p>
       </div>
 
       {error && (

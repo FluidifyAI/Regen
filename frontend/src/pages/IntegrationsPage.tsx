@@ -78,7 +78,7 @@ route:
     name: 'Grafana',
     tagline: 'Receive alerts from Grafana',
     description:
-      'Forward Grafana alert notifications to Fluidify Alert via a webhook contact point.',
+      'Forward Grafana alert notifications to Fluidify Regen via a webhook contact point.',
     source: 'grafana',
     webhookPath: '/api/v1/webhooks/grafana',
     logoSlug: 'grafana',
@@ -96,7 +96,7 @@ route:
     name: 'Amazon CloudWatch',
     tagline: 'Receive alerts from AWS CloudWatch via SNS',
     description:
-      'Route CloudWatch alarms through SNS to Fluidify Alert for unified incident management.',
+      'Route CloudWatch alarms through SNS to Fluidify Regen for unified incident management.',
     source: 'cloudwatch',
     webhookPath: '/api/v1/webhooks/cloudwatch',
     logoSlug: 'amazoncloudwatch',
@@ -198,7 +198,7 @@ function buildGitHubIssueUrl(toolName: string, useCase: string, impact: string):
     '**Business impact:** ' + (impact || 'Not specified'),
     '',
     '---',
-    '_Requested via the Fluidify Alert integration hub_',
+    '_Requested via the Fluidify Regen integration hub_',
   ].join('\n')
   const params = new URLSearchParams({ title, body, labels: 'integration-request' })
   return `https://github.com/openincident/openincident/issues/new?${params}`

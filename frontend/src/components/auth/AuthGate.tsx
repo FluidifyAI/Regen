@@ -55,7 +55,7 @@ function AuthLoadingScreen() {
           <Bell className="relative w-10 h-10" style={{ color: '#f55609' }} />
         </div>
         <div className="text-sm font-bold tracking-tight text-[#1E293B]">
-          Fluidify Alert
+          Fluidify Regen
         </div>
       </div>
     </div>

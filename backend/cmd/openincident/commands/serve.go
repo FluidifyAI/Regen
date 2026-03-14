@@ -220,7 +220,8 @@ func runServe(_ *cobra.Command, _ []string) error {
 			agentSlackSvc, database.DB,
 		)
 		services.SetTeamsService(agentIncidentSvc, teamsSvc)
-		pmSvc := services.NewPostMortemService(pmRepo, pmTemplateRepo, agentIncidentSvc, aiSvc)
+		agentCommentRepo := repository.NewPostMortemCommentRepository(database.DB)
+		pmSvc := services.NewPostMortemService(pmRepo, pmTemplateRepo, agentCommentRepo, agentIncidentSvc, aiSvc)
 
 		pmAgent := agents.NewPostMortemAgent(agents.PostMortemAgentDeps{
 			AgentUserID:   pmAgentUser.ID,

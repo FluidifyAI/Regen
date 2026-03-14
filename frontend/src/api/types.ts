@@ -418,6 +418,15 @@ export interface PostMortem {
   action_items: ActionItem[]
 }
 
+export interface PostMortemComment {
+  id: string
+  post_mortem_id: string
+  author_id: string
+  author_name: string
+  content: string
+  created_at: string
+}
+
 export interface GeneratePostMortemRequest {
   template_id?: string
 }

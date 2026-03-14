@@ -49,6 +49,32 @@ type PostMortemResponse struct {
 	ActionItems  []ActionItemResponse `json:"action_items"`
 }
 
+// PostMortemCommentResponse is the API representation of a post-mortem comment.
+type PostMortemCommentResponse struct {
+	ID           uuid.UUID `json:"id"`
+	PostMortemID uuid.UUID `json:"post_mortem_id"`
+	AuthorID     string    `json:"author_id"`
+	AuthorName   string    `json:"author_name"`
+	Content      string    `json:"content"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+func ToPostMortemCommentResponse(c *models.PostMortemComment) PostMortemCommentResponse {
+	return PostMortemCommentResponse{
+		ID:           c.ID,
+		PostMortemID: c.PostMortemID,
+		AuthorID:     c.AuthorID,
+		AuthorName:   c.AuthorName,
+		Content:      c.Content,
+		CreatedAt:    c.CreatedAt,
+	}
+}
+
+// ListCommentsResponse wraps the comment list.
+type ListCommentsResponse struct {
+	Data []PostMortemCommentResponse `json:"data"`
+}
+
 func ToPostMortemResponse(pm *models.PostMortem) PostMortemResponse {
 	items := make([]ActionItemResponse, 0, len(pm.ActionItems))
 	for i := range pm.ActionItems {

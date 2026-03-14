@@ -2,6 +2,7 @@ import { apiClient } from './client'
 import type {
   PostMortemTemplate,
   PostMortem,
+  PostMortemComment,
   ActionItem,
   CreatePostMortemTemplateRequest,
   UpdatePostMortemTemplateRequest,
@@ -97,5 +98,40 @@ export async function updateActionItem(
 export async function deleteActionItem(incidentId: string, itemId: string): Promise<void> {
   return apiClient.delete<void>(
     `/api/v1/incidents/${incidentId}/postmortem/action-items/${itemId}`
+  )
+}
+
+// ── Manual creation + enhance ─────────────────────────────────────────────────
+
+export async function createPostMortem(incidentId: string): Promise<PostMortem> {
+  return apiClient.post<PostMortem>(`/api/v1/incidents/${incidentId}/postmortem`, {})
+}
+
+export async function enhancePostMortem(incidentId: string, content: string): Promise<PostMortem> {
+  return apiClient.post<PostMortem>(`/api/v1/incidents/${incidentId}/postmortem/enhance`, { content })
+}
+
+// ── Comments ──────────────────────────────────────────────────────────────────
+
+export async function listPostMortemComments(incidentId: string): Promise<PostMortemComment[]> {
+  const resp = await apiClient.get<{ data: PostMortemComment[] }>(
+    `/api/v1/incidents/${incidentId}/postmortem/comments`
+  )
+  return resp.data
+}
+
+export async function createPostMortemComment(
+  incidentId: string,
+  body: { author_name: string; content: string }
+): Promise<PostMortemComment> {
+  return apiClient.post<PostMortemComment>(
+    `/api/v1/incidents/${incidentId}/postmortem/comments`,
+    body
+  )
+}
+
+export async function deletePostMortemComment(incidentId: string, commentId: string): Promise<void> {
+  return apiClient.delete<void>(
+    `/api/v1/incidents/${incidentId}/postmortem/comments/${commentId}`
   )
 }

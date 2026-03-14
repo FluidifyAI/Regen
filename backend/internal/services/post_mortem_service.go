@@ -24,6 +24,17 @@ type PostMortemService interface {
 	GeneratePostMortem(incident *models.Incident, templateID *uuid.UUID, createdByID string) (*models.PostMortem, error)
 	UpdatePostMortem(id uuid.UUID, params *UpdatePostMortemParams) (*models.PostMortem, error)
 
+	// Post-mortem manual creation
+	CreatePostMortem(incidentID uuid.UUID, createdByID string) (*models.PostMortem, error)
+
+	// AI enhance
+	EnhancePostMortem(pm *models.PostMortem, content string) (*models.PostMortem, error)
+
+	// Comments
+	ListComments(postMortemID uuid.UUID) ([]models.PostMortemComment, error)
+	CreateComment(postMortemID uuid.UUID, params *CreateCommentParams) (*models.PostMortemComment, error)
+	DeleteComment(id uuid.UUID) error
+
 	// Action items
 	CreateActionItem(postMortemID uuid.UUID, params *CreateActionItemParams) (*models.ActionItem, error)
 	UpdateActionItem(id uuid.UUID, params *UpdateActionItemParams) (*models.ActionItem, error)
@@ -62,6 +73,12 @@ type UpdateActionItemParams struct {
 	Status  *models.ActionItemStatus
 }
 
+type CreateCommentParams struct {
+	AuthorID   string
+	AuthorName string
+	Content    string
+}
+
 // BuiltInTemplateError is returned when trying to modify or delete a built-in template.
 type BuiltInTemplateError struct{ Name string }
 
@@ -74,6 +91,7 @@ func (e *BuiltInTemplateError) Error() string {
 type postMortemService struct {
 	pmRepo       repository.PostMortemRepository
 	templateRepo repository.PostMortemTemplateRepository
+	commentRepo  repository.PostMortemCommentRepository
 	incidentSvc  IncidentService
 	aiSvc        AIService
 }
@@ -81,12 +99,14 @@ type postMortemService struct {
 func NewPostMortemService(
 	pmRepo repository.PostMortemRepository,
 	templateRepo repository.PostMortemTemplateRepository,
+	commentRepo repository.PostMortemCommentRepository,
 	incidentSvc IncidentService,
 	aiSvc AIService,
 ) PostMortemService {
 	return &postMortemService{
 		pmRepo:       pmRepo,
 		templateRepo: templateRepo,
+		commentRepo:  commentRepo,
 		incidentSvc:  incidentSvc,
 		aiSvc:        aiSvc,
 	}
@@ -276,6 +296,65 @@ func (s *postMortemService) UpdateActionItem(id uuid.UUID, params *UpdateActionI
 
 func (s *postMortemService) DeleteActionItem(id uuid.UUID) error {
 	return s.pmRepo.DeleteActionItem(id)
+}
+
+// ─── CreatePostMortem / EnhancePostMortem / Comments ─────────────────────────
+
+func (s *postMortemService) CreatePostMortem(incidentID uuid.UUID, createdByID string) (*models.PostMortem, error) {
+	now := time.Now().UTC()
+	pm := &models.PostMortem{
+		IncidentID:   incidentID,
+		TemplateName: "Manual",
+		Status:       models.PostMortemStatusDraft,
+		Content:      "",
+		GeneratedBy:  "manual",
+		GeneratedAt:  &now,
+		CreatedByID:  createdByID,
+	}
+	if err := s.pmRepo.Create(pm); err != nil {
+		return nil, err
+	}
+	return pm, nil
+}
+
+func (s *postMortemService) EnhancePostMortem(pm *models.PostMortem, content string) (*models.PostMortem, error) {
+	if !s.aiSvc.IsEnabled() {
+		return nil, fmt.Errorf("AI not configured")
+	}
+	enhanced, err := s.aiSvc.EnhancePostMortem(context.Background(), content)
+	if err != nil {
+		return nil, fmt.Errorf("AI enhance failed: %w", err)
+	}
+	now := time.Now().UTC()
+	pm.Content = enhanced
+	pm.GeneratedBy = "ai"
+	pm.GeneratedAt = &now
+	pm.Status = models.PostMortemStatusDraft
+	if err := s.pmRepo.Update(pm); err != nil {
+		return nil, err
+	}
+	return s.pmRepo.GetByID(pm.ID)
+}
+
+func (s *postMortemService) ListComments(postMortemID uuid.UUID) ([]models.PostMortemComment, error) {
+	return s.commentRepo.ListByPostMortemID(postMortemID)
+}
+
+func (s *postMortemService) CreateComment(postMortemID uuid.UUID, params *CreateCommentParams) (*models.PostMortemComment, error) {
+	comment := &models.PostMortemComment{
+		PostMortemID: postMortemID,
+		AuthorID:     params.AuthorID,
+		AuthorName:   params.AuthorName,
+		Content:      params.Content,
+	}
+	if err := s.commentRepo.Create(comment); err != nil {
+		return nil, err
+	}
+	return comment, nil
+}
+
+func (s *postMortemService) DeleteComment(id uuid.UUID) error {
+	return s.commentRepo.Delete(id)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

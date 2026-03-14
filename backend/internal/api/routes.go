@@ -90,7 +90,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	alertSvc.SetEscalationRepos(escalationPolicyRepo, systemSettingsRepo)
 
 	// Post-mortem service (v0.7+)
-	postMortemSvc := services.NewPostMortemService(pmRepo, postMortemTemplateRepo, incidentSvc, aiSvc)
+	commentRepo := repository.NewPostMortemCommentRepository(db)
+	postMortemSvc := services.NewPostMortemService(pmRepo, postMortemTemplateRepo, commentRepo, incidentSvc, aiSvc)
 
 	// Wire Teams service into incident service (v0.8+).
 	// teamsSvc is constructed once in serve.go and injected here.
@@ -299,6 +300,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.POST("/incidents/:id/postmortem/action-items", handlers.CreateActionItem(incidentSvc, postMortemSvc))
 		protected.PATCH("/incidents/:id/postmortem/action-items/:itemId", handlers.UpdateActionItem(incidentSvc, postMortemSvc))
 		protected.DELETE("/incidents/:id/postmortem/action-items/:itemId", handlers.DeleteActionItem(incidentSvc, postMortemSvc))
+		protected.POST("/incidents/:id/postmortem", handlers.CreatePostMortem(incidentSvc, postMortemSvc))
+		protected.POST("/incidents/:id/postmortem/enhance", handlers.EnhancePostMortem(incidentSvc, postMortemSvc, aiSvc))
+		protected.GET("/incidents/:id/postmortem/comments", handlers.ListPostMortemComments(incidentSvc, postMortemSvc))
+		protected.POST("/incidents/:id/postmortem/comments", handlers.CreatePostMortemComment(incidentSvc, postMortemSvc))
+		protected.DELETE("/incidents/:id/postmortem/comments/:commentId", handlers.DeletePostMortemComment(incidentSvc, postMortemSvc))
 
 		// Grouping Rules (v0.3)
 		protected.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))

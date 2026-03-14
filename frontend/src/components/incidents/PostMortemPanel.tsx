@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   FileText,
   Sparkles,
@@ -6,6 +6,7 @@ import {
   Send,
   AlertCircle,
   ChevronDown,
+  PenLine,
 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import {
@@ -14,9 +15,12 @@ import {
   updatePostMortem,
   getPostMortemExportUrl,
   listPostMortemTemplates,
+  createPostMortem,
+  enhancePostMortem,
 } from '../../api/postmortems'
 import { getAISettings } from '../../api/ai'
 import { ActionItems } from './ActionItems'
+import { CommentsThread } from './CommentsThread'
 import type { PostMortem, PostMortemTemplate } from '../../api/types'
 
 interface PostMortemPanelProps {
@@ -40,6 +44,8 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
   const [templates, setTemplates] = useState<PostMortemTemplate[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [generating, setGenerating] = useState(false)
+  const [enhancing, setEnhancing] = useState(false)
+  const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [editedContent, setEditedContent] = useState('')
@@ -91,12 +97,49 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
     }
   }
 
-  async function handleSave(): Promise<boolean> {
+  async function handleCreate() {
+    setCreating(true)
+    setError(null)
+    try {
+      const data = await createPostMortem(incidentId)
+      setPm(data)
+      setEditedContent(data.content)
+      setIsDirty(false)
+      setEditorMode('write')
+      onPostMortemLoaded?.(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create post-mortem')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleEnhance() {
+    if (!pm) return
+    setEnhancing(true)
+    setError(null)
+    try {
+      const data = await enhancePostMortem(incidentId, editedContent)
+      setPm(data)
+      setEditedContent(data.content)
+      setIsDirty(true)
+      setEditorMode('preview')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to enhance post-mortem')
+    } finally {
+      setEnhancing(false)
+    }
+  }
+
+  async function handleSave(statusOverride?: 'draft' | 'published'): Promise<boolean> {
     if (!pm) return false
     setSaving(true)
     setError(null)
     try {
-      const updated = await updatePostMortem(incidentId, { content: editedContent })
+      const updated = await updatePostMortem(incidentId, {
+        content: editedContent,
+        ...(statusOverride ? { status: statusOverride } : {}),
+      })
       setPm(updated)
       setIsDirty(false)
       return true
@@ -110,18 +153,10 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
 
   async function handlePublish() {
     if (!pm) return
-    // Save content first if dirty; bail if save fails
-    if (isDirty) {
-      const saved = await handleSave()
-      if (!saved) return
-    }
     setPublishing(true)
     setError(null)
     try {
-      const updated = await updatePostMortem(incidentId, { status: 'published' })
-      setPm(updated)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to publish')
+      await handleSave('published')
     } finally {
       setPublishing(false)
     }
@@ -195,16 +230,30 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
             </>
           )}
 
-          {/* Generate / Regenerate */}
-          {aiEnabled && (
-            <GenerateButton
-              hasExisting={!!pm}
+          {/* AI dropdown (only when PM exists) */}
+          {pm && aiEnabled && (
+            <AIActionsDropdown
               generating={generating}
+              enhancing={enhancing}
               templates={templates}
               selectedTemplateId={selectedTemplateId}
               onTemplateChange={setSelectedTemplateId}
               onGenerate={handleGenerate}
+              onEnhance={handleEnhance}
             />
+          )}
+          {/* Generate button when no PM yet */}
+          {!pm && aiEnabled && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleGenerate}
+              loading={generating}
+              disabled={generating || creating}
+            >
+              {!generating && <Sparkles className="w-3.5 h-3.5" />}
+              Generate with AI
+            </Button>
           )}
         </div>
       </div>
@@ -223,14 +272,38 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
         </div>
       )}
 
-      {/* No post-mortem yet */}
-      {!pm && aiEnabled !== false && (
-        <div className="border border-dashed border-border rounded-lg p-8 text-center">
-          <FileText className="w-8 h-8 text-text-tertiary mx-auto mb-3" />
-          <p className="text-sm text-text-secondary mb-1">No post-mortem yet</p>
-          <p className="text-xs text-text-tertiary">
-            Use the Generate button above to create an AI-drafted post-mortem.
-          </p>
+      {/* No post-mortem yet — write-first empty state */}
+      {!pm && (
+        <div className="border border-dashed border-border rounded-lg p-8 text-center space-y-4">
+          <FileText className="w-8 h-8 text-text-tertiary mx-auto" />
+          <div>
+            <p className="text-sm font-medium text-text-primary mb-1">No post-mortem yet</p>
+            <p className="text-xs text-text-tertiary">Write it yourself or let AI draft it from the incident timeline.</p>
+          </div>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleCreate}
+              loading={creating}
+              disabled={creating || generating}
+            >
+              {!creating && <PenLine className="w-3.5 h-3.5" />}
+              Start writing
+            </Button>
+            {aiEnabled && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleGenerate}
+                loading={generating}
+                disabled={generating || creating}
+              >
+                {!generating && <Sparkles className="w-3.5 h-3.5" />}
+                Generate with AI
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -267,9 +340,14 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
               {pm.template_name} · by {pm.generated_by === 'ai' ? 'AI' : 'Manual'}
               {pm.generated_at && ` · ${formatRelativeTime(pm.generated_at)}`}
             </span>
-            {isDirty && !isPublished && (
-              <Button variant="primary" size="sm" onClick={handleSave} loading={saving}>
-                Save
+            {isDirty && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => handleSave(isPublished ? 'draft' : undefined)}
+                loading={saving}
+              >
+                {isPublished ? 'Save & revert to draft' : 'Save'}
               </Button>
             )}
           </div>
@@ -281,10 +359,7 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
                 setEditedContent(e.target.value)
                 setIsDirty(true)
               }}
-              readOnly={isPublished}
-              className={`w-full min-h-96 p-4 font-mono text-sm text-text-primary resize-y focus:outline-none ${
-                isPublished ? 'bg-surface-secondary text-text-secondary cursor-default' : 'bg-white'
-              }`}
+              className="w-full min-h-96 p-4 font-mono text-sm text-text-primary resize-y focus:outline-none bg-white"
               placeholder="Post-mortem content..."
             />
           ) : (
@@ -300,58 +375,101 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
       {pm && (
         <ActionItems incidentId={incidentId} initialItems={pm.action_items} />
       )}
+
+      {/* Discussion thread */}
+      {pm && (
+        <CommentsThread incidentId={incidentId} />
+      )}
     </div>
   )
 }
 
 /**
- * GenerateButton with template selector dropdown
+ * AIActionsDropdown — "AI ▾" button that opens a dropdown with Regenerate and Enhance options.
  */
-function GenerateButton({
-  hasExisting,
+function AIActionsDropdown({
   generating,
+  enhancing,
   templates,
   selectedTemplateId,
   onTemplateChange,
   onGenerate,
+  onEnhance,
 }: {
-  hasExisting: boolean
   generating: boolean
+  enhancing: boolean
   templates: PostMortemTemplate[]
   selectedTemplateId: string
   onTemplateChange: (id: string) => void
   onGenerate: () => void
+  onEnhance: () => void
 }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const busy = generating || enhancing
+
   return (
-    <div className="flex items-center">
+    <div className="relative" ref={ref}>
       <Button
-        variant="primary"
+        variant="secondary"
         size="sm"
-        onClick={onGenerate}
-        loading={generating}
-        disabled={generating}
-        className="rounded-r-none border-r-0"
+        onClick={() => setOpen((o) => !o)}
+        disabled={busy}
+        loading={busy}
+        className="gap-1"
       >
-        {!generating && <Sparkles className="w-3.5 h-3.5" />}
-        {hasExisting ? 'Regenerate' : 'Generate'}
+        {!busy && <Sparkles className="w-3.5 h-3.5" />}
+        AI
+        {!busy && <ChevronDown className="w-3 h-3" />}
       </Button>
-      {templates.length > 0 && (
-        <div className="relative">
-          <select
-            value={selectedTemplateId}
-            onChange={(e) => onTemplateChange(e.target.value)}
-            disabled={generating}
-            className="h-full pl-2 pr-6 py-1.5 text-sm border border-border border-l-0 rounded-l-none rounded-r bg-white text-text-secondary hover:bg-surface-secondary focus:outline-none focus:ring-1 focus:ring-brand-primary appearance-none cursor-pointer"
-            title="Select template"
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-border rounded-lg shadow-lg z-10 overflow-hidden">
+          {/* Template selector */}
+          {templates.length > 0 && (
+            <div className="px-3 py-2 border-b border-border">
+              <label className="text-[10px] text-text-tertiary font-medium uppercase tracking-wide block mb-1">Template</label>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => onTemplateChange(e.target.value)}
+                className="w-full text-xs border border-border rounded px-2 py-1 bg-surface-secondary focus:outline-none"
+              >
+                <option value="">Default</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button
+            onClick={() => { onGenerate(); setOpen(false) }}
+            className="w-full text-left px-3 py-2.5 text-xs text-text-primary hover:bg-surface-secondary transition-colors flex items-center gap-2"
           >
-            <option value="">Default template</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-text-tertiary pointer-events-none" />
+            <Sparkles className="w-3.5 h-3.5 text-text-tertiary" />
+            <div>
+              <p className="font-medium">Regenerate from timeline</p>
+              <p className="text-text-tertiary">Rebuild from incident data</p>
+            </div>
+          </button>
+          <button
+            onClick={() => { onEnhance(); setOpen(false) }}
+            className="w-full text-left px-3 py-2.5 text-xs text-text-primary hover:bg-surface-secondary transition-colors flex items-center gap-2 border-t border-border"
+          >
+            <PenLine className="w-3.5 h-3.5 text-text-tertiary" />
+            <div>
+              <p className="font-medium">Enhance with AI</p>
+              <p className="text-text-tertiary">Improve what you've written</p>
+            </div>
+          </button>
         </div>
       )}
     </div>

@@ -36,6 +36,10 @@ type AIService interface {
 	// sections is the ordered list of section names from the chosen template.
 	// Uses a higher token budget than summary generation.
 	GeneratePostMortem(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) (string, error)
+
+	// EnhancePostMortem improves an existing post-mortem draft for clarity,
+	// structure, and completeness while preserving all factual details.
+	EnhancePostMortem(ctx context.Context, content string) (string, error)
 }
 
 // NewAIService creates a reloadable AIService. If apiKey is empty the service
@@ -120,6 +124,20 @@ func (s *aiService) GeneratePostMortem(ctx context.Context, incident *models.Inc
 	messages := []openai.ChatMessage{
 		{Role: "system", Content: postMortemSystemPrompt},
 		{Role: "user", Content: buildPostMortemPrompt(incident, timeline, alerts, sections)},
+	}
+	return client.Complete(ctx, messages)
+}
+
+func (s *aiService) EnhancePostMortem(ctx context.Context, content string) (string, error) {
+	s.mu.RLock()
+	client := s.postMortemClient
+	s.mu.RUnlock()
+	if client == nil {
+		return "", fmt.Errorf("AI features are not configured")
+	}
+	messages := []openai.ChatMessage{
+		{Role: "system", Content: postMortemSystemPrompt},
+		{Role: "user", Content: buildEnhancePrompt(content)},
 	}
 	return client.Complete(ctx, messages)
 }
@@ -303,4 +321,11 @@ func extractTimelineText(e models.TimelineEntry) string {
 		}
 	}
 	return strings.Join(parts, " ")
+}
+
+func buildEnhancePrompt(content string) string {
+	return fmt.Sprintf(`Enhance the following incident post-mortem for clarity, completeness, and professional structure. Preserve all facts, timeline details, and technical specifics exactly. Improve headings, fix grammar, ensure action items are clearly stated, and add any missing standard sections (summary, impact, root cause, timeline, action items). Return only the improved markdown with no commentary.
+
+Current post-mortem:
+%s`, content)
 }

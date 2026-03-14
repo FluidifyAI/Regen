@@ -75,3 +75,23 @@ func (a *ActionItem) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+// PostMortemComment is a discussion note left on a post-mortem by any team member.
+// Comments are immutable once created — no edit endpoint. Delete only.
+type PostMortemComment struct {
+	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	PostMortemID uuid.UUID `gorm:"type:uuid;not null;index"                       json:"post_mortem_id"`
+	AuthorID     string    `gorm:"type:varchar(255);not null;default:'anonymous'" json:"author_id"`
+	AuthorName   string    `gorm:"type:varchar(255);not null;default:'Unknown'"   json:"author_name"`
+	Content      string    `gorm:"type:text;not null"                             json:"content"`
+	CreatedAt    time.Time `gorm:"not null;default:now()"                         json:"created_at"`
+}
+
+func (PostMortemComment) TableName() string { return "post_mortem_comments" }
+
+func (c *PostMortemComment) BeforeCreate(tx *gorm.DB) error {
+	if c.ID == uuid.Nil {
+		c.ID = uuid.New()
+	}
+	return nil
+}

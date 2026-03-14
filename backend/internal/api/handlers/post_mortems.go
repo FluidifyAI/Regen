@@ -240,3 +240,149 @@ func DeleteActionItem(incidentSvc services.IncidentService, pmSvc services.PostM
 	}
 }
 
+// CreatePostMortem handles POST /api/v1/incidents/:id/postmortem
+// Creates a blank draft post-mortem for manual authoring.
+func CreatePostMortem(incidentSvc services.IncidentService, pmSvc services.PostMortemService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		incident, ok := resolveIncident(c, incidentSvc)
+		if !ok {
+			return
+		}
+		pm, err := pmSvc.CreatePostMortem(incident.ID, "anonymous")
+		if err != nil {
+			dto.InternalError(c, err)
+			return
+		}
+		c.JSON(http.StatusCreated, dto.ToPostMortemResponse(pm))
+	}
+}
+
+// EnhancePostMortem handles POST /api/v1/incidents/:id/postmortem/enhance
+// Takes existing content, runs it through AI to improve structure/clarity, saves as draft.
+func EnhancePostMortem(incidentSvc services.IncidentService, pmSvc services.PostMortemService, aiSvc services.AIService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !aiSvc.IsEnabled() {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": gin.H{
+					"code":    "ai_not_configured",
+					"message": "AI features are not configured.",
+				},
+			})
+			return
+		}
+		incident, ok := resolveIncident(c, incidentSvc)
+		if !ok {
+			return
+		}
+		pm, err := pmSvc.GetPostMortem(incident.ID)
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "post_mortem", incident.ID.String())
+				return
+			}
+			dto.InternalError(c, err)
+			return
+		}
+		var req dto.EnhancePostMortemRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			dto.ValidationError(c, err)
+			return
+		}
+		enhanced, err := pmSvc.EnhancePostMortem(pm, req.Content)
+		if err != nil {
+			dto.InternalError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, dto.ToPostMortemResponse(enhanced))
+	}
+}
+
+// ListPostMortemComments handles GET /api/v1/incidents/:id/postmortem/comments
+func ListPostMortemComments(incidentSvc services.IncidentService, pmSvc services.PostMortemService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		incident, ok := resolveIncident(c, incidentSvc)
+		if !ok {
+			return
+		}
+		pm, err := pmSvc.GetPostMortem(incident.ID)
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "post_mortem", incident.ID.String())
+				return
+			}
+			dto.InternalError(c, err)
+			return
+		}
+		comments, err := pmSvc.ListComments(pm.ID)
+		if err != nil {
+			dto.InternalError(c, err)
+			return
+		}
+		resp := make([]dto.PostMortemCommentResponse, 0, len(comments))
+		for i := range comments {
+			resp = append(resp, dto.ToPostMortemCommentResponse(&comments[i]))
+		}
+		c.JSON(http.StatusOK, dto.ListCommentsResponse{Data: resp})
+	}
+}
+
+// CreatePostMortemComment handles POST /api/v1/incidents/:id/postmortem/comments
+func CreatePostMortemComment(incidentSvc services.IncidentService, pmSvc services.PostMortemService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		incident, ok := resolveIncident(c, incidentSvc)
+		if !ok {
+			return
+		}
+		pm, err := pmSvc.GetPostMortem(incident.ID)
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "post_mortem", incident.ID.String())
+				return
+			}
+			dto.InternalError(c, err)
+			return
+		}
+		var req dto.CreateCommentRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			dto.ValidationError(c, err)
+			return
+		}
+		comment, err := pmSvc.CreateComment(pm.ID, &services.CreateCommentParams{
+			AuthorID:   "anonymous",
+			AuthorName: req.AuthorName,
+			Content:    req.Content,
+		})
+		if err != nil {
+			dto.InternalError(c, err)
+			return
+		}
+		c.JSON(http.StatusCreated, dto.ToPostMortemCommentResponse(comment))
+	}
+}
+
+// DeletePostMortemComment handles DELETE /api/v1/incidents/:id/postmortem/comments/:commentId
+func DeletePostMortemComment(incidentSvc services.IncidentService, pmSvc services.PostMortemService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		_, ok := resolveIncident(c, incidentSvc)
+		if !ok {
+			return
+		}
+		commentID, err := uuid.Parse(c.Param("commentId"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid comment ID", map[string]interface{}{
+				"commentId": "must be a valid UUID",
+			})
+			return
+		}
+		if err := pmSvc.DeleteComment(commentID); err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "post_mortem_comment", commentID.String())
+				return
+			}
+			dto.InternalError(c, err)
+			return
+		}
+		c.Status(http.StatusNoContent)
+	}
+}
+

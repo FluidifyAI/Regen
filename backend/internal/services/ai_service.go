@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
-
 	"sync"
+	"time"
 
 	"github.com/openincident/openincident/internal/integrations/openai"
 	"github.com/openincident/openincident/internal/models"
@@ -40,6 +40,10 @@ type AIService interface {
 	// EnhancePostMortem improves an existing post-mortem draft for clarity,
 	// structure, and completeness while preserving all factual details.
 	EnhancePostMortem(ctx context.Context, content string) (string, error)
+
+	// EnhanceIncidentDraft converts a rough user brief into a polished incident
+	// title and summary. Returns structured title + summary strings.
+	EnhanceIncidentDraft(ctx context.Context, brief string) (title, summary string, err error)
 }
 
 // NewAIService creates a reloadable AIService. If apiKey is empty the service
@@ -140,6 +144,41 @@ func (s *aiService) EnhancePostMortem(ctx context.Context, content string) (stri
 		{Role: "user", Content: buildEnhancePrompt(content)},
 	}
 	return client.Complete(ctx, messages)
+}
+
+func (s *aiService) EnhanceIncidentDraft(ctx context.Context, brief string) (string, string, error) {
+	s.mu.RLock()
+	client := s.client
+	s.mu.RUnlock()
+	if client == nil {
+		return "", "", fmt.Errorf("AI features are not configured")
+	}
+	messages := []openai.ChatMessage{
+		{Role: "system", Content: `You are an expert incident management assistant. Convert rough incident descriptions into professional incident titles and summaries. Always respond with valid JSON only, no markdown, no commentary.`},
+		{Role: "user", Content: buildEnhanceDraftPrompt(brief)},
+	}
+	raw, err := client.Complete(ctx, messages)
+	if err != nil {
+		return "", "", fmt.Errorf("AI enhance draft: %w", err)
+	}
+	// Strip markdown code fences if the model wraps output
+	raw = strings.TrimSpace(raw)
+	if strings.HasPrefix(raw, "```") {
+		raw = strings.Trim(raw, "`")
+		raw = strings.TrimPrefix(raw, "json")
+		raw = strings.TrimSpace(raw)
+	}
+	var result struct {
+		Title   string `json:"title"`
+		Summary string `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		return "", "", fmt.Errorf("AI returned unexpected format: %w", err)
+	}
+	if result.Title == "" {
+		return "", "", fmt.Errorf("AI returned an empty title")
+	}
+	return result.Title, result.Summary, nil
 }
 
 // ─── Prompts ──────────────────────────────────────────────────────────────────
@@ -328,4 +367,16 @@ func buildEnhancePrompt(content string) string {
 
 Current post-mortem:
 %s`, content)
+}
+
+func buildEnhanceDraftPrompt(brief string) string {
+	return fmt.Sprintf(`Convert this rough incident description into a professional incident title and summary.
+
+Rules:
+- Title: concise (max 10 words), action-oriented, names the affected system and symptom (e.g. "API Gateway 5xx errors causing checkout failures")
+- Summary: 2-3 sentences describing what is happening, suspected impact, and any known context. Plain text, no markdown.
+- Respond ONLY with valid JSON: {"title": "...", "summary": "..."}
+
+User description:
+%s`, brief)
 }

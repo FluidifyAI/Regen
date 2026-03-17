@@ -41,3 +41,13 @@ export async function updateIncident(
 ): Promise<Incident> {
   return apiClient.patch<Incident>(`/api/v1/incidents/${id}`, body)
 }
+
+/**
+ * Enhance a rough incident description into a polished title + summary using AI.
+ * Returns 503 if AI is not configured (OPENAI_API_KEY not set).
+ */
+export async function enhanceIncidentDraft(
+  brief: string
+): Promise<{ title: string; summary: string }> {
+  return apiClient.post<{ title: string; summary: string }>("/api/v1/ai/enhance-draft", { brief })
+}

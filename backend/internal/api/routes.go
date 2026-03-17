@@ -290,6 +290,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// AI (v0.6+)
 		protected.POST("/incidents/:id/summarize", handlers.SummarizeIncident(incidentSvc, aiSvc))
 		protected.POST("/incidents/:id/handoff-digest", handlers.GenerateHandoffDigest(incidentSvc, aiSvc))
+		protected.POST("/ai/enhance-draft", handlers.EnhanceIncidentDraft(aiSvc))
 		protected.GET("/settings/ai", handlers.GetAISettings(aiSvc))
 		protected.GET("/settings/teams", handlers.GetTeamsSettings(teamsSvc))
 

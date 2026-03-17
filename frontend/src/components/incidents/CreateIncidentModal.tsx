@@ -1,7 +1,7 @@
-import { type FormEvent, useEffect, useState } from 'react'
-import { X, AlertTriangle } from 'lucide-react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { X, AlertTriangle, Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '../ui/Button'
-import { createIncident } from '../../api/incidents'
+import { createIncident, enhanceIncidentDraft } from '../../api/incidents'
 import type { Incident } from '../../api/types'
 
 interface CreateIncidentModalProps {
@@ -12,7 +12,6 @@ interface CreateIncidentModalProps {
 
 // ─── Severity icons ───────────────────────────────────────────────────────────
 
-/** Signal-bar icon — filled indicates active bars */
 function SignalBars({ filled, color }: { filled: 1 | 2 | 3; color: string }) {
   const bars = [
     { x: 1,  y: 14, h: 6  },
@@ -22,21 +21,13 @@ function SignalBars({ filled, color }: { filled: 1 | 2 | 3; color: string }) {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
       {bars.map((b, i) => (
-        <rect
-          key={i}
-          x={b.x}
-          y={b.y}
-          width="4"
-          height={b.h}
-          rx="1.5"
-          fill={i < filled ? color : '#D1D5DB'}
-        />
+        <rect key={i} x={b.x} y={b.y} width="4" height={b.h} rx="1.5"
+          fill={i < filled ? color : '#D1D5DB'} />
       ))}
     </svg>
   )
 }
 
-/** Red alert badge for Critical */
 function CriticalBadge() {
   return (
     <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-red-600 text-white">
@@ -98,11 +89,6 @@ const SEVERITIES: {
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
-/**
- * Modal form for declaring a new incident manually.
- * Handles title validation, severity selection, optional summary,
- * loading/error states, and resets on close.
- */
 export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncidentModalProps) {
   const [title, setTitle] = useState('')
   const [severity, setSeverity] = useState<Severity>('high')
@@ -110,11 +96,16 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // AI assist state
+  const [aiOpen, setAiOpen] = useState(false)
+  const [brief, setBrief] = useState('')
+  const [enhancing, setEnhancing] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const briefRef = useRef<HTMLTextAreaElement>(null)
+
   useEffect(() => {
     if (!isOpen) return
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
   }, [isOpen, onClose])
@@ -125,10 +116,39 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
       setSeverity('high')
       setSummary('')
       setError(null)
+      setAiOpen(false)
+      setBrief('')
+      setAiError(null)
     }
   }, [isOpen])
 
+  // Focus the textarea when AI panel opens
+  useEffect(() => {
+    if (aiOpen) setTimeout(() => briefRef.current?.focus(), 80)
+  }, [aiOpen])
+
   if (!isOpen) return null
+
+  async function handleEnhance() {
+    if (!brief.trim()) return
+    setEnhancing(true)
+    setAiError(null)
+    try {
+      const result = await enhanceIncidentDraft(brief.trim())
+      setTitle(result.title)
+      setSummary(result.summary)
+      setAiOpen(false) // collapse panel after filling fields
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'AI enhancement failed'
+      setAiError(
+        msg.includes('not configured')
+          ? 'AI is not configured. Add your OpenAI key in Settings → System.'
+          : msg
+      )
+    } finally {
+      setEnhancing(false)
+    }
+  }
 
   const handleSubmit = async (e: FormEvent | React.MouseEvent) => {
     e.preventDefault()
@@ -184,12 +204,74 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
-          {/* Error */}
+          {/* Global error */}
           {error && (
             <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
               {error}
             </div>
           )}
+
+          {/* ── AI Assist panel ── */}
+          <div className="rounded-xl border border-dashed border-brand-primary/40 bg-brand-primary/[0.03] overflow-hidden">
+            {/* Accordion trigger */}
+            <button
+              type="button"
+              onClick={() => setAiOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 text-left"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-md bg-brand-primary/10 flex items-center justify-center">
+                  <Sparkles className="w-3 h-3 text-brand-primary" />
+                </div>
+                <span className="text-xs font-semibold text-brand-primary">AI Assist</span>
+                <span className="text-xs text-text-tertiary">
+                  — write a brief, AI crafts title &amp; summary
+                </span>
+              </div>
+              {aiOpen
+                ? <ChevronUp className="w-3.5 h-3.5 text-text-tertiary" />
+                : <ChevronDown className="w-3.5 h-3.5 text-text-tertiary" />}
+            </button>
+
+            {/* Expandable body */}
+            {aiOpen && (
+              <div className="px-4 pb-4 space-y-3 border-t border-brand-primary/10">
+                <p className="text-xs text-text-tertiary pt-3">
+                  Describe what's happening in plain language — don't worry about wording.
+                </p>
+                <textarea
+                  ref={briefRef}
+                  value={brief}
+                  onChange={(e) => setBrief(e.target.value)}
+                  placeholder="e.g. users are getting 500 errors when checking out, started 10 mins ago after the deploy, checkout team is investigating"
+                  rows={3}
+                  disabled={enhancing}
+                  className="w-full px-3 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-colors resize-none"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleEnhance()
+                  }}
+                />
+                {aiError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    {aiError}
+                  </p>
+                )}
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] text-text-tertiary">⌘↵ to enhance</p>
+                  <button
+                    type="button"
+                    onClick={handleEnhance}
+                    disabled={enhancing || !brief.trim()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-primary text-white text-xs font-semibold hover:bg-brand-primary-hover disabled:opacity-50 transition-colors"
+                  >
+                    {enhancing
+                      ? <><Loader2 className="w-3 h-3 animate-spin" /> Enhancing…</>
+                      : <><Sparkles className="w-3 h-3" /> Enhance with AI</>}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Title */}
           <div>
@@ -203,16 +285,14 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., API Gateway 5xx errors"
               className="w-full px-3 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-colors"
-              autoFocus
+              autoFocus={!aiOpen}
               disabled={isSubmitting}
             />
           </div>
 
-          {/* Severity — custom visual picker */}
+          {/* Severity */}
           <div>
-            <label className="block text-sm font-medium text-text-primary mb-2">
-              Severity
-            </label>
+            <label className="block text-sm font-medium text-text-primary mb-2">Severity</label>
             <div className="grid grid-cols-4 gap-2">
               {SEVERITIES.map((sev) => {
                 const isSelected = severity === sev.value
@@ -238,7 +318,6 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
                 )
               })}
             </div>
-            {/* Selected severity pill */}
             <div className={`mt-2 flex items-center gap-1.5 text-xs font-medium ${selectedSev.selectedText}`}>
               <span className="opacity-60">Selected:</span>
               <span>{selectedSev.label} — {selectedSev.description}</span>

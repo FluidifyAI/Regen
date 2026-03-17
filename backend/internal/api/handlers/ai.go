@@ -136,6 +136,41 @@ func GetAISettings(aiSvc services.AIService) gin.HandlerFunc {
 	}
 }
 
+// EnhanceIncidentDraft handles POST /api/v1/ai/enhance-draft
+//
+// Converts a rough user-written brief into a professional incident title + summary.
+// Does not create an incident — purely a pre-creation AI assist.
+// Returns 503 if AI is not configured.
+func EnhanceIncidentDraft(aiSvc services.AIService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !aiSvc.IsEnabled() {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": gin.H{
+					"code":    "ai_not_configured",
+					"message": "AI features are not configured. Set your OpenAI key in Settings → System.",
+				},
+			})
+			return
+		}
+		var req struct {
+			Brief string `json:"brief" binding:"required,min=5,max=1000"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			dto.BadRequest(c, "brief is required (5-1000 characters)", nil)
+			return
+		}
+		title, summary, err := aiSvc.EnhanceIncidentDraft(c.Request.Context(), req.Brief)
+		if err != nil {
+			slog.Error("failed to enhance incident draft", "error", err, "request_id", c.GetString("request_id"))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{"code": "ai_error", "message": err.Error()},
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"title": title, "summary": summary})
+	}
+}
+
 // buildContextSources returns which context sources are included in the summary.
 func buildContextSources(hasSlack bool) []string {
 	sources := []string{"timeline", "alerts"}

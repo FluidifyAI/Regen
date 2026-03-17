@@ -4,14 +4,14 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/openincident/openincident/internal/repository"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/repository"
+	"github.com/fluidify/regen/internal/services"
 )
 
 // ListTeamsMembers handles GET /api/v1/settings/teams/members.
 // Returns all AAD members of the configured team.
 // Each member is annotated with already_imported=true if a user with that email
-// already exists in OpenIncident.
+// already exists in Fluidify Regen.
 func ListTeamsMembers(teamsConfigRepo repository.TeamsConfigRepository, userRepo repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		cfg, err := teamsConfigRepo.Get()
@@ -26,7 +26,7 @@ func ListTeamsMembers(teamsConfigRepo repository.TeamsConfigRepository, userRepo
 			return
 		}
 
-		// Build a set of emails already imported into OpenIncident.
+		// Build a set of emails already imported into Fluidify Regen.
 		existing, _ := userRepo.ListAll()
 		importedEmails := make(map[string]string, len(existing)) // email → user id
 		for _, u := range existing {
@@ -38,7 +38,7 @@ func ListTeamsMembers(teamsConfigRepo repository.TeamsConfigRepository, userRepo
 			Name               string `json:"name"`
 			Email              string `json:"email"`
 			AlreadyImported    bool   `json:"already_imported"`
-			OpenIncidentUserID string `json:"openincident_user_id,omitempty"`
+			RegenUserID string `json:"regen_user_id,omitempty"`
 		}
 
 		result := make([]member, 0, len(members))
@@ -49,7 +49,7 @@ func ListTeamsMembers(teamsConfigRepo repository.TeamsConfigRepository, userRepo
 				Name:               m.DisplayName,
 				Email:              m.Email,
 				AlreadyImported:    imported,
-				OpenIncidentUserID: uid,
+				RegenUserID: uid,
 			})
 		}
 

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/models"
 	"github.com/slack-go/slack"
 )
 
@@ -393,7 +393,7 @@ func (b *SlackMessageBuilder) BuildShiftHandoffIncomingMessage(
 		),
 		slack.NewContextBlock("",
 			slack.NewTextBlockObject(slack.MarkdownType,
-				"Powered by <https://github.com/openincident/openincident|Fluidify Alert>",
+				"Powered by <https://github.com/fluidify/regen|Fluidify Regen>",
 				false, false),
 		),
 	}
@@ -421,7 +421,7 @@ func (b *SlackMessageBuilder) BuildShiftHandoffOutgoingMessage(
 		),
 		slack.NewContextBlock("",
 			slack.NewTextBlockObject(slack.MarkdownType,
-				"Powered by <https://github.com/openincident/openincident|Fluidify Alert>",
+				"Powered by <https://github.com/fluidify/regen|Fluidify Regen>",
 				false, false),
 		),
 	}
@@ -458,7 +458,7 @@ func (b *SlackMessageBuilder) BuildShiftChannelNotification(
 		),
 		slack.NewContextBlock("",
 			slack.NewTextBlockObject(slack.MarkdownType,
-				fmt.Sprintf("Next handoff <!date^%d^{date_short_pretty} at {time}|%s> · Powered by <https://github.com/openincident/openincident|Fluidify Alert>",
+				fmt.Sprintf("Next handoff <!date^%d^{date_short_pretty} at {time}|%s> · Powered by <https://github.com/fluidify/regen|Fluidify Regen>",
 					shiftEnd.Unix(), shiftEnd.Format("Mon Jan 2 15:04 MST")),
 				false, false),
 		),
@@ -508,7 +508,7 @@ func (b *SlackMessageBuilder) BuildEscalationDMMessage(alert *models.Alert, tier
 		),
 		slack.NewContextBlock("",
 			slack.NewTextBlockObject(slack.MarkdownType,
-				"Powered by <https://github.com/openincident/openincident|Fluidify Alert>",
+				"Powered by <https://github.com/fluidify/regen|Fluidify Regen>",
 				false, false),
 		),
 	}

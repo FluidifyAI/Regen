@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/models"
-	"github.com/openincident/openincident/internal/repository"
+	"github.com/fluidify/regen/internal/models"
+	"github.com/fluidify/regen/internal/repository"
 )
 
 // mockRoutingRuleRepo is a test double for RoutingRuleRepository
@@ -27,6 +27,8 @@ func (m *mockRoutingRuleRepo) CheckPriorityConflict(priority int, excludeID uuid
 func (m *mockRoutingRuleRepo) GetEnabled() ([]models.RoutingRule, error) {
 	return m.rules, m.err
 }
+func (m *mockRoutingRuleRepo) Reorder(ids []uuid.UUID) error { return nil }
+func (m *mockRoutingRuleRepo) GetMaxPriority() (int, error)  { return 0, nil }
 
 var _ repository.RoutingRuleRepository = &mockRoutingRuleRepo{}
 

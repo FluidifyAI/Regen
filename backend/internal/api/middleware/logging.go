@@ -24,7 +24,7 @@ func Logger() gin.HandlerFunc {
 
 		// Build log attributes
 		attrs := []any{
-			slog.String("service", "openincident"),
+			slog.String("service", "regen"),
 			slog.String("method", c.Request.Method),
 			slog.String("path", c.Request.URL.Path),
 			slog.Int("status", c.Writer.Status()),

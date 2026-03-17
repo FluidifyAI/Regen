@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/api/handlers/dto"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/api/handlers/dto"
+	"github.com/fluidify/regen/internal/services"
 )
 
 // ListPostMortemTemplates handles GET /api/v1/post-mortem-templates

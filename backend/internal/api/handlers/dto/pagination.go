@@ -1,6 +1,6 @@
 package dto
 
-import "github.com/openincident/openincident/internal/repository"
+import "github.com/fluidify/regen/internal/repository"
 
 // PaginationParams holds pagination query parameters
 type PaginationParams struct {

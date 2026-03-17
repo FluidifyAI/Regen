@@ -16,7 +16,7 @@ type Config struct {
 	LogLevel    string `default:"info"`
 
 	// Database
-	DatabaseURL    string `default:"postgresql://openincident:secret@localhost:5432/openincident?sslmode=disable"`
+	DatabaseURL    string `default:"postgresql://regen:secret@localhost:5432/regen?sslmode=disable"`
 	DBMaxOpenConns int    `default:"25"`
 	DBMaxIdleConns int    `default:"5"`
 	DBConnMaxLife  string `default:"5m"`
@@ -67,7 +67,7 @@ func Load() (*Config, error) {
 		LogLevel:    getEnv("LOG_LEVEL", "info"),
 
 		// Database
-		DatabaseURL:    getEnv("DATABASE_URL", "postgresql://openincident:secret@localhost:5432/openincident?sslmode=disable"),
+		DatabaseURL:    getEnv("DATABASE_URL", "postgresql://regen:secret@localhost:5432/regen?sslmode=disable"),
 		DBMaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 25),
 		DBMaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
 		DBConnMaxLife:  getEnv("DB_CONN_MAX_LIFE", "5m"),

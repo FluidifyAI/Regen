@@ -52,12 +52,12 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -ldflags="-w -s -extldflags '-static'" \
     -a \
     -installsuffix cgo \
-    -o /app/bin/openincident \
-    ./cmd/openincident
+    -o /app/bin/regen \
+    ./cmd/regen
 
 # Verify binary size (should be < 50MB)
-RUN ls -lh /app/bin/openincident && \
-    size=$(stat -c%s /app/bin/openincident) && \
+RUN ls -lh /app/bin/regen && \
+    size=$(stat -c%s /app/bin/regen) && \
     echo "Binary size: $(($size / 1024 / 1024))MB" && \
     [ $size -lt 52428800 ] || (echo "Binary exceeds 50MB limit" && exit 1)
 
@@ -70,27 +70,27 @@ FROM alpine:3.19 AS production
 RUN apk --no-cache add ca-certificates tzdata
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S openincident && \
-    adduser -u 1001 -S openincident -G openincident
+RUN addgroup -g 1001 -S regen && \
+    adduser -u 1001 -S regen -G regen
 
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder --chown=openincident:openincident /app/bin/openincident /app/openincident
+COPY --from=builder --chown=regen:regen /app/bin/regen /app/regen
 
 # Copy migrations (will be needed later)
-COPY --chown=openincident:openincident migrations/ /app/migrations/
+COPY --chown=regen:regen migrations/ /app/migrations/
 
 # Switch to non-root user
-USER openincident
+USER regen
 
 # Expose port
 EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/app/openincident", "health"] || exit 1
+    CMD ["/app/regen", "health"] || exit 1
 
 # Run the binary
-ENTRYPOINT ["/app/openincident"]
+ENTRYPOINT ["/app/regen"]
 CMD ["serve"]

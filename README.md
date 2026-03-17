@@ -1,4 +1,4 @@
-# OpenIncident
+# Fluidify Regen
 
 **Open-source incident management for teams who own their data.**
 
@@ -6,7 +6,7 @@ incident.io + PagerDuty, self-hosted, with BYO-AI.
 
 ---
 
-## Why OpenIncident?
+## Why Fluidify Regen?
 
 | Problem | Our Solution |
 |---------|--------------|
@@ -57,8 +57,8 @@ Before you begin, ensure you have:
 Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/openincident.git
-cd openincident
+git clone https://github.com/fluidify/regen.git
+cd regen
 ```
 
 Copy the example environment file:
@@ -70,7 +70,7 @@ cp .env.example .env
 Edit `.env` with your configuration. **At minimum**, verify these are set:
 
 ```env
-DATABASE_URL=postgresql://openincident:secret@db:5432/openincident?sslmode=disable
+DATABASE_URL=postgresql://regen:secret@db:5432/regen?sslmode=disable
 REDIS_URL=redis://redis:6379
 PORT=8080
 ```
@@ -135,7 +135,7 @@ Send a test Prometheus alert to verify the webhook is working:
 curl -X POST http://localhost:8080/api/v1/webhooks/prometheus \
   -H "Content-Type: application/json" \
   -d '{
-    "receiver": "openincident",
+    "receiver": "fluidify-regen",
     "status": "firing",
     "alerts": [{
       "status": "firing",
@@ -167,7 +167,7 @@ To receive alerts from your existing Prometheus setup, add to your `alertmanager
 
 ```yaml
 receivers:
-  - name: openincident
+  - name: fluidify-regen
     webhook_configs:
       - url: http://localhost:8080/api/v1/webhooks/prometheus
         send_resolved: true
@@ -192,15 +192,15 @@ helm repo update
 make helm-deps
 
 # Install with bundled PostgreSQL + Redis (development / evaluation)
-helm install openincident deploy/helm/openincident \
+helm install fluidify-regen deploy/helm/fluidify-regen \
   --set ingress.host=incidents.myco.com \
   --set postgresql.auth.password=<strong-password>
 
 # Install pointing at managed DB + Redis (production)
-helm install openincident deploy/helm/openincident \
+helm install fluidify-regen deploy/helm/fluidify-regen \
   --set postgresql.enabled=false \
   --set redis.enabled=false \
-  --set secrets.databaseURL="postgresql://user:pass@your-rds.example.com:5432/openincident?sslmode=require" \
+  --set secrets.databaseURL="postgresql://user:pass@your-rds.example.com:5432/regen?sslmode=require" \
   --set secrets.redisURL="redis://your-elasticache.example.com:6379" \
   --set ingress.host=incidents.myco.com
 ```
@@ -208,7 +208,7 @@ helm install openincident deploy/helm/openincident \
 ### Upgrade
 
 ```bash
-helm upgrade openincident deploy/helm/openincident \
+helm upgrade fluidify-regen deploy/helm/fluidify-regen \
   --reuse-values \
   --set image.tag=0.10.0
 ```
@@ -217,7 +217,7 @@ Migrations run automatically as a pre-upgrade Job before pods are replaced.
 
 ### Configuration
 
-See `deploy/helm/openincident/values.yaml` for all available values. Key overrides:
+See `deploy/helm/fluidify-regen/values.yaml` for all available values. Key overrides:
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -240,7 +240,7 @@ See `deploy/helm/openincident/values.yaml` for all available values. Key overrid
                                  │
                                  ▼
                     ┌────────────────────────┐
-                    │    OpenIncident API    │
+                    │    Fluidify Regen API  │
                     │  (Go + Gin)            │
                     └────────────┬───────────┘
                                  │
@@ -301,7 +301,7 @@ curl -X POST http://localhost:8080/api/v1/incidents \
 curl -X POST http://localhost:8080/api/v1/webhooks/prometheus \
   -H "Content-Type: application/json" \
   -d '{
-    "receiver": "openincident",
+    "receiver": "fluidify-regen",
     "status": "firing",
     "alerts": [{
       "status": "firing",
@@ -325,7 +325,7 @@ curl -X POST http://localhost:8080/api/v1/webhooks/prometheus \
 
 ```env
 # Required
-DATABASE_URL=postgresql://user:pass@localhost:5432/openincident
+DATABASE_URL=postgresql://user:pass@localhost:5432/regen
 REDIS_URL=redis://localhost:6379
 
 # Slack Integration
@@ -359,7 +359,7 @@ APP_ENV=production
    - Go to https://api.slack.com/apps
    - Click **"Create New App"**
    - Select **"From scratch"**
-   - Name: `OpenIncident` (or your preference)
+   - Name: `Fluidify Regen` (or your preference)
    - Choose your workspace
    - Click **"Create App"**
 
@@ -400,7 +400,7 @@ APP_ENV=production
    - In the left sidebar, click **"Socket Mode"**
    - Toggle **"Enable Socket Mode"** on
    - Under **"App-Level Tokens"**, click **"Generate Token"**
-   - Name: `openincident-socket`, scope: `connections:write`
+   - Name: `fluidify-regen-socket`, scope: `connections:write`
    - Copy the token (starts with `xapp-`) and add to `.env`:
      ```env
      SLACK_APP_TOKEN=xapp-1-...
@@ -426,7 +426,7 @@ APP_ENV=production
    - Request URL: `https://your-domain/slack/events` (Socket Mode ignores this)
    - Click **"Save Changes"**
 
-10. **Restart OpenIncident**
+10. **Restart Fluidify Regen**
     ```bash
     docker-compose restart backend
     ```
@@ -465,7 +465,7 @@ APP_ENV=production
 
 ### Microsoft Teams App Setup
 
-Teams integration lets OpenIncident automatically create a channel for each incident, post an Adaptive Card with live status, and respond to bot commands (`ack`, `resolve`, `status`, `new`).
+Teams integration lets Fluidify Regen automatically create a channel for each incident, post an Adaptive Card with live status, and respond to bot commands (`ack`, `resolve`, `status`, `new`).
 
 **Time required**: ~30 minutes for initial Azure setup, ~5 minutes for subsequent deploys.
 
@@ -479,7 +479,7 @@ Teams integration lets OpenIncident automatically create a channel for each inci
 #### Step 1 — Create an Azure App Registration
 
 1. Go to [Azure Portal](https://portal.azure.com) → **Azure Active Directory** → **App registrations** → **New registration**
-2. Name: `openincident-bot` (or any name)
+2. Name: `fluidify-regen-bot` (or any name)
 3. Supported account types: **Single tenant**
 4. Click **Register**
 5. On the Overview page, copy:
@@ -511,7 +511,7 @@ Teams integration lets OpenIncident automatically create a channel for each inci
 
 1. In Azure Portal → **Create a resource** → search **"Azure Bot"** → **Create**
 2. Fill in:
-   - **Bot handle**: `openincident-bot` (any name, must be globally unique)
+   - **Bot handle**: `fluidify-regen-bot` (any name, must be globally unique)
    - **Resource group**: same as your other resources
    - **App ID**: select **Use existing app registration** → enter the App ID from Step 1
    - **App type**: Single tenant
@@ -542,19 +542,19 @@ You need the internal ID of the Teams team where incidents will be posted.
 
 #### Step 5 — Generate and install the bot app package
 
-OpenIncident includes a command to generate the Teams sideload package automatically:
+Fluidify Regen includes a command to generate the Teams sideload package automatically:
 
 ```bash
 # Ensure TEAMS_APP_ID is in your .env, then:
 make teams-app-package
 ```
 
-This creates `openincident-teams-app.zip` and prints sideload instructions. To install:
+This creates `fluidify-regen-teams-app.zip` and prints sideload instructions. To install:
 
 1. Open **Microsoft Teams**
 2. Navigate to your incident-management team
 3. Click **···** next to the team name → **Manage team** → **Apps** tab
-4. Click **Upload a custom app** → select `openincident-teams-app.zip`
+4. Click **Upload a custom app** → select `fluidify-regen-teams-app.zip`
 5. Click **Add** → **Add to a team** → select your team → **Set up a bot**
 
 > If "Upload a custom app" is not visible, ask your Teams admin to enable custom app uploads in the Teams Admin Center under **Teams apps** → **Setup policies**.
@@ -616,10 +616,10 @@ Once the bot is installed, mention it in any incident channel:
 
 | Command | Action |
 |---|---|
-| `@OpenIncident ack` | Acknowledge the incident |
-| `@OpenIncident resolve` | Resolve the incident |
-| `@OpenIncident status` | Show current incident status |
-| `@OpenIncident new <title>` | Create a new incident |
+| `@FluidifyRegen ack` | Acknowledge the incident |
+| `@FluidifyRegen resolve` | Resolve the incident |
+| `@FluidifyRegen status` | Show current incident status |
+| `@FluidifyRegen new <title>` | Create a new incident |
 
 #### Teams Features Overview
 
@@ -670,7 +670,7 @@ Once the bot is installed, mention it in any incident channel:
 
 3. **Invalid DATABASE_URL**
    - Verify `.env` has correct database credentials
-   - Default: `postgresql://openincident:secret@db:5432/openincident?sslmode=disable`
+   - Default: `postgresql://regen:secret@db:5432/regen?sslmode=disable`
 
 ### Slack Integration Not Working
 
@@ -822,7 +822,7 @@ TEAMS_SERVICE_URL=https://smba.trafficmanager.net/apac/
 
 **Step 4 — Bot commands not working**
 
-If `@OpenIncident ack` returns "No incident found for this channel":
+If `@FluidifyRegen ack` returns "No incident found for this channel":
 - Verify the bot is installed in the team (Step 5 of setup)
 - Verify `TEAMS_SERVICE_URL` matches your tenant region
 - Check that `teams_conversation_id` was saved: create a fresh incident and check logs for "teams channel created"
@@ -856,7 +856,7 @@ Alternatively, the admin can upload the package centrally via **Manage apps** an
 
 - **Logs**: Always check `docker-compose logs backend` for detailed error messages
 - **Metrics**: Check http://localhost:8080/metrics for system health indicators
-- **GitHub Issues**: https://github.com/yourusername/openincident/issues
+- **GitHub Issues**: https://github.com/fluidify/regen/issues
 - **Community**: Join our GitHub Discussions for support
 
 ---
@@ -869,14 +869,14 @@ We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) 
 
 ```bash
 # Clone repo
-git clone https://github.com/yourusername/openincident.git
-cd openincident
+git clone https://github.com/fluidify/regen.git
+cd regen
 
 # Start dependencies
 docker-compose up -d db redis
 
 # Run backend
-cd backend && go run ./cmd/openincident
+cd backend && go run ./cmd/regen
 
 # Run frontend (separate terminal)
 cd frontend && npm install && npm run dev
@@ -892,7 +892,7 @@ make test
 
 ## Comparison
 
-| Feature | OpenIncident | incident.io | PagerDuty |
+| Feature | Fluidify Regen | incident.io | PagerDuty |
 |---------|--------------|-------------|-----------|
 | Alert management | ✅ | ❌ | ✅ |
 | Incident coordination | ✅ | ✅ | ⚠️ |
@@ -913,9 +913,9 @@ make test
 
 ## Support
 
-- **Community**: [GitHub Discussions](https://github.com/yourusername/openincident/discussions)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/openincident/issues)
-- **Enterprise**: enterprise@openincident.io
+- **Community**: [GitHub Discussions](https://github.com/fluidify/regen/discussions)
+- **Issues**: [GitHub Issues](https://github.com/fluidify/regen/issues)
+- **Enterprise**: enterprise@fluidify.ai
 
 ---
 

@@ -3,8 +3,8 @@ package importer
 import (
 	"fmt"
 
-	"github.com/openincident/openincident/internal/integrations/pagerduty"
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/integrations/pagerduty"
+	"github.com/fluidify/regen/internal/models"
 )
 
 // scheduleRepoWriter is the minimal subset of repository.ScheduleRepository
@@ -17,7 +17,7 @@ type scheduleRepoWriter interface {
 	CreateParticipantsBulk(p []models.ScheduleParticipant) error
 }
 
-// ImportSchedules imports all PagerDuty schedule details into OpenIncident.
+// ImportSchedules imports all PagerDuty schedule details into Fluidify Regen.
 // emailToName is used to resolve user names; force overwrites name conflicts.
 func ImportSchedules(
 	repo scheduleRepoWriter,

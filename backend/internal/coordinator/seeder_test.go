@@ -3,9 +3,9 @@ package coordinator_test
 import (
 	"testing"
 
-	"github.com/openincident/openincident/internal/coordinator"
-	"github.com/openincident/openincident/internal/database"
-	"github.com/openincident/openincident/internal/repository"
+	"github.com/fluidify/regen/internal/coordinator"
+	"github.com/fluidify/regen/internal/database"
+	"github.com/fluidify/regen/internal/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -3,7 +3,7 @@ package importer
 import (
 	"fmt"
 
-	"github.com/openincident/openincident/internal/integrations/pagerduty"
+	"github.com/fluidify/regen/internal/integrations/pagerduty"
 )
 
 // layerValidationResult holds the outcome of validating a single schedule layer.
@@ -13,7 +13,7 @@ type layerValidationResult struct {
 }
 
 // validateScheduleLayer checks whether a PagerDuty schedule layer can be mapped
-// to an OpenIncident ScheduleLayer. Returns ok=false for custom rotations
+// to a Fluidify Regen ScheduleLayer. Returns ok=false for custom rotations
 // (RotationTurnLengthSeconds == 0) which cannot be modelled as a uniform interval.
 func validateScheduleLayer(scheduleName string, layerIdx int, layer pagerduty.PDScheduleLayer) layerValidationResult {
 	if layer.RotationTurnLengthSeconds == 0 {
@@ -21,7 +21,7 @@ func validateScheduleLayer(scheduleName string, layerIdx int, layer pagerduty.PD
 			ok: false,
 			warning: fmt.Sprintf(
 				"Schedule %q layer %d (%q): rotation_turn_length_seconds=0 (custom rotation) — skipped. "+
-					"Create manually in OpenIncident UI.",
+					"Create manually in Fluidify Regen UI.",
 				scheduleName, layerIdx, layer.Name,
 			),
 		}

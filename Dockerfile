@@ -2,8 +2,8 @@
 # Production Dockerfile — builds frontend + backend into a single binary.
 # Build context: repo root (.)
 #
-#   docker build -t openincident .
-#   docker run -p 8080:8080 openincident
+#   docker build -t fluidify-regen .
+#   docker run -p 8080:8080 fluidify-regen
 #
 # The resulting image serves both the React UI and the API from :8080.
 # No CORS configuration is needed — same origin, no cross-origin requests.
@@ -45,8 +45,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build \
     -ldflags="-w -s -extldflags '-static'" \
     -a -installsuffix cgo \
-    -o /bin/openincident \
-    ./cmd/openincident
+    -o /bin/regen \
+    ./cmd/regen
 
 # ── Stage 3: Minimal production image ────────────────────────────────────────
 FROM alpine:3.19
@@ -54,20 +54,20 @@ FROM alpine:3.19
 RUN apk --no-cache add ca-certificates tzdata
 
 # Non-root user for security
-RUN addgroup -g 1001 -S openincident && \
-    adduser  -u 1001 -S openincident -G openincident
+RUN addgroup -g 1001 -S regen && \
+    adduser  -u 1001 -S regen -G regen
 
 WORKDIR /app
 
-COPY --from=backend-builder --chown=openincident:openincident /bin/openincident    /app/openincident
-COPY --from=backend-builder --chown=openincident:openincident /app/migrations/     /app/migrations/
+COPY --from=backend-builder --chown=regen:regen /bin/regen          /app/regen
+COPY --from=backend-builder --chown=regen:regen /app/migrations/    /app/migrations/
 
-USER openincident
+USER regen
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD ["/app/openincident", "health"] || exit 1
+    CMD ["/app/regen", "health"] || exit 1
 
-ENTRYPOINT ["/app/openincident"]
+ENTRYPOINT ["/app/regen"]
 CMD ["serve"]

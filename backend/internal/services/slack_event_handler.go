@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/models"
-	"github.com/openincident/openincident/internal/repository"
+	"github.com/fluidify/regen/internal/models"
+	"github.com/fluidify/regen/internal/repository"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
@@ -373,7 +373,7 @@ func (h *SlackEventHandler) listOpenIncidents(cmd slack.SlashCommand) {
 // sendHelpResponse posts ephemeral usage instructions.
 func (h *SlackEventHandler) sendHelpResponse(cmd slack.SlashCommand) {
 	h.postEphemeral(cmd.ChannelID, cmd.UserID,
-		"*Fluidify Alert Slash Commands:*\n\n"+
+		"*Fluidify Regen Slash Commands:*\n\n"+
 			"*Declare & Browse*\n"+
 			"• `/incident new [title]` — Declare a new incident (opens form)\n"+
 			"• `/incident list` — List open incidents\n\n"+
@@ -613,7 +613,7 @@ func (h *SlackEventHandler) assignLeadFromSlash(cmd slack.SlashCommand, targetAr
 	internalUser, err := h.resolveSlackUserToInternal(slackUserID)
 	if err != nil {
 		h.postEphemeral(cmd.ChannelID, cmd.UserID,
-			fmt.Sprintf("Could not find user <@%s> in Fluidify Alert. Make sure they have a profile with a Slack ID set.", slackUserID))
+			fmt.Sprintf("Could not find user <@%s> in Fluidify Regen. Make sure they have a profile with a Slack ID set.", slackUserID))
 		return
 	}
 
@@ -647,7 +647,7 @@ func (h *SlackEventHandler) handleMakeMeLead(callback slack.InteractionCallback,
 	internalUser, err := h.resolveSlackUserToInternal(callback.User.ID)
 	if err != nil {
 		h.postEphemeral(callback.Channel.ID, callback.User.ID,
-			"Could not find your Fluidify Alert profile. Ask an admin to link your Slack ID.")
+			"Could not find your Fluidify Regen profile. Ask an admin to link your Slack ID.")
 		return
 	}
 
@@ -777,7 +777,7 @@ func (h *SlackEventHandler) handleViewOverview(callback slack.InteractionCallbac
 // handleViewCommands posts an ephemeral list of available slash commands.
 func (h *SlackEventHandler) handleViewCommands(callback slack.InteractionCallback) {
 	h.postEphemeral(callback.Channel.ID, callback.User.ID,
-		"*Fluidify Alert Slash Commands:*\n\n"+
+		"*Fluidify Regen Slash Commands:*\n\n"+
 			"*Declare & Browse*\n"+
 			"• `/incident new [title]` — Declare a new incident (opens form)\n"+
 			"• `/incident list` — List open incidents\n\n"+
@@ -830,7 +830,7 @@ func (h *SlackEventHandler) resolveSlackUserToInternal(slackUserID string) (*mod
 
 	user, err = h.userRepo.GetByEmail(email)
 	if err != nil {
-		return nil, fmt.Errorf("no Fluidify Alert account found for %s (%s) — ask an admin to create your account", userInfo.RealName, email)
+		return nil, fmt.Errorf("no Fluidify Regen account found for %s (%s) — ask an admin to create your account", userInfo.RealName, email)
 	}
 
 	// Auto-link: persist the Slack ID so future lookups use the fast path.
@@ -849,7 +849,7 @@ func (h *SlackEventHandler) resolveSlackUserToInternal(slackUserID string) (*mod
 
 // resolveActorID converts a Slack user ID to the best available actor identifier
 // for timeline entries, in priority order:
-//  1. Internal user UUID (if the user's Slack ID is linked in OpenIncident)
+//  1. Internal user UUID (if the user's Slack ID is linked in Fluidify Regen)
 //  2. Slack display name (so the timeline shows a real name instead of a raw ID)
 //  3. Original Slack user ID (last resort)
 func (h *SlackEventHandler) resolveActorID(slackUserID string) string {

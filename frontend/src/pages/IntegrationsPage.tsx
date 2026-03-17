@@ -203,7 +203,7 @@ function buildGitHubIssueUrl(toolName: string, useCase: string, impact: string):
     '_Requested via the Fluidify Regen integration hub_',
   ].join('\n')
   const params = new URLSearchParams({ title, body, labels: 'integration-request' })
-  return `https://github.com/openincident/openincident/issues/new?${params}`
+  return `https://github.com/fluidify/regen/issues/new?${params}`
 }
 
 // ─── Brand logo component ─────────────────────────────────────────────────────

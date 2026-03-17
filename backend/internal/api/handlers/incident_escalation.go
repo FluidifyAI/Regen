@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/services"
 )
 
 // EscalateIncident handles POST /api/v1/incidents/:id/escalate.

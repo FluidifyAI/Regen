@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/integrations/pagerduty"
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/integrations/pagerduty"
+	"github.com/fluidify/regen/internal/models"
 )
 
 // policyRepoWriter is the minimal subset of repository.EscalationPolicyRepository
@@ -16,7 +16,7 @@ type policyRepoWriter interface {
 	CreateTier(t *models.EscalationTier) error
 }
 
-// ImportPolicies imports all PagerDuty escalation policy details into OpenIncident.
+// ImportPolicies imports all PagerDuty escalation policy details into Fluidify Regen.
 // scheduleNameToID maps imported schedule names to their new OI UUIDs.
 // emailToName maps PD user email → display name for user_reference targets.
 func ImportPolicies(

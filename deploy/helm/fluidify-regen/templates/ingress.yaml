@@ -1,0 +1,36 @@
+{{- if .Values.ingress.enabled -}}
+{{- if not .Values.ingress.host }}
+{{ fail "ingress.host must be set when ingress.enabled=true (e.g. --set ingress.host=incidents.myco.com)" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "fluidify-regen.fullname" . }}
+  labels:
+    {{- include "fluidify-regen.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "fluidify-regen.fullname" . }}
+                port:
+                  name: http
+{{- end }}

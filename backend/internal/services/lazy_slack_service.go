@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/openincident/openincident/internal/repository"
+	"github.com/fluidify/regen/internal/repository"
 )
 
 // ErrSlackNotConfigured is returned by LazySlackService when no valid Slack

@@ -88,6 +88,7 @@ type incidentService struct {
 	chatService    ChatService          // Optional - can be nil if Slack not configured
 	messageBuilder *SlackMessageBuilder // Optional - can be nil if Slack not configured
 	teamsSvc       *TeamsService        // Optional - can be nil if Teams not configured (v0.8+)
+	telegramSvc    *TelegramService     // Optional - can be nil if Telegram not configured
 	db             *gorm.DB             // For transaction management
 	aiService      AIService            // Optional - can be nil if OpenAI not configured
 	userRepo          repository.UserRepository     // Optional — for commander name resolution
@@ -341,6 +342,17 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 	// Create Slack + Teams channels asynchronously (non-blocking)
 	s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
 
+	// Post Telegram incident-created notification asynchronously
+	if s.telegramSvc != nil {
+		go func() {
+			defer recoverAsyncPanic("sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
+			if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
+				slog.Error("telegram: failed to send incident created notification",
+					"incident_id", reloadedIncident.ID, "error", err)
+			}
+		}()
+	}
+
 	return reloadedIncident, nil
 }
 
@@ -471,6 +483,16 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		reloadedIncident.CommanderName = s.resolveCommanderName(reloadedIncident.CommanderID)
 
 		s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
+		// Post Telegram incident-created notification asynchronously
+		if s.telegramSvc != nil {
+			go func() {
+				defer recoverAsyncPanic("sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
+				if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
+					slog.Error("telegram: failed to send incident created notification",
+						"incident_id", reloadedIncident.ID, "error", err)
+				}
+			}()
+		}
 		return reloadedIncident, nil
 	}
 
@@ -906,6 +928,17 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 	// Create Slack + Teams channels asynchronously
 	s.launchChannelCreation(reloadedIncident, []models.Alert{})
 
+	// Post Telegram incident-created notification asynchronously
+	if s.telegramSvc != nil {
+		go func() {
+			defer recoverAsyncPanic("sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
+			if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
+				slog.Error("telegram: failed to send incident created notification",
+					"incident_id", reloadedIncident.ID, "error", err)
+			}
+		}()
+	}
+
 	return reloadedIncident, nil
 }
 
@@ -1105,6 +1138,16 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 		go func() {
 			defer recoverAsyncPanic("postStatusUpdateToTeams", "incident_id", incident.ID)
 			s.postStatusUpdateToTeams(incident, previousStatus, params.Status, params.UpdatedBy)
+		}()
+	}
+
+	// Post Telegram status-change notification asynchronously
+	if statusChanged && s.telegramSvc != nil {
+		go func() {
+			defer recoverAsyncPanic("postStatusUpdateToTelegram", "incident_id", incident.ID)
+			if err := s.telegramSvc.SendStatusUpdate(incident, string(params.Status)); err != nil {
+				slog.Error("telegram: failed to post status update", "incident_id", incident.ID, "error", err)
+			}
 		}()
 	}
 

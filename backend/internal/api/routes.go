@@ -38,6 +38,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	userRepo := repository.NewUserRepository(db)
 	slackConfigRepo := repository.NewSlackConfigRepository(db)
 	teamsConfigRepo := repository.NewTeamsConfigRepository(db)
+	telegramConfigRepo := repository.NewTelegramConfigRepository(db)
 
 	// Slack is initialized lazily: config is read from the DB on each use and
 	// cached until the bot_token changes. This means Slack can be configured or
@@ -97,6 +98,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	// teamsSvc is constructed once in serve.go and injected here.
 	if teamsSvc != nil {
 		services.SetTeamsService(incidentSvc, teamsSvc)
+	}
+
+	// Bootstrap Telegram service from DB config (optional)
+	if tgCfg, err := telegramConfigRepo.Get(); err == nil && tgCfg != nil && tgCfg.BotToken != "" {
+		if tgSvc := services.NewTelegramServiceFromConfig(tgCfg, cfg.FrontendURL); tgSvc != nil {
+			services.SetTelegramService(incidentSvc, tgSvc)
+		}
 	}
 
 	// Start Slack Socket Mode event handler (bidirectional sync) if app token is configured.
@@ -388,6 +396,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			settingsGroup.POST("/teams/config/test", handlers.TestTeamsConfig())
 			settingsGroup.DELETE("/teams/config", handlers.DeleteTeamsConfig(teamsConfigRepo))
 			settingsGroup.GET("/teams/members", handlers.ListTeamsMembers(teamsConfigRepo, userRepo))
+
+			// Telegram config (notification gateway)
+			settingsGroup.GET("/telegram", handlers.GetTelegramConfig(telegramConfigRepo))
+			settingsGroup.POST("/telegram", handlers.SaveTelegramConfig(telegramConfigRepo))
+			settingsGroup.POST("/telegram/test", handlers.TestTelegramConfig())
+			settingsGroup.POST("/telegram/fetch-chat-id", handlers.FetchTelegramChatID())
+			settingsGroup.DELETE("/telegram", handlers.DeleteTelegramConfig(telegramConfigRepo))
 
 			// System settings (OPE-26/27)
 			settingsGroup.GET("/system", handlers.GetSystemSettings(systemSettingsRepo, aiSvc))

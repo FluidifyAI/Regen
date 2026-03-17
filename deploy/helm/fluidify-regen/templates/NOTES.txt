@@ -1,0 +1,30 @@
+Fluidify Regen has been deployed!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Get the application URL:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{- if .Values.ingress.enabled }}
+  http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}/
+
+  Wait for the Ingress IP to propagate, then verify:
+    curl http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}/health
+{{- else }}
+  Ingress is disabled. Port-forward to access the API:
+    kubectl port-forward svc/{{ include "fluidify-regen.fullname" . }} 8080:8080
+    curl http://localhost:8080/health
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Production checklist:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{- if .Values.postgresql.enabled }}
+  ⚠  Change the default PostgreSQL password:
+     --set postgresql.auth.password=<strong-password>
+{{- end }}
+  ✓  Set secrets (Slack, OpenAI, Teams) via a values file with restricted
+     permissions or a secrets operator (Sealed Secrets, External Secrets).
+     WARNING: Do NOT use --set for secrets — values passed via --set are
+     stored in plain text in Helm release history.
+
+  📖  Full setup docs:
+     https://github.com/fluidify/regen#kubernetes

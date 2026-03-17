@@ -4,10 +4,10 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/openincident/openincident/internal/config"
-	"github.com/openincident/openincident/internal/enterprise"
-	"github.com/openincident/openincident/internal/repository"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/config"
+	"github.com/fluidify/regen/internal/enterprise"
+	"github.com/fluidify/regen/internal/repository"
+	"github.com/fluidify/regen/internal/services"
 	"gorm.io/gorm"
 )
 

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/models"
-	"github.com/openincident/openincident/internal/repository"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/models"
+	"github.com/fluidify/regen/internal/repository"
+	"github.com/fluidify/regen/internal/services"
 )
 
 const minIncidentDuration = 5 * time.Minute

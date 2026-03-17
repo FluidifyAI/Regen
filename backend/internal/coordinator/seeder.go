@@ -4,8 +4,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/openincident/openincident/internal/models"
-	"github.com/openincident/openincident/internal/repository"
+	"github.com/fluidify/regen/internal/models"
+	"github.com/fluidify/regen/internal/repository"
 )
 
 const PostMortemAgentEmail = "agent-postmortem@system.internal"

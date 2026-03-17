@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/models"
-	"github.com/openincident/openincident/internal/repository"
+	"github.com/fluidify/regen/internal/models"
+	"github.com/fluidify/regen/internal/repository"
 )
 
 // TeamsEventHandler processes inbound Bot Framework activities from Teams.
@@ -229,7 +229,7 @@ func (h *TeamsEventHandler) syncMessageToTimeline(_ context.Context, activity Bo
 		return
 	}
 	if incident == nil {
-		// Conversation not linked to an incident — normal for channels created outside OpenIncident
+		// Conversation not linked to an incident — normal for channels created outside Fluidify Regen
 		return
 	}
 
@@ -253,7 +253,7 @@ func (h *TeamsEventHandler) syncMessageToTimeline(_ context.Context, activity Bo
 }
 
 func (h *TeamsEventHandler) sendHelp(activity BotActivity) {
-	help := "**Fluidify Alert Bot Commands:**\n\n" +
+	help := "**Fluidify Regen Bot Commands:**\n\n" +
 		"• `new <title>` — Create a new incident\n" +
 		"• `ack` — Acknowledge this channel's incident\n" +
 		"• `resolve` — Resolve this channel's incident\n" +

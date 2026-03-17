@@ -1,4 +1,4 @@
-// Package importer converts PagerDuty data into OpenIncident entities and
+// Package importer converts PagerDuty data into Fluidify Regen entities and
 // persists them to the database.
 package importer
 

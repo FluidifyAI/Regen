@@ -431,7 +431,7 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
               <ul className="space-y-1 list-disc list-inside">
                 <li>
                   Invite{' '}
-                  <code className="bg-surface-secondary px-1 rounded text-xs">@openincident</code>{' '}
+                  <code className="bg-surface-secondary px-1 rounded text-xs">@fluidify-regen</code>{' '}
                   to your #incidents channel
                 </li>
                 <li>Trigger a test alert to verify the integration</li>

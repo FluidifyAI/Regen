@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/models"
 )
 
 // CreateScheduleRequest is the request body for POST /api/v1/schedules.

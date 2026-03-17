@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/repository"
+	"github.com/fluidify/regen/internal/repository"
 )
 
 // AgentsHandler manages AI agent endpoints.

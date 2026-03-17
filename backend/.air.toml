@@ -5,7 +5,7 @@ tmp_dir = "tmp"
 [build]
   args_bin = ["serve"]
   bin = "./tmp/main"
-  cmd = "go build -o ./tmp/main ./cmd/openincident"
+  cmd = "go build -o ./tmp/main ./cmd/regen"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "migrations"]
   exclude_file = []

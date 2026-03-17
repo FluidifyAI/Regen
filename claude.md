@@ -7,7 +7,7 @@
 
 ## What Is This Project?
 
-**OpenIncident** is an open-source incident management platform that combines:
+**Fluidify Regen** is an open-source incident management platform that combines:
 - **Alert Management** (like PagerDuty/Opsgenie) — receive, dedupe, route alerts
 - **Incident Coordination** (like incident.io) — lifecycle, timeline, Slack integration
 - **On-Call Scheduling** — rotations, escalations, overrides
@@ -60,7 +60,7 @@
 ## Project Structure
 
 ```
-openincident/
+fluidify-regen/
 ├── CLAUDE.md                 # THIS FILE
 ├── README.md                 # Public docs
 ├── LICENSE                   # AGPLv3
@@ -75,7 +75,7 @@ openincident/
 ├── backend/
 │   ├── Dockerfile
 │   ├── go.mod
-│   ├── cmd/openincident/
+│   ├── cmd/regen/
 │   │   └── main.go
 │   ├── internal/
 │   │   ├── config/
@@ -331,13 +331,13 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 - [x] Replace Graph API channel posting with **Bot Framework Proactive Messaging** (true Slack parity — same bot credentials, second OAuth scope `https://api.botframework.com/.default`, no `ChannelMessage.Send` permission required). Requires `TEAMS_SERVICE_URL` env var (region-specific relay URL). New methods: `PostToChannel`, `PostToConversation`, `UpdateConversationMessage`. DB: `teams_conversation_id` + `teams_activity_id` columns (migration 000022). `PostToChannel` collapses channel-create + initial post into a single Bot Framework API call (the relay requires a non-empty `activity` in the `ConversationParameters` body).
 - [x] Sync UI timeline notes → Teams channel (`postTimelineNoteToTeams` mirrors `postTimelineNoteToSlack`)
 - [x] Sync Teams `@Bot` replies → UI timeline (non-command messages in `TeamsEventHandler` saved as timeline entries)
-- [x] `make teams-app-package` — generates ready-to-sideload `openincident-teams-app.zip` from `TEAMS_APP_ID`; pure-Python PNG generation (no Pillow), fresh GUID for Teams app `id` (must differ from `botId`). See `scripts/teams-app-package.sh`.
+- [x] `make teams-app-package` — generates ready-to-sideload `fluidify-regen-teams-app.zip` from `TEAMS_APP_ID`; pure-Python PNG generation (no Pillow), fresh GUID for Teams app `id` (must differ from `botId`). See `scripts/teams-app-package.sh`.
 - [x] Security hardening pass: JWT `iss` validation (`https://api.botframework.com`), JWKS client timeout, `io.LimitReader` on API responses (4 MB cap), panic recovery on all Teams goroutines, `UpdateTeamsPostingIDs` atomic write, `GetByTeamsConversationID` for correct bot-command lookup
 - [ ] Proper channel archive on resolve — **documented limitation**: Graph API cannot archive standard channels; current behaviour renames to `[RESOLVED]`. True archive requires private channel model.
 - [ ] Auto-invite specific users to Teams channel — **documented limitation**: no-op for standard channels; Graph API `TeamMember` adds to Team, not channel. Private channel model required.
 
 **v1.0 — Production Ready (Weeks 27–28)**
-- [x] Kubernetes Helm chart — `deploy/helm/openincident/` (Deployment, Service, Ingress, HPA, migration Job, ConfigMap, Secret, NOTES.txt)
+- [x] Kubernetes Helm chart — `deploy/helm/fluidify-regen/` (Deployment, Service, Ingress, HPA, migration Job, ConfigMap, Secret, NOTES.txt)
 - [x] HA documentation — `docs/OPERATIONS.md` (K8s HA, PostgreSQL HA, Redis Sentinel, zero-downtime deploys, observability, sizing)
 - [x] Security hardening — CORS allowlist (`CORS_ALLOWED_ORIGINS`), HSTS, security headers, rate limiting (3 tiers), webhook signing; `docs/SECURITY.md`
 - [x] Performance tuning — N+1 fix in escalation engine, 8 new DB indexes (migration 000023), `GetAlerts()` bounded at 500, redundant pre-check removed
@@ -411,8 +411,8 @@ Missing step 3 is the most common setup failure — without it, the Bot Framewor
 
 | Repo | Visibility | License | Contents |
 |------|-----------|---------|----------|
-| `openincident/openincident` | Public | AGPLv3 | Everything through v0.9 OSS |
-| `openincident/openincident-ee` | Private | Commercial | SCIM, audit logs, RBAC, retention |
+| `fluidify/regen` | Public | AGPLv3 | Everything through v0.9 OSS |
+| `fluidify/regen-ee` | Private | Commercial | SCIM, audit logs, RBAC, retention |
 
 The private EE repo imports the public OSS repo as a Go module and adds enterprise packages on top. Paid customers receive a Docker image built from the combined codebase. OSS users never see enterprise code.
 
@@ -460,7 +460,7 @@ make lint
 
 ```env
 # Database
-DATABASE_URL=postgresql://openincident:secret@localhost:5432/openincident
+DATABASE_URL=postgresql://regen:secret@localhost:5432/regen
 
 # Redis
 REDIS_URL=redis://localhost:6379
@@ -510,7 +510,7 @@ PORT=8080
 ### Starting v0.1
 ```
 Read CLAUDE.md, PRODUCT.md, ARCHITECTURE.md, and DECISIONS.md.
-We're building v0.1 of OpenIncident.
+We're building v0.1 of Fluidify Regen.
 Start with project setup: create directory structure, go.mod, docker-compose.yml with PostgreSQL and Redis.
 ```
 

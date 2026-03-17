@@ -10,7 +10,7 @@ CREATE TABLE post_mortem_templates (
 
 COMMENT ON TABLE post_mortem_templates IS 'User-manageable post-mortem templates. Built-in templates are seeded at migration time (v0.7).';
 COMMENT ON COLUMN post_mortem_templates.sections IS 'Ordered array of section names. E.g. ["Summary","Impact","Timeline","Root Cause","Action Items"]';
-COMMENT ON COLUMN post_mortem_templates.is_built_in IS 'True for templates shipped with OpenIncident. Users may still edit or delete these.';
+COMMENT ON COLUMN post_mortem_templates.is_built_in IS 'True for templates shipped with Fluidify Regen. Users may still edit or delete these.';
 
 -- Seed built-in templates
 INSERT INTO post_mortem_templates (name, description, sections, is_built_in) VALUES

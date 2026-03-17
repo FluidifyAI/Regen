@@ -3,10 +3,10 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/api/handlers/dto"
-	"github.com/openincident/openincident/internal/api/middleware"
-	"github.com/openincident/openincident/internal/repository"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/api/handlers/dto"
+	"github.com/fluidify/regen/internal/api/middleware"
+	"github.com/fluidify/regen/internal/repository"
+	"github.com/fluidify/regen/internal/services"
 )
 
 // resolveActorNames takes a slice of timeline responses and fills in ActorName

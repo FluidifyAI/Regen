@@ -3,7 +3,7 @@
 # ── Help ──────────────────────────────────────────────────────────────────────
 
 help:
-	@echo "OpenIncident — Make targets"
+	@echo "Fluidify Regen — Make targets"
 	@echo ""
 	@echo "Development:"
 	@echo "  dev          Start backend in Docker (Air hot-reload) + Vite frontend locally"
@@ -76,7 +76,7 @@ backend:
 # Run migrations inside the running api container.
 migrate:
 	@echo "Running database migrations..."
-	@docker-compose exec api go run cmd/openincident/main.go migrate
+	@docker-compose exec api go run cmd/regen/main.go migrate
 	@echo "Migrations complete"
 
 # ── Code Quality ──────────────────────────────────────────────────────────────
@@ -116,25 +116,25 @@ build-frontend:
 	@echo "  frontend/dist/  →  backend/ui/dist/"
 
 # build: full local production build — frontend embedded in the Go binary.
-# The resulting binary at backend/bin/openincident serves UI + API on :8080.
+# The resulting binary at backend/bin/regen serves UI + API on :8080.
 build: build-frontend
 	@echo "Compiling Go binary with embedded frontend..."
 	@cd backend && CGO_ENABLED=0 GOOS=linux go build \
 		-ldflags="-w -s -extldflags '-static'" \
-		-o bin/openincident \
-		./cmd/openincident
+		-o bin/regen \
+		./cmd/regen
 	@echo ""
-	@echo "Artifact: backend/bin/openincident (UI + API, no CORS config needed)"
+	@echo "Artifact: backend/bin/regen (UI + API, no CORS config needed)"
 
 # docker: build the production image using the top-level Dockerfile.
 # The image serves both UI and API from :8080 — single binary, zero config.
 #
-#   docker run -p 8080:8080 -e DATABASE_URL=... -e REDIS_URL=... openincident
+#   docker run -p 8080:8080 -e DATABASE_URL=... -e REDIS_URL=... fluidify-regen
 docker:
 	@echo "Building production Docker image..."
-	@docker build -t openincident .
+	@docker build -t fluidify-regen .
 	@echo ""
-	@echo "Run: docker run -p 8080:8080 openincident"
+	@echo "Run: docker run -p 8080:8080 fluidify-regen"
 
 teams-app-package:
 	@./scripts/teams-app-package.sh
@@ -171,17 +171,17 @@ install:
 # ── Helm ──────────────────────────────────────────────────────────────────────
 
 helm-deps:
-	@helm dependency update deploy/helm/openincident
+	@helm dependency update deploy/helm/fluidify-regen
 
 helm-lint: helm-deps
-	@helm lint deploy/helm/openincident
+	@helm lint deploy/helm/fluidify-regen
 
 helm-template: helm-deps
-	@helm template openincident deploy/helm/openincident \
+	@helm template fluidify-regen deploy/helm/fluidify-regen \
 		--set ingress.host=localhost \
 		| kubectl apply --dry-run=client -f -
 
 helm-test: helm-lint
-	@helm template openincident deploy/helm/openincident \
+	@helm template fluidify-regen deploy/helm/fluidify-regen \
 		--set ingress.host=localhost > /dev/null && \
 		echo "helm template: OK"

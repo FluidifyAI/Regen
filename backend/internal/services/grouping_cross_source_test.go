@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/models"
 	"github.com/stretchr/testify/assert"
 )
 

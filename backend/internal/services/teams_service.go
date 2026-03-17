@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/models"
 	"golang.org/x/oauth2/clientcredentials"
 )
 
@@ -239,7 +239,7 @@ func (s *TeamsService) SendOnCallDM(aadObjectID string, incident *models.Inciden
 	body := map[string]interface{}{
 		"bot": map[string]string{
 			"id":   "28:" + s.botAppID,
-			"name": "Fluidify Alert",
+			"name": "Fluidify Regen",
 		},
 		"members": []map[string]string{
 			{"id": "29:" + aadObjectID},
@@ -278,7 +278,7 @@ func (s *TeamsService) createChannelConversation(teamsChannelID string, msg Mess
 	body := map[string]interface{}{
 		"bot": map[string]string{
 			"id":   "28:" + s.botAppID,
-			"name": "Fluidify Alert",
+			"name": "Fluidify Regen",
 		},
 		"channelData": map[string]interface{}{
 			"channel": map[string]string{"id": teamsChannelID},

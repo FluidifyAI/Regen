@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/models"
-	"github.com/openincident/openincident/internal/repository"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/models"
+	"github.com/fluidify/regen/internal/repository"
+	"github.com/fluidify/regen/internal/services"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -163,6 +163,15 @@ func (r *stubUserRepo) GetBySlackUserID(slackUserID string) (*models.User, error
 		}
 	}
 	return nil, fmt.Errorf("user not found")
+}
+
+func (r *stubUserRepo) GetByTeamsUserID(teamsUserID string) (*models.User, error) {
+	for _, u := range r.users {
+		if u.TeamsUserID != nil && *u.TeamsUserID == teamsUserID {
+			return u, nil
+		}
+	}
+	return nil, &repository.NotFoundError{Resource: "user", ID: teamsUserID}
 }
 
 // ── stubSessionRepo ──────────────────────────────────────────────────────────

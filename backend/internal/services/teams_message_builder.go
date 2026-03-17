@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/models"
 )
 
 // teamsIncidentCard returns an Adaptive Card payload (as a Go map, to be JSON-serialised

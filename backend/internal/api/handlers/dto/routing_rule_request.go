@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/models"
 )
 
 // CreateRoutingRuleRequest is the request body for POST /api/v1/routing-rules

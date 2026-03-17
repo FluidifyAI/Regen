@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// UserRole defines the access level of a user within OpenIncident.
+// UserRole defines the access level of a user within Fluidify Regen.
 type UserRole string
 
 const (
@@ -16,7 +16,7 @@ const (
 	UserRoleViewer UserRole = "viewer"
 )
 
-// User represents a person or AI agent in OpenIncident.
+// User represents a person or AI agent in Fluidify Regen.
 // Human users authenticate via SAML SSO (auth_source='saml') or local credentials (auth_source='local').
 // AI agent users have auth_source='ai', a non-null AgentType, and no password.
 // SAML users have no password hash; local users have no SAML subject.

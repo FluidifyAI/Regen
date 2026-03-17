@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/openincident/openincident/internal/models/webhooks"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/models/webhooks"
+	"github.com/fluidify/regen/internal/services"
 )
 
 // WebhookHandler is a unified handler for all webhook providers (v0.3+).

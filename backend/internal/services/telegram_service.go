@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/models"
 )
 
 // TelegramService sends incident notification messages to a Telegram group/channel.
@@ -103,7 +103,7 @@ func TestTelegramConnection(ctx context.Context, botToken, chatID string) (strin
 	if svc == nil {
 		return "", fmt.Errorf("bot_token and chat_id are required")
 	}
-	if err := svc.sendMessage("✅ <b>OpenIncident connected</b>\nIncident notifications will appear here."); err != nil {
+	if err := svc.sendMessage("✅ <b>Fluidify Regen connected</b>\nIncident notifications will appear here."); err != nil {
 		return "", fmt.Errorf("bot token valid but could not post to chat: %w", err)
 	}
 

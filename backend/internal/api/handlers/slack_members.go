@@ -4,13 +4,13 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/openincident/openincident/internal/repository"
+	"github.com/fluidify/regen/internal/repository"
 	slack "github.com/slack-go/slack"
 )
 
 // ListSlackMembers handles GET /api/v1/settings/slack/members.
 // Returns all non-bot, non-deleted workspace members.
-// Each member is annotated with already_imported=true if a user with that email exists in OpenIncident.
+// Each member is annotated with already_imported=true if a user with that email exists in Fluidify Regen.
 // Used by the "Import from Slack" modal in Settings → Users.
 func ListSlackMembers(slackRepo repository.SlackConfigRepository, userRepo repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -27,7 +27,7 @@ func ListSlackMembers(slackRepo repository.SlackConfigRepository, userRepo repos
 			return
 		}
 
-		// Build a set of emails that are already imported into OpenIncident.
+		// Build a set of emails that are already imported into Fluidify Regen.
 		existing, _ := userRepo.ListAll()
 		importedEmails := make(map[string]bool, len(existing))
 		for _, u := range existing {

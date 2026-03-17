@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/openincident/openincident/internal/models"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/models"
+	"github.com/fluidify/regen/internal/services"
 )
 
 const (

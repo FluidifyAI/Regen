@@ -7,8 +7,10 @@ import {
 import { apiClient } from '../api/client'
 import { getSlackConfig, type SlackConfigStatus } from '../api/slack'
 import { getTeamsConfig, type TeamsConfigStatus } from '../api/teams_config'
+import { getTelegramConfig, type TelegramConfigStatus } from '../api/telegram_config'
 import { SlackSetupModal } from '../components/SlackSetupModal'
 import { TeamsSetupModal } from '../components/TeamsSetupModal'
+import { TelegramSetupModal } from '../components/TelegramSetupModal'
 import { useAuth } from '../hooks/useAuth'
 
 // ─── Integration definitions ──────────────────────────────────────────────────
@@ -608,6 +610,8 @@ export function IntegrationsPage() {
   const [showSlackModal, setShowSlackModal] = useState(false)
   const [teamsStatus, setTeamsStatus] = useState<TeamsConfigStatus | null>(null)
   const [showTeamsModal, setShowTeamsModal] = useState(false)
+  const [telegramStatus, setTelegramStatus] = useState<TelegramConfigStatus | null>(null)
+  const [showTelegramModal, setShowTelegramModal] = useState(false)
 
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin') {
@@ -618,6 +622,7 @@ export function IntegrationsPage() {
   useEffect(() => {
     getSlackConfig().then(setSlackStatus).catch(() => {})
     getTeamsConfig().then(setTeamsStatus).catch(() => {})
+    getTelegramConfig().then(setTelegramStatus).catch(() => setTelegramStatus({ configured: false, has_token: false }))
   }, [])
 
   useEffect(() => {
@@ -678,6 +683,16 @@ export function IntegrationsPage() {
             setShowTeamsModal(false)
             getTeamsConfig().then(setTeamsStatus).catch(() => {})
           }}
+        />
+      )}
+      {showTelegramModal && (
+        <TelegramSetupModal
+          onClose={() => setShowTelegramModal(false)}
+          onSaved={(status) => {
+            setTelegramStatus(status)
+            setShowTelegramModal(false)
+          }}
+          existing={telegramStatus ?? undefined}
         />
       )}
 
@@ -776,6 +791,41 @@ export function IntegrationsPage() {
                 className="mt-auto flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-primary hover:bg-surface-secondary transition-colors"
               >
                 {teamsStatus?.configured ? 'Reconfigure' : 'Connect Teams'}
+              </button>
+            </div>
+
+            {/* Telegram card */}
+            <div className="rounded-xl border border-border bg-surface-primary p-4 flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <img
+                    src="https://cdn.simpleicons.org/telegram/2CA5E0"
+                    alt="Telegram"
+                    className="w-8 h-8 flex-shrink-0"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-text-primary">Telegram</p>
+                    <p className="text-xs text-text-tertiary">Incident notifications to any group</p>
+                  </div>
+                </div>
+                {telegramStatus?.configured && (
+                  <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Connected
+                  </span>
+                )}
+              </div>
+              {telegramStatus?.configured && telegramStatus.chat_name && (
+                <p className="text-xs text-text-tertiary">
+                  Group: <span className="text-text-secondary font-medium">{telegramStatus.chat_name}</span>
+                </p>
+              )}
+              <button
+                onClick={() => setShowTelegramModal(true)}
+                className="mt-auto flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-primary hover:bg-surface-secondary transition-colors"
+              >
+                {telegramStatus?.configured ? 'Reconfigure' : 'Connect Telegram'}
               </button>
             </div>
           </div>

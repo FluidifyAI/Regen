@@ -4,7 +4,7 @@
 //
 // Enterprise repo usage:
 //
-//	import "github.com/openincident/openincident/internal/enterprise"
+//	import "github.com/fluidify/regen/internal/enterprise"
 //
 //	hooks := enterprise.Hooks{
 //	    RBAC:      myrbac.NewProvider(db),
@@ -123,7 +123,7 @@ type noopSCIM struct{}
 func (noopSCIM) RegisterRoutes(group *gin.RouterGroup) {
 	group.Any("/*path", func(c *gin.Context) {
 		c.JSON(http.StatusNotImplemented, gin.H{
-			"detail": "SCIM provisioning requires an OpenIncident Enterprise license.",
+			"detail": "SCIM provisioning requires a Fluidify Regen Enterprise license.",
 		})
 	})
 }

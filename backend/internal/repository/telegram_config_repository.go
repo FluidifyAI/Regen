@@ -3,7 +3,7 @@ package repository
 import (
 	"errors"
 
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/models"
 )
 
 // EscalationTierResponse is the JSON representation of a single escalation tier.

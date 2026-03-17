@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/integrations/pagerduty"
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/integrations/pagerduty"
+	"github.com/fluidify/regen/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

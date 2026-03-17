@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/openincident/openincident/internal/redis"
+	"github.com/fluidify/regen/internal/redis"
 )
 
 // Fixed-window rate limiter backed by Redis.

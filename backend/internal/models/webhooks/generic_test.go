@@ -291,7 +291,7 @@ func TestGetJSONSchema(t *testing.T) {
 
 	// Verify top-level schema fields
 	assert.Equal(t, "https://json-schema.org/draft/2020-12/schema", schema["$schema"])
-	assert.Equal(t, "OpenIncident Generic Webhook", schema["title"])
+	assert.Equal(t, "Fluidify Regen Generic Webhook", schema["title"])
 	assert.Equal(t, "object", schema["type"])
 
 	// Verify required fields

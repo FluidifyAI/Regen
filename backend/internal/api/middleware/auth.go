@@ -6,8 +6,8 @@ import (
 
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gin-gonic/gin"
-	"github.com/openincident/openincident/internal/models"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/models"
+	"github.com/fluidify/regen/internal/services"
 )
 
 // IsSecure returns true if the Secure flag should be set on cookies.

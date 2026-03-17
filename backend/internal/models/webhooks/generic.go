@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// GenericWebhookPayload represents the OpenIncident-native webhook format.
+// GenericWebhookPayload represents the Fluidify Regen-native webhook format.
 //
 // This is a simple, documented format for teams that want to send alerts from:
 //   - Custom monitoring scripts
@@ -76,7 +76,7 @@ type GenericAlert struct {
 	EndedAt *time.Time `json:"ended_at"`
 }
 
-// GenericProvider implements WebhookProvider for the OpenIncident-native generic webhook format.
+// GenericProvider implements WebhookProvider for the Fluidify Regen-native generic webhook format.
 //
 // Authentication (optional): HMAC-SHA256 signature verification
 //   - Server-side secret configured via WEBHOOK_SECRET environment variable
@@ -267,9 +267,9 @@ func (g *GenericProvider) normalizeGenericAlert(genericAlert *GenericAlert) (*No
 func GetJSONSchema() map[string]interface{} {
 	return map[string]interface{}{
 		"$schema": "https://json-schema.org/draft/2020-12/schema",
-		"$id":     "https://openincident.io/schemas/generic-webhook.json",
-		"title":   "OpenIncident Generic Webhook",
-		"description": "Schema for sending alerts to OpenIncident via the generic webhook endpoint",
+		"$id":     "https://fluidifyregen.io/schemas/generic-webhook.json",
+		"title":   "Fluidify Regen Generic Webhook",
+		"description": "Schema for sending alerts to Fluidify Regen via the generic webhook endpoint",
 		"type": "object",
 		"required": []string{"alerts"},
 		"properties": map[string]interface{}{

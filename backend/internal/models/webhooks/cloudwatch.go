@@ -55,7 +55,7 @@ type SNSMessage struct {
 	SigningCertURL string `json:"SigningCertURL" binding:"required"`
 
 	// SubscribeURL is the confirmation URL (only present in SubscriptionConfirmation messages)
-	// OpenIncident will automatically HTTP GET this URL to confirm the subscription
+	// Fluidify Regen will automatically HTTP GET this URL to confirm the subscription
 	SubscribeURL string `json:"SubscribeURL,omitempty"`
 
 	// UnsubscribeURL allows unsubscribing from the topic (we don't use this)

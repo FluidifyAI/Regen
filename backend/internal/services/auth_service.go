@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/openincident/openincident/internal/models"
-	"github.com/openincident/openincident/internal/repository"
+	"github.com/fluidify/regen/internal/models"
+	"github.com/fluidify/regen/internal/repository"
 )
 
 // AuthService handles user provisioning from SAML assertions.

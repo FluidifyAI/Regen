@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/openincident/openincident/internal/models/webhooks"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/models/webhooks"
+	"github.com/fluidify/regen/internal/services"
 )
 
 // PrometheusWebhook handles incoming Prometheus Alertmanager webhooks

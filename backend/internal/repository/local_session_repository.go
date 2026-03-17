@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/models"
 	"gorm.io/gorm"
 )
 

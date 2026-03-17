@@ -31,7 +31,7 @@ export interface TeamsMember {
   name: string
   email: string
   already_imported: boolean
-  openincident_user_id?: string
+  regen_user_id?: string
 }
 
 export async function listTeamsMembers(): Promise<{ members: TeamsMember[] }> {

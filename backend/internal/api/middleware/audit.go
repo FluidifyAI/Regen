@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/openincident/openincident/internal/enterprise"
+	"github.com/fluidify/regen/internal/enterprise"
 )
 
 // AuditLog returns a Gin middleware that calls exporter.Export after each

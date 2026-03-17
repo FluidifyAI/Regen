@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/openincident/openincident/internal/repository"
+	"github.com/fluidify/regen/internal/repository"
 )
 
 // ListUsersForAssignment returns minimal user info for all active users.

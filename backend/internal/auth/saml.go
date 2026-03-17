@@ -19,8 +19,8 @@ import (
 
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
-	"github.com/openincident/openincident/internal/config"
-	"github.com/openincident/openincident/internal/services"
+	"github.com/fluidify/regen/internal/config"
+	"github.com/fluidify/regen/internal/services"
 )
 
 // NewSAMLMiddleware constructs a crewjam/saml Middleware from application config.
@@ -47,7 +47,7 @@ func NewSAMLMiddleware(cfg *config.Config) (*samlsp.Middleware, error) {
 		return nil, fmt.Errorf("saml: load keypair: %w", err)
 	}
 
-	// 2. Parse base URL (externally reachable URL of this OpenIncident instance)
+	// 2. Parse base URL (externally reachable URL of this Fluidify Regen instance)
 	baseURL, err := url.Parse(cfg.SAMLBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("saml: parse base url %q: %w", cfg.SAMLBaseURL, err)
@@ -84,7 +84,7 @@ func NewSAMLMiddleware(cfg *config.Config) (*samlsp.Middleware, error) {
 		Certificate:       keyPair.Leaf,
 		IDPMetadata:       idpMetadata,
 		CookieSameSite:    cookieSameSite,
-		CookieName:        "openincident_session",
+		CookieName:        "regen_session",
 		AllowIDPInitiated: cfg.SAMLAllowIDPInitiated,
 	}
 	if cfg.SAMLEntityID != "" {
@@ -234,7 +234,7 @@ func generateSelfSignedKeyPair() (tls.Certificate, error) {
 
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{Organization: []string{"Fluidify Alert"}},
+		Subject:      pkix.Name{Organization: []string{"Fluidify Regen"}},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().Add(10 * 365 * 24 * time.Hour), // 10 years
 		// KeyUsageDigitalSignature: sign AuthnRequests sent to the IdP.

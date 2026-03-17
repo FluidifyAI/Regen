@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openincident/openincident/internal/integrations/openai"
-	"github.com/openincident/openincident/internal/models"
+	"github.com/fluidify/regen/internal/integrations/openai"
+	"github.com/fluidify/regen/internal/models"
 )
 
 // AIService provides AI-powered features for incidents.

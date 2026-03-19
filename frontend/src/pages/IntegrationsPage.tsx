@@ -608,6 +608,7 @@ export function IntegrationsPage() {
   const [search, setSearch] = useState('')
   const [slackStatus, setSlackStatus] = useState<SlackConfigStatus | null>(null)
   const [showSlackModal, setShowSlackModal] = useState(false)
+  const [slackRedirectCopied, setSlackRedirectCopied] = useState(false)
   const [teamsStatus, setTeamsStatus] = useState<TeamsConfigStatus | null>(null)
   const [showTeamsModal, setShowTeamsModal] = useState(false)
   const [telegramStatus, setTelegramStatus] = useState<TelegramConfigStatus | null>(null)
@@ -750,6 +751,33 @@ export function IntegrationsPage() {
                 <p className="text-xs text-text-tertiary">
                   Workspace: <span className="text-text-secondary font-medium">{slackStatus.workspace_name}</span>
                 </p>
+              )}
+              {slackStatus?.configured && (
+                <div className="space-y-1">
+                  <p className="text-xs text-text-tertiary">OAuth Redirect URL</p>
+                  <div className="flex items-center gap-1.5">
+                    <code className="flex-1 text-xs bg-surface-secondary border border-border rounded px-2 py-1 text-text-secondary font-mono truncate">
+                      {window.location.origin}/api/v1/auth/slack/callback
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/api/v1/auth/slack/callback`)
+                        setSlackRedirectCopied(true)
+                        setTimeout(() => setSlackRedirectCopied(false), 2000)
+                      }}
+                      className="flex-shrink-0 p-1 rounded hover:bg-surface-secondary transition-colors"
+                      title="Copy redirect URL"
+                    >
+                      {slackRedirectCopied
+                        ? <Check className="w-3 h-3 text-green-600" />
+                        : <Copy className="w-3 h-3 text-text-tertiary" />
+                      }
+                    </button>
+                  </div>
+                  <p className="text-xs text-text-tertiary">
+                    Register this in your Slack app under <strong>OAuth &amp; Permissions → Redirect URLs</strong>
+                  </p>
+                </div>
               )}
               <button
                 onClick={() => setShowSlackModal(true)}

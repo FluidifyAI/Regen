@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, ExternalLink, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
+import { X, ExternalLink, CheckCircle, Loader2, AlertCircle, Copy, Check } from 'lucide-react'
 import {
   testSlackToken,
   saveSlackConfig,
@@ -106,6 +106,13 @@ function slackManifest(appUrl: string): string {
 export function SlackSetupModal({ onClose, onConnected }: Props) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [showManifest, setShowManifest] = useState(false)
+  const [urlCopied, setUrlCopied] = useState(false)
+
+  function copyRedirectUrl() {
+    navigator.clipboard.writeText(`${appUrl}/api/v1/auth/slack/callback`)
+    setUrlCopied(true)
+    setTimeout(() => setUrlCopied(false), 2000)
+  }
 
   const [botToken, setBotToken] = useState('')
   const [signingSecret, setSigningSecret] = useState('')
@@ -238,6 +245,33 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
                 {isLocal && <li>Socket Mode: bidirectional real-time sync</li>}
               </ul>
             </div>
+
+            {!isLocal && (
+              <div className="rounded-lg border border-border bg-surface-secondary/50 px-3 py-2.5 space-y-1.5">
+                <p className="text-xs font-medium text-text-secondary">
+                  OAuth Redirect URL
+                </p>
+                <p className="text-xs text-text-tertiary">
+                  The manifest registers this automatically. If you're updating an existing Slack app,
+                  add it manually under <strong>OAuth &amp; Permissions → Redirect URLs</strong>.
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs bg-surface-primary border border-border rounded px-2 py-1.5 text-text-primary font-mono truncate">
+                    {appUrl}/api/v1/auth/slack/callback
+                  </code>
+                  <button
+                    onClick={copyRedirectUrl}
+                    className="flex-shrink-0 p-1.5 rounded hover:bg-surface-secondary transition-colors"
+                    title="Copy redirect URL"
+                  >
+                    {urlCopied
+                      ? <Check className="w-3.5 h-3.5 text-green-600" />
+                      : <Copy className="w-3.5 h-3.5 text-text-tertiary" />
+                    }
+                  </button>
+                </div>
+              </div>
+            )}
 
             <a
               href={manifestPortalUrl}

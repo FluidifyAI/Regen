@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:15-alpine
-    container_name: fluidify-alert-db
+    container_name: fluidify-regen-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-regen}
@@ -17,11 +17,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - fluidify-alert
+      - fluidify-regen
 
   redis:
     image: redis:7-alpine
-    container_name: fluidify-alert-redis
+    container_name: fluidify-regen-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
@@ -34,14 +34,14 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - fluidify-alert
+      - fluidify-regen
 
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile
       target: development
-    container_name: fluidify-alert-api
+    container_name: fluidify-regen-api
     restart: unless-stopped
     environment:
       - APP_ENV=${APP_ENV:-development}
@@ -82,7 +82,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - fluidify-alert
+      - fluidify-regen
 
   # mock-idp + saml-proxy: Local SAML IdP for SSO development/testing.
   # Test credentials: user1 / user1pass  (email: user1@example.com)
@@ -93,16 +93,16 @@ services:
   # the Docker-internal hostname "mock-idp" which browsers cannot resolve.
   mock-idp:
     image: kristophjunge/test-saml-idp
-    container_name: fluidify-alert-mock-idp
+    container_name: fluidify-regen-mock-idp
     environment:
       - SIMPLESAMLPHP_SP_ENTITY_ID=http://localhost:8080/saml/metadata
       - SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE=http://localhost:8080/saml/acs
     networks:
-      - fluidify-alert
+      - fluidify-regen
 
   saml-proxy:
     image: nginx:alpine
-    container_name: fluidify-alert-saml-proxy
+    container_name: fluidify-regen-saml-proxy
     ports:
       - "8082:80"
     volumes:
@@ -110,7 +110,7 @@ services:
     depends_on:
       - mock-idp
     networks:
-      - fluidify-alert
+      - fluidify-regen
 
 volumes:
   postgres_data:
@@ -121,5 +121,5 @@ volumes:
     driver: local
 
 networks:
-  fluidify-alert:
+  fluidify-regen:
     driver: bridge

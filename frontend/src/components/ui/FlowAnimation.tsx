@@ -7,6 +7,7 @@ import { Nexus } from './flow/Nexus'
 import { AIAgents } from './flow/AIAgents'
 import { Resolution } from './flow/Resolution'
 import { Axolotl } from './flow/Axolotl'
+import { ContrastStrip } from './flow/ContrastStrip'
 
 export function FlowAnimation() {
   const ref = useRef<HTMLDivElement>(null)
@@ -48,6 +49,7 @@ export function FlowAnimation() {
             <AIAgents />
             <Resolution />
             <Axolotl />
+            <ContrastStrip />
           </>
         )}
       </svg>

@@ -12,7 +12,6 @@ import { SlackSetupModal } from '../components/SlackSetupModal'
 import { TeamsSetupModal } from '../components/TeamsSetupModal'
 import { TelegramSetupModal } from '../components/TelegramSetupModal'
 import { useAuth } from '../hooks/useAuth'
-import { FlowAnimation } from '../components/ui/FlowAnimation'
 
 // ─── Integration definitions ──────────────────────────────────────────────────
 
@@ -697,11 +696,6 @@ export function IntegrationsPage() {
           existing={telegramStatus ?? undefined}
         />
       )}
-
-      {/* Flow Animation — explainer */}
-      <div className="border-b border-border bg-surface-primary px-6 py-6">
-        <FlowAnimation />
-      </div>
 
       {/* Page Header */}
       <div className="border-b border-border bg-surface-primary px-6 py-4">

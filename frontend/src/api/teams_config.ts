@@ -46,3 +46,17 @@ export async function saveTeamsConfig(req: SaveTeamsConfigRequest): Promise<Team
 export async function deleteTeamsConfig(): Promise<void> {
   return apiClient.delete<void>('/api/v1/settings/teams/config')
 }
+
+export async function downloadTeamsAppPackage(): Promise<void> {
+  const res = await fetch('/api/v1/settings/teams/config/app-package', {
+    credentials: 'include',
+  })
+  if (!res.ok) throw new Error('Failed to generate app package')
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'fluidify-regen-teams-app.zip'
+  a.click()
+  URL.revokeObjectURL(url)
+}

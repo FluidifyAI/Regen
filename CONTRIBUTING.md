@@ -1,6 +1,6 @@
-# Contributing to OpenIncident
+# Contributing to Fluidify Regen
 
-Thank you for your interest in contributing to OpenIncident! We welcome contributions from the community.
+Thank you for your interest in contributing to Fluidify Regen! We welcome contributions from the community.
 
 This guide will help you get started with development and explain our contribution process.
 
@@ -65,13 +65,13 @@ Please be respectful and constructive in all interactions. We are building a wel
    ```bash
    # On GitHub, click "Fork" button
    # Then clone your fork:
-   git clone https://github.com/YOUR_USERNAME/openincident.git
-   cd openincident
+   git clone https://github.com/YOUR_USERNAME/Regen.git
+   cd Regen
    ```
 
 2. **Add upstream remote**
    ```bash
-   git remote add upstream https://github.com/openincident/openincident.git
+   git remote add upstream https://github.com/FluidifyAI/Regen.git
    ```
 
 3. **Start dependencies**
@@ -93,7 +93,7 @@ Please be respectful and constructive in all interactions. We are building a wel
    ```bash
    cd backend
    go mod download
-   go run ./cmd/openincident
+   go run ./cmd/regen
    ```
 
    Backend runs at: http://localhost:8080
@@ -165,9 +165,9 @@ git push origin feature/your-feature-name
 ## Project Structure
 
 ```
-openincident/
+regen/
 ├── backend/                  # Go backend
-│   ├── cmd/openincident/     # Main application entry point
+│   ├── cmd/regen/     # Main application entry point
 │   ├── internal/
 │   │   ├── api/              # API routes and handlers
 │   │   │   ├── handlers/     # HTTP request handlers
@@ -404,7 +404,7 @@ make test
    ```
 
 2. **Create PR on GitHub**
-   - Go to https://github.com/openincident/openincident
+   - Go to https://github.com/FluidifyAI/Regen
    - Click "New Pull Request"
    - Select your fork and branch
 
@@ -573,7 +573,7 @@ git push origin feature/your-feature-name
 
 - **GitHub Discussions**: For general questions and ideas
 - **GitHub Issues**: For bug reports and feature requests
-- **Discord**: [Join our community](https://discord.gg/openincident) (coming soon)
+- **Discord**: [Join our community](https://discord.gg/fluidify) (coming soon)
 
 ### Stuck on Something?
 
@@ -598,7 +598,7 @@ By contributing, you agree that your contributions will be licensed under the **
 
 ## Recognition
 
-All contributors will be recognized in our README. Thank you for helping make OpenIncident better! 🎉
+All contributors will be recognized in our README. Thank you for helping make Fluidify Regen better! 🎉
 
 ---
 

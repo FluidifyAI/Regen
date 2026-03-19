@@ -1,6 +1,6 @@
-# OpenIncident Frontend
+# Fluidify Regen Frontend
 
-React + TypeScript + Vite frontend for OpenIncident.
+React + TypeScript + Vite frontend for Fluidify Regen.
 
 ## Development
 

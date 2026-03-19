@@ -1,0 +1,81 @@
+# Fluidify Regen — Slack App Manifest
+#
+# How to use:
+#   1. Go to https://api.slack.com/apps
+#   2. Click "Create New App" → "From a manifest"
+#   3. Select your workspace
+#   4. Paste this entire file (YAML tab) and click Next → Create
+#   5. From "Basic Information", copy:
+#        - Signing Secret  → SLACK_SIGNING_SECRET
+#   6. From "OAuth & Permissions" → Install to Workspace, then copy:
+#        - Bot User OAuth Token (xoxb-...)  → SLACK_BOT_TOKEN
+#   7. From "Basic Information" → App-Level Tokens → Generate Token
+#        - Scope: connections:write
+#        - Copy the token (xapp-...)  → SLACK_APP_TOKEN
+#   8. Paste all three values into your .env and restart Fluidify Regen.
+#
+# Full setup guide: https://github.com/FluidifyAI/Regen/blob/main/README.md
+
+_metadata:
+  major_version: 1
+  minor_version: 1
+
+display_information:
+  name: Fluidify Regen
+  description: Incident management — create, acknowledge, and resolve incidents without leaving Slack.
+  background_color: "#1800ad"
+  long_description: |
+    Fluidify Regen brings your full incident lifecycle into Slack.
+
+    When an alert fires, Regen automatically creates a dedicated incident channel,
+    posts a status card, and keeps your timeline in sync as the team responds.
+
+    Use /incident to declare incidents, assign commanders, add timeline notes, and
+    resolve — all without switching tools.
+
+    Self-hosted. Open source. No per-seat fees.
+
+features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: false
+    messages_tab_read_only_enabled: false
+
+  bot_user:
+    display_name: Fluidify Regen
+    always_online: true
+
+  slash_commands:
+    - command: /incident
+      description: Manage incidents — new, ack, resolve, status, note, lead, list
+      usage_hint: "new [title] | ack | resolve | status | note [text] | lead [me|@user] | list | help"
+      should_escape: false
+
+oauth_config:
+  redirect_urls:
+    - https://your-regen-instance.example.com/api/v1/auth/slack/callback
+  scopes:
+    bot:
+      - channels:manage       # Create and archive incident channels
+      - channels:read         # List channels (duplicate prevention)
+      - channels:history      # Read channel messages → timeline sync
+      - chat:write            # Post messages and status updates
+      - chat:write.public     # Post to public channels without joining
+      - users:read            # Resolve user display names for timeline
+      - im:write              # Send DMs to on-call responders
+    user:
+      - openid                # Slack SSO login
+      - email                 # Match Slack user to Regen account
+      - profile               # Display name for login
+
+settings:
+  event_subscriptions:
+    bot_events:
+      - message.channels      # Sync channel messages → incident timeline
+
+  interactivity:
+    is_enabled: true          # Required for buttons and modals
+
+  org_deploy_enabled: false
+  socket_mode_enabled: true   # Uses WebSocket — no public inbound URL required
+  token_rotation_enabled: false

@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { X, CheckCircle, Loader2, AlertCircle, ExternalLink } from 'lucide-react'
+import { X, CheckCircle, Loader2, AlertCircle, ExternalLink, Download } from 'lucide-react'
 import {
   testTeamsConfig,
   saveTeamsConfig,
+  downloadTeamsAppPackage,
   type TeamsTestResult,
 } from '../api/teams_config'
 
@@ -22,6 +23,16 @@ export function TeamsSetupModal({ onClose, onConnected }: Props) {
 
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<TeamsTestResult | null>(null)
+  const [downloading, setDownloading] = useState(false)
+
+  async function handleDownloadPackage() {
+    setDownloading(true)
+    try {
+      await downloadTeamsAppPackage()
+    } finally {
+      setDownloading(false)
+    }
+  }
   const [testError, setTestError] = useState('')
 
   const [saving, setSaving] = useState(false)
@@ -293,11 +304,29 @@ export function TeamsSetupModal({ onClose, onConnected }: Props) {
                 <li>Incident channels will be created automatically in your team</li>
                 <li>The bot will post Adaptive Cards for new incidents and status changes</li>
                 <li>Use{' '}
-                  <code className="bg-surface-secondary px-1 rounded text-xs">@FluidifyAlert ack</code> or{' '}
+                  <code className="bg-surface-secondary px-1 rounded text-xs">@Fluidify Regen ack</code> or{' '}
                   <code className="bg-surface-secondary px-1 rounded text-xs">resolve</code> in any incident channel
                 </li>
                 <li>Restart the server to apply the new credentials</li>
               </ul>
+            </div>
+
+            <div className="rounded-lg border border-border bg-surface-secondary p-4 space-y-2">
+              <p className="text-sm font-medium text-text-primary">Install the bot in Teams</p>
+              <p className="text-xs text-text-secondary">
+                Download the app package and sideload it into your Microsoft Teams team to enable bot commands.
+              </p>
+              <button
+                onClick={handleDownloadPackage}
+                disabled={downloading}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-white hover:bg-surface-secondary disabled:opacity-50 text-sm font-medium text-text-primary transition-colors"
+              >
+                {downloading
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Download className="w-4 h-4" />
+                }
+                {downloading ? 'Generating…' : 'Download Teams App Package'}
+              </button>
             </div>
           </div>
         )}

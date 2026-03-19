@@ -71,6 +71,53 @@ An incident is created automatically. If Slack is configured, a channel appears 
 
 ---
 
+## AI Agents
+
+Fluidify Regen ships with AI agents that work autonomously during and after incidents. All agents use your own OpenAI key — your incident data never leaves your infrastructure.
+
+### Incident Summarization Agent
+
+Reads the full incident timeline and any linked Slack thread, then writes a concise summary of what happened, what was done, and current status. Useful for commanders joining mid-incident or for shift handoffs.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/incidents/INC-042/summarize \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```json
+{
+  "summary": "Database replica lag exceeded 60s at 14:32 UTC, triggering alert. On-call engineer acknowledged at 14:38. Root cause identified as a long-running migration on the primary. Migration was killed at 14:51, replication caught up by 14:59. No data loss.",
+  "generated_at": "2024-01-15T15:02:00Z"
+}
+```
+
+### Post-Mortem Agent
+
+Generates a structured post-mortem draft from the incident timeline, status changes, and linked alerts. Extracts contributing factors and action items automatically. Supports custom templates.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/incidents/INC-042/postmortem/generate \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+The draft appears in the UI immediately, ready to edit and publish.
+
+### Handoff Digest
+
+Generates a shift-handoff briefing covering all open incidents, recent status changes, and pending action items — delivered to Slack or Teams at the start of each shift.
+
+### What makes this different
+
+| | Fluidify Regen | PagerDuty AI | incident.io AI |
+|---|---|---|---|
+| BYO API key | ✅ | ❌ | ❌ |
+| Data stays on your infra | ✅ | ❌ | ❌ |
+| Custom post-mortem templates | ✅ | ❌ | ✅ |
+| Open source prompts | ✅ | ❌ | ❌ |
+| Cost | Your OpenAI bill | Bundled in seat price | Bundled in seat price |
+
+---
+
 ## Integrations
 
 | Alerts | Chat | AI |
@@ -104,6 +151,32 @@ For production (external DB + Redis), managed PostgreSQL, HA configuration, and 
 | SSO | Free | Paid tier | Paid tier |
 | BYO AI | ✅ | ❌ | ❌ |
 | Alert + incident + on-call in one tool | ✅ | ⚠️ | ⚠️ |
+
+---
+
+## Roadmap
+
+### Shipping next
+
+- **PagerDuty import** — migrate schedules and escalation policies with a single CLI command
+- **Confluence / Notion export** — publish post-mortems directly from the UI
+- **RBAC** — viewer / responder / admin roles (Enterprise)
+- **SCIM provisioning** — automated user lifecycle via Okta, Azure AD (Enterprise)
+- **Audit log export** — SOC2-ready tamper-evident logs (Enterprise)
+
+### AI agent roadmap
+
+The current agents (summarization, post-mortems, handoff) are the foundation. The direction is fully autonomous incident response:
+
+| Agent | What it does |
+|---|---|
+| **Triage agent** | Auto-assigns severity, tags, and suggested commander based on alert patterns |
+| **Root cause agent** | Correlates metrics, logs, and recent deploys to surface likely root causes |
+| **Runbook agent** | Matches the incident to known runbooks and surfaces the relevant steps |
+| **Noise reduction agent** | Learns alert patterns over time and suppresses known-noisy, low-signal alerts |
+| **Conversational agent** | Answer questions mid-incident in Slack/Teams: "What changed in the last 2 hours?" |
+
+> These are on the roadmap — not yet shipped. Star the repo to follow along.
 
 ---
 

@@ -3,6 +3,7 @@ import { useInView } from 'framer-motion'
 import { CANVAS, COLORS } from './flow/constants'
 import { Stream } from './flow/Stream'
 import { SourcePools } from './flow/SourcePools'
+import { Nexus } from './flow/Nexus'
 
 export function FlowAnimation() {
   const ref = useRef<HTMLDivElement>(null)
@@ -40,6 +41,7 @@ export function FlowAnimation() {
           <>
             <Stream />
             <SourcePools />
+            <Nexus />
           </>
         )}
       </svg>

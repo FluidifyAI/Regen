@@ -396,6 +396,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			settingsGroup.PUT("/teams/config", handlers.SaveTeamsConfig(teamsConfigRepo))
 			settingsGroup.POST("/teams/config/test", handlers.TestTeamsConfig())
 			settingsGroup.DELETE("/teams/config", handlers.DeleteTeamsConfig(teamsConfigRepo))
+			settingsGroup.GET("/teams/config/app-package", handlers.DownloadTeamsAppPackage(teamsConfigRepo))
 			settingsGroup.GET("/teams/members", handlers.ListTeamsMembers(teamsConfigRepo, userRepo))
 
 			// Telegram config (notification gateway)

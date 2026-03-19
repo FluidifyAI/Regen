@@ -52,6 +52,22 @@ deploy/helm/fluidify-regen/charts/
 backend/ui/dist/*
 !backend/ui/dist/.gitkeep
 
-# Ignore images
+# Ignore images and reference assets
 /ref/
 /docs/
+/ui-decision/
+/assets-per/
+
+# Internal strategy docs
+/PRODUCT-STRATEGY.md
+
+# Generated artifacts
+*.zip
+*.tar.gz
+
+# IDE / AI assistant config (local development only)
+.claude/
+.serena/
+
+# Vite cache
+frontend/.vite/

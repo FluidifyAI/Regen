@@ -120,12 +120,27 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 
 ## Integrations
 
-| Alerts | Chat | AI |
-|---|---|---|
-| Prometheus Alertmanager | Slack | OpenAI (BYO key) |
-| Grafana | Microsoft Teams | |
-| AWS CloudWatch | Telegram | |
-| Generic webhook | | |
+### Available now
+
+| Category | Integrations |
+|---|---|
+| **Alert ingestion** | Prometheus Alertmanager, Grafana, AWS CloudWatch, Generic webhook |
+| **Chat & incident channels** | Slack, Microsoft Teams, Telegram |
+| **AI** | OpenAI (BYO key — GPT-4o, GPT-4, GPT-3.5) |
+| **Auth** | SAML 2.0 (Okta, Azure AD, Google Workspace, any compliant IdP) |
+| **Deployment** | Docker Compose, Kubernetes (Helm) |
+
+### Coming soon
+
+| Category | Integrations |
+|---|---|
+| **Alert ingestion** | Datadog, New Relic, Sentry, Dynatrace, Elastic / Kibana, Zabbix, Nagios, Uptime Kuma, Betterstack |
+| **Migration / import** | PagerDuty (schedules + escalation policies), Opsgenie, Splunk On-Call (VictorOps) |
+| **Post-mortem export** | Confluence, Notion, Jira |
+| **AI providers** | Anthropic Claude, local LLMs via Ollama |
+| **Chat** | Discord |
+
+> Missing an integration? [Open an issue](https://github.com/FluidifyAI/Regen/issues) or send a PR — the generic webhook covers most tools today.
 
 ---
 

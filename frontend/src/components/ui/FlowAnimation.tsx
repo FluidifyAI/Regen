@@ -5,6 +5,8 @@ import { Stream } from './flow/Stream'
 import { SourcePools } from './flow/SourcePools'
 import { Nexus } from './flow/Nexus'
 import { AIAgents } from './flow/AIAgents'
+import { Resolution } from './flow/Resolution'
+import { Axolotl } from './flow/Axolotl'
 
 export function FlowAnimation() {
   const ref = useRef<HTMLDivElement>(null)
@@ -44,6 +46,8 @@ export function FlowAnimation() {
             <SourcePools />
             <Nexus />
             <AIAgents />
+            <Resolution />
+            <Axolotl />
           </>
         )}
       </svg>

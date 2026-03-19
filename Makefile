@@ -1,4 +1,4 @@
-.PHONY: help dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install teams-app-package helm-deps helm-lint helm-template helm-test
+.PHONY: help dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -22,7 +22,6 @@ help:
 	@echo "  build        Build frontend + copy into backend/ui/dist + compile Go binary"
 	@echo "  build-frontend  Build frontend bundle only (frontend/dist + backend/ui/dist)"
 	@echo "  docker       Build production Docker image (single binary, embedded frontend)"
-	@echo "  teams-app-package  Generate Teams bot app zip for sideloading"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  down         Stop and remove all containers"
@@ -136,8 +135,6 @@ docker:
 	@echo ""
 	@echo "Run: docker run -p 8080:8080 fluidify-regen"
 
-teams-app-package:
-	@./scripts/teams-app-package.sh
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 

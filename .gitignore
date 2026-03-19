@@ -52,14 +52,12 @@ deploy/helm/fluidify-regen/charts/
 backend/ui/dist/*
 !backend/ui/dist/.gitkeep
 
-# Ignore images and reference assets
-/ref/
+# Internal docs, assets, dev tooling — local only, never pushed to remote
+/.internal/
+/scripts/
+/test-infra/
 /docs/
-/ui-decision/
-/assets-per/
-
-# Internal strategy docs
-/PRODUCT-STRATEGY.md
+/ref/
 
 # Generated artifacts
 *.zip

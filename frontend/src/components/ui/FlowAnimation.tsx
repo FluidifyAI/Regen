@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { useInView } from 'framer-motion'
 import { CANVAS, COLORS } from './flow/constants'
 import { Stream } from './flow/Stream'
+import { SourcePools } from './flow/SourcePools'
 
 export function FlowAnimation() {
   const ref = useRef<HTMLDivElement>(null)
@@ -35,7 +36,12 @@ export function FlowAnimation() {
           </filter>
         </defs>
 
-        {isInView && <Stream />}
+        {isInView && (
+          <>
+            <Stream />
+            <SourcePools />
+          </>
+        )}
       </svg>
     </div>
   )

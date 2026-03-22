@@ -44,6 +44,11 @@ type AIService interface {
 	// EnhanceIncidentDraft converts a rough user brief into a polished incident
 	// title and summary. Returns structured title + summary strings.
 	EnhanceIncidentDraft(ctx context.Context, brief string) (title, summary string, err error)
+
+	// AnswerQuestion answers a natural-language question asked in a Slack channel.
+	// postMortems maps "INC-NNN" to the full post-mortem markdown for that incident.
+	// Returns a Slack-formatted reply (mrkdwn).
+	AnswerQuestion(ctx context.Context, question string, current *models.Incident, similar []models.Incident, postMortems map[string]string) (string, error)
 }
 
 // NewAIService creates a reloadable AIService. If apiKey is empty the service
@@ -360,6 +365,70 @@ func extractTimelineText(e models.TimelineEntry) string {
 		}
 	}
 	return strings.Join(parts, " ")
+}
+
+func (s *aiService) AnswerQuestion(ctx context.Context, question string, current *models.Incident, similar []models.Incident, postMortems map[string]string) (string, error) {
+	s.mu.RLock()
+	client := s.client
+	s.mu.RUnlock()
+	if client == nil {
+		return "AI features are not configured. Add an OpenAI API key in Settings → System.", nil
+	}
+	messages := []openai.ChatMessage{
+		{Role: "system", Content: buildAnswerQuestionSystemPrompt()},
+		{Role: "user", Content: buildAnswerQuestionPrompt(question, current, similar, postMortems)},
+	}
+	reply, err := client.Complete(ctx, messages)
+	if err != nil {
+		return "", fmt.Errorf("AI answer question: %w", err)
+	}
+	return strings.TrimSpace(reply), nil
+}
+
+func buildAnswerQuestionSystemPrompt() string {
+	return `You are Fluidify Regen, an AI incident management assistant embedded in Slack. You help on-call engineers during live incidents by answering questions concisely and accurately. Use Slack mrkdwn formatting (bold with *text*, code with backticks). Never fabricate details. If unsure, say so. Keep responses under 200 words.`
+}
+
+func buildAnswerQuestionPrompt(question string, current *models.Incident, similar []models.Incident, postMortems map[string]string) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("Current incident: *INC-%d* \u2014 %s\nStatus: %s | Severity: %s\n",
+		current.IncidentNumber, current.Title, current.Status, current.Severity))
+	if current.Summary != "" {
+		b.WriteString(fmt.Sprintf("Summary: %s\n", current.Summary))
+	}
+	b.WriteString("\n")
+	if len(similar) > 0 {
+		b.WriteString(fmt.Sprintf("Recent incidents (%d in past 90 days):\n", len(similar)))
+		for _, inc := range similar {
+			duration := "ongoing"
+			if inc.ResolvedAt != nil {
+				duration = fmt.Sprintf("MTTR %.0f min", inc.ResolvedAt.Sub(inc.TriggeredAt).Minutes())
+			}
+			hasPM := ""
+			if _, ok := postMortems[fmt.Sprintf("INC-%d", inc.IncidentNumber)]; ok {
+				hasPM = " [has post-mortem]"
+			}
+			b.WriteString(fmt.Sprintf("\u2022 INC-%d: %s (%s, %s)%s\n", inc.IncidentNumber, inc.Title, inc.Severity, duration, hasPM))
+		}
+		b.WriteString("\n")
+	} else {
+		b.WriteString("No similar recent incidents found.\n\n")
+	}
+	// Include full post-mortem content for any incidents that have one
+	if len(postMortems) > 0 {
+		b.WriteString("--- Post-Mortem Reports ---\n")
+		for incRef, pmContent := range postMortems {
+			// Truncate to ~2000 chars to stay within token budget
+			truncated := pmContent
+			if len(truncated) > 2000 {
+				truncated = truncated[:2000] + "... [truncated]"
+			}
+			b.WriteString(fmt.Sprintf("\nPost-mortem for %s:\n%s\n", incRef, truncated))
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString(fmt.Sprintf("Question from engineer: %s", question))
+	return b.String()
 }
 
 func buildEnhancePrompt(content string) string {

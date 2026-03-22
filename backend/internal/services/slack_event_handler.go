@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -37,7 +38,14 @@ type SlackEventHandler struct {
 	incidentService IncidentService
 	chatService     ChatService
 	userRepo        repository.UserRepository
+	pmRepo          repository.PostMortemRepository
 	botUserID       string
+	aiService       AIService // optional, nil if AI not configured
+}
+
+// SetAIService wires an optional AI service into the handler for @mention responses.
+func (h *SlackEventHandler) SetAIService(ai AIService) {
+	h.aiService = ai
 }
 
 // NewSlackEventHandler creates a Socket Mode event handler.
@@ -48,6 +56,7 @@ func NewSlackEventHandler(
 	incidentService IncidentService,
 	chatService ChatService,
 	userRepo repository.UserRepository,
+	pmRepo repository.PostMortemRepository,
 ) (*SlackEventHandler, error) {
 	if appToken == "" {
 		return nil, fmt.Errorf("SLACK_APP_TOKEN is required for Socket Mode")
@@ -81,6 +90,7 @@ func NewSlackEventHandler(
 		incidentService: incidentService,
 		chatService:     chatService,
 		userRepo:        userRepo,
+		pmRepo:          pmRepo,
 		botUserID:       auth.UserID,
 	}, nil
 }
@@ -98,16 +108,20 @@ func (h *SlackEventHandler) Start() {
 
 // handleInteraction handles block action button clicks and modal submissions.
 func (h *SlackEventHandler) handleInteraction(evt socketmode.Event) {
+	slog.Info("slack interaction event received", "data_type", fmt.Sprintf("%T", evt.Data))
 	callback, ok := evt.Data.(slack.InteractionCallback)
 	if !ok {
+		slog.Warn("slack interaction: unexpected data type, skipping")
 		h.client.Ack(*evt.Request)
 		return
 	}
 	h.client.Ack(*evt.Request)
+	slog.Info("slack interaction callback", "type", callback.Type, "user_id", callback.User.ID, "channel", callback.Channel.ID)
 
 	switch callback.Type {
 	case slack.InteractionTypeBlockActions:
 		for _, action := range callback.ActionCallback.BlockActions {
+			slog.Info("slack block action", "action_id", action.ActionID, "value", action.Value)
 			switch action.ActionID {
 			case "acknowledge":
 				h.handleStatusButton(callback, action, models.IncidentStatusAcknowledged)
@@ -399,6 +413,8 @@ func (h *SlackEventHandler) handleEventsAPI(evt socketmode.Event) {
 	switch ev := eventsAPIEvent.InnerEvent.Data.(type) {
 	case *slackevents.MessageEvent:
 		h.handleChannelMessage(ev)
+	case *slackevents.AppMentionEvent:
+		go h.handleAppMention(ev)
 	default:
 		slog.Warn("slack events api: unhandled inner event type", "type", eventsAPIEvent.InnerEvent.Type)
 	}
@@ -887,6 +903,103 @@ func parseSlackMention(s string) string {
 		return inner
 	}
 	return ""
+}
+
+// handleAppMention responds to @Fluidify Regen mentions in Slack channels.
+// If the channel is an incident channel, it uses AI to answer the question with context.
+func (h *SlackEventHandler) handleAppMention(ev *slackevents.AppMentionEvent) {
+	slog.Info("slack app mention received", "channel", ev.Channel, "user", ev.User, "text", ev.Text)
+
+	// Strip the bot mention from the question text (e.g. "<@U0AN37EM8HY> question" → "question")
+	question := strings.TrimSpace(ev.Text)
+	if idx := strings.Index(question, ">"); idx != -1 {
+		question = strings.TrimSpace(question[idx+1:])
+	}
+	if question == "" {
+		question = "What is the status of this incident?"
+	}
+
+	// Look up incident linked to this channel
+	incident, err := h.incidentService.GetIncidentBySlackChannelID(ev.Channel)
+	if err != nil || incident == nil {
+		// Not an incident channel — give a generic help response
+		h.postToThread(ev.Channel, ev.TimeStamp, "*Fluidify Regen* here! I respond to questions in incident channels. Use `/incident new` to create an incident.")
+		return
+	}
+
+	// Tell the user we're thinking
+	thinkingTS, _ := h.postToThread(ev.Channel, ev.TimeStamp, ":hourglass_flowing_sand: Checking incident history...")
+
+	// Find similar recent incidents (last 90 days)
+	ninetyDaysAgo := time.Now().UTC().AddDate(0, 0, -90)
+	recentIncidents, _, _ := h.incidentService.ListIncidents(
+		repository.IncidentFilters{StartDate: &ninetyDaysAgo},
+		repository.Pagination{Page: 1, PageSize: 20},
+	)
+	// Filter out the current incident; collect post-mortems for similar ones
+	var similar []models.Incident
+	postMortems := map[string]string{} // incident_number string → post-mortem content
+	for _, inc := range recentIncidents {
+		if inc.ID == incident.ID {
+			continue
+		}
+		similar = append(similar, inc)
+		if h.pmRepo != nil {
+			if pm, err := h.pmRepo.GetByIncidentID(inc.ID); err == nil && pm != nil && pm.Content != "" {
+				postMortems[fmt.Sprintf("INC-%d", inc.IncidentNumber)] = pm.Content
+			}
+		}
+	}
+	// Also check if the current incident has a post-mortem
+	if h.pmRepo != nil {
+		if pm, err := h.pmRepo.GetByIncidentID(incident.ID); err == nil && pm != nil && pm.Content != "" {
+			postMortems[fmt.Sprintf("INC-%d (current)", incident.IncidentNumber)] = pm.Content
+		}
+	}
+
+	// Generate AI answer
+	var reply string
+	if h.aiService != nil && h.aiService.IsEnabled() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		answer, err := h.aiService.AnswerQuestion(ctx, question, incident, similar, postMortems)
+		if err != nil {
+			slog.Warn("AI answer question failed", "error", err)
+			reply = fmt.Sprintf(":warning: AI error: %s", err.Error())
+		} else {
+			reply = answer
+		}
+	} else {
+		// No AI â give a factual summary from incident data
+		reply = fmt.Sprintf("*INC-%d: %s*\nStatus: `%s` | Severity: `%s`\n\nFound *%d* recent incidents in the past 90 days. Configure an OpenAI API key in Settings to enable AI-powered answers.",
+			incident.IncidentNumber, incident.Title, incident.Status, incident.Severity, len(similar))
+	}
+
+	// Replace the "thinking" message or post a new thread reply
+	if thinkingTS != "" {
+		_ = h.deleteMessage(ev.Channel, thinkingTS)
+	}
+	h.postToThread(ev.Channel, ev.TimeStamp, reply)
+}
+
+// postToThread posts a message as a reply in a thread and returns the message timestamp.
+func (h *SlackEventHandler) postToThread(channelID, threadTS, text string) (string, error) {
+	api := h.client.Client
+	_, msgTS, err := api.PostMessage(
+		channelID,
+		slack.MsgOptionText(text, false),
+		slack.MsgOptionTS(threadTS),
+	)
+	if err != nil {
+		slog.Warn("failed to post thread reply", "channel", channelID, "error", err)
+	}
+	return msgTS, err
+}
+
+// deleteMessage deletes a message by channel and timestamp.
+func (h *SlackEventHandler) deleteMessage(channelID, msgTS string) error {
+	_, _, err := h.client.Client.DeleteMessage(channelID, msgTS)
+	return err
 }
 
 // listen processes events from the Socket Mode channel.

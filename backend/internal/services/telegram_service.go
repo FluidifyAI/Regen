@@ -138,14 +138,40 @@ func FetchTelegramChatID(ctx context.Context, botToken string) (string, string, 
 		return "", "", fmt.Errorf("failed to fetch updates — ensure the bot token is valid")
 	}
 
-	// Find most recent group/supergroup chat
+	// Prefer group/supergroup; fall back to private chat for personal setups
+	var privateID, privateName string
 	for i := len(updatesResp.Result) - 1; i >= 0; i-- {
 		chat := updatesResp.Result[i].Message.Chat
 		if chat.Type == "group" || chat.Type == "supergroup" {
 			return fmt.Sprintf("%d", chat.ID), chat.Title, nil
 		}
+		if chat.Type == "private" && privateID == "" {
+			privateID = fmt.Sprintf("%d", chat.ID)
+			privateName = chat.Title
+			if privateName == "" {
+				privateName = "Private chat with bot"
+			}
+		}
 	}
-	return "", "", fmt.Errorf("no group messages found — add the bot to a group and send a message first")
+	if privateID != "" {
+		return privateID, privateName, nil
+	}
+	return "", "", fmt.Errorf("no messages found — send any message to the bot (or add it to a group and send a message there)")
+}
+
+
+// SendAISummary posts the AI-generated summary for an incident to Telegram.
+func (s *TelegramService) SendAISummary(incident *models.Incident, summary string) error {
+	emoji := severityEmoji(string(incident.Severity))
+	text := fmt.Sprintf(
+		"%s <b>INC-%d \u2014 AI Summary</b>\n\n%s\n\n<a href=\"\u0025s/incidents/\u0025s\">View incident</a>",
+		emoji,
+		incident.IncidentNumber,
+		telegramEscapeHTML(summary),
+		s.appURL,
+		incident.ID.String(),
+	)
+	return s.sendMessage(text)
 }
 
 // SetTelegramService wires the optional Telegram service into the incident service.

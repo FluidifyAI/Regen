@@ -1,3 +1,10 @@
+# Mockup preview files — local only, never committed
+frontend/mockups/
+frontend/mockup.html
+frontend/src/mockup-main.tsx
+frontend/src/components/ui/IncidentMockup.tsx
+frontend/src/pages/MockupPreviewPage.tsx
+
 # Environment files
 .env
 .env.local

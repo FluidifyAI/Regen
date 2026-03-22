@@ -403,10 +403,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 
 			// Telegram config (notification gateway)
 			settingsGroup.GET("/telegram", handlers.GetTelegramConfig(telegramConfigRepo))
-			settingsGroup.POST("/telegram", handlers.SaveTelegramConfig(telegramConfigRepo))
+			settingsGroup.POST("/telegram", handlers.SaveTelegramConfig(telegramConfigRepo, incidentSvc, cfg.FrontendURL))
 			settingsGroup.POST("/telegram/test", handlers.TestTelegramConfig())
 			settingsGroup.POST("/telegram/fetch-chat-id", handlers.FetchTelegramChatID())
-			settingsGroup.DELETE("/telegram", handlers.DeleteTelegramConfig(telegramConfigRepo))
+			settingsGroup.DELETE("/telegram", handlers.DeleteTelegramConfig(telegramConfigRepo, incidentSvc))
 
 			// System settings (OPE-26/27)
 			settingsGroup.GET("/system", handlers.GetSystemSettings(systemSettingsRepo, aiSvc))

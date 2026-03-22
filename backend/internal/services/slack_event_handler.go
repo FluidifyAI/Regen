@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -979,10 +980,26 @@ func (h *SlackEventHandler) handleAppMention(ev *slackevents.AppMentionEvent) {
 	if thinkingTS != "" {
 		_ = h.deleteMessage(ev.Channel, thinkingTS)
 	}
-	h.postToThread(ev.Channel, ev.TimeStamp, reply)
+	h.postToThread(ev.Channel, ev.TimeStamp, sanitizeForSlack(reply))
 }
 
 // postToThread posts a message as a reply in a thread and returns the message timestamp.
+// sanitizeForSlack converts markdown to Slack mrkdwn and strips unsupported syntax.
+var (
+	reHeaderPattern  = regexp.MustCompile(`(?m)^#{1,6}\s+`)          // ## Heading → stripped prefix
+	reBoldDouble     = regexp.MustCompile(`\*{3}([^*]+)\*{3}`)        // ***text*** → *text*
+	reBoldTriple     = regexp.MustCompile(`\*{2}([^*]+)\*{2}`)        // **text** → *text*
+	reHorizRule      = regexp.MustCompile(`(?m)^[-*]{3,}\s*$`)        // --- or *** on its own line
+)
+
+func sanitizeForSlack(text string) string {
+	text = reHorizRule.ReplaceAllString(text, "")
+	text = reBoldDouble.ReplaceAllString(text, "*$1*")
+	text = reBoldTriple.ReplaceAllString(text, "*$1*")
+	text = reHeaderPattern.ReplaceAllString(text, "*")
+	return strings.TrimSpace(text)
+}
+
 func (h *SlackEventHandler) postToThread(channelID, threadTS, text string) (string, error) {
 	api := h.client.Client
 	_, msgTS, err := api.PostMessage(

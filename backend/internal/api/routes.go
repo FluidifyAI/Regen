@@ -116,11 +116,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			incidentSvc,
 			chatService,
 			userRepo,
+			pmRepo,
 		)
 		if err != nil {
 			slog.Error("failed to initialize slack socket mode", "error", err)
 			slog.Warn("bidirectional Slack sync disabled - Slack will be one-way only")
 		} else {
+			eventHandler.SetAIService(aiSvc)
 			eventHandler.Start()
 		}
 	}

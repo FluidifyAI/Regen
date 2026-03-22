@@ -930,13 +930,18 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 
 	// Post Telegram incident-created notification asynchronously
 	if s.telegramSvc != nil {
+		slog.Info("telegram: sending incident created notification", "incident_id", reloadedIncident.ID, "incident_number", reloadedIncident.IncidentNumber)
 		go func() {
 			defer recoverAsyncPanic("sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
 			if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
 				slog.Error("telegram: failed to send incident created notification",
 					"incident_id", reloadedIncident.ID, "error", err)
+			} else {
+				slog.Info("telegram: incident created notification sent", "incident_number", reloadedIncident.IncidentNumber)
 			}
 		}()
+	} else {
+		slog.Warn("telegram: service is nil, skipping notification", "incident_id", reloadedIncident.ID)
 	}
 
 	return reloadedIncident, nil
@@ -1147,6 +1152,8 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 			defer recoverAsyncPanic("postStatusUpdateToTelegram", "incident_id", incident.ID)
 			if err := s.telegramSvc.SendStatusUpdate(incident, string(params.Status)); err != nil {
 				slog.Error("telegram: failed to post status update", "incident_id", incident.ID, "error", err)
+			} else {
+				slog.Info("telegram: status update sent", "incident_number", incident.IncidentNumber, "status", params.Status)
 			}
 		}()
 	}
@@ -1417,6 +1424,19 @@ func (s *incidentService) GenerateAISummary(incident *models.Incident) (string, 
 	if err := s.incidentRepo.UpdateAISummary(incident.ID, summary, generatedAt); err != nil {
 		slog.Error("failed to persist AI summary", "incident_id", incident.ID, "error", err)
 		// Return summary anyway — don't fail the request just because persistence failed
+	}
+
+	// Send AI summary to Telegram asynchronously
+	if s.telegramSvc != nil {
+		summaryCopy := summary
+		go func() {
+			defer recoverAsyncPanic("sendAISummaryToTelegram", "incident_id", incident.ID)
+			if err := s.telegramSvc.SendAISummary(incident, summaryCopy); err != nil {
+				slog.Error("telegram: failed to send AI summary", "incident_id", incident.ID, "error", err)
+			} else {
+				slog.Info("telegram: AI summary sent", "incident_number", incident.IncidentNumber)
+			}
+		}()
 	}
 
 	return summary, nil

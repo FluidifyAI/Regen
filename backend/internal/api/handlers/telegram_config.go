@@ -45,8 +45,8 @@ func GetTelegramConfig(repo repository.TelegramConfigRepository) gin.HandlerFunc
 	}
 }
 
-// SaveTelegramConfig stores bot token and chat ID.
-func SaveTelegramConfig(repo repository.TelegramConfigRepository) gin.HandlerFunc {
+// SaveTelegramConfig stores bot token and chat ID and hot-reloads the in-memory service.
+func SaveTelegramConfig(repo repository.TelegramConfigRepository, incidentSvc services.IncidentService, appURL string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			BotToken string `json:"bot_token" binding:"required"`
@@ -76,6 +76,11 @@ func SaveTelegramConfig(repo repository.TelegramConfigRepository) gin.HandlerFun
 			slog.Error("failed to save telegram config", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save telegram config"})
 			return
+		}
+		// Hot-reload: wire the new service into the incident service without restart
+		if tgSvc := services.NewTelegramServiceFromConfig(cfg, appURL); tgSvc != nil {
+			services.SetTelegramService(incidentSvc, tgSvc)
+			slog.Info("telegram service hot-reloaded", "chat_id", cfg.ChatID)
 		}
 		c.JSON(http.StatusOK, toTelegramConfigResponse(cfg))
 	}
@@ -122,13 +127,15 @@ func FetchTelegramChatID() gin.HandlerFunc {
 	}
 }
 
-// DeleteTelegramConfig removes the Telegram integration.
-func DeleteTelegramConfig(repo repository.TelegramConfigRepository) gin.HandlerFunc {
+// DeleteTelegramConfig removes the Telegram integration and disables the in-memory service.
+func DeleteTelegramConfig(repo repository.TelegramConfigRepository, incidentSvc services.IncidentService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if err := repo.Delete(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete telegram config"})
 			return
 		}
+		services.SetTelegramService(incidentSvc, nil)
+		slog.Info("telegram service disabled")
 		c.JSON(http.StatusOK, gin.H{"message": "telegram integration removed"})
 	}
 }

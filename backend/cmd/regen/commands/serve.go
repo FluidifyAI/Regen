@@ -234,7 +234,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 			MultiChat:     multiChat,
 			UserRepo:      userRepo,
 			FrontendURL:   cfg.FrontendURL,
-			WaitDuration:  60 * time.Second,
+			WaitDuration:  agents.DefaultWaitDuration,
 		})
 
 		coord := coordinator.New(redis.Client, pmAgent)

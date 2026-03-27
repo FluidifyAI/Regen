@@ -795,7 +795,7 @@ func generateSlug(title string) string {
 // randomHex returns n random bytes encoded as a hex string (2n chars).
 func randomHex(n int) string {
 	b := make([]byte, n)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
@@ -1707,6 +1707,6 @@ func (s *incidentService) postStatusUpdateToTeams(incident *models.Incident, pre
 	// Archive on terminal status (best-effort rename via Graph API — known limitation)
 	isTerminal := newStatus == models.IncidentStatusResolved || newStatus == models.IncidentStatusCanceled
 	if isTerminal && incident.TeamsChannelID != nil {
-		s.teamsSvc.ArchiveChannel(*incident.TeamsChannelID)
+		_ = s.teamsSvc.ArchiveChannel(*incident.TeamsChannelID)
 	}
 }

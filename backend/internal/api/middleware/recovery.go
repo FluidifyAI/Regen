@@ -40,7 +40,7 @@ func logPanic(err interface{}) {
 	}
 
 	if logJSON, marshalErr := json.Marshal(errorLog); marshalErr == nil {
-		gin.DefaultErrorWriter.Write(logJSON)
-		gin.DefaultErrorWriter.Write([]byte("\n"))
+		_, _ = gin.DefaultErrorWriter.Write(logJSON)
+		_, _ = gin.DefaultErrorWriter.Write([]byte("\n"))
 	}
 }

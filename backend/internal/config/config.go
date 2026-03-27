@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -153,25 +152,3 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 	return defaultValue
 }
 
-// getEnvAsSlice parses a comma-separated environment variable into a string slice.
-// Trims whitespace from each value and filters out empty strings.
-func getEnvAsSlice(key string, defaultValue []string) []string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-
-	parts := strings.Split(value, ",")
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-
-	if len(result) == 0 {
-		return defaultValue
-	}
-	return result
-}

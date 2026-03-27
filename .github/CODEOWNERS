@@ -1,0 +1,14 @@
+# CODEOWNERS — auto-request review from maintainers on PRs touching these paths.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default: all changes require maintainer review
+* @FluidifyAI/maintainers
+
+# Database migrations are high-risk — extra care
+/backend/migrations/ @FluidifyAI/maintainers
+
+# Helm chart and deployment configs
+/deploy/ @FluidifyAI/maintainers
+
+# Security-sensitive middleware
+/backend/internal/api/middleware/ @FluidifyAI/maintainers

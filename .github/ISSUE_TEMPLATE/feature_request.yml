@@ -1,0 +1,51 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: "Check the [roadmap in CLAUDE.md](../CLAUDE.md) before filing — your feature may already be planned."
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      placeholder: Describe the pain point. e.g. "I have to switch between 3 tools to see which team is on-call when an alert fires."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      placeholder: What would you like to see built?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Have you tried working around this? What other approaches exist?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Alert routing
+        - Incident lifecycle
+        - On-call scheduling
+        - Escalation policies
+        - Slack integration
+        - Microsoft Teams integration
+        - Telegram integration
+        - AI agents
+        - SSO / Auth
+        - Status page
+        - API
+        - UI / Frontend
+        - Kubernetes / deployment
+        - Other
+  - type: checkboxes
+    id: willing
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to open a PR for this

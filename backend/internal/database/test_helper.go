@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS users (
 	agent_type        TEXT,
 	active            INTEGER NOT NULL DEFAULT 1,
 	slack_user_id     TEXT,
+	teams_user_id     TEXT,
 	role              TEXT NOT NULL DEFAULT 'member',
 	last_login_at     DATETIME,
 	created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

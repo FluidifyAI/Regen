@@ -924,7 +924,7 @@ func (h *SlackEventHandler) handleAppMention(ev *slackevents.AppMentionEvent) {
 	incident, err := h.incidentService.GetIncidentBySlackChannelID(ev.Channel)
 	if err != nil || incident == nil {
 		// Not an incident channel — give a generic help response
-		h.postToThread(ev.Channel, ev.TimeStamp, "*Fluidify Regen* here! I respond to questions in incident channels. Use `/incident new` to create an incident.")
+		_, _ = h.postToThread(ev.Channel, ev.TimeStamp, "*Fluidify Regen* here! I respond to questions in incident channels. Use `/incident new` to create an incident.")
 		return
 	}
 
@@ -980,7 +980,7 @@ func (h *SlackEventHandler) handleAppMention(ev *slackevents.AppMentionEvent) {
 	if thinkingTS != "" {
 		_ = h.deleteMessage(ev.Channel, thinkingTS)
 	}
-	h.postToThread(ev.Channel, ev.TimeStamp, sanitizeForSlack(reply))
+	_, _ = h.postToThread(ev.Channel, ev.TimeStamp, sanitizeForSlack(reply))
 }
 
 // postToThread posts a message as a reply in a thread and returns the message timestamp.

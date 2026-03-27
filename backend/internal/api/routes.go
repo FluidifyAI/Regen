@@ -320,7 +320,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// Grouping Rules (v0.3)
 		protected.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))
 		protected.GET("/grouping-rules/:id", handlers.GetGroupingRule(groupingRuleRepo))
-		onGroupingRuleMutate := func() { groupingEngine.RefreshRules() }
+		onGroupingRuleMutate := func() {
+			if err := groupingEngine.RefreshRules(); err != nil {
+				slog.Warn("grouping engine refresh failed", "error", err)
+			}
+		}
 		protected.POST("/grouping-rules", handlers.CreateGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
 		protected.PUT("/grouping-rules/:id", handlers.UpdateGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
 		protected.DELETE("/grouping-rules/:id", handlers.DeleteGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
@@ -328,7 +332,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// Routing Rules (v0.3)
 		protected.GET("/routing-rules", handlers.ListRoutingRules(routingRuleRepo))
 		protected.GET("/routing-rules/:id", handlers.GetRoutingRule(routingRuleRepo))
-		onRoutingRuleMutate := func() { routingEngine.RefreshRules() }
+		onRoutingRuleMutate := func() {
+			if err := routingEngine.RefreshRules(); err != nil {
+				slog.Warn("routing engine refresh failed", "error", err)
+			}
+		}
 		// Mutations are admin-only — members can view but not configure alert routing.
 		protected.POST("/routing-rules", middleware.RequireAdmin(), handlers.CreateRoutingRule(routingRuleRepo, onRoutingRuleMutate))
 		protected.PUT("/routing-rules/reorder", middleware.RequireAdmin(), handlers.ReorderRoutingRules(routingRuleRepo, onRoutingRuleMutate))

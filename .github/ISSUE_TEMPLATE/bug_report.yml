@@ -1,0 +1,71 @@
+name: Bug Report
+description: Something isn't working as expected
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "Before filing, please search existing issues. For security vulnerabilities, see [SECURITY.md](../SECURITY.md) instead."
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "e.g. v1.0.0 or git sha (run: git rev-parse --short HEAD)"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation method
+      options:
+        - Docker Compose
+        - Kubernetes / Helm
+        - Source build
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: describe
+    attributes:
+      label: Describe the bug
+      placeholder: A clear description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What did you expect to happen?
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Backend logs, browser console errors, or screenshots.
+      render: shell
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Alert ingestion / routing
+        - Incident lifecycle
+        - On-call scheduling
+        - Escalation policies
+        - Slack integration
+        - Microsoft Teams integration
+        - Telegram integration
+        - AI agents (summarization / post-mortem)
+        - SSO / SAML
+        - API
+        - UI / Frontend
+        - Docker / Kubernetes deployment
+        - Other

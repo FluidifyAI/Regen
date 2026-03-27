@@ -11,7 +11,7 @@ Alert routing + incident lifecycle + on-call scheduling + AI post-mortems. One s
 
 ---
 
-![Fluidify Regen — Incident Detail](docs/screenshot.png)
+![Fluidify Regen — Incident Detail](.github/assets/screenshot.png)
 
 ---
 

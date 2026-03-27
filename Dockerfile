@@ -24,7 +24,7 @@ RUN npm run build
 # Output: /app/dist/
 
 # ── Stage 2: Build the Go binary with embedded frontend ──────────────────────
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.26-alpine AS backend-builder
 
 WORKDIR /app
 

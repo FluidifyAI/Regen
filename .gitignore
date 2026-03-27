@@ -75,4 +75,5 @@ backend/ui/dist/*
 .serena/
 
 # Vite cache
-frontend/.vite/
+frontend/.vite//backend/openincident
+/backend/regen

@@ -33,7 +33,7 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           working-directory: backend
           version: latest

@@ -58,7 +58,7 @@ func Connect(cfg Config) error {
 // connectOnce attempts a single database connection
 func connectOnce(cfg Config) (*gorm.DB, error) {
 	// Configure GORM logger
-	gormLogger := logger.Default
+	var gormLogger logger.Interface
 	if cfg.LogLevel == "debug" {
 		gormLogger = logger.Default.LogMode(logger.Info)
 	} else {

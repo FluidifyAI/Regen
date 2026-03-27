@@ -14,11 +14,11 @@ import (
 )
 
 const minIncidentDuration = 5 * time.Minute
-const defaultWaitDuration = 60 * time.Second
+const DefaultWaitDuration = 60 * time.Second
 
 // PostMortemAgentDeps holds all dependencies for the Post-Mortem Agent.
 // WaitDuration is configurable so tests can set it to 0 (skip the wait).
-// Production callers pass defaultWaitDuration explicitly.
+// Production callers pass DefaultWaitDuration explicitly.
 type PostMortemAgentDeps struct {
 	AgentUserID  uuid.UUID
 	AISvc        interface{ IsEnabled() bool }
@@ -45,7 +45,7 @@ type PostMortemAgent struct {
 
 // NewPostMortemAgent creates a PostMortemAgent.
 // WaitDuration == 0 means skip the wait entirely (test/no-wait mode).
-// Production code passes defaultWaitDuration explicitly.
+// Production code passes DefaultWaitDuration explicitly.
 func NewPostMortemAgent(deps PostMortemAgentDeps) *PostMortemAgent {
 	return &PostMortemAgent{deps: deps}
 }

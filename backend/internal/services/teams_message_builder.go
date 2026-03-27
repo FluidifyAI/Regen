@@ -73,30 +73,6 @@ func teamsStatusUpdateCard(incident *models.Incident, changedBy string) map[stri
 	}
 }
 
-// teamsAlertLinkedCard builds a card for when an alert is linked to an incident.
-func teamsAlertLinkedCard(alert *models.Alert) map[string]interface{} {
-	return map[string]interface{}{
-		"$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-		"type":    "AdaptiveCard",
-		"version": "1.4",
-		"body": []map[string]interface{}{
-			{
-				"type":   "TextBlock",
-				"text":   fmt.Sprintf("🔔 Alert linked: **%s**", alert.Title),
-				"wrap":   true,
-				"weight": "Bolder",
-			},
-			{
-				"type": "FactSet",
-				"facts": []map[string]interface{}{
-					{"title": "Source", "value": alert.Source},
-					{"title": "Severity", "value": alert.Severity},
-					{"title": "Description", "value": alert.Description},
-				},
-			},
-		},
-	}
-}
 
 // teamsDMCard returns an Adaptive Card for a proactive on-call DM.
 // Uses OpenUrl actions so responders can act even outside the Teams channel context.
@@ -115,7 +91,7 @@ func teamsDMCard(incident *models.Incident, appURL string) map[string]interface{
 				"type":   "TextBlock",
 				"size":   "Medium",
 				"weight": "Bolder",
-				"text":   fmt.Sprintf("🚨 You're on-call — new incident"),
+				"text":   "🚨 You're on-call — new incident",
 				"wrap":   true,
 			},
 			{

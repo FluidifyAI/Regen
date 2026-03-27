@@ -1,0 +1,38 @@
+# golangci-lint configuration for Fluidify Regen
+# https://golangci-lint.run/usage/configuration/
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - typecheck
+
+linters-settings:
+  errcheck:
+    # Ignore errors from fmt.Print* (common in non-critical output paths)
+    exclude-functions:
+      - fmt.Print
+      - fmt.Println
+      - fmt.Printf
+      - fmt.Fprint
+      - fmt.Fprintln
+      - fmt.Fprintf
+
+issues:
+  exclude-rules:
+    # Test files: unchecked errors in test helpers (w.Write, json.Encode, sqlDB.Exec) are
+    # standard practice — test failures surface the real problem, not the write error.
+    - path: "_test\\.go"
+      linters:
+        - errcheck
+    # io.Writer.Write in error/recovery handlers is intentionally best-effort.
+    - text: "Error return value of .*(Write|Fprintf|Fprintln).*is not checked"
+      linters:
+        - errcheck
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly

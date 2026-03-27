@@ -330,7 +330,7 @@ func (s *alertService) normalizedAlertToModel(normalized *webhooks.NormalizedAle
 	// Convert RawPayload json.RawMessage to JSONB
 	rawPayload := make(models.JSONB)
 	if len(normalized.RawPayload) > 0 {
-		json.Unmarshal(normalized.RawPayload, &rawPayload)
+		if err := json.Unmarshal(normalized.RawPayload, &rawPayload); err != nil { slog.Warn("failed to unmarshal raw payload", "error", err) }
 	}
 
 	return &models.Alert{

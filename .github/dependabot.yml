@@ -11,11 +11,20 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Ignore major version bumps on frontend packages — they routinely have
+    # breaking changes (e.g. tailwindcss 3→4, typescript 5→6) that need manual migration.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "monthly"
+    # Ignore major base image bumps (e.g. node:20→25, alpine:3→4) — test manually.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

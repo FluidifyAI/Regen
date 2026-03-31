@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: light)" srcset=".github/assets/logo-dark.svg">
-    <img src=".github/assets/logo-light.svg" alt="Fluidify" width="400">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/logo-light.svg">
+    <img src=".github/assets/logo-dark.svg" alt="Fluidify" width="400">
   </picture>
 </p>
 

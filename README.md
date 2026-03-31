@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <strong>Open-source incident management — self-hosted, agent-native, free forever.</strong>
+  Part of the <a href="https://fluidify.ai">Fluidify</a> open-source suite
 </p>
 
 <p align="center">
@@ -20,21 +20,50 @@
 
 ---
 
-> **Grafana OnCall was archived in March 2026.** Fluidify Regen is the drop-in successor.
+> **Grafana OnCall was archived in March 2026.** ~50,000 teams are looking for a self-hosted alternative.
+> PagerDuty costs $50/user/month — **$120,000/year** for a 200-person team. Fluidify Regen is free, forever.
 
 ---
 
-## Quick Start
+## Install
+
+Three ways to run — pick what fits your stack:
+
+### Docker (fastest)
+
+```bash
+docker pull ghcr.io/fluidifyai/regen:latest
+```
+
+Need the full stack? One command:
+
+```bash
+curl -O https://raw.githubusercontent.com/FluidifyAI/Regen/main/docker-compose.yml
+docker-compose up -d
+```
+
+Open **http://localhost:8080** — API and UI are ready. No configuration required to start receiving alerts.
+
+### Docker Compose (recommended for self-hosting)
 
 ```bash
 git clone https://github.com/FluidifyAI/Regen.git
 cd Regen
+cp .env.example .env   # edit as needed
 docker-compose up -d
 ```
 
-Open **http://localhost:8080** — the API and UI are ready. No configuration required to start receiving alerts.
+### Kubernetes (Helm)
 
-To connect Slack, Teams, or configure SSO, use the in-app setup wizard under **Settings → Integrations**.
+```bash
+helm install fluidify-regen deploy/helm/fluidify-regen \
+  --set ingress.host=incidents.your-domain.com \
+  --set postgresql.auth.password=<strong-password>
+```
+
+For production HA (external DB, Redis Sentinel, zero-downtime deploys), see [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
+> **Production-ready out of the box.** Fluidify Regen ships with a Kubernetes Helm chart, PostgreSQL HA support, Redis Sentinel, horizontal pod autoscaling, and rolling deploys with zero downtime. The same binary that runs in Docker Compose runs in a 3-region Kubernetes cluster.
 
 ### Send a test alert
 
@@ -53,7 +82,32 @@ curl -X POST http://localhost:8080/api/v1/webhooks/prometheus \
   }'
 ```
 
-An incident is created automatically. If Slack is configured, a channel appears within seconds.
+An incident is created automatically. If Slack is configured, a dedicated channel appears within seconds.
+
+---
+
+## Coming from Grafana OnCall?
+
+Grafana OnCall was archived in March 2026. Fluidify Regen is built to be the drop-in OSS successor — same self-hosted model, no SaaS lock-in.
+
+Point your Alertmanager at Regen and you're receiving alerts in minutes:
+
+```yaml
+# alertmanager.yml
+receivers:
+  - name: fluidify-regen
+    webhook_configs:
+      - url: http://your-regen-host:8080/api/v1/webhooks/prometheus
+```
+
+**One-click migration from Grafana OnCall** *(coming soon)* — import your on-call schedules, escalation policies, and routing rules with a single CLI command:
+
+```bash
+# Coming in v1.1
+regen migrate --from grafana-oncall --token <your-grafana-token>
+```
+
+> Want to help build this? [See the open issue →](https://github.com/FluidifyAI/Regen/issues)
 
 ---
 
@@ -78,27 +132,32 @@ An incident is created automatically. If Slack is configured, a channel appears 
 
 > SSO is free. Gating SSO behind a paid tier is user-hostile. We stay off [sso.tax](https://sso.tax).
 
+### What we're building next
+
+We're working toward fully autonomous incident response — AI agents that triage, correlate, and resolve before your on-call engineer's phone rings. Interested? **[Join the discussion →](https://github.com/FluidifyAI/Regen/discussions)** or **[pick up an open issue →](https://github.com/FluidifyAI/Regen/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)**
+
 ---
 
 ## AI Agents
 
-Fluidify Regen ships with AI agents that work autonomously during and after incidents. All agents use your own OpenAI key — your incident data never leaves your infrastructure.
+Fluidify ships with AI agents that work autonomously during and after incidents. Your OpenAI key, your infrastructure — incident data never leaves your stack.
 
-### Incident Summarization Agent
+### Incident Summarization
 
-Reads the full incident timeline and any linked Slack thread, then writes a concise summary of what happened, what was done, and current status. Useful for commanders joining mid-incident or for shift handoffs.
+Reads the full incident timeline and linked Slack thread, then writes a concise summary of what happened, what was done, and current status. Useful for commanders joining mid-incident or shift handoffs.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/incidents/INC-042/summarize \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-```json
-{
-  "summary": "Database replica lag exceeded 60s at 14:32 UTC, triggering alert. On-call engineer acknowledged at 14:38. Root cause identified as a long-running migration on the primary. Migration was killed at 14:51, replication caught up by 14:59. No data loss.",
-  "generated_at": "2024-01-15T15:02:00Z"
-}
-```
+### Historical Pattern Matching
+
+When an incident fires, Regen searches your full incident history for similar patterns — same service, same alert fingerprint, similar timeline signatures — and surfaces the match directly in Slack:
+
+> 🤖 **Regen:** This looks like INC-157 from November (Redis memory eviction, resolved in 18 min). [View timeline →]
+
+Engineers stop re-diagnosing problems they've already solved. Every incident makes the next one faster.
 
 ### Post-Mortem Agent
 
@@ -109,21 +168,21 @@ curl -X POST http://localhost:8080/api/v1/incidents/INC-042/postmortem/generate 
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-The draft appears in the UI immediately, ready to edit and publish.
-
 ### Handoff Digest
 
 Generates a shift-handoff briefing covering all open incidents, recent status changes, and pending action items — delivered to Slack or Teams at the start of each shift.
 
-### What makes this different
+### What's coming — the agent roadmap
 
-| | Fluidify Regen | PagerDuty AI | incident.io AI |
-|---|---|---|---|
-| BYO API key | ✅ | ❌ | ❌ |
-| Data stays on your infra | ✅ | ❌ | ❌ |
-| Custom post-mortem templates | ✅ | ❌ | ✅ |
-| Open source prompts | ✅ | ❌ | ❌ |
-| Cost | Your OpenAI bill | Bundled in seat price | Bundled in seat price |
+| Agent | What it does | Status |
+|---|---|---|
+| **Triage agent** | Calls Datadog, K8s, GitHub MCP — gathers context before you unlock your phone | 🔨 In progress |
+| **Co-pilot mode** | Agent proposes action + confidence score, human approves with one tap | 🔨 In progress |
+| **Root cause agent** | Correlates metrics, logs, and recent deploys to surface likely root cause | 📋 Planned |
+| **Runbook agent** | Matches incident to known runbooks, executes with human gate | 📋 Planned |
+| **Noise reduction** | Learns alert patterns, suppresses known-noisy low-signal alerts | 📋 Planned |
+
+> Want to help build this? The agent scaffolding is open. **[See the roadmap issues →](https://github.com/FluidifyAI/Regen/issues)**
 
 ---
 
@@ -131,100 +190,93 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 
 ### Available now
 
-| Category | Integrations |
+| Category | Tools |
 |---|---|
-| **Alert ingestion** | Prometheus Alertmanager, Grafana, AWS CloudWatch, Generic webhook |
-| **Chat & incident channels** | Slack, Microsoft Teams, Telegram |
-| **AI** | OpenAI (BYO key — GPT-4o, GPT-4, GPT-3.5) |
-| **Auth** | SAML 2.0 (Okta, Azure AD, Google Workspace, any compliant IdP) |
-| **Deployment** | Docker Compose, Kubernetes (Helm) |
+| 🚨 **Alert ingestion** | Prometheus Alertmanager · Grafana · AWS CloudWatch · Generic webhook |
+| 💬 **Chat** | Slack · Microsoft Teams · Telegram |
+| 🤖 **AI** | OpenAI GPT-4o / GPT-4 / GPT-3.5 (BYO key) |
+| 🔐 **Auth** | SAML 2.0 — Okta · Azure AD · Google Workspace · any compliant IdP |
+| 🚀 **Deploy** | Docker Compose · Kubernetes Helm · bare metal |
 
 ### Coming soon
 
-| Category | Integrations |
+| Category | Tools |
 |---|---|
-| **Alert ingestion** | Datadog, New Relic, Sentry, Dynatrace, Elastic / Kibana, Zabbix, Nagios, Uptime Kuma, Betterstack |
-| **Migration / import** | PagerDuty (schedules + escalation policies), Opsgenie, Splunk On-Call (VictorOps) |
-| **Post-mortem export** | Confluence, Notion, Jira |
-| **AI providers** | Anthropic Claude, local LLMs via Ollama |
-| **Chat** | Discord |
+| 🚨 **Alert ingestion** | Datadog · New Relic · Sentry · Dynatrace · Elastic · Zabbix · Uptime Kuma · Betterstack |
+| 🔁 **Migration / import** | Grafana OnCall · PagerDuty · Opsgenie · Splunk On-Call |
+| 📄 **Post-mortem export** | Confluence · Notion · Jira |
+| 🤖 **AI providers** | Anthropic Claude · local LLMs via Ollama |
+| 💬 **Chat** | Discord |
 
-> Missing an integration? [Open an issue](https://github.com/FluidifyAI/Regen/issues) or send a PR — the generic webhook covers most tools today.
-
----
-
-## Kubernetes
-
-```bash
-helm install fluidify-regen deploy/helm/fluidify-regen \
-  --set ingress.host=incidents.your-domain.com \
-  --set postgresql.auth.password=<strong-password>
-```
-
-For production (external DB + Redis), managed PostgreSQL, HA configuration, and observability setup, see [docs/OPERATIONS.md](docs/OPERATIONS.md).
+> Missing something? [Open an issue](https://github.com/FluidifyAI/Regen/issues/new) — the generic webhook covers most tools today.
 
 ---
 
 ## Comparison
 
-| | Fluidify Regen | PagerDuty | incident.io |
-|---|---|---|---|
-| Price | Free / flat enterprise | ~$21–50/user/mo | ~$30+/user/mo |
-| Self-hosted | ✅ | ❌ | ❌ |
-| Open source | AGPLv3 | ❌ | ❌ |
-| SSO | Free | Paid tier | Paid tier |
-| BYO AI | ✅ | ❌ | ❌ |
-| Alert + incident + on-call in one tool | ✅ | ⚠️ | ⚠️ |
+| | Fluidify Regen | PagerDuty | incident.io | Grafana OnCall |
+|---|---|---|---|---|
+| Price | Free / flat enterprise | ~$21–50/user/mo | ~$30+/user/mo | Archived |
+| Self-hosted | ✅ | ❌ | ❌ | ✅ (archived) |
+| Open source | AGPLv3 | ❌ | ❌ | Apache 2.0 |
+| SSO | ✅ Free | 💰 Paid tier | 💰 Paid tier | ✅ Free |
+| BYO AI | ✅ | ❌ | ❌ | ❌ |
+| Agent-native | ✅ | ❌ | ❌ | ❌ |
+| Alert + incident + on-call in one | ✅ | ⚠️ | ⚠️ | ⚠️ |
 
 ---
 
 ## Roadmap
 
-### Shipping next
+**Shipping next (v1.x)**
+- Grafana OnCall one-click migration
+- PagerDuty schedule + escalation policy import
+- Co-pilot mode — agent proposes, human approves with confidence score
+- Fluidify MCP Server — Claude, GPT, and custom bots can call Regen natively
+- Confluence / Notion post-mortem export
+- RBAC, SCIM, audit log export (Enterprise)
 
-- **PagerDuty import** — migrate schedules and escalation policies with a single CLI command
-- **Confluence / Notion export** — publish post-mortems directly from the UI
-- **RBAC** — viewer / responder / admin roles (Enterprise)
-- **SCIM provisioning** — automated user lifecycle via Okta, Azure AD (Enterprise)
-- **Audit log export** — SOC2-ready tamper-evident logs (Enterprise)
+**The bigger picture**
 
-### AI agent roadmap
+Fluidify Regen is built for the age of AI agents. The vision: before your on-call engineer unlocks their phone, the triage agent has already pulled correlated metrics from Datadog, checked K8s pod health, matched the incident against your history, and posted a one-tap approval request to Slack. The engineer taps Approve. Done.
 
-The current agents (summarization, post-mortems, handoff) are the foundation. The direction is fully autonomous incident response:
+Every incident makes the system smarter. After 12 months, your triage agent knows your stack better than most of your engineers. That institutional memory lives in your own infrastructure — not in a SaaS vendor's cloud.
 
-| Agent | What it does |
+| Horizon | Theme |
 |---|---|
-| **Triage agent** | Auto-assigns severity, tags, and suggested commander based on alert patterns |
-| **Root cause agent** | Correlates metrics, logs, and recent deploys to surface likely root causes |
-| **Runbook agent** | Matches the incident to known runbooks and surfaces the relevant steps |
-| **Noise reduction agent** | Learns alert patterns over time and suppresses known-noisy, low-signal alerts |
-| **Conversational agent** | Answer questions mid-incident in Slack/Teams: "What changed in the last 2 hours?" |
+| **v1.x** | Agent scaffolding — co-pilot mode, MCP server, Datadog/K8s/Linear integrations |
+| **v2.x** | Autonomous ops — triage agent, runbook execution, confidence gates |
+| **v3.x** | Multi-agent — triage + comms + runbook agents in parallel |
+| **Horizon** | Predictive ops — incidents resolved before alerts fire |
 
-> These are on the roadmap — not yet shipped. Star the repo to follow along.
+[Star the repo](https://github.com/FluidifyAI/Regen) to follow along.
 
 ---
 
 ## Contributing
 
-Issues, PRs, and feature requests are welcome.
+Issues, PRs, and feature requests are welcome. If you're coming from Grafana OnCall, your experience building on that platform is exactly what we need.
 
 ```bash
 # Start backend + dependencies
-docker-compose up -d db redis api
+docker-compose up -d db redis
 
-# Run frontend locally with hot reload
+# Run backend with hot reload
+cd backend && go run ./cmd/regen/... serve
+
+# Run frontend with hot reload
 cd frontend && npm install && npm run dev
 ```
 
-See [Makefile](Makefile) for all available commands (`make help`).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [Makefile](Makefile) (`make help`) for all commands. For bigger changes, [open a discussion first](https://github.com/FluidifyAI/Regen/discussions).
 
 ---
 
 ## License
 
-- **Community**: [AGPLv3](LICENSE)
+- **Community**: [AGPLv3](LICENSE) — free forever, including SSO
 - **Enterprise**: Proprietary — [enterprise@fluidify.ai](mailto:enterprise@fluidify.ai)
 
 ---
 
-Built for teams who believe incident data belongs to them.
+<p align="center">Built by <a href="https://fluidify.ai">Fluidify</a> · your incident data belongs to you</p>

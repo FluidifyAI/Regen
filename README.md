@@ -63,7 +63,18 @@ helm install fluidify-regen deploy/helm/fluidify-regen \
 
 For production HA (external DB, Redis Sentinel, zero-downtime deploys), see [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
-> **Production-ready out of the box.** Fluidify Regen ships with a Kubernetes Helm chart, PostgreSQL HA support, Redis Sentinel, horizontal pod autoscaling, and rolling deploys with zero downtime. The same binary that runs in Docker Compose runs in a 3-region Kubernetes cluster.
+## Built for production
+
+Fluidify Regen is designed to run as reliably as the tools it monitors.
+
+- **Zero-downtime deploys** — rolling restarts drain in-flight requests before pod shutdown (SIGTERM → 30 s drain → exit)
+- **PostgreSQL HA** — streaming replication with PgBouncer; connection pool survives primary failover
+- **Redis Sentinel** — 3-node quorum watches primary; workers reconnect to new master automatically
+- **Kubernetes-native** — HPA, health-gated rolling deploys, resource limits out of the box
+- **Webhook flood protection** — rate limiter returns 429 before the DB sees load spikes; validated by k6 burst test
+- **Full observability** — `/metrics` (Prometheus) + pre-built Grafana dashboard in `deploy/grafana/`
+
+Reproduce the benchmarks yourself: `make load-test` and `make chaos-db`.
 
 ### Send a test alert
 

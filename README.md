@@ -68,7 +68,7 @@ For production HA (external DB, Redis Sentinel, zero-downtime deploys), see [doc
 Fluidify Regen is designed to run as reliably as the tools it monitors.
 
 - **Zero-downtime deploys** — rolling restarts drain in-flight requests before pod shutdown (SIGTERM → 30 s drain → exit)
-- **PostgreSQL HA** — streaming replication with PgBouncer; connection pool survives primary failover
+- **PostgreSQL HA** — Patroni manages automatic primary election and failover; HAProxy routes to the current primary with no app restart or config change (RTO < 30 s)
 - **Redis Sentinel** — 3-node quorum watches primary; workers reconnect to new master automatically
 - **Kubernetes-native** — HPA, health-gated rolling deploys, resource limits out of the box
 - **Webhook flood protection** — rate limiter returns 429 before the DB sees load spikes; validated by k6 burst test

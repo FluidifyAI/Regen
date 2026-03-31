@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset=".github/assets/logo-light.svg">
-    <img src=".github/assets/logo-dark.svg" alt="Fluidify" width="400">
+    <img src=".github/assets/logo-dark.svg" alt="Fluidify" width="520">
   </picture>
 </p>
 
@@ -21,12 +21,6 @@
 ---
 
 > **Grafana OnCall was archived in March 2026.** Fluidify Regen is the drop-in successor.
-
----
-
-<p align="center">
-  <img src=".github/assets/readme-hero.svg" alt="Fluidify Regen" width="860">
-</p>
 
 ---
 

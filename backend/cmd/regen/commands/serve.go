@@ -69,7 +69,12 @@ func runServe(_ *cobra.Command, _ []string) error {
 	}
 	defer database.Close()
 
-	if err := redis.Connect(redis.Config{URL: cfg.RedisURL}); err != nil {
+	if err := redis.Connect(redis.Config{
+		URL:            cfg.RedisURL,
+		SentinelAddrs:  cfg.RedisSentinelAddrs,
+		SentinelMaster: cfg.RedisSentinelMaster,
+		Password:       cfg.RedisPassword,
+	}); err != nil {
 		return err
 	}
 	defer redis.Close()

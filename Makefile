@@ -1,4 +1,4 @@
-.PHONY: help dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test load-test chaos-db chaos-redis
+.PHONY: help dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test load-test chaos-db chaos-redis ha-up ha-down
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -37,7 +37,9 @@ help:
 @echo "Reliability:"
 @echo "  load-test    Run all k6 load test scenarios against localhost:8080"
 @echo "  chaos-db     Run DB kill chaos test (docker-compose)"
-@echo "  chaos-redis  Run Redis kill chaos test (docker-compose)""
+@echo "  chaos-redis  Run Redis kill chaos test (docker-compose)"
+@echo "  ha-up        Start the HA stack (PG primary+replica+PgBouncer, Redis Sentinel)"
+@echo "  ha-down      Tear down the HA stack"
 
 # ── Development ───────────────────────────────────────────────────────────────
 
@@ -189,6 +191,19 @@ chaos-db:
 
 chaos-redis:
 	@bash scripts/chaos/redis-kill.sh
+
+ha-up:
+	@echo "Starting HA stack (PostgreSQL primary+replica+PgBouncer, Redis Sentinel)..."
+	docker-compose -f docker-compose.ha.yml up -d
+	@echo "Waiting for services to be healthy..."
+	@sleep 10
+	@echo "HA stack ready."
+	@echo "  DB (via PgBouncer):  postgresql://regen:secret@localhost:5433/regen"
+	@echo "  Redis Sentinel:      localhost:26379,26380,26381 master=mymaster"
+	@echo "  API:                 http://localhost:8080"
+
+ha-down:
+	docker-compose -f docker-compose.ha.yml down -v
 
 # ── Helm ──────────────────────────────────────────────────────────────────────
 

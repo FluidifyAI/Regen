@@ -7,22 +7,30 @@
 
 ## What Is This Project?
 
-**Fluidify Regen** is an open-source incident management platform that combines:
-- **Alert Management** (like PagerDuty/Opsgenie) — receive, dedupe, route alerts
-- **Incident Coordination** (like incident.io) — lifecycle, timeline, Slack integration
-- **On-Call Scheduling** — rotations, escalations, overrides
-- **AI Assistance** — summarization, post-mortem drafting (BYO API key)
+**Fluidify Regen** is an **agent-native, open-source reliability platform** — not just incident management with AI bolted on. The core architectural difference: AI agents are first-class actors, not a feature layer. Agents and humans share the same operational layer, the same timeline, the same permissions model.
 
-**One-liner:** "incident.io + PagerDuty, open-source, self-hosted, BYO-AI."
+Current capabilities:
+- **Alert Management** (like PagerDuty/Opsgenie) — receive, dedupe, route alerts
+- **Incident Coordination** (like incident.io) — lifecycle, timeline, Slack/Teams integration
+- **On-Call Scheduling** — rotations, escalations, overrides
+- **AI Assistance** — summarization, post-mortem drafting, @mention bot (BYO API key)
+- **MCP Server (beta)** — external agents (Claude, GPT, custom bots) can call Fluidify to open incidents, add timeline entries, query history
+
+**One-liner:** "The first incident platform where AI agents and humans share the same operational layer — natively, not as an afterthought."
+
+**Tagline:** "Open-source incident management — self-hosted, agent-native, free forever."
+
+> Full product vision and north star: `docs/PRODUCT.md` (local only, gitignored)
 
 ---
 
 ## Why Does This Exist?
 
-1. **The SaaS Tax**: incident.io/PagerDuty charge $30-50/user. $100k/year for a 200-person team.
+1. **The SaaS Tax**: incident.io/PagerDuty charge $30-50/user. $120k/year for a 200-person team.
 2. **Data Sovereignty**: Regulated industries can't send incident data to third-party SaaS.
 3. **Tool Fragmentation**: Separate tools for alerting, incidents, and post-mortems.
-4. **Grafana OnCall Archived**: March 2026, OSS users need an alternative.
+4. **Grafana OnCall Archived**: March 2026, ~50,000 OSS users need a self-hosted alternative.
+5. **The Agent Gap**: Every competitor bolted AI on top of a human-centric architecture. No one rebuilt the actor model for agents.
 
 ---
 
@@ -343,6 +351,50 @@ POST   /api/v1/incidents/:id/postmortem/generate → Generate post-mortem
 - [x] Performance tuning — N+1 fix in escalation engine, 8 new DB indexes (migration 000023), `GetAlerts()` bounded at 500, redundant pre-check removed
 - [ ] Public launch — **PENDING**: README final polish, Docker Hub image push, announcement
 
+### Phase 5: Agent Scaffolding (v1.x)
+
+**v1.1 — MCP Server (beta)**
+- [ ] Fluidify MCP Server — read-only tool surface: `search_incident_history`, `get_triage_context`, `get_current_oncall`, `get_service_health_profile`
+- [ ] External agents (Claude, GPT, custom bots) can query Fluidify over MCP
+- [ ] Agent identity model — agents as first-class actors with own ID, permission scope, audit trail
+- [ ] Agent actions recorded in timeline with actor_type = "agent"
+
+**v1.2 — Co-Pilot Mode**
+- [ ] Confidence score on agent actions (0–100)
+- [ ] Risk classification per action (Read-only / Low / Medium / Destructive)
+- [ ] Gate types: Auto-execute / Propose-then-execute / Require-human-approval / Never-auto
+- [ ] Co-pilot Slack UX: agent posts proposed action + confidence, human approves/rejects
+- [ ] Configurable per team / per service / per environment
+
+**v1.3 — MCP Consumer Integrations**
+- [ ] Datadog MCP — pull correlated metrics ± 5 min window on incident creation
+- [ ] Kubernetes MCP — pod health, OOMKills, recent restarts
+- [ ] Linear MCP — check/file issues on affected services
+- [ ] GitHub MCP — recent commits, deploys in blast radius window
+
+### Phase 6: Autonomous Ops (v2.x)
+
+**v2.0 — Triage Agent**
+- [ ] Full triage agent: alert → context gather → pattern match → runbook select → co-pilot propose
+- [ ] Historical pattern matching with similarity scoring
+- [ ] Runbook execution engine (step-by-step, with gates)
+- [ ] Full MCP write surface: `create_incident`, `acknowledge_incident`, `resolve_incident`, `execute_runbook`
+- [ ] Agent Decision Transparency UI — full trace of tools called, matches found, decision rationale
+
+**v2.1 — Runbook Library**
+- [ ] Auto-generated runbooks from recurring resolution patterns
+- [ ] Runbook versioning and A/B effectiveness tracking
+- [ ] Service health profiles — MTTD, MTTR, top failure modes, deploy-to-incident correlation
+
+### Phase 7: Multi-Agent & Platform (v3.x+)
+
+- [ ] Parallel agents: Triage + Comms + Runbook agents running simultaneously on one incident
+- [ ] Fluidify as ops MCP hub — any AI agent in the org can read/write incidents natively
+- [ ] Predictive ops — pre-incident signals, anomaly detection before alerts fire
+- [ ] Auto-runbook generation from post-mortem action items
+- [ ] Institutional memory UI — incident pattern clusters, reliability findings, tribal knowledge index
+- [ ] Causal AI — root cause inference from correlated signals across services
+
 ---
 
 ## Key Architectural Principles
@@ -393,15 +445,30 @@ Bot commands (`ack`, `resolve`, `status`) receive `activity.Conversation.ID` whi
 
 Missing step 3 is the most common setup failure — without it, the Bot Framework API permission simply doesn't exist in the tenant to grant.
 
-### 3. Integrate, Don't Replace
+### 3. Agent-Native Architecture (THE north star — read before any AI/agent work)
+
+This is not "AI features". This is an architectural commitment:
+
+- **Agents are first-class actors** — same identity model, same permissions, same timeline as humans. Never treat agents as second-class API consumers.
+- **Every agent action has a confidence score + gate** — confidence (0–100), risk level (Read-only / Low / Medium / Destructive), gate type (Auto / Propose / Require-approval / Never-auto). All configurable per team/service/environment.
+- **MCP-first, not MCP-compatible** — Fluidify is both an MCP consumer (calls Datadog, K8s, Linear, GitHub MCP servers during triage) and an MCP provider (external agents call Fluidify to open incidents, add timeline entries, run runbooks).
+- **Agent Mode Spectrum**: Fully Autonomous → Co-Pilot → Human-Led → Fully Manual. Mode is a first-class concept in the timeline and post-mortem, not a config flag.
+- **Decision transparency is non-negotiable** — every agent action records what tools were called, what matched, why the action was chosen, what was rejected. Opaque agents get turned off.
+
+The long-term moat: institutional memory that compounds in the customer's own infrastructure. After 12 months, the triage agent knows their stack better than most engineers. Switching away means starting from zero.
+
+> Full vision: `docs/PRODUCT.md` (local only)
+
+### 4. Integrate, Don't Replace
 - We sit alongside Prometheus, Grafana, Datadog
 - Don't ask users to replace their observability stack
-- Webhooks are the universal integration point
+- MCP is the future integration protocol; webhooks remain supported
 
-### 4. AI is Optional
+### 5. AI is Optional, Agents Are Additive
 - Product works 100% without AI configured
-- BYO API key model (user's data, user's cost)
+- BYO API key model (user's data, user's cost, user's infra)
 - Abstract provider interface for future local LLM support
+- Agent capabilities layer on top — never a hard dependency
 
 ### 5. Enterprise Release Strategy (Open Core)
 

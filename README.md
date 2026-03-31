@@ -1,17 +1,32 @@
-# Fluidify Regen
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/logo-dark.svg">
+    <img src=".github/assets/logo-light.svg" alt="Fluidify" width="400">
+  </picture>
+</p>
 
-**Open-source incident management for teams who own their data.**
+<p align="center">
+  <strong>Open-source incident management — self-hosted, agent-native, free forever.</strong>
+</p>
 
-[![License: AGPLv3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-ready-blue)](https://github.com/FluidifyAI/Regen/pkgs/container/regen)
+<p align="center">
+  <a href="https://github.com/FluidifyAI/Regen/actions/workflows/ci.yml"><img src="https://github.com/FluidifyAI/Regen/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/FluidifyAI/Regen/releases"><img src="https://img.shields.io/badge/release-v1.0.0-6366f1" alt="Release"></a>
+  <a href="https://discord.gg/b6PSdhzDa"><img src="https://img.shields.io/discord/1487668241718579342?label=discord&logo=discord&logoColor=white&color=5865F2" alt="Discord"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="License: AGPLv3"></a>
+  <a href="https://github.com/FluidifyAI/Regen/pkgs/container/regen"><img src="https://img.shields.io/badge/docker-ready-0ea5e9" alt="Docker"></a>
+  <a href="https://goreportcard.com/report/github.com/FluidifyAI/Regen"><img src="https://goreportcard.com/badge/github.com/FluidifyAI/Regen" alt="Go Report Card"></a>
+</p>
 
-Alert routing + incident lifecycle + on-call scheduling + AI post-mortems. One self-hosted platform, no seat tax.
+---
 
 > **Grafana OnCall was archived in March 2026.** Fluidify Regen is the drop-in successor.
 
 ---
 
-![Fluidify Regen — Incident Detail](.github/assets/screenshot.png)
+<p align="center">
+  <img src=".github/assets/readme-hero.svg" alt="Fluidify Regen" width="860">
+</p>
 
 ---
 

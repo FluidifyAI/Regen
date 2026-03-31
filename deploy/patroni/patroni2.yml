@@ -1,0 +1,69 @@
+scope: fluidify-regen
+namespace: /patroni/
+name: patroni-2
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: patroni-2:8008
+
+etcd3:
+  hosts: etcd:2379
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 30
+    maximum_lag_on_failover: 1048576
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        wal_level: replica
+        hot_standby: "on"
+        max_wal_senders: 5
+        max_replication_slots: 5
+        wal_log_hints: "on"
+        synchronous_commit: "on"
+
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+  pg_hba:
+    - host replication replicator 0.0.0.0/0 md5
+    - host all all 0.0.0.0/0 md5
+
+  users:
+    regen:
+      password: "${POSTGRES_PASSWORD:-secret}"
+      options:
+        - createrole
+        - createdb
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: patroni-2:5432
+  data_dir: /var/lib/postgresql/data/patroni
+  bin_dir: /usr/lib/postgresql/15/bin
+  pgpass: /tmp/pgpass
+
+  authentication:
+    replication:
+      username: replicator
+      password: replicator_secret
+    superuser:
+      username: postgres
+      password: postgres_secret
+    rewind:
+      username: rewind_user
+      password: rewind_secret
+
+  parameters:
+    unix_socket_directories: '/var/run/postgresql'
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false

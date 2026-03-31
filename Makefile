@@ -1,4 +1,4 @@
-.PHONY: help dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test
+.PHONY: help dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test load-test chaos-db chaos-redis
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -32,7 +32,12 @@ help:
 	@echo "Helm:"
 	@echo "  helm-lint    Lint the Helm chart"
 	@echo "  helm-template  Dry-run render the chart"
-	@echo "  helm-test    Run all Helm checks"
+	@echo "  helm-test    Run all Helm checks
+""
+@echo "Reliability:"
+@echo "  load-test    Run all k6 load test scenarios against localhost:8080"
+@echo "  chaos-db     Run DB kill chaos test (docker-compose)"
+@echo "  chaos-redis  Run Redis kill chaos test (docker-compose)""
 
 # ── Development ───────────────────────────────────────────────────────────────
 
@@ -164,6 +169,26 @@ install:
 	@echo "Installing frontend dependencies..."
 	@cd frontend && npm install
 	@echo "Done"
+
+# ── Reliability ───────────────────────────────────────────────────────────────
+
+load-test:
+	@which k6 > /dev/null 2>&1 || (echo "k6 not found. Install: brew install k6" && exit 1)
+	@echo "=== Webhook sustained load (5 min, 50 VUs) ==="
+	k6 run load-tests/webhook-sustained.js
+	@echo ""
+	@echo "=== Webhook burst / flood protection ==="
+	k6 run load-tests/webhook-burst.js
+	@echo ""
+	@echo "=== Concurrent API reads ==="
+	@echo "Note: set AUTH_TOKEN=<token> for authenticated endpoints"
+	k6 run load-tests/api-read.js
+
+chaos-db:
+	@bash scripts/chaos/db-kill.sh
+
+chaos-redis:
+	@bash scripts/chaos/redis-kill.sh
 
 # ── Helm ──────────────────────────────────────────────────────────────────────
 

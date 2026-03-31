@@ -61,7 +61,6 @@ backend/ui/dist/*
 
 # Internal docs, assets, dev tooling — local only, never pushed to remote
 /.internal/
-/scripts/
 /test-infra/
 /docs/
 /ref/

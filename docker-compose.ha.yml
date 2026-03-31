@@ -1,123 +1,150 @@
 # docker-compose.ha.yml — OPE-55 / OPE-56
 #
 # High-availability stack for local validation.
-# Extends the base docker-compose.yml with:
-#   - PostgreSQL primary + streaming replica + PgBouncer
-#   - Redis Sentinel (3 sentinels watching 1 primary + 1 replica)
 #
-# Usage:
-#   docker-compose -f docker-compose.ha.yml up -d
+# PostgreSQL HA:
+#   etcd (DCS) + Patroni on 2 nodes + HAProxy
+#   - Patroni handles automatic primary election and failover
+#   - HAProxy health-checks Patroni's REST API (/primary, /replica)
+#     and routes connections to the current primary automatically —
+#     no manual intervention needed when a node goes down
+#   - Stats page: http://localhost:7000 (shows live primary/replica state)
 #
-# After startup, run the chaos tests to validate failover:
-#   bash scripts/chaos/db-kill.sh DB_CONTAINER=fluidify-ha-pg-primary
-#   bash scripts/chaos/redis-kill.sh REDIS_CONTAINER=fluidify-ha-redis-primary
+# Redis HA:
+#   redis-primary + redis-replica + 3 Sentinels (quorum=2)
+#   - Sentinel promotes the replica automatically when primary is unreachable
+#   - App connects via REDIS_SENTINEL_ADDRS; go-redis handles reconnect
 #
 # Connection topology:
 #
-#   App → PgBouncer:5432 → pg-primary:5432 (writes + reads)
-#                        → pg-replica:5432 (replica, promoted on failover)
+#   App ──► HAProxy:5432 ──► patroni-{1,2}:5432  (writes → current primary)
+#   App ──► HAProxy:5433 ──► patroni-{1,2}:5432  (reads  → current replicas)
 #
-#   App → Sentinel:26379/26380/26381 → redis-primary:6379 (writes)
-#                                     → redis-replica:6379 (reads, promoted on failover)
+#   App ──► Sentinel×3 ──► redis-primary:6379     (promoted automatically)
+#
+# Usage:
+#   docker-compose -f docker-compose.ha.yml up -d
+#   make ha-up
+#
+# Chaos tests:
+#   bash scripts/chaos/db-kill.sh DB_CONTAINER=fluidify-ha-patroni-1
+#   bash scripts/chaos/redis-kill.sh REDIS_CONTAINER=fluidify-ha-redis-primary
 
 services:
 
-  # ── PostgreSQL primary ───────────────────────────────────────────────────────
-  pg-primary:
-    image: postgres:15-alpine
-    container_name: fluidify-ha-pg-primary
+  # ── etcd — Patroni's distributed configuration store ─────────────────────────
+  # Single node for local testing. In production run 3 or 5 etcd nodes.
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: fluidify-ha-etcd
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-regen}
-      POSTGRES_USER: ${POSTGRES_USER:-regen}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
-      # Enable WAL streaming so the replica can follow
-      POSTGRES_INITDB_ARGS: "--wal-segsize=16"
-    command: >
-      postgres
-        -c wal_level=replica
-        -c max_wal_senders=3
-        -c wal_keep_size=128
-        -c hot_standby=on
-        -c synchronous_commit=on
-        -c listen_addresses='*'
+      ETCD_NAME: etcd0
+      ETCD_DATA_DIR: /etcd-data
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd:2380
+      ETCD_INITIAL_CLUSTER: etcd0=http://etcd:2380
+      ETCD_INITIAL_CLUSTER_TOKEN: fluidify-ha
+      ETCD_INITIAL_CLUSTER_STATE: new
     volumes:
-      - pg_primary_data:/var/lib/postgresql/data
-      - ./deploy/postgres/init-replication.sh:/docker-entrypoint-initdb.d/init-replication.sh:ro
+      - etcd_data:/etcd-data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-regen}"]
+      test: ["CMD-SHELL", "etcdctl --endpoints=http://localhost:2379 endpoint health"]
       interval: 5s
       timeout: 3s
       retries: 10
     networks:
       fluidify-ha:
-        aliases: [pg-primary]
+        aliases: [etcd]
 
-  # ── PostgreSQL streaming replica ─────────────────────────────────────────────
-  pg-replica:
-    image: postgres:15-alpine
-    container_name: fluidify-ha-pg-replica
+  # ── Patroni node 1 ────────────────────────────────────────────────────────────
+  # First to start becomes the primary (wins the etcd leader lock).
+  patroni-1:
+    build:
+      context: ./deploy/patroni
+      dockerfile: Dockerfile
+    container_name: fluidify-ha-patroni-1
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-regen}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-secret}
-    # Bootstrap from the primary using pg_basebackup, then run in hot_standby mode
-    command: >
-      sh -c "
-        if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
-          echo 'Bootstrapping replica from primary...'
-          until pg_isready -h pg-primary -U ${POSTGRES_USER:-regen}; do sleep 1; done
-          pg_basebackup -h pg-primary -U ${POSTGRES_USER:-regen} -D /var/lib/postgresql/data -P -Xs -R
-          echo 'Replica bootstrap complete.'
-        fi
-        exec postgres -c hot_standby=on
-      "
+      PATRONI_SUPERUSER_PASSWORD: postgres_secret
+      PATRONI_REPLICATION_PASSWORD: replicator_secret
+      PATRONI_REWIND_PASSWORD: rewind_secret
     volumes:
-      - pg_replica_data:/var/lib/postgresql/data
-    depends_on:
-      pg-primary:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-regen}"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    networks:
-      fluidify-ha:
-        aliases: [pg-replica]
-
-  # ── PgBouncer — connection pooler ────────────────────────────────────────────
-  # Routes all connections to pg-primary. In a real HA setup, update
-  # pgbouncer.ini to point at the new primary after failover. For automatic
-  # failover use Patroni + HAProxy instead.
-  pgbouncer:
-    image: bitnami/pgbouncer:latest
-    container_name: fluidify-ha-pgbouncer
-    restart: unless-stopped
-    environment:
-      POSTGRESQL_HOST: pg-primary
-      POSTGRESQL_PORT: 5432
-      POSTGRESQL_DATABASE: ${POSTGRES_DB:-regen}
-      POSTGRESQL_USERNAME: ${POSTGRES_USER:-regen}
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-secret}
-      PGBOUNCER_DATABASE: ${POSTGRES_DB:-regen}
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_MAX_CLIENT_CONN: 200
-      PGBOUNCER_DEFAULT_POOL_SIZE: 20
+      - patroni1_data:/var/lib/postgresql/data
+      - ./deploy/patroni/patroni1.yml:/etc/patroni/patroni.yml:ro
     ports:
-      - "5433:5432"
+      - "8008:8008"    # Patroni REST API (curl http://localhost:8008/primary)
     depends_on:
-      pg-primary:
+      etcd:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U ${POSTGRES_USER:-regen}"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8008/health | grep -q '\"state\":\"running\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      fluidify-ha:
+        aliases: [patroni-1]
+
+  # ── Patroni node 2 ────────────────────────────────────────────────────────────
+  # Starts as a replica. Promoted automatically if node 1 goes down.
+  patroni-2:
+    build:
+      context: ./deploy/patroni
+      dockerfile: Dockerfile
+    container_name: fluidify-ha-patroni-2
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      PATRONI_SUPERUSER_PASSWORD: postgres_secret
+      PATRONI_REPLICATION_PASSWORD: replicator_secret
+      PATRONI_REWIND_PASSWORD: rewind_secret
+    volumes:
+      - patroni2_data:/var/lib/postgresql/data
+      - ./deploy/patroni/patroni2.yml:/etc/patroni/patroni.yml:ro
+    ports:
+      - "8009:8008"    # Patroni REST API for node 2
+    depends_on:
+      etcd:
+        condition: service_healthy
+      patroni-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8008/health | grep -q '\"state\":\"running\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      fluidify-ha:
+        aliases: [patroni-2]
+
+  # ── HAProxy — automatic primary routing ──────────────────────────────────────
+  # Polls Patroni REST API every 3 s. Routes port 5432 → current primary,
+  # port 5433 → current replicas. Stats at http://localhost:7000.
+  haproxy:
+    image: haproxy:2.8-alpine
+    container_name: fluidify-ha-haproxy
+    restart: unless-stopped
+    volumes:
+      - ./deploy/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "5432:5432"    # writes → primary
+      - "5433:5433"    # reads  → replicas
+      - "7000:7000"    # HAProxy stats page
+    depends_on:
+      patroni-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       fluidify-ha:
-        aliases: [pgbouncer]
+        aliases: [haproxy]
 
   # ── Redis primary ─────────────────────────────────────────────────────────────
   redis-primary:
@@ -163,14 +190,7 @@ services:
     restart: unless-stopped
     command: >
       sh -c "
-        cat > /tmp/sentinel.conf << 'EOF'
-      sentinel monitor mymaster redis-primary 6379 2
-      sentinel down-after-milliseconds mymaster 5000
-      sentinel failover-timeout mymaster 10000
-      sentinel parallel-syncs mymaster 1
-      bind 0.0.0.0
-      port 26379
-      EOF
+        printf 'sentinel monitor mymaster redis-primary 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 10000\nsentinel parallel-syncs mymaster 1\nbind 0.0.0.0\nport 26379\n' > /tmp/sentinel.conf
         redis-sentinel /tmp/sentinel.conf
       "
     ports:
@@ -191,14 +211,7 @@ services:
     restart: unless-stopped
     command: >
       sh -c "
-        cat > /tmp/sentinel.conf << 'EOF'
-      sentinel monitor mymaster redis-primary 6379 2
-      sentinel down-after-milliseconds mymaster 5000
-      sentinel failover-timeout mymaster 10000
-      sentinel parallel-syncs mymaster 1
-      bind 0.0.0.0
-      port 26379
-      EOF
+        printf 'sentinel monitor mymaster redis-primary 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 10000\nsentinel parallel-syncs mymaster 1\nbind 0.0.0.0\nport 26379\n' > /tmp/sentinel.conf
         redis-sentinel /tmp/sentinel.conf
       "
     ports:
@@ -219,14 +232,7 @@ services:
     restart: unless-stopped
     command: >
       sh -c "
-        cat > /tmp/sentinel.conf << 'EOF'
-      sentinel monitor mymaster redis-primary 6379 2
-      sentinel down-after-milliseconds mymaster 5000
-      sentinel failover-timeout mymaster 10000
-      sentinel parallel-syncs mymaster 1
-      bind 0.0.0.0
-      port 26379
-      EOF
+        printf 'sentinel monitor mymaster redis-primary 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 10000\nsentinel parallel-syncs mymaster 1\nbind 0.0.0.0\nport 26379\n' > /tmp/sentinel.conf
         redis-sentinel /tmp/sentinel.conf
       "
     ports:
@@ -252,9 +258,9 @@ services:
       - APP_ENV=${APP_ENV:-development}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - PORT=${API_PORT:-8080}
-      # Connect via PgBouncer (port 5433 on host, 5432 inside the network)
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-regen}:${POSTGRES_PASSWORD:-secret}@pgbouncer:5432/${POSTGRES_DB:-regen}?sslmode=disable
-      # Redis Sentinel — app will connect via Sentinel, no direct Redis URL needed
+      # Connect via HAProxy — automatically follows primary after failover
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-regen}:${POSTGRES_PASSWORD:-secret}@haproxy:5432/${POSTGRES_DB:-regen}?sslmode=disable
+      # Redis Sentinel — go-redis resolves current master via Sentinel
       - REDIS_URL=redis://redis-primary:6379
       - REDIS_SENTINEL_ADDRS=sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
       - REDIS_SENTINEL_MASTER=mymaster
@@ -277,7 +283,7 @@ services:
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
-      pgbouncer:
+      haproxy:
         condition: service_healthy
       redis-primary:
         condition: service_healthy
@@ -287,8 +293,9 @@ services:
       - fluidify-ha
 
 volumes:
-  pg_primary_data:
-  pg_replica_data:
+  etcd_data:
+  patroni1_data:
+  patroni2_data:
   redis_primary_data:
   redis_replica_data:
   go_modules:

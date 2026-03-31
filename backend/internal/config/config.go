@@ -20,8 +20,14 @@ type Config struct {
 	DBMaxIdleConns int    `default:"5"`
 	DBConnMaxLife  string `default:"5m"`
 
-	// Redis
-	RedisURL string `default:"redis://localhost:6379"`
+	// Redis — single instance (default) or Sentinel (HA)
+	// Set REDIS_SENTINEL_ADDRS to a comma-separated list of sentinel addresses
+	// (e.g. "sentinel1:26379,sentinel2:26379,sentinel3:26379") to enable Sentinel mode.
+	// REDIS_URL is ignored when Sentinel is active.
+	RedisURL            string `default:"redis://localhost:6379"`
+	RedisSentinelAddrs  string // REDIS_SENTINEL_ADDRS — comma-separated sentinel host:port list
+	RedisSentinelMaster string // REDIS_SENTINEL_MASTER — master name (default: "mymaster")
+	RedisPassword       string // REDIS_PASSWORD — used in both single and Sentinel mode
 
 	// Slack
 	SlackBotToken      string
@@ -72,7 +78,10 @@ func Load() (*Config, error) {
 		DBConnMaxLife:  getEnv("DB_CONN_MAX_LIFE", "5m"),
 
 		// Redis
-		RedisURL: getEnv("REDIS_URL", "redis://localhost:6379"),
+		RedisURL:            getEnv("REDIS_URL", "redis://localhost:6379"),
+		RedisSentinelAddrs:  getEnv("REDIS_SENTINEL_ADDRS", ""),
+		RedisSentinelMaster: getEnv("REDIS_SENTINEL_MASTER", "mymaster"),
+		RedisPassword:       getEnv("REDIS_PASSWORD", ""),
 
 		// Slack
 		SlackBotToken:      getEnv("SLACK_BOT_TOKEN", ""),

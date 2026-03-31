@@ -25,11 +25,12 @@ export const options = {
   ],
   thresholds: {
     // Core SLA: webhook p99 must be under 200 ms
-    http_req_duration: ['p(99)<200'],
+    'http_req_duration': ['p(99)<200'],
+    'webhook_duration_ms': ['p(99)<200'],
     // No server errors allowed
     'http_req_failed{status:500}': ['rate<0.001'],
     'http_req_failed{status:503}': ['rate<0.001'],
-    // Our custom metric
+    // Our custom metric — only fail if actual errors (not just checks)
     webhook_errors: ['rate<0.01'],
   },
 };
@@ -71,11 +72,16 @@ function makePrometheusPayload(vu, iter) {
 export default function () {
   const payload = makePrometheusPayload(__VU, __ITER);
 
+  // Use unique per-VU source IP so each VU gets its own rate-limit bucket,
+  // matching the production topology where each alert source has its own IP.
   const res = http.post(
     `${BASE_URL}/api/v1/webhooks/prometheus`,
     payload,
     {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Forwarded-For': `10.0.${Math.floor(__VU / 256)}.${__VU % 256}`,
+      },
       timeout: '5s',
     }
   );
@@ -84,9 +90,9 @@ export default function () {
 
   const ok = check(res, {
     'status 200': (r) => r.status === 200,
-    'has source field': (r) => {
+    'received > 0': (r) => {
       try {
-        return JSON.parse(r.body).source === 'prometheus';
+        return JSON.parse(r.body).received > 0;
       } catch (_) {
         return false;
       }

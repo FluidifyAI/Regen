@@ -57,7 +57,11 @@ const AUTH_TOKEN = __ENV.AUTH_TOKEN || '';
 let incidentIDs = [];
 
 function headers() {
-  const h = { 'Content-Type': 'application/json' };
+  const h = {
+    'Content-Type': 'application/json',
+    // Unique per-VU IP so each VU gets its own rate-limit bucket (same as webhook test)
+    'X-Forwarded-For': `10.1.${Math.floor(__VU / 256)}.${__VU % 256}`,
+  };
   if (AUTH_TOKEN) {
     h['Authorization'] = `Bearer ${AUTH_TOKEN}`;
   }

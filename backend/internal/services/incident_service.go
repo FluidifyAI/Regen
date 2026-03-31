@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/fluidify/regen/internal/metrics"
 	"github.com/fluidify/regen/internal/models"
 	"github.com/fluidify/regen/internal/repository"
 	appredis "github.com/fluidify/regen/internal/redis"
@@ -353,6 +354,8 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 		}()
 	}
 
+	metrics.IncidentsCreatedTotal.WithLabelValues(string(reloadedIncident.Severity), "alert").Inc()
+
 	return reloadedIncident, nil
 }
 
@@ -493,6 +496,7 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 				}
 			}()
 		}
+		metrics.IncidentsCreatedTotal.WithLabelValues(string(reloadedIncident.Severity), "alert").Inc()
 		return reloadedIncident, nil
 	}
 
@@ -943,6 +947,8 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 	} else {
 		slog.Warn("telegram: service is nil, skipping notification", "incident_id", reloadedIncident.ID)
 	}
+
+	metrics.IncidentsCreatedTotal.WithLabelValues(string(reloadedIncident.Severity), "manual").Inc()
 
 	return reloadedIncident, nil
 }

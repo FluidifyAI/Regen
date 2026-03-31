@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/fluidify/regen/internal/metrics"
 	"github.com/fluidify/regen/internal/models/webhooks"
 	"github.com/fluidify/regen/internal/services"
 )
@@ -79,6 +80,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 			"source", source,
 			"remote_addr", c.ClientIP(),
 		)
+		metrics.WebhooksProcessedTotal.WithLabelValues(source, "error").Inc()
 		c.JSON(401, gin.H{
 			"error":  "authentication failed",
 			"source": source,
@@ -95,6 +97,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 			"error", err,
 			"source", source,
 		)
+		metrics.WebhooksProcessedTotal.WithLabelValues(source, "error").Inc()
 		c.JSON(400, gin.H{
 			"error":  "invalid payload",
 			"source": source,
@@ -131,6 +134,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 			"source", source,
 			"received", len(alerts),
 		)
+		metrics.WebhooksProcessedTotal.WithLabelValues(source, "error").Inc()
 		c.JSON(500, gin.H{
 			"error":  "processing failed",
 			"source": source,
@@ -138,7 +142,11 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	// Step 5: Log success metrics with structured logging
+	// Step 5: Record success metrics
+	metrics.WebhooksProcessedTotal.WithLabelValues(source, "success").Inc()
+	metrics.AlertsReceivedTotal.WithLabelValues(source).Add(float64(len(alerts)))
+
+	// Step 6: Log success with structured logging
 	duration := time.Since(startTime)
 	slog.Info("webhook processed",
 		"source", source,
@@ -149,7 +157,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 		"duration_ms", duration.Milliseconds(),
 	)
 
-	// Step 6: Return success response with statistics
+	// Step 7: Return success response with statistics
 	c.JSON(200, gin.H{
 		"source":            source,
 		"received":          result.Received,

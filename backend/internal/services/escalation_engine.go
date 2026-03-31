@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/fluidify/regen/internal/metrics"
 	"github.com/fluidify/regen/internal/models"
 	"github.com/fluidify/regen/internal/repository"
 )
@@ -262,6 +263,7 @@ func (e *escalationEngine) notifyTier(
 					}
 				}
 			}
+			metrics.EscalationsTriggeredTotal.Inc()
 			now := time.Now()
 			state.LastNotifiedAt = &now
 			state.Status = models.EscalationStateNotified

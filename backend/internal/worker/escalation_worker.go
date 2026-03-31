@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/fluidify/regen/internal/metrics"
 	"github.com/fluidify/regen/internal/models"
 	"github.com/fluidify/regen/internal/services"
 )
@@ -72,7 +73,10 @@ func (w *EscalationWorker) Run(ctx context.Context) {
 func (w *EscalationWorker) tick() {
 	if err := w.engine.EvaluateEscalations(); err != nil {
 		slog.Error("escalation worker: EvaluateEscalations failed", "err", err)
+		metrics.WorkerJobsFailedTotal.WithLabelValues("escalation_evaluate").Inc()
+		return
 	}
+	metrics.WorkerJobsProcessedTotal.WithLabelValues("escalation_evaluate").Inc()
 }
 
 // SendEscalationDM implements services.EscalationNotifier.

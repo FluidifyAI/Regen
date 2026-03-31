@@ -262,8 +262,13 @@ func runServe(_ *cobra.Command, _ []string) error {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		metrics.UpdateBusinessMetrics(database.DB)
-		for range ticker.C {
-			metrics.UpdateBusinessMetrics(database.DB)
+		for {
+			select {
+			case <-ticker.C:
+				metrics.UpdateBusinessMetrics(database.DB)
+			case <-appCtx.Done():
+				return
+			}
 		}
 	}()
 

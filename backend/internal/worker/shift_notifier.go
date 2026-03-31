@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/fluidify/regen/internal/metrics"
 	"github.com/fluidify/regen/internal/models"
 	"github.com/fluidify/regen/internal/repository"
 	"github.com/fluidify/regen/internal/services"
@@ -86,8 +87,10 @@ func (n *ShiftNotifier) tick() {
 	schedules, err := n.repo.GetAll()
 	if err != nil {
 		slog.Error("shift notifier: failed to list schedules", "error", err)
+		metrics.WorkerJobsFailedTotal.WithLabelValues("shift_notify").Inc()
 		return
 	}
+	metrics.WorkerJobsProcessedTotal.WithLabelValues("shift_notify").Inc()
 
 	for i := range schedules {
 		schedule, err := n.repo.GetWithLayers(schedules[i].ID)

@@ -51,7 +51,7 @@ services:
     volumes:
       - etcd_data:/etcd-data
     healthcheck:
-      test: ["CMD-SHELL", "etcdctl --endpoints=http://localhost:2379 endpoint health"]
+      test: ["CMD", "/usr/local/bin/etcdctl", "--endpoints=http://localhost:2379", "endpoint", "health"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -75,16 +75,18 @@ services:
     volumes:
       - patroni1_data:/var/lib/postgresql/data
       - ./deploy/patroni/patroni1.yml:/etc/patroni/patroni.yml:ro
+      - ./deploy/patroni/post_bootstrap.sh:/etc/patroni/post_bootstrap.sh:ro
     ports:
       - "8008:8008"    # Patroni REST API (curl http://localhost:8008/primary)
     depends_on:
       etcd:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8008/health | grep -q '\"state\":\"running\"'"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8008/health"]
       interval: 5s
       timeout: 3s
-      retries: 20
+      start_period: 60s
+      retries: 30
     networks:
       fluidify-ha:
         aliases: [patroni-1]
@@ -105,6 +107,7 @@ services:
     volumes:
       - patroni2_data:/var/lib/postgresql/data
       - ./deploy/patroni/patroni2.yml:/etc/patroni/patroni.yml:ro
+      - ./deploy/patroni/post_bootstrap.sh:/etc/patroni/post_bootstrap.sh:ro
     ports:
       - "8009:8008"    # Patroni REST API for node 2
     depends_on:
@@ -113,10 +116,11 @@ services:
       patroni-1:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8008/health | grep -q '\"state\":\"running\"'"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8008/health"]
       interval: 5s
       timeout: 3s
-      retries: 20
+      start_period: 60s
+      retries: 30
     networks:
       fluidify-ha:
         aliases: [patroni-2]
@@ -138,10 +142,11 @@ services:
       patroni-1:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7000/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 10
     networks:
       fluidify-ha:
         aliases: [haproxy]
@@ -188,11 +193,7 @@ services:
     image: redis:7-alpine
     container_name: fluidify-ha-sentinel-1
     restart: unless-stopped
-    command: >
-      sh -c "
-        printf 'sentinel monitor mymaster redis-primary 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 10000\nsentinel parallel-syncs mymaster 1\nbind 0.0.0.0\nport 26379\n' > /tmp/sentinel.conf
-        redis-sentinel /tmp/sentinel.conf
-      "
+    command: sh -c 'echo "sentinel resolve-hostnames yes" > /tmp/sentinel.conf; echo "sentinel announce-hostnames yes" >> /tmp/sentinel.conf; echo "sentinel monitor mymaster redis-primary 6379 2" >> /tmp/sentinel.conf; echo "sentinel down-after-milliseconds mymaster 5000" >> /tmp/sentinel.conf; echo "sentinel failover-timeout mymaster 10000" >> /tmp/sentinel.conf; echo "sentinel parallel-syncs mymaster 1" >> /tmp/sentinel.conf; echo "bind 0.0.0.0" >> /tmp/sentinel.conf; echo "port 26379" >> /tmp/sentinel.conf; exec redis-sentinel /tmp/sentinel.conf'
     ports:
       - "26379:26379"
     depends_on:
@@ -209,11 +210,7 @@ services:
     image: redis:7-alpine
     container_name: fluidify-ha-sentinel-2
     restart: unless-stopped
-    command: >
-      sh -c "
-        printf 'sentinel monitor mymaster redis-primary 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 10000\nsentinel parallel-syncs mymaster 1\nbind 0.0.0.0\nport 26379\n' > /tmp/sentinel.conf
-        redis-sentinel /tmp/sentinel.conf
-      "
+    command: sh -c 'echo "sentinel resolve-hostnames yes" > /tmp/sentinel.conf; echo "sentinel announce-hostnames yes" >> /tmp/sentinel.conf; echo "sentinel monitor mymaster redis-primary 6379 2" >> /tmp/sentinel.conf; echo "sentinel down-after-milliseconds mymaster 5000" >> /tmp/sentinel.conf; echo "sentinel failover-timeout mymaster 10000" >> /tmp/sentinel.conf; echo "sentinel parallel-syncs mymaster 1" >> /tmp/sentinel.conf; echo "bind 0.0.0.0" >> /tmp/sentinel.conf; echo "port 26379" >> /tmp/sentinel.conf; exec redis-sentinel /tmp/sentinel.conf'
     ports:
       - "26380:26379"
     depends_on:
@@ -230,11 +227,7 @@ services:
     image: redis:7-alpine
     container_name: fluidify-ha-sentinel-3
     restart: unless-stopped
-    command: >
-      sh -c "
-        printf 'sentinel monitor mymaster redis-primary 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 10000\nsentinel parallel-syncs mymaster 1\nbind 0.0.0.0\nport 26379\n' > /tmp/sentinel.conf
-        redis-sentinel /tmp/sentinel.conf
-      "
+    command: sh -c 'echo "sentinel resolve-hostnames yes" > /tmp/sentinel.conf; echo "sentinel announce-hostnames yes" >> /tmp/sentinel.conf; echo "sentinel monitor mymaster redis-primary 6379 2" >> /tmp/sentinel.conf; echo "sentinel down-after-milliseconds mymaster 5000" >> /tmp/sentinel.conf; echo "sentinel failover-timeout mymaster 10000" >> /tmp/sentinel.conf; echo "sentinel parallel-syncs mymaster 1" >> /tmp/sentinel.conf; echo "bind 0.0.0.0" >> /tmp/sentinel.conf; echo "port 26379" >> /tmp/sentinel.conf; exec redis-sentinel /tmp/sentinel.conf'
     ports:
       - "26381:26379"
     depends_on:
@@ -284,7 +277,7 @@ services:
       - "${API_PORT:-8080}:8080"
     depends_on:
       haproxy:
-        condition: service_healthy
+        condition: service_started
       redis-primary:
         condition: service_healthy
       sentinel-1:

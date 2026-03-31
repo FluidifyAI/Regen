@@ -34,12 +34,9 @@ bootstrap:
     - host replication replicator 0.0.0.0/0 md5
     - host all all 0.0.0.0/0 md5
 
-  users:
-    regen:
-      password: "${POSTGRES_PASSWORD:-secret}"
-      options:
-        - createrole
-        - createdb
+  # Create app user + database after bootstrap (Patroni 4.0+ removed bootstrap.users;
+  # CREATE DATABASE cannot run in a transaction so two separate psql calls are needed)
+  post_bootstrap: /etc/patroni/post_bootstrap.sh
 
 postgresql:
   listen: 0.0.0.0:5432

@@ -32,14 +32,14 @@ help:
 	@echo "Helm:"
 	@echo "  helm-lint    Lint the Helm chart"
 	@echo "  helm-template  Dry-run render the chart"
-	@echo "  helm-test    Run all Helm checks
-""
-@echo "Reliability:"
-@echo "  load-test    Run all k6 load test scenarios against localhost:8080"
-@echo "  chaos-db     Run DB kill chaos test (docker-compose)"
-@echo "  chaos-redis  Run Redis kill chaos test (docker-compose)"
-@echo "  ha-up        Start the HA stack (PG primary+replica+PgBouncer, Redis Sentinel)"
-@echo "  ha-down      Tear down the HA stack"
+	@echo "  helm-test    Run all Helm checks"
+	@echo ""
+	@echo "Reliability:"
+	@echo "  load-test    Run all k6 load test scenarios against localhost:8080"
+	@echo "  chaos-db     Run DB kill chaos test (docker-compose)"
+	@echo "  chaos-redis  Run Redis kill chaos test (docker-compose)"
+	@echo "  ha-up        Start the HA stack (Patroni+HAProxy+etcd, Redis Sentinel)"
+	@echo "  ha-down      Tear down the HA stack"
 
 # ── Development ───────────────────────────────────────────────────────────────
 

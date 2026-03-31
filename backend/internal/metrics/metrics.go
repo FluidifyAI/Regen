@@ -11,6 +11,54 @@ import (
 )
 
 var (
+	// Event counters — incremented in real-time by services
+	WebhooksProcessedTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "regen_webhooks_processed_total",
+			Help: "Total webhooks processed by source and status (success/error)",
+		},
+		[]string{"source", "status"},
+	)
+
+	AlertsReceivedTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "regen_alerts_received_total",
+			Help: "Total alerts received by source",
+		},
+		[]string{"source"},
+	)
+
+	IncidentsCreatedTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "regen_incidents_created_total",
+			Help: "Total incidents created by severity and trigger (alert/manual)",
+		},
+		[]string{"severity", "trigger"},
+	)
+
+	EscalationsTriggeredTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "regen_escalations_triggered_total",
+			Help: "Total escalation tiers triggered",
+		},
+	)
+
+	WorkerJobsProcessedTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "regen_worker_jobs_processed_total",
+			Help: "Total background jobs processed by type",
+		},
+		[]string{"job_type"},
+	)
+
+	WorkerJobsFailedTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "regen_worker_jobs_failed_total",
+			Help: "Total background jobs failed by type",
+		},
+		[]string{"job_type"},
+	)
+
 	// HTTP request metrics
 	httpRequestsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{

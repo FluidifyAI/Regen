@@ -67,14 +67,29 @@ For production HA (external DB, Redis Sentinel, zero-downtime deploys), see [doc
 
 Fluidify Regen is designed to run as reliably as the tools it monitors.
 
-- **Zero-downtime deploys** — rolling restarts drain in-flight requests before pod shutdown (SIGTERM → 30 s drain → exit)
-- **PostgreSQL HA** — Patroni manages automatic primary election and failover; HAProxy routes to the current primary with no app restart or config change (RTO < 30 s)
-- **Redis Sentinel** — 3-node quorum watches primary; workers reconnect to new master automatically
-- **Kubernetes-native** — HPA, health-gated rolling deploys, resource limits out of the box
-- **Webhook flood protection** — rate limiter returns 429 before the DB sees load spikes; validated by k6 burst test
-- **Full observability** — `/metrics` (Prometheus) + pre-built Grafana dashboard in `deploy/grafana/`
+### Benchmark results (HA stack · Apple M2 / Colima · 2026-03-31)
 
-Reproduce the benchmarks yourself: `make load-test` and `make chaos-db`.
+| Scenario | Result |
+|---|---|
+| Webhook ingestion p99 | **< 10 ms** (target: < 200 ms) |
+| Webhook sustained p50 / p95 | **1.55 ms / 2.82 ms** |
+| API reads p95 (list / detail) | **4.42 ms / 2.83 ms** |
+| Peak throughput (burst test) | **3,917 RPS — 0 × 5xx** |
+| PostgreSQL failover RTO | **11 s** (Patroni + HAProxy, target: < 60 s) |
+| Redis failover RTO | **5 s** (Sentinel 3-node quorum) |
+| In-flight requests lost on rolling deploy | **0** |
+
+> Production numbers will be higher — these were captured on a single-machine local HA stack.
+> Reproduce yourself: `make load-test` and `make chaos-db`. Full methodology in [docs/RELIABILITY.md](docs/RELIABILITY.md).
+
+### How it stays up
+
+- **Zero-downtime deploys** — rolling restarts drain in-flight requests before pod shutdown (SIGTERM → 30 s drain → exit)
+- **PostgreSQL HA** — Patroni manages automatic primary election; HAProxy re-routes to the new primary within one health-check interval (3 s). No app restart, no config change.
+- **Redis Sentinel** — 3-node quorum detects primary loss; workers reconnect to new master automatically
+- **Kubernetes-native** — HPA, health-gated rolling deploys, resource limits out of the box
+- **Webhook flood protection** — rate limiter returns 429 before the DB sees load spikes; validated at 3,917 RPS with zero OOM events
+- **Full observability** — `/metrics` (Prometheus) + pre-built Grafana dashboard in `deploy/grafana/`
 
 ### Send a test alert
 

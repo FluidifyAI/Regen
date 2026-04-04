@@ -1,16 +1,20 @@
-.PHONY: help dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test load-test chaos-db chaos-redis ha-up ha-down
+.PHONY: help start stop dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test load-test chaos-db chaos-redis ha-up ha-down
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
 help:
 	@echo "Fluidify Regen — Make targets"
 	@echo ""
+	@echo "Quick start:"
+	@echo "  start        Build and start everything (production mode) — single command"
+	@echo "  stop         Stop everything"
+	@echo ""
 	@echo "Development:"
 	@echo "  dev          Start backend in Docker (Air hot-reload) + Vite frontend locally"
 	@echo "               Best for active development — full HMR on :3000, API on :8080."
-	@echo "  dev-docker   Start everything in Docker (production-like, no hot-reload)"
+	@echo "  dev-docker   Start everything in Docker (nginx frontend, no local Node needed)"
 	@echo "  backend      Start db + redis + api in Docker only (no frontend)"
-	@echo "  migrate      Run database migrations inside the running api container"
+	@echo "  migrate      Run database migrations inside the running app container"
 	@echo "  install      Install all backend and frontend dependencies"
 	@echo ""
 	@echo "Code quality:"
@@ -41,6 +45,23 @@ help:
 	@echo "  ha-up        Start the HA stack (Patroni+HAProxy+etcd, Redis Sentinel)"
 	@echo "  ha-down      Tear down the HA stack"
 
+# ── Quick Start ───────────────────────────────────────────────────────────────
+
+# Single command to build and run everything in production mode.
+# Builds the Docker image (frontend embedded in Go binary) and starts all services.
+# Open http://localhost:8080 when ready.
+start:
+	@echo "Building and starting Fluidify Regen..."
+	@docker-compose up --build -d
+	@echo ""
+	@echo "  App: http://localhost:8080"
+	@echo ""
+	@echo "View logs: make logs"
+	@echo "Stop:      make stop"
+
+stop:
+	@docker-compose down
+
 # ── Development ───────────────────────────────────────────────────────────────
 
 # Standard development workflow:
@@ -50,7 +71,7 @@ help:
 # Prerequisites: Docker running, Node.js installed locally.
 dev:
 	@echo "Starting backend services (db + redis + api)..."
-	@docker-compose up -d db redis api
+	@docker-compose -f docker-compose.dev.yml up -d db redis api
 	@echo "Waiting for API to be ready..."
 	@sleep 3
 	@echo "API running at http://localhost:8080"
@@ -61,11 +82,11 @@ dev:
 	@echo ""
 	@cd frontend && npm run dev
 
-# Full Docker workflow — everything in Docker (nginx frontend + Air backend hot-reload).
-# Use this for production-like testing or when you don't have Node.js locally.
+# Full Docker dev workflow — everything in Docker (nginx frontend + Air backend hot-reload).
+# Use this for local testing without Node.js, or to test nginx/proxy configuration.
 dev-docker:
 	@echo "Starting all services in Docker (db + redis + api + nginx frontend)..."
-	@docker-compose up -d
+	@docker-compose -f docker-compose.dev.yml up -d
 	@echo ""
 	@echo "  Frontend: http://localhost:3000"
 	@echo "  API:      http://localhost:8080"
@@ -77,13 +98,13 @@ dev-docker:
 # Useful when working on backend with a separately running frontend, or API-only testing.
 backend:
 	@echo "Starting backend (db + redis + api)..."
-	@docker-compose up -d db redis api
+	@docker-compose -f docker-compose.dev.yml up -d db redis api
 	@echo "API running at http://localhost:8080"
 
-# Run migrations inside the running api container.
+# Run migrations inside the running app container.
 migrate:
 	@echo "Running database migrations..."
-	@docker-compose exec api go run cmd/regen/main.go migrate
+	@docker-compose exec app go run cmd/regen/main.go migrate
 	@echo "Migrations complete"
 
 # ── Code Quality ──────────────────────────────────────────────────────────────
@@ -148,6 +169,7 @@ docker:
 
 down:
 	@docker-compose down
+	@docker-compose -f docker-compose.dev.yml down
 
 clean:
 	@echo "Removing build artifacts..."
@@ -155,10 +177,11 @@ clean:
 	@rm -rf backend/ui/dist && mkdir -p backend/ui/dist && touch backend/ui/dist/.gitkeep
 	@echo "Removing containers and volumes..."
 	@docker-compose down -v
+	@docker-compose -f docker-compose.dev.yml down -v
 	@echo "Clean complete"
 
 logs:
-	@docker-compose logs -f
+	@docker-compose logs -f 2>/dev/null || docker-compose -f docker-compose.dev.yml logs -f
 
 health:
 	@echo "Checking API health..."

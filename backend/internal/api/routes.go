@@ -1,10 +1,13 @@
 package api
 
 import (
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
+	"strings"
 
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gin-gonic/gin"
@@ -434,18 +437,70 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	// ui.Files() returns nil when the frontend has not been built (e.g. local
 	// development using `npm run dev`), in which case we skip static serving
 	// so the API remains fully functional on its own.
-	if staticFS := ui.Files(); staticFS != nil {
+	if distFS := ui.FS(); distFS != nil {
 		slog.Info("serving embedded frontend")
-		// Serve /assets/*, /favicon.ico, etc. directly (long cache headers are
-		// set by Vite's build hashing so we can cache aggressively here).
-		router.StaticFS("/assets", staticFS)
-		router.StaticFileFS("/favicon.ico", "favicon.ico", staticFS)
-		// SPA fallback: any path not matched above serves index.html so that
-		// client-side routing (React Router) works on hard refresh / deep links.
+
+		// Read index.html once at startup. All SPA routes serve this same file;
+		// reading it into memory avoids repeated FS lookups on every page load.
+		indexHTML, err := fs.ReadFile(distFS, "index.html")
+		if err != nil {
+			slog.Error("embedded frontend is missing index.html", "err", err)
+		}
+
+		// http.FileServer handles Content-Type detection, ETag, Last-Modified,
+		// Range requests, and gzip negotiation correctly for all static assets.
+		fileServer := http.FileServer(http.FS(distFS))
+
+		// serveIndex writes the cached index.html with headers appropriate for
+		// an SPA shell: no-cache so browsers always revalidate after a deploy.
+		serveIndex := func(c *gin.Context) {
+			c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+			c.Writer.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			c.Writer.WriteHeader(http.StatusOK)
+			_, _ = c.Writer.Write(indexHTML)
+		}
+
+		// NoRoute is the catch-all for every path Gin doesn't match to an API
+		// route. We distinguish two cases:
+		//
+		//   1. Real static asset (JS/CSS/image/font): the path exists as a file
+		//      in the embedded FS → delegate to http.FileServer for correct
+		//      headers, ETag, and range support.
+		//
+		//   2. React Router path (/login, /incidents/123, etc.): the path does
+		//      not exist in the FS → serve index.html so the client-side router
+		//      takes over.
+		//
+		// Note: fs.FS.Open uses paths WITHOUT a leading slash; path.Clean keeps
+		// the URL canonical and prevents directory traversal.
 		router.NoRoute(func(c *gin.Context) {
-			c.FileFromFS("index.html", staticFS)
+			// Canonicalise the URL path (collapse // and resolve ..)
+			upath := path.Clean(c.Request.URL.Path)
+			// fs.FS paths have no leading slash
+			fsPath := strings.TrimPrefix(upath, "/")
+
+			f, err := distFS.Open(fsPath)
+			if err != nil {
+				// No matching file → SPA route, serve the shell
+				serveIndex(c)
+				return
+			}
+			stat, err := f.Stat()
+			f.Close()
+			if err != nil || stat.IsDir() {
+				// Don't expose directory listings
+				serveIndex(c)
+				return
+			}
+
+			// Real static asset — http.FileServer serves it with all the right
+			// headers. We must normalise the URL path so the file server and
+			// the FS agree on the file name (avoids the /index.html→./ redirect
+			// that http.FileServer applies to canonical-path enforcement).
+			c.Request.URL.Path = upath
+			fileServer.ServeHTTP(c.Writer, c.Request)
 		})
 	} else {
-		slog.Info("no embedded frontend found — serving API only (use `npm run dev` for the UI)")
+		slog.Info("no embedded frontend — API-only mode (run `npm run dev` for the UI)")
 	}
 }

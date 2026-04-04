@@ -79,3 +79,16 @@ export async function updateSystemSettings(payload: {
 export async function testOpenAIKey(apiKey: string): Promise<{ ok: boolean; error?: string }> {
   return apiClient.post<{ ok: boolean; error?: string }>('/api/v1/settings/system/ai/test', { api_key: apiKey })
 }
+
+// ── User Limit ────────────────────────────────────────────────────────────────
+
+export interface UserLimitStatus {
+  limit: number
+  current: number
+  at_limit: boolean
+  near_limit: boolean
+}
+
+export async function getUserLimitStatus(): Promise<UserLimitStatus> {
+  return apiClient.get<UserLimitStatus>('/api/v1/settings/users/limit')
+}

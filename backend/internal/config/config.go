@@ -48,6 +48,11 @@ type Config struct {
 	TeamsBotUserID   string // AAD object ID of the bot user; required for direct messages
 	TeamsServiceURL  string // Bot Framework relay URL for this tenant (e.g. https://smba.trafficmanager.net/amer/)
 
+	// OSS team size limit — max active human users (AI agents and deactivated
+	// users never count). Override via OSS_USER_LIMIT env var (e.g. set higher
+	// for a Pro/SaaS deployment). Default: 7.
+	OSSUserLimit int
+
 	// Frontend URL (used by agents to build deep links)
 	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
 
@@ -101,6 +106,9 @@ func Load() (*Config, error) {
 		TeamsTeamID:      getEnv("TEAMS_TEAM_ID", ""),
 		TeamsBotUserID:   getEnv("TEAMS_BOT_USER_ID", ""),
 		TeamsServiceURL:  getEnv("TEAMS_SERVICE_URL", "https://smba.trafficmanager.net/amer/"),
+
+		// OSS user limit
+		OSSUserLimit: getEnvAsInt("OSS_USER_LIMIT", 7),
 
 		// Frontend
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),

@@ -11,7 +11,7 @@
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Email **security@fluidify.ai** with the following:
+Email **contact@fluidify.ai** with the following:
 
 - Description of the vulnerability
 - Steps to reproduce
@@ -36,11 +36,8 @@ Out of scope:
 - Social engineering
 - Issues in forks or modified versions
 
-## Security Design Notes
+## Security Architecture
 
-- Webhook payloads are signature-verified (Prometheus/Slack signing secret)
-- All `received_at` / `created_at` timestamps are server-generated and immutable
-- Session tokens are not logged
-- AI API keys (OpenAI) are stored encrypted at rest and never returned in API responses
-- CORS is enforced via `CORS_ALLOWED_ORIGINS` allowlist
-- Rate limiting is applied at three tiers (global, per-IP, per-endpoint)
+For the full security architecture — including authentication, rate limiting, webhook verification, CSP headers, container hardening, and the production security checklist — see:
+
+**[SECURITY.md](../SECURITY.md)**

@@ -41,7 +41,7 @@ ingress:
   className: nginx
   # Required: set this to your hostname (e.g. incidents.myco.com)
   host: ""
-  # Recommended: set tls=true in production — SAML ACS and webhooks
+  # PRODUCTION REQUIRED: set tls=true — SAML ACS and webhooks
   # transmit sensitive data that must be protected by TLS.
   tls: false
   tlsSecretName: ""
@@ -102,7 +102,7 @@ postgresql:
   auth:
     database: fluidify_regen
     username: fluidify_regen
-    # IMPORTANT: change this in production
+    # PRODUCTION REQUIRED: never deploy with 'changeme' — set a strong password
     password: changeme
 
 # Bitnami Redis subchart
@@ -110,6 +110,7 @@ redis:
   enabled: true
   architecture: standalone
   auth:
+    # PRODUCTION REQUIRED: set enabled=true and provide a password
     enabled: false
 
 nodeSelector: {}

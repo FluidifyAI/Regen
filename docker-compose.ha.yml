@@ -69,9 +69,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
-      PATRONI_SUPERUSER_PASSWORD: postgres_secret
-      PATRONI_REPLICATION_PASSWORD: replicator_secret
-      PATRONI_REWIND_PASSWORD: rewind_secret
+      PATRONI_SUPERUSER_PASSWORD: ${PATRONI_SUPERUSER_PASSWORD:-postgres_secret}
+      PATRONI_REPLICATION_PASSWORD: ${PATRONI_REPLICATION_PASSWORD:-replicator_secret}
+      PATRONI_REWIND_PASSWORD: ${PATRONI_REWIND_PASSWORD:-rewind_secret}
     volumes:
       - patroni1_data:/var/lib/postgresql/data
       - ./deploy/patroni/patroni1.yml:/etc/patroni/patroni.yml:ro
@@ -101,9 +101,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
-      PATRONI_SUPERUSER_PASSWORD: postgres_secret
-      PATRONI_REPLICATION_PASSWORD: replicator_secret
-      PATRONI_REWIND_PASSWORD: rewind_secret
+      PATRONI_SUPERUSER_PASSWORD: ${PATRONI_SUPERUSER_PASSWORD:-postgres_secret}
+      PATRONI_REPLICATION_PASSWORD: ${PATRONI_REPLICATION_PASSWORD:-replicator_secret}
+      PATRONI_REWIND_PASSWORD: ${PATRONI_REWIND_PASSWORD:-rewind_secret}
     volumes:
       - patroni2_data:/var/lib/postgresql/data
       - ./deploy/patroni/patroni2.yml:/etc/patroni/patroni.yml:ro

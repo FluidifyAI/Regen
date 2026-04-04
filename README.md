@@ -298,6 +298,25 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [Makefile](Makefile) (`make help`) fo
 
 ---
 
+## Security
+
+Fluidify Regen is built with security as a first-class concern:
+
+- **Authentication**: bcrypt (cost 12), timing-safe comparison, 5-attempt account lockout, HTTP-only SameSite=Strict session cookies
+- **No SQL injection surface**: All database access uses GORM parameterized queries — no raw string interpolation
+- **Webhook verification**: Slack (HMAC-SHA256 + replay protection), Teams (RSA/OIDC), CloudWatch (RSA + SSRF-safe cert validation)
+- **Rate limiting**: Redis Lua script enforcing three tiers — 10/min on auth endpoints, 120/min unauthenticated, 600/min authenticated
+- **Security headers**: CSP, HSTS (2 years), X-Frame-Options, X-Content-Type-Options, Permissions-Policy on every response
+- **Container hardening**: non-root UID 1001, read-only filesystem, all Linux capabilities dropped
+- **CORS**: explicit allowlist via `CORS_ALLOWED_ORIGINS`; dev-only fallback to localhost
+- **Frontend**: no `dangerouslySetInnerHTML`, no secrets in bundle, session token never accessible to JavaScript
+
+Before going to production, review the **[Production Security Checklist](SECURITY.md#11-production-security-checklist)** — TLS, PostgreSQL password, Redis auth, and CORS origins must all be configured.
+
+Full security architecture: [SECURITY.md](SECURITY.md)
+
+---
+
 ## License
 
 - **Community**: [AGPLv3](LICENSE) — free forever, including SSO

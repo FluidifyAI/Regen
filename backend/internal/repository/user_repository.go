@@ -196,7 +196,7 @@ func (r *userRepository) GetByTeamsUserID(teamsUserID string) (*models.User, err
 func (r *userRepository) Count() (int64, error) {
 	var n int64
 	err := r.db.Model(&models.User{}).
-		Where("auth_source != 'deactivated'").
+		Where("auth_source != 'deactivated' AND auth_source != 'ai'").
 		Count(&n).Error
 	return n, err
 }

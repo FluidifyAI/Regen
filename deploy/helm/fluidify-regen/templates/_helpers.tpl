@@ -75,7 +75,7 @@ Otherwise build from bundled postgresql subchart credentials.
 {{- printf "postgresql://%s:%s@%s-postgresql:5432/%s?sslmode=disable"
     .Values.postgresql.auth.username
     .Values.postgresql.auth.password
-    (include "fluidify-regen.fullname" .)
+    .Release.Name
     .Values.postgresql.auth.database }}
 {{- end }}
 {{- end }}
@@ -89,7 +89,7 @@ Otherwise build from bundled redis subchart.
 {{- if .Values.secrets.redisURL }}
 {{- .Values.secrets.redisURL }}
 {{- else }}
-{{- printf "redis://%s-redis-master:6379" (include "fluidify-regen.fullname" .) }}
+{{- printf "redis://%s-redis-master:6379" .Release.Name }}
 {{- end }}
 {{- end }}
 

@@ -96,6 +96,13 @@ secrets:
   samlEntityID: ""
   webhookSecret: ""
 
+# Database migrations
+# Set enabled: false when PostgreSQL is managed by the same Helm release (pre-install
+# hook fires before the subchart DB is ready). The app runs migrations on startup
+# automatically — this hook is an extra safety net for external DB deployments.
+migrations:
+  enabled: true
+
 # Bitnami PostgreSQL subchart
 postgresql:
   enabled: true

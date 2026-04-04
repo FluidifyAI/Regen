@@ -1,0 +1,51 @@
+# values.test.yaml — minimal overrides for k8s test suite
+# Used by: make k8s-test-up / scripts/k8s-test/
+# Do NOT use in production.
+
+replicaCount: 1
+
+autoscaling:
+  enabled: false
+
+# No ingress needed — tests use kubectl port-forward
+ingress:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Disable the pre-install migration hook — PostgreSQL is a subchart in the same
+# release so it doesn't exist when the pre-install hook fires. The app runs
+# migrations automatically on startup, so this is safe for testing.
+migrations:
+  enabled: false
+
+config:
+  appEnv: development
+  logLevel: info
+  corsAllowedOrigins: ""
+
+postgresql:
+  auth:
+    database: fluidify_regen
+    username: fluidify_regen
+    password: testpassword
+  primary:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+redis:
+  auth:
+    enabled: false
+  master:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi

@@ -1,0 +1,64 @@
+name: K8s Tests
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_teardown:
+        description: 'Leave cluster running after tests (for debugging)'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Only one k8s test run at a time — the VPS has one cluster
+concurrency:
+  group: k8s-test
+  cancel-in-progress: false
+
+jobs:
+  k8s-test:
+    name: Kubernetes end-to-end
+    runs-on: self-hosted
+
+    env:
+      K3D_CLUSTER_NAME: regen-test
+      IMAGE_TAG: fluidify-regen:test
+      HELM_RELEASE: regen-test
+      K8S_NAMESPACE: regen-test
+      SKIP_TEARDOWN: ${{ inputs.skip_teardown == true && '1' || '0' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify tools
+        run: |
+          echo "k3d:    $(k3d version)"
+          echo "kubectl: $(kubectl version --client --short 2>/dev/null || kubectl version --client)"
+          echo "helm:   $(helm version --short)"
+          echo "docker: $(docker version --format '{{.Client.Version}}')"
+
+      - name: Run k8s test suite
+        run: bash scripts/k8s-test/run-all.sh
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n regen-test || true
+          echo ""
+          echo "=== Pod descriptions ==="
+          kubectl describe pods -n regen-test || true
+          echo ""
+          echo "=== App logs ==="
+          kubectl logs -n regen-test \
+            -l "app.kubernetes.io/name=fluidify-regen" \
+            --tail=100 || true
+          echo ""
+          echo "=== Events ==="
+          kubectl get events -n regen-test --sort-by='.lastTimestamp' | tail -30 || true
+
+      - name: Teardown on failure (safety net)
+        if: failure()
+        run: bash scripts/k8s-test/99-teardown.sh || true

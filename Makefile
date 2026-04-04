@@ -1,4 +1,4 @@
-.PHONY: help start stop dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test load-test chaos-db chaos-redis ha-up ha-down
+.PHONY: help start stop dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test load-test chaos-db chaos-redis ha-up ha-down k8s-test-up k8s-test k8s-test-down
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -44,6 +44,11 @@ help:
 	@echo "  chaos-redis  Run Redis kill chaos test (docker-compose)"
 	@echo "  ha-up        Start the HA stack (Patroni+HAProxy+etcd, Redis Sentinel)"
 	@echo "  ha-down      Tear down the HA stack"
+	@echo ""
+	@echo "Kubernetes testing (requires k3d on PATH):"
+	@echo "  k8s-test-up  Create k3d cluster + build and import Docker image"
+	@echo "  k8s-test     Run full k8s test suite (setup → test → teardown)"
+	@echo "  k8s-test-down  Tear down the k3d test cluster"
 
 # ── Quick Start ───────────────────────────────────────────────────────────────
 
@@ -228,6 +233,21 @@ ha-up:
 
 ha-down:
 	docker-compose -f docker-compose.ha.yml down -v
+
+# ── Kubernetes Testing ────────────────────────────────────────────────────────
+
+# Create k3d cluster and import the Docker image (prerequisite for k8s-test).
+k8s-test-up:
+	@bash scripts/k8s-test/00-setup-cluster.sh
+	@bash scripts/k8s-test/01-install-chart.sh
+
+# Run the full k8s test suite end-to-end (creates cluster, tests, tears down).
+k8s-test:
+	@bash scripts/k8s-test/run-all.sh
+
+# Tear down the k3d test cluster.
+k8s-test-down:
+	@bash scripts/k8s-test/99-teardown.sh
 
 # ── Helm ──────────────────────────────────────────────────────────────────────
 

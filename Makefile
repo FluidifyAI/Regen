@@ -7,7 +7,7 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  dev          Start backend in Docker (Air hot-reload) + Vite frontend locally"
-	@echo "               This is the standard workflow for active development."
+	@echo "               Best for active development — full HMR on :3000, API on :8080."
 	@echo "  dev-docker   Start everything in Docker (production-like, no hot-reload)"
 	@echo "  backend      Start db + redis + api in Docker only (no frontend)"
 	@echo "  migrate      Run database migrations inside the running api container"
@@ -61,13 +61,14 @@ dev:
 	@echo ""
 	@cd frontend && npm run dev
 
-# Full Docker workflow — everything containerised (db + redis + api with Air hot-reload).
-# The frontend is served by the Vite proxy via `make dev` — for API-only Docker testing.
+# Full Docker workflow — everything in Docker (nginx frontend + Air backend hot-reload).
+# Use this for production-like testing or when you don't have Node.js locally.
 dev-docker:
-	@echo "Starting all services in Docker..."
+	@echo "Starting all services in Docker (db + redis + api + nginx frontend)..."
 	@docker-compose up -d
 	@echo ""
-	@echo "  API: http://localhost:8080"
+	@echo "  Frontend: http://localhost:3000"
+	@echo "  API:      http://localhost:8080"
 	@echo ""
 	@echo "View logs: make logs"
 	@echo "Stop:      make down"

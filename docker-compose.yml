@@ -84,6 +84,19 @@ services:
     networks:
       - fluidify-regen
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fluidify-regen-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - api
+    networks:
+      - fluidify-regen
+
   # mock-idp + saml-proxy: Local SAML IdP for SSO development/testing.
   # Test credentials: user1 / user1pass  (email: user1@example.com)
   #                   user2 / user2pass  (email: user2@example.com)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   DndContext,
@@ -13,6 +13,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { updateIncident } from '../api/incidents'
+import { apiClient } from '../api/client'
 import { Button } from '../components/ui/Button'
 import { IncidentCard } from '../components/incidents/IncidentCard'
 import { CreateIncidentModal } from '../components/incidents/CreateIncidentModal'
@@ -42,12 +43,21 @@ export function HomePage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [activeIncident, setActiveIncident] = useState<Incident | null>(null)
   const [pendingDrag, setPendingDrag] = useState<PendingDrag | null>(null)
+  const [canLoadSampleData, setCanLoadSampleData] = useState(false)
+  const [loadingSampleData, setLoadingSampleData] = useState(false)
   const { toasts, dismissToast, success, error: showError } = useToast()
 
   // Fetch active incidents (not canceled)
   const { incidents, loading, error, refetch } = useIncidents({
     limit: 100,
   })
+
+  // Check if demo data can be loaded (fresh install with no incidents)
+  useEffect(() => {
+    apiClient.get<{ demo_data_available: boolean }>('/api/v1/setup/status')
+      .then(res => setCanLoadSampleData(res.demo_data_available))
+      .catch(() => {})
+  }, [])
 
   // Configure drag sensors
   const sensors = useSensors(
@@ -59,6 +69,20 @@ export function HomePage() {
   )
 
   const handleDeclareIncident = () => setShowCreateModal(true)
+
+  const handleLoadSampleData = async () => {
+    setLoadingSampleData(true)
+    try {
+      await apiClient.post('/api/v1/setup/demo-data', {})
+      success('Sample data loaded! Explore your first incident, schedule, and escalation policy.')
+      setCanLoadSampleData(false)
+      await refetch()
+    } catch {
+      showError('Failed to load sample data')
+    } finally {
+      setLoadingSampleData(false)
+    }
+  }
 
   const handleIncidentCreated = (incident: Incident) => {
     navigate(`/incidents/${incident.id}`)
@@ -180,7 +204,13 @@ export function HomePage() {
           <GeneralError message={error} onRetry={refetch} />
         )}
 
-        {!loading && !error && activeIncidentsCount === 0 && <EmptyDashboard />}
+        {!loading && !error && activeIncidentsCount === 0 && (
+          <EmptyDashboard
+            canLoadSampleData={canLoadSampleData}
+            onLoadSampleData={handleLoadSampleData}
+            loadingSampleData={loadingSampleData}
+          />
+        )}
 
         {!loading && !error && activeIncidentsCount > 0 && (
           <DndContext

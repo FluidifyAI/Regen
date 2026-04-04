@@ -1,4 +1,4 @@
-import { Shield, CheckCircle, Clock } from 'lucide-react'
+import { Shield, CheckCircle, Clock, Sparkles } from 'lucide-react'
 import { Button } from './Button'
 
 interface EmptyStateProps {
@@ -79,13 +79,36 @@ export function EmptyIncidentsList({
 /**
  * Pre-configured empty state for home dashboard
  */
-export function EmptyDashboard() {
+export function EmptyDashboard({
+  canLoadSampleData,
+  onLoadSampleData,
+  loadingSampleData,
+}: {
+  canLoadSampleData?: boolean
+  onLoadSampleData?: () => void
+  loadingSampleData?: boolean
+}) {
   return (
-    <EmptyState
-      icon="check"
-      title="No active incidents"
-      description="When incidents are declared, they will appear here."
-    />
+    <div className="flex items-center justify-center min-h-[400px] px-4">
+      <div className="text-center max-w-md">
+        <CheckCircle className="w-12 h-12 mx-auto mb-4 text-text-tertiary" />
+        <h3 className="text-lg font-semibold text-text-primary mb-2">No active incidents</h3>
+        <p className="text-sm text-text-secondary mb-6">
+          When incidents are declared, they will appear here.
+        </p>
+        {canLoadSampleData && onLoadSampleData && (
+          <div className="mt-2">
+            <p className="text-xs text-text-tertiary mb-3">
+              New here? Load sample data to see how incidents, on-call schedules, and escalation policies work together.
+            </p>
+            <Button variant="secondary" onClick={onLoadSampleData} disabled={loadingSampleData}>
+              <Sparkles className="w-4 h-4 mr-2" />
+              {loadingSampleData ? 'Loading…' : 'Load sample data'}
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

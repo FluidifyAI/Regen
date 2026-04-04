@@ -393,27 +393,28 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
             </div>
 
             {/* App-Level Token (Socket Mode) */}
-            {isLocal && (
-              <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">
-                  App-Level Token{' '}
-                  <span className="text-text-tertiary font-normal">(required for Socket Mode)</span>
-                </label>
-                <p className="text-xs text-text-tertiary mb-1.5">
-                  <strong>Basic Information</strong> → <strong>App-Level Tokens</strong> section →
-                  click <strong>Generate Token and Scopes</strong> → add{' '}
-                  <code className="bg-surface-secondary px-1 rounded">connections:write</code> scope
-                  → copy the token (starts with <code className="bg-surface-secondary px-1 rounded">xapp-</code>)
-                </p>
-                <input
-                  type="password"
-                  value={appToken}
-                  onChange={(e) => setAppToken(e.target.value)}
-                  placeholder="xapp-..."
-                  className={inputClass}
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">
+                App-Level Token{' '}
+                <span className="text-red-500 font-normal">required for interactive buttons</span>
+              </label>
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-1.5">
+                ⚠️ Without this token, the <strong>Make me Lead</strong> and <strong>Add Note</strong> buttons in Slack will show an error when clicked.
+              </p>
+              <p className="text-xs text-text-tertiary mb-1.5">
+                In your Slack app: <strong>Basic Information</strong> → <strong>App-Level Tokens</strong> →
+                click <strong>Generate Token and Scopes</strong> → add{' '}
+                <code className="bg-surface-secondary px-1 rounded">connections:write</code> scope
+                → copy the token (starts with <code className="bg-surface-secondary px-1 rounded">xapp-</code>)
+              </p>
+              <input
+                type="password"
+                value={appToken}
+                onChange={(e) => setAppToken(e.target.value)}
+                placeholder="xapp-..."
+                className={inputClass}
+              />
+            </div>
 
             <button
               onClick={handleTest}

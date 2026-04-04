@@ -43,6 +43,8 @@ type UserRepository interface {
 	GetBySlackUserID(slackUserID string) (*models.User, error)
 	// GetByTeamsUserID retrieves a user by their Azure AD Object ID.
 	GetByTeamsUserID(teamsUserID string) (*models.User, error)
+	// RestoreAgent resets a previously-deactivated AI agent back to auth_source='ai', active=true.
+	RestoreAgent(id uuid.UUID) error
 }
 
 type userRepository struct {
@@ -102,6 +104,16 @@ func (r *userRepository) CreateAgent(user *models.User) error {
 		return fmt.Errorf("repository: CreateAgent: password_hash must be nil for AI agent accounts")
 	}
 	return r.db.Create(user).Error
+}
+
+func (r *userRepository) RestoreAgent(id uuid.UUID) error {
+	return r.db.Model(&models.User{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"auth_source": "ai",
+			"active":      true,
+			"updated_at":  time.Now(),
+		}).Error
 }
 
 func (r *userRepository) SetActive(id uuid.UUID, active bool) error {

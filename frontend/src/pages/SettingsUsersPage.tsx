@@ -154,7 +154,7 @@ export function SettingsUsersPage() {
                       {u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}
                     </td>
                     <td className="px-4 py-3">
-                      {u.auth_source !== 'deactivated' && (
+                      {u.auth_source !== 'deactivated' && u.auth_source !== 'ai' && (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => setEditingUser(u)}

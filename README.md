@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/FluidifyAI/Regen/actions/workflows/ci.yml"><img src="https://github.com/FluidifyAI/Regen/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/FluidifyAI/Regen/releases"><img src="https://img.shields.io/badge/release-v1.0.0-6366f1" alt="Release"></a>
+  <a href="https://github.com/FluidifyAI/Regen/releases"><img src="https://img.shields.io/badge/release-v0.10.0-6366f1" alt="Release"></a>
   <a href="https://discord.gg/b6PSdhzDa"><img src="https://img.shields.io/discord/1487668241718579342?label=discord&logo=discord&logoColor=white&color=5865F2" alt="Discord"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="License: AGPLv3"></a>
   <a href="https://github.com/FluidifyAI/Regen/pkgs/container/regen"><img src="https://img.shields.io/badge/docker-ready-0ea5e9" alt="Docker"></a>

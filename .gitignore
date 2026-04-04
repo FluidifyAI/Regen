@@ -62,8 +62,12 @@ backend/ui/dist/*
 # Internal docs, assets, dev tooling — local only, never pushed to remote
 /.internal/
 /test-infra/
-/docs/
 /ref/
+
+# Private internal docs (product vision, decisions, roadmap) — not for public repo
+/docs/PRODUCT.md
+/docs/ARCHITECTURE.md
+/docs/DECISIONS.md
 
 # Generated artifacts
 *.zip

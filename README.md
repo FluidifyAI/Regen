@@ -202,11 +202,11 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 
 | Agent | What it does | Status |
 |---|---|---|
-| **Triage agent** | Calls Datadog, K8s, GitHub MCP — gathers context before you unlock your phone | 🔨 In progress |
-| **Co-pilot mode** | Agent proposes action + confidence score, human approves with one tap | 🔨 In progress |
-| **Root cause agent** | Correlates metrics, logs, and recent deploys to surface likely root cause | 📋 Planned |
-| **Runbook agent** | Matches incident to known runbooks, executes with human gate | 📋 Planned |
-| **Noise reduction** | Learns alert patterns, suppresses known-noisy low-signal alerts | 📋 Planned |
+| **Triage agent** | Calls Datadog, K8s, GitHub MCP — gathers context before you unlock your phone | In progress |
+| **Co-pilot mode** | Agent proposes action + confidence score, human approves with one tap | In progress |
+| **Root cause agent** | Correlates metrics, logs, and recent deploys to surface likely root cause | Planned |
+| **Runbook agent** | Matches incident to known runbooks, executes with human gate | Planned |
+| **Noise reduction** | Learns alert patterns, suppresses known-noisy low-signal alerts | Planned |
 
 > Want to help build this? The agent scaffolding is open. **[See the roadmap issues →](https://github.com/FluidifyAI/Regen/issues)**
 
@@ -218,21 +218,21 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 
 | Category | Tools |
 |---|---|
-| 🚨 **Alert ingestion** | Prometheus Alertmanager · Grafana · AWS CloudWatch · Generic webhook |
-| 💬 **Chat** | Slack · Microsoft Teams · Telegram |
-| 🤖 **AI** | OpenAI GPT-4o / GPT-4 / GPT-3.5 (BYO key) |
-| 🔐 **Auth** | SAML 2.0 — Okta · Azure AD · Google Workspace · any compliant IdP |
-| 🚀 **Deploy** | Docker Compose · Kubernetes Helm · bare metal |
+| **Alert ingestion** | Prometheus Alertmanager · Grafana · AWS CloudWatch · Generic webhook |
+| **Chat** | Slack · Microsoft Teams · Telegram |
+| **AI** | OpenAI GPT-4o / GPT-4 / GPT-3.5 (BYO key) |
+| **Auth** | SAML 2.0 — Okta · Azure AD · Google Workspace · any compliant IdP |
+| **Deploy** | Docker Compose · Kubernetes Helm · bare metal |
 
 ### Coming soon
 
 | Category | Tools |
 |---|---|
-| 🚨 **Alert ingestion** | Datadog · New Relic · Sentry · Dynatrace · Elastic · Zabbix · Uptime Kuma · Betterstack |
-| 🔁 **Migration / import** | Grafana OnCall · PagerDuty · Opsgenie · Splunk On-Call |
-| 📄 **Post-mortem export** | Confluence · Notion · Jira |
-| 🤖 **AI providers** | Anthropic Claude · local LLMs via Ollama |
-| 💬 **Chat** | Discord |
+| **Alert ingestion** | Datadog · New Relic · Sentry · Dynatrace · Elastic · Zabbix · Uptime Kuma · Betterstack |
+| **Migration / import** | Grafana OnCall · PagerDuty · Opsgenie · Splunk On-Call |
+| **Post-mortem export** | Confluence · Notion · Jira |
+| **AI providers** | Anthropic Claude · local LLMs via Ollama |
+| **Chat** | Discord |
 
 > Missing something? [Open an issue](https://github.com/FluidifyAI/Regen/issues/new) — the generic webhook covers most tools today.
 

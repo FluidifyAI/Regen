@@ -9,7 +9,9 @@ import {
   updateUser,
   deactivateUser,
   resetUserPassword,
+  getUserLimitStatus,
   UserRecord,
+  UserLimitStatus,
 } from '../api/settings'
 import { listSlackMembers, listTeamsMembers, SlackMember, TeamsMember } from '../api/users'
 import { getSlackOAuthStatus } from '../api/slack'
@@ -27,6 +29,8 @@ export function SettingsUsersPage() {
   const [teamsConfigured, setTeamsConfigured] = useState(false)
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null)
   const [setupInfo, setSetupInfo] = useState<{ token: string; email: string } | null>(null)
+  const [limitStatus, setLimitStatus] = useState<UserLimitStatus | null>(null)
+
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin') {
       navigate('/')
@@ -36,6 +40,7 @@ export function SettingsUsersPage() {
   useEffect(() => {
     loadUsers()
     getTeamsConfig().then(s => setTeamsConfigured(s.configured)).catch(() => {})
+    getUserLimitStatus().then(setLimitStatus).catch(() => {})
   }, [])
 
   async function loadUsers() {
@@ -77,7 +82,14 @@ export function SettingsUsersPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-text-primary">Users</h1>
-            <p className="text-sm text-text-secondary mt-0.5">Manage team members and access</p>
+            <p className="text-sm text-text-secondary mt-0.5">
+              Manage team members and access
+              {limitStatus && (
+                <span className="ml-2 text-text-tertiary">
+                  — {limitStatus.current}/{limitStatus.limit} seats used
+                </span>
+              )}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -96,16 +108,50 @@ export function SettingsUsersPage() {
                 Import from Teams
               </button>
             )}
-            <Button variant="primary" onClick={() => setShowInvite(true)}>
-              <Plus className="w-4 h-4" />
-              Invite user
-            </Button>
+            <div title={limitStatus?.at_limit ? `7-user community edition limit reached — upgrade to Fluidify Pro` : undefined}>
+              <Button
+                variant="primary"
+                onClick={() => setShowInvite(true)}
+                disabled={limitStatus?.at_limit === true}
+              >
+                <Plus className="w-4 h-4" />
+                Invite user
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-6">
+        {/* OSS user limit banners */}
+        {limitStatus?.at_limit && (
+          <div className="mb-4 flex items-start gap-3 p-4 rounded-lg border border-violet-200 bg-violet-50">
+            <span className="text-lg leading-none">🚀</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-violet-900">
+                You've outgrown the community edition ({limitStatus.current}/{limitStatus.limit} users)
+              </p>
+              <p className="text-sm text-violet-700 mt-0.5">
+                Upgrade to <a href="https://fluidify.ai" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">Fluidify Pro</a> for unlimited users and managed hosting.
+              </p>
+            </div>
+          </div>
+        )}
+        {limitStatus?.near_limit && !limitStatus.at_limit && (
+          <div className="mb-4 flex items-start gap-3 p-4 rounded-lg border border-amber-200 bg-amber-50">
+            <span className="text-lg leading-none">⚠️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-900">
+                Your team is growing ({limitStatus.current}/{limitStatus.limit} users)
+              </p>
+              <p className="text-sm text-amber-700 mt-0.5">
+                When you reach {limitStatus.limit}, new invites will be paused. <a href="https://fluidify.ai" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">Upgrade to Fluidify Pro</a> for unlimited users.
+              </p>
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
             {error}

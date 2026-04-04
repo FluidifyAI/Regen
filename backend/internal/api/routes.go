@@ -392,7 +392,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		settingsGroup := protected.Group("/settings", middleware.RequireAdmin())
 		{
 			settingsGroup.GET("/users", handlers.ListUsers(localAuth))
-			settingsGroup.POST("/users", handlers.CreateUser(localAuth))
+			settingsGroup.GET("/users/limit", handlers.GetUserLimit(localAuth, cfg.OSSUserLimit))
+			settingsGroup.POST("/users", handlers.CreateUser(localAuth, cfg.OSSUserLimit))
 			settingsGroup.PATCH("/users/:id", handlers.UpdateUser(localAuth))
 			settingsGroup.DELETE("/users/:id", handlers.DeactivateUser(localAuth))
 			settingsGroup.POST("/users/:id/reset-password", handlers.ResetUserPassword(localAuth))

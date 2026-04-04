@@ -164,7 +164,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 	}
 	if samlMiddleware != nil {
 		// Wrap the default CookieSessionProvider with JIT user provisioning.
-		authSvc := services.NewAuthService(userRepo)
+		authSvc := services.NewAuthService(userRepo, cfg.OSSUserLimit)
 		samlMiddleware.Session = auth.NewProvisioningSessionProvider(samlMiddleware.Session, authSvc)
 		slog.Info("SAML SSO enabled", "base_url", cfg.SAMLBaseURL)
 	} else {

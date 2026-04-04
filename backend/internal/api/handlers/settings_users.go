@@ -12,6 +12,24 @@ import (
 	"github.com/fluidify/regen/internal/services"
 )
 
+// GetUserLimit handles GET /api/v1/settings/users/limit
+// Returns current user count, the OSS limit, and whether the install is at or near the limit.
+func GetUserLimit(localAuth services.LocalAuthService, limit int) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		count, err := localAuth.CountUsers()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to count users"}})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"limit":    limit,
+			"current":  count,
+			"at_limit": count >= int64(limit),
+			"near_limit": count >= int64(limit-1),
+		})
+	}
+}
+
 // ListUsers handles GET /api/v1/settings/users
 func ListUsers(localAuth services.LocalAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -29,8 +47,24 @@ func ListUsers(localAuth services.LocalAuthService) gin.HandlerFunc {
 }
 
 // CreateUser handles POST /api/v1/settings/users
-func CreateUser(localAuth services.LocalAuthService) gin.HandlerFunc {
+func CreateUser(localAuth services.LocalAuthService, userLimit int) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Enforce OSS team size limit before creating the user.
+		count, err := localAuth.CountUsers()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to check user count"}})
+			return
+		}
+		if count >= int64(userLimit) {
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{
+				"code":    "user_limit_reached",
+				"message": "You've reached the community edition limit of 7 users. Upgrade to Fluidify Pro for unlimited users.",
+				"limit":   userLimit,
+				"current": count,
+			}})
+			return
+		}
+
 		var req dto.CreateUserRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})

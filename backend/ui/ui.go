@@ -1,6 +1,6 @@
-// Package ui embeds the pre-built React frontend and exposes it as an
-// http.FileSystem so the Gin router can serve it from the same origin as
-// the API (eliminating all CORS configuration for self-hosted deployments).
+// Package ui embeds the pre-built React frontend and exposes it as an fs.FS
+// so the server can serve it from the same origin as the API (eliminating
+// all CORS configuration for self-hosted deployments).
 //
 // # Development workflow (no embedding needed)
 //
@@ -17,14 +17,13 @@
 // into this directory, then compiles the Go binary.  The embed directive
 // captures whatever is in dist/ at compile time.
 //
-// If dist/ contains only .gitkeep (i.e. no real frontend build), Files()
+// If dist/ contains only .gitkeep (i.e. no real frontend build), FS()
 // returns nil and the router skips static serving — the API still works.
 package ui
 
 import (
 	"embed"
 	"io/fs"
-	"net/http"
 )
 
 // The "all:" prefix includes hidden files (like .gitkeep) so the embed
@@ -33,19 +32,19 @@ import (
 //go:embed all:dist
 var embedded embed.FS
 
-// Files returns the embedded frontend as an http.FileSystem, or nil if the
-// frontend has not been built (dist/ contains only the placeholder .gitkeep).
+// FS returns the embedded frontend as an fs.FS rooted at the dist/ directory,
+// or nil if the frontend has not been built (dist/ contains only .gitkeep).
 // Callers must check for nil before registering the static file handler.
-func Files() http.FileSystem {
+func FS() fs.FS {
 	sub, err := fs.Sub(embedded, "dist")
 	if err != nil {
 		return nil
 	}
-	// Probe for index.html — present in a real build, absent in dev/placeholder.
+	// Probe for index.html — present in a real build, absent in placeholder.
 	f, err := sub.Open("index.html")
 	if err != nil {
 		return nil
 	}
 	f.Close()
-	return http.FS(sub)
+	return sub
 }

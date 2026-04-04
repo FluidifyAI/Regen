@@ -128,6 +128,17 @@ func (r *stubUserRepo) Deactivate(id uuid.UUID) error {
 	return &repository.NotFoundError{Resource: "user", ID: id.String()}
 }
 
+func (r *stubUserRepo) RestoreAgent(id uuid.UUID) error {
+	for _, u := range r.users {
+		if u.ID == id {
+			u.AuthSource = "ai"
+			u.Active = true
+			return nil
+		}
+	}
+	return &repository.NotFoundError{Resource: "user", ID: id.String()}
+}
+
 func (r *stubUserRepo) CreateAgent(user *models.User) error {
 	if user.ID == uuid.Nil {
 		user.ID = uuid.New()

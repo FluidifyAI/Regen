@@ -21,9 +21,16 @@ func SeedAgents(userRepo repository.UserRepository) error {
 }
 
 func seedAgent(userRepo repository.UserRepository, email, name, agentType string) error {
-	_, err := userRepo.GetByEmail(email)
+	existing, err := userRepo.GetByEmail(email)
 	if err == nil {
-		return nil // already exists
+		// Agent exists — restore it if it was accidentally deactivated.
+		if existing.AuthSource != "ai" {
+			if restoreErr := userRepo.RestoreAgent(existing.ID); restoreErr != nil {
+				return restoreErr
+			}
+			slog.Info("restored AI agent", "name", name, "email", email)
+		}
+		return nil
 	}
 
 	// GetByEmail returns *repository.NotFoundError when the user does not exist.

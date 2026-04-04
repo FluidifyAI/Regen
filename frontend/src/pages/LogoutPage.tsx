@@ -17,12 +17,12 @@ function AllClearPanel() {
         <img
           src="/logo-icon.png"
           alt=""
-          width={28}
-          height={28}
+          width={32}
+          height={32}
           className="object-contain flex-shrink-0"
           draggable={false}
         />
-        <span className="ml-2.5 text-white font-bold tracking-tight text-[15px]">
+        <span className="ml-2 text-white font-bold tracking-tight text-lg">
           Fluidify Regen
         </span>
       </div>

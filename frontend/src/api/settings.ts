@@ -5,7 +5,7 @@ export interface UserRecord {
   email: string
   name: string
   role: 'admin' | 'member' | 'viewer'
-  auth_source: 'saml' | 'local' | 'deactivated'
+  auth_source: 'saml' | 'local' | 'ai' | 'deactivated'
   last_login_at?: string
   created_at: string
   slack_user_id?: string

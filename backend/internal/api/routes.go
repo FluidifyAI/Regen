@@ -329,6 +329,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.PUT("/grouping-rules/:id", handlers.UpdateGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
 		protected.DELETE("/grouping-rules/:id", handlers.DeleteGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
 
+		// Setup / Demo Data
+		protected.GET("/setup/status", handlers.GetSetupStatus(incidentRepo))
+		protected.POST("/setup/demo-data", middleware.RequireAdmin(), handlers.SeedDemoData(scheduleRepo, escalationPolicyRepo, routingRuleRepo, incidentRepo, timelineRepo))
+
 		// Routing Rules (v0.3)
 		protected.GET("/routing-rules", handlers.ListRoutingRules(routingRuleRepo))
 		protected.GET("/routing-rules/:id", handlers.GetRoutingRule(routingRuleRepo))

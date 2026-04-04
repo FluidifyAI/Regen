@@ -92,6 +92,10 @@ func UpdateUser(localAuth services.LocalAuthService) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "user not found"}})
 			return
 		}
+		if currentUser.AuthSource == "ai" {
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "system agent accounts cannot be modified"}})
+			return
+		}
 
 		name := currentUser.Name
 		if req.Name != nil {
@@ -153,6 +157,10 @@ func DeactivateUser(localAuth services.LocalAuthService) gin.HandlerFunc {
 		target, err := localAuth.GetUser(id)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "user not found"}})
+			return
+		}
+		if target.AuthSource == "ai" {
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "system agent accounts cannot be deactivated"}})
 			return
 		}
 		if target.Role == models.UserRoleAdmin {

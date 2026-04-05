@@ -15,6 +15,7 @@ import { AlertDetailPage } from './pages/AlertDetailPage'
 import { PostMortemTemplatesPage } from './pages/PostMortemTemplatesPage'
 import { SettingsUsersPage } from './pages/SettingsUsersPage'
 import { SystemSettingsPage } from './pages/SystemSettingsPage'
+import { SettingsMigrationsPage } from './pages/SettingsMigrationsPage'
 import { AnalyticsPage } from './pages/AnalyticsPage'
 import { IntegrationsPage } from './pages/IntegrationsPage'
 import { LogoutPage } from './pages/LogoutPage'
@@ -79,6 +80,7 @@ function App() {
               <Route path="/settings" element={<Navigate to="/settings/users" replace />} />
               <Route path="/settings/users" element={<SettingsUsersPage />} />
               <Route path="/settings/system" element={<SystemSettingsPage />} />
+              <Route path="/settings/migrations" element={<SettingsMigrationsPage />} />
             </Route>
           </Routes>
         </AuthGate>

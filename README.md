@@ -318,7 +318,7 @@ Full security architecture: [SECURITY.md](SECURITY.md)
 ## License
 
 - **Community**: [AGPLv3](LICENSE) — free forever, including SSO
-- **Enterprise**: Proprietary — [enterprise@fluidify.ai](mailto:enterprise@fluidify.ai)
+- **Enterprise**: Proprietary — [contact@fluidify.ai](mailto:contact@fluidify.ai)
 
 ---
 

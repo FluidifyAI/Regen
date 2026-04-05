@@ -126,14 +126,13 @@ receivers:
       - url: http://your-regen-host:8080/api/v1/webhooks/prometheus
 ```
 
-**One-click migration from Grafana OnCall** *(coming soon)* — import your on-call schedules, escalation policies, and routing rules with a single CLI command:
+**One-click migration from Grafana OnCall** — import your users, on-call schedules, and escalation policies in under 60 seconds:
 
-```bash
-# Coming in v1.1
-regen migrate --from grafana-oncall --token <your-grafana-token>
-```
+1. Go to **Settings → Migrations**
+2. Enter your Grafana OnCall URL and API token
+3. Preview exactly what will be imported, then click **Import everything**
 
-> Want to help build this? [See the open issue →](https://github.com/FluidifyAI/Regen/issues)
+Your new Regen webhook URLs are shown immediately — just update them in Grafana Alertmanager and you're live. [Full migration guide →](docs/migrations/grafana-oncall.md)
 
 ---
 
@@ -229,7 +228,7 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 | Category | Tools |
 |---|---|
 | **Alert ingestion** | Datadog · New Relic · Sentry · Dynatrace · Elastic · Zabbix · Uptime Kuma · Betterstack |
-| **Migration / import** | Grafana OnCall · PagerDuty · Opsgenie · Splunk On-Call |
+| **Migration / import** | PagerDuty · Opsgenie · Splunk On-Call |
 | **Post-mortem export** | Confluence · Notion · Jira |
 | **AI providers** | Anthropic Claude · local LLMs via Ollama |
 | **Chat** | Discord |
@@ -255,7 +254,6 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 ## Roadmap
 
 **Shipping next (v1.x)**
-- Grafana OnCall one-click migration
 - PagerDuty schedule + escalation policy import
 - Co-pilot mode — agent proposes, human approves with confidence score
 - Fluidify MCP Server — Claude, GPT, and custom bots can call Regen natively

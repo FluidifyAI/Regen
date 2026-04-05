@@ -16,6 +16,7 @@ import {
   BarChart2,
   Puzzle,
   Settings,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { Tooltip } from '../ui/Tooltip'
 import { ProfileModal } from '../ProfileModal'
@@ -143,6 +144,13 @@ export function Sidebar() {
       icon: Settings,
       href: '/settings/system',
       matchPaths: ['/settings/system'],
+    },
+    {
+      id: 'settings-migrations',
+      label: 'Migrations',
+      icon: ArrowRightLeft,
+      href: '/settings/migrations',
+      matchPaths: ['/settings/migrations'],
     },
   ] : []
 

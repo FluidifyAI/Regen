@@ -429,6 +429,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			settingsGroup.PATCH("/system", handlers.UpdateSystemSettings(systemSettingsRepo, aiSvc))
 			settingsGroup.POST("/system/ai/test", handlers.TestOpenAIKey(systemSettingsRepo))
 		}
+
+		// Migrations — admin only (OPE-67)
+		migrationsGroup := protected.Group("/migrations", middleware.RequireAdmin())
+		{
+			migrationsGroup.POST("/oncall/preview", handlers.PreviewOnCallMigration(localAuth, scheduleRepo, escalationPolicyRepo, cfg))
+			migrationsGroup.POST("/oncall/import", handlers.ImportOnCallMigration(localAuth, scheduleRepo, escalationPolicyRepo, cfg))
+		}
 	}
 
 	// ── Embedded frontend (production) ───────────────────────────────────────

@@ -138,22 +138,16 @@ Your new Regen webhook URLs are shown immediately — just update them in Grafan
 
 ## Features
 
-| | Community (AGPLv3, free) | Enterprise (paid) |
-|---|---|---|
-| Alert ingestion (Prometheus, Grafana, CloudWatch, generic) | ✅ | ✅ |
-| Incident lifecycle with immutable timeline | ✅ | ✅ |
-| On-call rotations, layers, overrides | ✅ | ✅ |
-| Escalation policies | ✅ | ✅ |
-| Slack integration (channels, bot commands, timeline sync) | ✅ | ✅ |
-| Microsoft Teams integration (Adaptive Cards, bot commands) | ✅ | ✅ |
-| AI incident summaries + post-mortem drafts (BYO OpenAI key) | ✅ | ✅ |
-| SSO / SAML (Okta, Azure AD, Google Workspace) | ✅ | ✅ |
-| Docker Compose + Kubernetes Helm chart | ✅ | ✅ |
-| SCIM user provisioning | ❌ | ✅ |
-| Audit log export (SOC2-ready) | ❌ | ✅ |
-| Role-based access control (RBAC) | ❌ | ✅ |
-| Retention policies | ❌ | ✅ |
-| Priority support + SLA | ❌ | ✅ |
+- Alert ingestion — Prometheus, Grafana, CloudWatch, generic webhook
+- Incident lifecycle with immutable timeline
+- On-call rotations, layers, overrides
+- Escalation policies with multi-step timeouts
+- Slack integration — channels, bot commands, timeline sync
+- Microsoft Teams integration — Adaptive Cards, bot commands
+- AI incident summaries + post-mortem drafts (BYO OpenAI key)
+- SSO / SAML — Okta, Azure AD, Google Workspace — **free, always**
+- Docker Compose + Kubernetes Helm chart
+- PostgreSQL HA + Redis Sentinel support
 
 > SSO is free. Gating SSO behind a paid tier is user-hostile. We stay off [sso.tax](https://sso.tax).
 
@@ -258,7 +252,7 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 - Co-pilot mode — agent proposes, human approves with confidence score
 - Fluidify MCP Server — Claude, GPT, and custom bots can call Regen natively
 - Confluence / Notion post-mortem export
-- RBAC, SCIM, audit log export (Enterprise)
+- RBAC, SCIM, audit log export
 
 **The bigger picture**
 
@@ -317,8 +311,7 @@ Full security architecture: [SECURITY.md](SECURITY.md)
 
 ## License
 
-- **Community**: [AGPLv3](LICENSE) — free forever, including SSO
-- **Enterprise**: Proprietary — [contact@fluidify.ai](mailto:contact@fluidify.ai)
+[AGPLv3](LICENSE) — free forever, including SSO.
 
 ---
 

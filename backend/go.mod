@@ -1,8 +1,6 @@
 module github.com/fluidify/regen
 
-go 1.24.0
-
-toolchain go1.24.5
+go 1.25
 
 require (
 	github.com/alicebob/miniredis/v2 v2.36.1
@@ -15,7 +13,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.17.3
-	github.com/slack-go/slack v0.17.3
+	github.com/slack-go/slack v0.21.1
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.45.0

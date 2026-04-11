@@ -19,7 +19,9 @@ echo "    Chart:     ${CHART_DIR}"
 echo "    Updating chart dependencies..."
 helm dependency update "${CHART_DIR}"
 
-# Pre-pull subchart images into k3d so helm install --wait doesn't block on pulls
+# Pre-pull subchart images into k3d so helm install --wait doesn't block on pulls.
+# Must use --platform linux/amd64 — k3d's containerd cannot import multi-arch
+# manifest lists; it needs a single-arch image tarball.
 echo "    Pre-loading subchart images into k3d..."
 SUBCHART_IMAGES=$(helm template "${RELEASE_NAME}" "${CHART_DIR}" \
   --values "${VALUES_FILE}" \
@@ -33,8 +35,8 @@ SUBCHART_IMAGES=$(helm template "${RELEASE_NAME}" "${CHART_DIR}" \
   | grep -v "^fluidify-regen")
 for img in ${SUBCHART_IMAGES}; do
   echo "    Pulling: ${img}"
-  docker pull "${img}" --quiet
-  k3d image import "${img}" --cluster "${CLUSTER_NAME}"
+  docker pull --platform linux/amd64 "${img}" --quiet
+  docker save "${img}" | k3d image import --cluster "${CLUSTER_NAME}" -
 done
 
 # Create namespace (idempotent)
@@ -55,7 +57,7 @@ helm upgrade --install "${RELEASE_NAME}" "${CHART_DIR}" \
   --set image.tag="test" \
   --set image.pullPolicy="Never" \
   --wait \
-  --timeout 8m \
+  --timeout 12m \
   --atomic
 
 echo ""

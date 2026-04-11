@@ -132,7 +132,7 @@ lint:
 
 fmt:
 	@echo "Formatting Go code..."
-	@cd backend && go fmt ./...
+	@gofmt -s -w ./backend/
 	@echo "Formatting TypeScript..."
 	@cd frontend && npm run format
 	@echo "Format complete"

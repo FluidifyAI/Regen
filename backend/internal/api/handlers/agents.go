@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/FluidifyAI/Regen/backend/internal/repository"
 )
 
 // AgentsHandler manages AI agent endpoints.

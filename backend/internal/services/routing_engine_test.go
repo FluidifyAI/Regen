@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 // mockRoutingRuleRepo is a test double for RoutingRuleRepository
@@ -16,11 +16,11 @@ type mockRoutingRuleRepo struct {
 	err   error
 }
 
-func (m *mockRoutingRuleRepo) Create(rule *models.RoutingRule) error          { return nil }
+func (m *mockRoutingRuleRepo) Create(rule *models.RoutingRule) error             { return nil }
 func (m *mockRoutingRuleRepo) GetByID(id uuid.UUID) (*models.RoutingRule, error) { return nil, nil }
-func (m *mockRoutingRuleRepo) GetAll() ([]models.RoutingRule, error)           { return m.rules, m.err }
-func (m *mockRoutingRuleRepo) Update(rule *models.RoutingRule) error           { return nil }
-func (m *mockRoutingRuleRepo) Delete(id uuid.UUID) error                       { return nil }
+func (m *mockRoutingRuleRepo) GetAll() ([]models.RoutingRule, error)             { return m.rules, m.err }
+func (m *mockRoutingRuleRepo) Update(rule *models.RoutingRule) error             { return nil }
+func (m *mockRoutingRuleRepo) Delete(id uuid.UUID) error                         { return nil }
 func (m *mockRoutingRuleRepo) CheckPriorityConflict(priority int, excludeID uuid.UUID) (*models.RoutingRule, error) {
 	return nil, nil
 }

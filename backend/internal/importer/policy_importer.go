@@ -3,9 +3,9 @@ package importer
 import (
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/integrations/pagerduty"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/google/uuid"
 )
 
 // policyRepoWriter is the minimal subset of repository.EscalationPolicyRepository
@@ -94,7 +94,7 @@ func importPolicy(
 				hasUser = true
 				name := resolveUserName(pagerduty.PDUser{Name: target.Name}, emailToName)
 				userNames = append(userNames, name)
-			// team_reference: skip (warned above)
+				// team_reference: skip (warned above)
 			}
 		}
 

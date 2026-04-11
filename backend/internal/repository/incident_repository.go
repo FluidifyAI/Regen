@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -138,22 +138,22 @@ func (r *incidentRepository) List(filters IncidentFilters, pagination Pagination
 func (r *incidentRepository) Update(incident *models.Incident) error {
 	// Only update mutable fields
 	updates := map[string]interface{}{
-		"title":              incident.Title,
-		"slug":               incident.Slug,
-		"status":             incident.Status,
-		"severity":           incident.Severity,
-		"summary":            incident.Summary,
-		"slack_channel_id":   incident.SlackChannelID,
-		"slack_channel_name": incident.SlackChannelName,
+		"title":                 incident.Title,
+		"slug":                  incident.Slug,
+		"status":                incident.Status,
+		"severity":              incident.Severity,
+		"summary":               incident.Summary,
+		"slack_channel_id":      incident.SlackChannelID,
+		"slack_channel_name":    incident.SlackChannelName,
 		"teams_channel_id":      incident.TeamsChannelID,
 		"teams_channel_name":    incident.TeamsChannelName,
 		"teams_conversation_id": incident.TeamsConversationID,
 		"teams_activity_id":     incident.TeamsActivityID,
-		"acknowledged_at":    incident.AcknowledgedAt,
-		"resolved_at":        incident.ResolvedAt,
-		"commander_id":       incident.CommanderID,
-		"labels":             incident.Labels,
-		"custom_fields":      incident.CustomFields,
+		"acknowledged_at":       incident.AcknowledgedAt,
+		"resolved_at":           incident.ResolvedAt,
+		"commander_id":          incident.CommanderID,
+		"labels":                incident.Labels,
+		"custom_fields":         incident.CustomFields,
 	}
 
 	if err := r.db.Model(incident).Updates(updates).Error; err != nil {

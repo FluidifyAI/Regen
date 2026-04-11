@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 // TeamsEventHandler processes inbound Bot Framework activities from Teams.
@@ -39,7 +39,7 @@ type BotActivity struct {
 	Type         string          `json:"type"`
 	ID           string          `json:"id"`
 	Text         string          `json:"text"`
-	ChannelID    string          `json:"channelId"`  // "msteams"
+	ChannelID    string          `json:"channelId"` // "msteams"
 	Conversation BotConversation `json:"conversation"`
 	From         BotAccount      `json:"from"`
 	Recipient    BotAccount      `json:"recipient"`

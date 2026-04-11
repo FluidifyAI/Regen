@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
 )
 
 // ListTeamsMembers handles GET /api/v1/settings/teams/members.
@@ -34,22 +34,22 @@ func ListTeamsMembers(teamsConfigRepo repository.TeamsConfigRepository, userRepo
 		}
 
 		type member struct {
-			ID                 string `json:"id"`
-			Name               string `json:"name"`
-			Email              string `json:"email"`
-			AlreadyImported    bool   `json:"already_imported"`
-			RegenUserID string `json:"regen_user_id,omitempty"`
+			ID              string `json:"id"`
+			Name            string `json:"name"`
+			Email           string `json:"email"`
+			AlreadyImported bool   `json:"already_imported"`
+			RegenUserID     string `json:"regen_user_id,omitempty"`
 		}
 
 		result := make([]member, 0, len(members))
 		for _, m := range members {
 			uid, imported := importedEmails[m.Email]
 			result = append(result, member{
-				ID:                 m.UserID,
-				Name:               m.DisplayName,
-				Email:              m.Email,
-				AlreadyImported:    imported,
-				RegenUserID: uid,
+				ID:              m.UserID,
+				Name:            m.DisplayName,
+				Email:           m.Email,
+				AlreadyImported: imported,
+				RegenUserID:     uid,
 			})
 		}
 

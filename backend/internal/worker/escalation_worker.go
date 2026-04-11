@@ -25,7 +25,7 @@ const (
 // into NewEscalationEngine as the notification sink.
 type EscalationWorker struct {
 	engine      services.EscalationEngine
-	chatService services.ChatService        // nil → DM sends are graceful no-ops
+	chatService services.ChatService // nil → DM sends are graceful no-ops
 	msgBuilder  *services.SlackMessageBuilder
 }
 

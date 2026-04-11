@@ -21,14 +21,16 @@ const graphBaseURL = "https://graph.microsoft.com/v1.0"
 // and Bot Framework REST API for posting messages to channels.
 //
 // Why two clients?
-//   Graph API (ChannelMessage.Send) only works with delegated (user) auth — app-only
-//   tokens get a 403. Bot Framework Proactive Messaging uses a separate OAuth scope
-//   (https://api.botframework.com/.default) that does work with client credentials,
-//   giving us true Slack parity: same bot, same credentials, no per-channel setup.
+//
+//	Graph API (ChannelMessage.Send) only works with delegated (user) auth — app-only
+//	tokens get a 403. Bot Framework Proactive Messaging uses a separate OAuth scope
+//	(https://api.botframework.com/.default) that does work with client credentials,
+//	giving us true Slack parity: same bot, same credentials, no per-channel setup.
 //
 // Client split:
-//   graphClient  — Graph API (create/archive channels, DMs, team info)
-//   botfwClient  — Bot Framework REST API (post/update messages in channels)
+//
+//	graphClient  — Graph API (create/archive channels, DMs, team info)
+//	botfwClient  — Bot Framework REST API (post/update messages in channels)
 type TeamsService struct {
 	ctx        context.Context
 	teamID     string

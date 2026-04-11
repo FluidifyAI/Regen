@@ -48,16 +48,16 @@ type AuditExporter interface {
 
 // AuditEvent represents a single auditable action in the system.
 type AuditEvent struct {
-	Timestamp    time.Time         // server-generated, always UTC
-	ActorID      string            // user ID or "system"
-	ActorType    string            // "user" | "system" | "api_key"
-	Action       string            // dot-separated: "incident.created", "user.login", etc.
-	ResourceType string            // "incident" | "user" | "schedule" | ...
-	ResourceID   string            // UUID of the affected resource
-	IPAddress    string            // from X-Forwarded-For or RemoteAddr
+	Timestamp    time.Time // server-generated, always UTC
+	ActorID      string    // user ID or "system"
+	ActorType    string    // "user" | "system" | "api_key"
+	Action       string    // dot-separated: "incident.created", "user.login", etc.
+	ResourceType string    // "incident" | "user" | "schedule" | ...
+	ResourceID   string    // UUID of the affected resource
+	IPAddress    string    // from X-Forwarded-For or RemoteAddr
 	UserAgent    string
-	StatusCode   int               // HTTP response status
-	Metadata     map[string]any    // action-specific extra fields
+	StatusCode   int            // HTTP response status
+	Metadata     map[string]any // action-specific extra fields
 }
 
 // ── SCIM ──────────────────────────────────────────────────────────────────────

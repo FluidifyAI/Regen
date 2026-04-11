@@ -24,7 +24,8 @@ const (
 // - Accidental large payloads indicating misconfiguration
 //
 // Usage:
-//   webhooks.Use(middleware.BodySizeLimit(WebhookMaxBodySize))
+//
+//	webhooks.Use(middleware.BodySizeLimit(WebhookMaxBodySize))
 func BodySizeLimit(maxBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check Content-Length header if present

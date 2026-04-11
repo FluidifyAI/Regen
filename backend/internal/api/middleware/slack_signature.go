@@ -38,7 +38,8 @@ const (
 // 4. Rejects requests with invalid or missing signatures
 //
 // Usage:
-//   slackRoutes.Use(middleware.SlackSignatureVerification())
+//
+//	slackRoutes.Use(middleware.SlackSignatureVerification())
 func SlackSignatureVerification() gin.HandlerFunc {
 	signingSecret := os.Getenv("SLACK_SIGNING_SECRET")
 

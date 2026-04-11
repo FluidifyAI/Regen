@@ -6,11 +6,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/config"
 	"github.com/FluidifyAI/Regen/backend/internal/importer"
 	"github.com/FluidifyAI/Regen/backend/internal/integrations/pagerduty"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

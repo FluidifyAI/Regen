@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/redis"
+	"github.com/gin-gonic/gin"
 )
 
 // Fixed-window rate limiter backed by Redis.
@@ -119,4 +119,3 @@ func RateLimitAPI() gin.HandlerFunc {
 func RateLimitAuth() gin.HandlerFunc {
 	return RateLimit("auth", 10, 60)
 }
-

@@ -69,7 +69,7 @@ func NewAIService(apiKey, model string, maxTokens, postMortemMaxTokens int) AISe
 // ─── Implementation ───────────────────────────────────────────────────────────
 
 type aiService struct {
-	mu              sync.RWMutex
+	mu               sync.RWMutex
 	client           *openai.Client
 	postMortemClient *openai.Client
 	model            string

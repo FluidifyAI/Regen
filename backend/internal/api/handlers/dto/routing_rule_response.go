@@ -3,8 +3,8 @@ package dto
 import (
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/google/uuid"
 )
 
 // RoutingRuleResponse is the response body for routing rule endpoints

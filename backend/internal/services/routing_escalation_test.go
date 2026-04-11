@@ -6,9 +6,9 @@ package services
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
+	"github.com/google/uuid"
 )
 
 // ── Routing engine: EscalationPolicyID in RoutingDecision ────────────────────
@@ -89,7 +89,7 @@ func TestRoutingEngine_DefaultDecision_NoEscalationPolicyID(t *testing.T) {
 
 // mockEscalationEngine records TriggerEscalation calls for assertion.
 type mockEscalationEngine struct {
-	triggered []uuid.UUID // alert IDs that had TriggerEscalation called
+	triggered  []uuid.UUID // alert IDs that had TriggerEscalation called
 	triggerErr error
 }
 

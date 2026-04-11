@@ -12,7 +12,6 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-
 func TestCORS_AllowedOriginReceivesHeaders(t *testing.T) {
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://incidents.myco.com")
 	r := gin.New()

@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 // ProcessingResult holds statistics about webhook processing
@@ -47,11 +47,11 @@ type AlertService interface {
 type alertService struct {
 	alertRepo          repository.AlertRepository
 	incidentSvc        IncidentService
-	groupingEngine     GroupingEngine             // Optional - can be nil if grouping disabled
-	routingEngine      RoutingEngine              // Optional - can be nil if routing disabled
-	escalationEngine   EscalationEngine           // Optional - can be nil if escalation disabled
-	escalationRepo     repository.EscalationPolicyRepository  // For severity-rule fallback
-	systemSettingsRepo repository.SystemSettingsRepository    // For global-fallback policy
+	groupingEngine     GroupingEngine                        // Optional - can be nil if grouping disabled
+	routingEngine      RoutingEngine                         // Optional - can be nil if routing disabled
+	escalationEngine   EscalationEngine                      // Optional - can be nil if escalation disabled
+	escalationRepo     repository.EscalationPolicyRepository // For severity-rule fallback
+	systemSettingsRepo repository.SystemSettingsRepository   // For global-fallback policy
 }
 
 // NewAlertService creates a new alert service
@@ -97,10 +97,12 @@ func (s *alertService) SetEscalationRepos(
 // Internally, it delegates to ProcessNormalizedAlerts() after using PrometheusProvider to parse.
 //
 // The old flow was:
-//   Handler → ProcessAlertmanagerPayload() → normalizeAlert() → createOrUpdateAlert()
+//
+//	Handler → ProcessAlertmanagerPayload() → normalizeAlert() → createOrUpdateAlert()
 //
 // The new flow (v0.3+) is:
-//   Handler → PrometheusProvider.ParsePayload() → ProcessNormalizedAlerts() → createOrUpdateAlert()
+//
+//	Handler → PrometheusProvider.ParsePayload() → ProcessNormalizedAlerts() → createOrUpdateAlert()
 //
 // This refactor uses the new flow while keeping the same public API for existing handlers.
 func (s *alertService) ProcessAlertmanagerPayload(payload *webhooks.AlertmanagerPayload) (*ProcessingResult, error) {
@@ -120,7 +122,6 @@ func (s *alertService) ProcessAlertmanagerPayload(payload *webhooks.Alertmanager
 	// Delegate to the generic processing method
 	return s.ProcessNormalizedAlerts(normalized)
 }
-
 
 // createOrUpdateAlert handles deduplication logic
 // Returns true if alert was created, false if updated
@@ -184,9 +185,9 @@ func parseSeverity(severity string) models.AlertSeverity {
 //  3. If new alert and should create incident:
 //     a. Evaluate grouping rules (if grouping engine configured)
 //     b. Based on grouping decision:
-//        - Link to existing incident (if group match found)
-//        - Create new incident with group_key (if rule matched)
-//        - Create new incident without group_key (default behavior)
+//     - Link to existing incident (if group match found)
+//     - Create new incident with group_key (if rule matched)
+//     - Create new incident without group_key (default behavior)
 //
 // The existing ProcessAlertmanagerPayload() delegates to this method after Prometheus-specific
 // parsing, ensuring backwards compatibility while enabling multi-source support.
@@ -330,7 +331,9 @@ func (s *alertService) normalizedAlertToModel(normalized *webhooks.NormalizedAle
 	// Convert RawPayload json.RawMessage to JSONB
 	rawPayload := make(models.JSONB)
 	if len(normalized.RawPayload) > 0 {
-		if err := json.Unmarshal(normalized.RawPayload, &rawPayload); err != nil { slog.Warn("failed to unmarshal raw payload", "error", err) }
+		if err := json.Unmarshal(normalized.RawPayload, &rawPayload); err != nil {
+			slog.Warn("failed to unmarshal raw payload", "error", err)
+		}
 	}
 
 	return &models.Alert{

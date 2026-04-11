@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -122,8 +122,8 @@ func TestCreateGroupingRule_PriorityConflict(t *testing.T) {
 
 	// Create first rule with priority 50
 	payload1 := map[string]interface{}{
-		"name":        "Rule 1",
-		"priority":    50,
+		"name":     "Rule 1",
+		"priority": 50,
 		"match_labels": map[string]interface{}{
 			"severity": "critical",
 		},
@@ -139,8 +139,8 @@ func TestCreateGroupingRule_PriorityConflict(t *testing.T) {
 
 	// Try to create second rule with same priority
 	payload2 := map[string]interface{}{
-		"name":        "Rule 2",
-		"priority":    50, // Conflict!
+		"name":     "Rule 2",
+		"priority": 50, // Conflict!
 		"match_labels": map[string]interface{}{
 			"service": "*",
 		},

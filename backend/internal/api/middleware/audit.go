@@ -3,8 +3,8 @@ package middleware
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/enterprise"
+	"github.com/gin-gonic/gin"
 )
 
 // AuditLog returns a Gin middleware that calls exporter.Export after each

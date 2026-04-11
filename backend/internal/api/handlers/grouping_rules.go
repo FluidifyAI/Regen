@@ -4,11 +4,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // ListGroupingRules handles GET /api/v1/grouping-rules
@@ -120,8 +120,8 @@ func CreateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 		}
 		if conflict != nil {
 			dto.Conflict(c, "grouping rule priority already in use", map[string]interface{}{
-				"priority":       req.Priority,
-				"conflicting_id": conflict.ID,
+				"priority":         req.Priority,
+				"conflicting_id":   conflict.ID,
 				"conflicting_name": conflict.Name,
 			})
 			return

@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
-	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	appredis "github.com/FluidifyAI/Regen/backend/internal/redis"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -83,18 +83,18 @@ type IncidentService interface {
 
 // incidentService implements IncidentService
 type incidentService struct {
-	incidentRepo      repository.IncidentRepository
-	timelineRepo      repository.TimelineRepository
-	alertRepo         repository.AlertRepository
-	chatService    ChatService          // Optional - can be nil if Slack not configured
-	messageBuilder *SlackMessageBuilder // Optional - can be nil if Slack not configured
-	teamsSvc       *TeamsService        // Optional - can be nil if Teams not configured (v0.8+)
-	telegramSvc    *TelegramService     // Optional - can be nil if Telegram not configured
-	db             *gorm.DB             // For transaction management
-	aiService      AIService            // Optional - can be nil if OpenAI not configured
-	userRepo          repository.UserRepository     // Optional — for commander name resolution
-	scheduleRepo      repository.ScheduleRepository // Optional — for on-call auto-assign
-	evaluator         ScheduleEvaluator             // Optional — for on-call auto-assign
+	incidentRepo   repository.IncidentRepository
+	timelineRepo   repository.TimelineRepository
+	alertRepo      repository.AlertRepository
+	chatService    ChatService                   // Optional - can be nil if Slack not configured
+	messageBuilder *SlackMessageBuilder          // Optional - can be nil if Slack not configured
+	teamsSvc       *TeamsService                 // Optional - can be nil if Teams not configured (v0.8+)
+	telegramSvc    *TelegramService              // Optional - can be nil if Telegram not configured
+	db             *gorm.DB                      // For transaction management
+	aiService      AIService                     // Optional - can be nil if OpenAI not configured
+	userRepo       repository.UserRepository     // Optional — for commander name resolution
+	scheduleRepo   repository.ScheduleRepository // Optional — for on-call auto-assign
+	evaluator      ScheduleEvaluator             // Optional — for on-call auto-assign
 }
 
 // NewIncidentService creates a new incident service

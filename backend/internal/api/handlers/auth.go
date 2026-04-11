@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crewjam/saml/samlsp"
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	appredis "github.com/FluidifyAI/Regen/backend/internal/redis"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/crewjam/saml/samlsp"
+	"github.com/gin-gonic/gin"
 )
 
 const (

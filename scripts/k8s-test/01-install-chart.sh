@@ -17,10 +17,8 @@ echo "    Release:   ${RELEASE_NAME}"
 echo "    Namespace: ${NAMESPACE}"
 echo "    Chart:     ${CHART_DIR}"
 
-# Use locked chart versions from Chart.lock (avoids downloading newer Bitnami
-# chart versions on every run and keeps images predictable).
-echo "    Building chart dependencies from Chart.lock..."
-helm dependency build "${CHART_DIR}"
+# Chart tarballs (postgresql, redis) are checked into charts/ — no dependency
+# fetch needed. Helm reads them directly from the charts/ directory.
 
 # Mirror Bitnami subchart images into the local registry so k3d's containerd
 # pulls from there instead of Docker Hub. docker pull on the runner host is fast

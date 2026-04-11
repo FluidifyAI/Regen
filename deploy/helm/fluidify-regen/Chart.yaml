@@ -3,14 +3,14 @@ name: fluidify-regen
 description: Fluidify Regen — open-source incident management platform
 type: application
 version: 0.1.0
-appVersion: "0.9.0"
+appVersion: "0.10.0"
 keywords:
   - incident-management
   - on-call
   - alerting
-home: https://github.com/fluidify/regen
+home: https://github.com/FluidifyAI/Regen
 sources:
-  - https://github.com/fluidify/regen
+  - https://github.com/FluidifyAI/Regen
 maintainers:
   - name: Fluidify Contributors
 dependencies:

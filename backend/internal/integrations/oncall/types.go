@@ -46,10 +46,10 @@ type OnCallTeam struct {
 type OnCallSchedule struct {
 	ID       string   `json:"id"`
 	Name     string   `json:"name"`
-	Type     string   `json:"type"`     // "web", "ical", "calendar"
+	Type     string   `json:"type"`      // "web", "ical", "calendar"
 	TimeZone string   `json:"time_zone"` // IANA timezone
-	Shifts   []string `json:"shifts"`   // IDs of on-call shifts
-	Team     string   `json:"team"`     // team ID, may be empty
+	Shifts   []string `json:"shifts"`    // IDs of on-call shifts
+	Team     string   `json:"team"`      // team ID, may be empty
 }
 
 // ── Shifts ────────────────────────────────────────────────────────────────────
@@ -59,18 +59,18 @@ type OnCallSchedule struct {
 type OnCallShift struct {
 	ID            string     `json:"id"`
 	Name          string     `json:"name"`
-	Type          string     `json:"type"`          // "rolling_users", "recurrent_event", "override"
-	TimeZone      string     `json:"time_zone"`     // may be empty — falls back to schedule timezone
-	Level         int        `json:"level"`         // layer index (0 = primary)
-	Start         string     `json:"start"`         // ISO 8601 datetime
+	Type          string     `json:"type"`           // "rolling_users", "recurrent_event", "override"
+	TimeZone      string     `json:"time_zone"`      // may be empty — falls back to schedule timezone
+	Level         int        `json:"level"`          // layer index (0 = primary)
+	Start         string     `json:"start"`          // ISO 8601 datetime
 	RotationStart string     `json:"rotation_start"` // ISO 8601 datetime; epoch of rotation
-	Duration      int        `json:"duration"`      // seconds per shift slot
-	Frequency     string     `json:"frequency"`     // "weekly", "daily", "hourly", "monthly"
-	Interval      int        `json:"interval"`      // repeat every N frequency units
-	ByDay         []string   `json:"by_day"`        // e.g. ["MO","WE","FR"]
-	RollingUsers  [][]string `json:"rolling_users"` // groups of user IDs cycling through
-	Users         []string   `json:"users"`         // fixed user IDs for non-rolling shifts
-	Team          string     `json:"team"`          // team ID, may be empty
+	Duration      int        `json:"duration"`       // seconds per shift slot
+	Frequency     string     `json:"frequency"`      // "weekly", "daily", "hourly", "monthly"
+	Interval      int        `json:"interval"`       // repeat every N frequency units
+	ByDay         []string   `json:"by_day"`         // e.g. ["MO","WE","FR"]
+	RollingUsers  [][]string `json:"rolling_users"`  // groups of user IDs cycling through
+	Users         []string   `json:"users"`          // fixed user IDs for non-rolling shifts
+	Team          string     `json:"team"`           // team ID, may be empty
 }
 
 // ── Escalation ────────────────────────────────────────────────────────────────
@@ -86,23 +86,23 @@ type OnCallEscalationChain struct {
 // GET /api/v1/escalation_policies (the OnCall API calls these "policies").
 type OnCallEscalationStep struct {
 	ID              string   `json:"id"`
-	Step            int      `json:"step"`            // 0-based position within the chain
-	EscalationChain string   `json:"escalation_chain"` // parent chain ID
-	Type            string   `json:"type"`            // see step type constants below
-	Duration        *int     `json:"duration"`        // seconds; only set for "wait" steps
-	PersonsToNotify []string `json:"persons_to_notify"` // user IDs
+	Step            int      `json:"step"`                             // 0-based position within the chain
+	EscalationChain string   `json:"escalation_chain"`                 // parent chain ID
+	Type            string   `json:"type"`                             // see step type constants below
+	Duration        *int     `json:"duration"`                         // seconds; only set for "wait" steps
+	PersonsToNotify []string `json:"persons_to_notify"`                // user IDs
 	PersonsNextTime []string `json:"persons_to_notify_next_each_time"` // user IDs
-	Schedule        string   `json:"schedule"`        // schedule ID; for notify_on_call_from_schedule
+	Schedule        string   `json:"schedule"`                         // schedule ID; for notify_on_call_from_schedule
 }
 
 // OnCall escalation step type constants.
 const (
-	StepTypeWait                        = "wait"
-	StepTypeNotifyPersons               = "notify_persons"
-	StepTypeNotifyPersonNextEachTime    = "notify_person_next_each_time"
-	StepTypeNotifyOnCallFromSchedule    = "notify_on_call_from_schedule"
-	StepTypeNotifyWholedTeam            = "notify_whole_channel"
-	StepTypeResolveIncident             = "resolve_incident"
+	StepTypeWait                     = "wait"
+	StepTypeNotifyPersons            = "notify_persons"
+	StepTypeNotifyPersonNextEachTime = "notify_person_next_each_time"
+	StepTypeNotifyOnCallFromSchedule = "notify_on_call_from_schedule"
+	StepTypeNotifyWholedTeam         = "notify_whole_channel"
+	StepTypeResolveIncident          = "resolve_incident"
 )
 
 // ── Integrations ──────────────────────────────────────────────────────────────

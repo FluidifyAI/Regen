@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 

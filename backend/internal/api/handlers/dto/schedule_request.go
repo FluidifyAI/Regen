@@ -3,8 +3,8 @@ package dto
 import (
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/google/uuid"
 )
 
 // CreateScheduleRequest is the request body for POST /api/v1/schedules.
@@ -65,7 +65,7 @@ type CreateLayerRequest struct {
 	Name                 string               `json:"name"                   binding:"required,min=1,max=255"`
 	OrderIndex           int                  `json:"order_index"            binding:"min=0"`
 	RotationType         models.RotationType  `json:"rotation_type"          binding:"required,oneof=daily weekly custom"`
-	RotationStart        *time.Time           `json:"rotation_start"`        // nil = default to midnight UTC today
+	RotationStart        *time.Time           `json:"rotation_start"` // nil = default to midnight UTC today
 	ShiftDurationSeconds *int                 `json:"shift_duration_seconds" binding:"omitempty,min=1"`
 	Participants         []ParticipantRequest `json:"participants"           binding:"required,min=1,dive"`
 }

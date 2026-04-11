@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 // ── Mock repository ───────────────────────────────────────────────────────────
@@ -53,9 +53,9 @@ func (m *mockEscalationRepo) GetAllPoliciesWithTiers() ([]models.EscalationPolic
 func (m *mockEscalationRepo) GetEnabledPolicies() ([]models.EscalationPolicy, error) {
 	return nil, nil
 }
-func (m *mockEscalationRepo) UpdatePolicy(p *models.EscalationPolicy) error  { return nil }
-func (m *mockEscalationRepo) DeletePolicy(id uuid.UUID) error                 { return nil }
-func (m *mockEscalationRepo) CreateTier(t *models.EscalationTier) error       { return nil }
+func (m *mockEscalationRepo) UpdatePolicy(p *models.EscalationPolicy) error { return nil }
+func (m *mockEscalationRepo) DeletePolicy(id uuid.UUID) error               { return nil }
+func (m *mockEscalationRepo) CreateTier(t *models.EscalationTier) error     { return nil }
 func (m *mockEscalationRepo) GetTiersByPolicy(id uuid.UUID) ([]models.EscalationTier, error) {
 	p, ok := m.policies[id]
 	if !ok {
@@ -64,7 +64,7 @@ func (m *mockEscalationRepo) GetTiersByPolicy(id uuid.UUID) ([]models.Escalation
 	return p.Tiers, nil
 }
 func (m *mockEscalationRepo) UpdateTier(t *models.EscalationTier) error { return nil }
-func (m *mockEscalationRepo) DeleteTier(id uuid.UUID) error              { return nil }
+func (m *mockEscalationRepo) DeleteTier(id uuid.UUID) error             { return nil }
 
 func (m *mockEscalationRepo) CreateState(s *models.EscalationState) error {
 	if m.createErr != nil {

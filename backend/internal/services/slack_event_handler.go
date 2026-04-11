@@ -3,15 +3,15 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"regexp"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
@@ -986,10 +986,10 @@ func (h *SlackEventHandler) handleAppMention(ev *slackevents.AppMentionEvent) {
 // postToThread posts a message as a reply in a thread and returns the message timestamp.
 // sanitizeForSlack converts markdown to Slack mrkdwn and strips unsupported syntax.
 var (
-	reHeaderPattern  = regexp.MustCompile(`(?m)^#{1,6}\s+`)          // ## Heading → stripped prefix
-	reBoldDouble     = regexp.MustCompile(`\*{3}([^*]+)\*{3}`)        // ***text*** → *text*
-	reBoldTriple     = regexp.MustCompile(`\*{2}([^*]+)\*{2}`)        // **text** → *text*
-	reHorizRule      = regexp.MustCompile(`(?m)^[-*]{3,}\s*$`)        // --- or *** on its own line
+	reHeaderPattern = regexp.MustCompile(`(?m)^#{1,6}\s+`)    // ## Heading → stripped prefix
+	reBoldDouble    = regexp.MustCompile(`\*{3}([^*]+)\*{3}`) // ***text*** → *text*
+	reBoldTriple    = regexp.MustCompile(`\*{2}([^*]+)\*{2}`) // **text** → *text*
+	reHorizRule     = regexp.MustCompile(`(?m)^[-*]{3,}\s*$`) // --- or *** on its own line
 )
 
 func sanitizeForSlack(text string) string {

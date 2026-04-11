@@ -566,8 +566,8 @@ func TestTransformAll_Webhooks_TypeMapping(t *testing.T) {
 	}
 
 	cases := []struct {
-		name       string
-		regenSource string
+		name         string
+		regenSource  string
 		newURLSuffix string
 	}{
 		{"Prometheus", "prometheus", "/api/v1/webhooks/prometheus"},

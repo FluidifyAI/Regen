@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/config"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -129,11 +129,11 @@ func testCfg() *config.Config {
 // ── Mock OnCall server ────────────────────────────────────────────────────────
 
 type oncallMockResponses struct {
-	usersBody     []byte
-	schedulesBody []byte
-	shiftsBody    []byte
-	chainsBody    []byte
-	stepsBody     []byte
+	usersBody        []byte
+	schedulesBody    []byte
+	shiftsBody       []byte
+	chainsBody       []byte
+	stepsBody        []byte
 	integrationsBody []byte
 }
 
@@ -196,10 +196,10 @@ func newOnCallMockServer(t *testing.T, r oncallMockResponses) *httptest.Server {
 // emptyPage returns a JSON-encoded empty OnCall list page.
 func emptyPage() []byte {
 	b, _ := json.Marshal(map[string]interface{}{
-		"results": []interface{}{},
-		"next":    nil,
+		"results":  []interface{}{},
+		"next":     nil,
 		"previous": nil,
-		"count":   0,
+		"count":    0,
 	})
 	return b
 }

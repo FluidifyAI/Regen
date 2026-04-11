@@ -5,13 +5,13 @@ import (
 	"log/slog"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
 	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // actorIDFromContext returns the current user's UUID string, or "anonymous" if unauthenticated.

@@ -24,15 +24,15 @@ func TestSlackSignatureVerification(t *testing.T) {
 	testSecret := "test_signing_secret_12345"
 
 	tests := []struct {
-		name            string
-		setupEnv        bool
-		signingSecret   string
-		body            string
-		timestamp       string
-		signature       string
+		name             string
+		setupEnv         bool
+		signingSecret    string
+		body             string
+		timestamp        string
+		signature        string
 		computeSignature bool // If true, compute valid signature; if false, use signature as-is
-		expectedStatus  int
-		description     string
+		expectedStatus   int
+		description      string
 	}{
 		{
 			name:             "valid signature",
@@ -62,8 +62,8 @@ func TestSlackSignatureVerification(t *testing.T) {
 			signingSecret:    testSecret,
 			body:             `{"type":"event_callback"}`,
 			timestamp:        strconv.FormatInt(time.Now().Unix(), 10),
-			signature:        "",              // Don't send header
-			computeSignature: false,           // Don't compute
+			signature:        "",    // Don't send header
+			computeSignature: false, // Don't compute
 			expectedStatus:   http.StatusUnauthorized,
 			description:      "Request without signature should be rejected",
 		},

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,8 +25,10 @@ type mockEscalationEngineForHandler struct {
 }
 
 func (m *mockEscalationEngineForHandler) TriggerEscalation(alert *models.Alert) error { return nil }
-func (m *mockEscalationEngineForHandler) TriggerIncidentEscalation(_ uuid.UUID, _ uuid.UUID) error { return nil }
-func (m *mockEscalationEngineForHandler) EvaluateEscalations() error                  { return nil }
+func (m *mockEscalationEngineForHandler) TriggerIncidentEscalation(_ uuid.UUID, _ uuid.UUID) error {
+	return nil
+}
+func (m *mockEscalationEngineForHandler) EvaluateEscalations() error { return nil }
 func (m *mockEscalationEngineForHandler) AcknowledgeAlert(alertID uuid.UUID, by string, via models.AcknowledgmentVia) error {
 	return m.AcknowledgeAlertFn(alertID, by, via)
 }

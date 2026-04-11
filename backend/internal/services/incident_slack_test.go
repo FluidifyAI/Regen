@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/database"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -21,11 +21,11 @@ import (
 type mockChatService struct {
 	mu sync.Mutex
 
-	CreateChannelFn func(name, description string) (*Channel, error)
-	PostMessageFn   func(channelID string, message Message) (string, error)
-	UpdateMessageFn func(channelID, messageTS string, message Message) error
+	CreateChannelFn  func(name, description string) (*Channel, error)
+	PostMessageFn    func(channelID string, message Message) (string, error)
+	UpdateMessageFn  func(channelID, messageTS string, message Message) error
 	ArchiveChannelFn func(channelID string) error
-	InviteUsersFn   func(channelID string, userIDs []string) error
+	InviteUsersFn    func(channelID string, userIDs []string) error
 
 	// Call tracking
 	ArchivedChannels []string
@@ -399,15 +399,15 @@ func TestCreateSlackChannelForIncident_NoInviteWhenNoOnCallConfigured(t *testing
 	svc := buildTestIncidentService(db, mock)
 
 	incident := &models.Incident{
-		ID:            uuid.New(),
+		ID:             uuid.New(),
 		IncidentNumber: 100,
 		Title:          "No invite test",
 		Slug:           "no-invite-test",
-		Status:        models.IncidentStatusTriggered,
-		Severity:      models.IncidentSeverityLow,
-		CreatedByType: "system",
-		CreatedByID:   "test",
-		TriggeredAt:   time.Now(),
+		Status:         models.IncidentStatusTriggered,
+		Severity:       models.IncidentSeverityLow,
+		CreatedByType:  "system",
+		CreatedByID:    "test",
+		TriggeredAt:    time.Now(),
 	}
 	repo := repository.NewIncidentRepository(db)
 	require.NoError(t, repo.Create(incident))

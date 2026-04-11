@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/google/uuid"
 )
 
 // ── Mock escalation engine ────────────────────────────────────────────────────
@@ -18,7 +18,9 @@ type mockEscalationEngineForWorker struct {
 }
 
 func (m *mockEscalationEngineForWorker) TriggerEscalation(alert *models.Alert) error { return nil }
-func (m *mockEscalationEngineForWorker) TriggerIncidentEscalation(_ uuid.UUID, _ uuid.UUID) error { return nil }
+func (m *mockEscalationEngineForWorker) TriggerIncidentEscalation(_ uuid.UUID, _ uuid.UUID) error {
+	return nil
+}
 func (m *mockEscalationEngineForWorker) EvaluateEscalations() error {
 	m.evaluateCalls++
 	return m.evaluateErr
@@ -50,7 +52,7 @@ func (m *mockChatForWorker) PostMessage(channelID string, msg services.Message) 
 func (m *mockChatForWorker) UpdateMessage(channelID, ts string, msg services.Message) error {
 	return nil
 }
-func (m *mockChatForWorker) ArchiveChannel(channelID string) error { return nil }
+func (m *mockChatForWorker) ArchiveChannel(channelID string) error                { return nil }
 func (m *mockChatForWorker) InviteUsers(channelID string, userIDs []string) error { return nil }
 func (m *mockChatForWorker) SendDirectMessage(username string, msg services.Message) error {
 	m.dms = append(m.dms, sentDM{username: username, message: msg})

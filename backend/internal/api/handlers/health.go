@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/database"
 	"github.com/FluidifyAI/Regen/backend/internal/redis"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 

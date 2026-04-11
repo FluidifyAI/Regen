@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/coordinator"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 

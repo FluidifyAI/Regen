@@ -3,9 +3,9 @@ package commands
 import (
 	"log/slog"
 
-	"github.com/joho/godotenv"
 	"github.com/FluidifyAI/Regen/backend/internal/config"
 	"github.com/FluidifyAI/Regen/backend/internal/database"
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
 

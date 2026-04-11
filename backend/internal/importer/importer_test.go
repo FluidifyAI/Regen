@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/integrations/pagerduty"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

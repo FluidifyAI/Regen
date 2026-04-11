@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -60,10 +60,10 @@ type groupingEngine struct {
 	db           *gorm.DB
 
 	// Rule cache to avoid database hits on every alert
-	rulesCache      []models.GroupingRule
-	rulesCacheMutex sync.RWMutex
+	rulesCache       []models.GroupingRule
+	rulesCacheMutex  sync.RWMutex
 	rulesCacheExpiry time.Time
-	ruleCacheTTL    time.Duration
+	ruleCacheTTL     time.Duration
 }
 
 // NewGroupingEngine creates a new grouping engine

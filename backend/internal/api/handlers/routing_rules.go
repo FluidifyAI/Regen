@@ -4,11 +4,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // ListRoutingRules handles GET /api/v1/routing-rules
@@ -310,4 +310,3 @@ func ReorderRoutingRules(ruleRepo repository.RoutingRuleRepository, onRuleMutate
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }
-

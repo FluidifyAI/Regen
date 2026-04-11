@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/google/uuid"
 )
 
 // ── Output types ──────────────────────────────────────────────────────────────
@@ -14,28 +14,28 @@ import (
 // ImportPreview is the complete dry-run result: what would be created plus any
 // conflicts or items that will be skipped.
 type ImportPreview struct {
-	Users              []models.User              `json:"users"`
-	Schedules          []models.Schedule          `json:"schedules"`
-	EscalationPolicies []models.EscalationPolicy  `json:"escalation_policies"`
-	Webhooks           []WebhookMapping           `json:"webhooks"`
-	Conflicts          []ConflictItem             `json:"conflicts"`
-	Skipped            []SkippedItem              `json:"skipped"`
+	Users              []models.User             `json:"users"`
+	Schedules          []models.Schedule         `json:"schedules"`
+	EscalationPolicies []models.EscalationPolicy `json:"escalation_policies"`
+	Webhooks           []WebhookMapping          `json:"webhooks"`
+	Conflicts          []ConflictItem            `json:"conflicts"`
+	Skipped            []SkippedItem             `json:"skipped"`
 }
 
 // WebhookMapping describes an OnCall integration and the corresponding Regen
 // webhook URL the user should point their monitoring tool at.
 type WebhookMapping struct {
-	Name         string `json:"name"`
-	OnCallType   string `json:"oncall_type"`   // original OnCall integration type
-	OldURL       string `json:"old_url"`        // previous OnCall inbound URL
-	NewURL       string `json:"new_url"`        // new Regen webhook URL
-	RegenSource  string `json:"regen_source"`  // "prometheus","grafana","cloudwatch","generic"
+	Name        string `json:"name"`
+	OnCallType  string `json:"oncall_type"`  // original OnCall integration type
+	OldURL      string `json:"old_url"`      // previous OnCall inbound URL
+	NewURL      string `json:"new_url"`      // new Regen webhook URL
+	RegenSource string `json:"regen_source"` // "prometheus","grafana","cloudwatch","generic"
 }
 
 // ConflictItem describes an entity that already exists in Regen and will be
 // skipped rather than overwritten during import.
 type ConflictItem struct {
-	Type   string `json:"type"`   // "user", "schedule", "escalation_policy"
+	Type   string `json:"type"` // "user", "schedule", "escalation_policy"
 	Name   string `json:"name"`
 	Reason string `json:"reason"` // human-readable reason
 }

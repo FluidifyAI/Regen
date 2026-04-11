@@ -3,20 +3,20 @@ package dto
 import (
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/google/uuid"
 )
 
 // EscalationTierResponse is the JSON representation of a single escalation tier.
 type EscalationTierResponse struct {
-	ID             uuid.UUID                    `json:"id"`
-	PolicyID       uuid.UUID                    `json:"policy_id"`
-	TierIndex      int                          `json:"tier_index"`
-	TimeoutSeconds int                          `json:"timeout_seconds"`
-	TargetType     models.EscalationTargetType  `json:"target_type"`
-	ScheduleID     *uuid.UUID                   `json:"schedule_id,omitempty"`
-	UserNames      []string                     `json:"user_names"`
-	CreatedAt      time.Time                    `json:"created_at"`
+	ID             uuid.UUID                   `json:"id"`
+	PolicyID       uuid.UUID                   `json:"policy_id"`
+	TierIndex      int                         `json:"tier_index"`
+	TimeoutSeconds int                         `json:"timeout_seconds"`
+	TargetType     models.EscalationTargetType `json:"target_type"`
+	ScheduleID     *uuid.UUID                  `json:"schedule_id,omitempty"`
+	UserNames      []string                    `json:"user_names"`
+	CreatedAt      time.Time                   `json:"created_at"`
 }
 
 // EscalationPolicyResponse is the JSON representation of an escalation policy.

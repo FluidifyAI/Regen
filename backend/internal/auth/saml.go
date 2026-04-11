@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crewjam/saml"
-	"github.com/crewjam/saml/samlsp"
 	"github.com/FluidifyAI/Regen/backend/internal/config"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/crewjam/saml"
+	"github.com/crewjam/saml/samlsp"
 )
 
 // NewSAMLMiddleware constructs a crewjam/saml Middleware from application config.

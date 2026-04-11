@@ -3,8 +3,8 @@ package services
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 

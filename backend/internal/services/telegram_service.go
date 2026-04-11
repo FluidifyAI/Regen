@@ -159,7 +159,6 @@ func FetchTelegramChatID(ctx context.Context, botToken string) (string, string, 
 	return "", "", fmt.Errorf("no messages found — send any message to the bot (or add it to a group and send a message there)")
 }
 
-
 // SendAISummary posts the AI-generated summary for an incident to Telegram.
 func (s *TelegramService) SendAISummary(incident *models.Incident, summary string) error {
 	emoji := severityEmoji(string(incident.Severity))

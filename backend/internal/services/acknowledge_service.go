@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 // AcknowledgeAlertWithTimeline acknowledges an alert via the escalation engine and,

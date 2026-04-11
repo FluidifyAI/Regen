@@ -30,20 +30,22 @@ type GenericWebhookPayload struct {
 // GenericAlert represents a single alert in the generic webhook format.
 //
 // Minimal example:
-//   {"title": "High CPU on web-01"}
+//
+//	{"title": "High CPU on web-01"}
 //
 // Full example:
-//   {
-//     "title": "High Error Rate",
-//     "description": "Error rate > 5% on api-gateway",
-//     "severity": "critical",
-//     "status": "firing",
-//     "external_id": "custom-123",
-//     "labels": {"service": "api-gateway", "env": "production"},
-//     "annotations": {"runbook_url": "https://wiki.example.com/runbooks/error-rate"},
-//     "started_at": "2024-01-01T00:00:00Z",
-//     "ended_at": "2024-01-01T00:05:00Z"
-//   }
+//
+//	{
+//	  "title": "High Error Rate",
+//	  "description": "Error rate > 5% on api-gateway",
+//	  "severity": "critical",
+//	  "status": "firing",
+//	  "external_id": "custom-123",
+//	  "labels": {"service": "api-gateway", "env": "production"},
+//	  "annotations": {"runbook_url": "https://wiki.example.com/runbooks/error-rate"},
+//	  "started_at": "2024-01-01T00:00:00Z",
+//	  "ended_at": "2024-01-01T00:05:00Z"
+//	}
 type GenericAlert struct {
 	// Title is the only required field - a short summary of the alert
 	Title string `json:"title" binding:"required,min=1,max=500"`
@@ -266,80 +268,80 @@ func (g *GenericProvider) normalizeGenericAlert(genericAlert *GenericAlert) (*No
 //   - IDE autocomplete
 func GetJSONSchema() map[string]interface{} {
 	return map[string]interface{}{
-		"$schema": "https://json-schema.org/draft/2020-12/schema",
-		"$id":     "https://fluidifyregen.io/schemas/generic-webhook.json",
-		"title":   "Fluidify Regen Generic Webhook",
+		"$schema":     "https://json-schema.org/draft/2020-12/schema",
+		"$id":         "https://fluidifyregen.io/schemas/generic-webhook.json",
+		"title":       "Fluidify Regen Generic Webhook",
 		"description": "Schema for sending alerts to Fluidify Regen via the generic webhook endpoint",
-		"type": "object",
-		"required": []string{"alerts"},
+		"type":        "object",
+		"required":    []string{"alerts"},
 		"properties": map[string]interface{}{
 			"alerts": map[string]interface{}{
-				"type": "array",
+				"type":        "array",
 				"description": "Array of 1-100 alerts to create/update",
-				"minItems": 1,
-				"maxItems": 100,
+				"minItems":    1,
+				"maxItems":    100,
 				"items": map[string]interface{}{
-					"type": "object",
+					"type":     "object",
 					"required": []string{"title"},
 					"properties": map[string]interface{}{
 						"title": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "Short summary of the alert (required)",
-							"minLength": 1,
-							"maxLength": 500,
-							"examples": []string{"High CPU on web-01", "API error rate exceeded"},
+							"minLength":   1,
+							"maxLength":   500,
+							"examples":    []string{"High CPU on web-01", "API error rate exceeded"},
 						},
 						"description": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "Detailed context about the alert (optional)",
-							"maxLength": 5000,
-							"examples": []string{"CPU utilization is 95%, threshold is 80%"},
+							"maxLength":   5000,
+							"examples":    []string{"CPU utilization is 95%, threshold is 80%"},
 						},
 						"severity": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "Alert severity (defaults to 'warning')",
-							"enum": []string{"critical", "warning", "info"},
-							"default": "warning",
+							"enum":        []string{"critical", "warning", "info"},
+							"default":     "warning",
 						},
 						"status": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "Alert status (defaults to 'firing')",
-							"enum": []string{"firing", "resolved"},
-							"default": "firing",
+							"enum":        []string{"firing", "resolved"},
+							"default":     "firing",
 						},
 						"external_id": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "Unique identifier for deduplication. Auto-generated from title+labels if not provided.",
-							"maxLength": 255,
-							"examples": []string{"custom-123", "prod-api-cpu-alert-001"},
+							"maxLength":   255,
+							"examples":    []string{"custom-123", "prod-api-cpu-alert-001"},
 						},
 						"labels": map[string]interface{}{
-							"type": "object",
-							"description": "Key-value pairs for filtering, grouping, and routing",
+							"type":                 "object",
+							"description":          "Key-value pairs for filtering, grouping, and routing",
 							"additionalProperties": map[string]interface{}{"type": "string"},
 							"examples": []interface{}{
 								map[string]string{"service": "api-gateway", "env": "production", "team": "backend"},
 							},
 						},
 						"annotations": map[string]interface{}{
-							"type": "object",
-							"description": "Additional metadata not used for routing",
+							"type":                 "object",
+							"description":          "Additional metadata not used for routing",
 							"additionalProperties": map[string]interface{}{"type": "string"},
 							"examples": []interface{}{
 								map[string]string{"runbook_url": "https://wiki.example.com/runbooks/cpu"},
 							},
 						},
 						"started_at": map[string]interface{}{
-							"type": "string",
-							"format": "date-time",
+							"type":        "string",
+							"format":      "date-time",
 							"description": "When the alert started firing (ISO 8601). Defaults to current time.",
-							"examples": []string{"2024-01-01T00:00:00Z"},
+							"examples":    []string{"2024-01-01T00:00:00Z"},
 						},
 						"ended_at": map[string]interface{}{
-							"type": "string",
-							"format": "date-time",
+							"type":        "string",
+							"format":      "date-time",
 							"description": "When the alert was resolved (ISO 8601). Only valid if status is 'resolved'.",
-							"examples": []string{"2024-01-01T00:05:00Z"},
+							"examples":    []string{"2024-01-01T00:05:00Z"},
 						},
 					},
 				},

@@ -5,22 +5,22 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 )
 
 type slackConfigResponse struct {
-	Configured    bool       `json:"configured"`
-	WorkspaceID   string     `json:"workspace_id,omitempty"`
-	WorkspaceName string     `json:"workspace_name,omitempty"`
-	BotUserID     string     `json:"bot_user_id,omitempty"`
-	HasBotToken   bool       `json:"has_bot_token"`
-	HasAppToken   bool       `json:"has_app_token"`
-	HasOAuthConfig bool      `json:"has_oauth_config"`
-	ConnectedAt   *time.Time `json:"connected_at,omitempty"`
+	Configured     bool       `json:"configured"`
+	WorkspaceID    string     `json:"workspace_id,omitempty"`
+	WorkspaceName  string     `json:"workspace_name,omitempty"`
+	BotUserID      string     `json:"bot_user_id,omitempty"`
+	HasBotToken    bool       `json:"has_bot_token"`
+	HasAppToken    bool       `json:"has_app_token"`
+	HasOAuthConfig bool       `json:"has_oauth_config"`
+	ConnectedAt    *time.Time `json:"connected_at,omitempty"`
 }
 
 func toSlackConfigResponse(cfg *models.SlackConfig) slackConfigResponse {

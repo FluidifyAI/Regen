@@ -19,6 +19,24 @@ echo "    Chart:     ${CHART_DIR}"
 echo "    Updating chart dependencies..."
 helm dependency update "${CHART_DIR}"
 
+# Pre-pull subchart images into k3d so helm install --wait doesn't block on pulls
+echo "    Pre-loading subchart images into k3d..."
+SUBCHART_IMAGES=$(helm template "${RELEASE_NAME}" "${CHART_DIR}" \
+  --values "${VALUES_FILE}" \
+  --set image.repository="fluidify-regen" \
+  --set image.tag="test" \
+  2>/dev/null \
+  | grep -E '^\s+image:' \
+  | awk '{print $2}' \
+  | tr -d '"' \
+  | sort -u \
+  | grep -v "^fluidify-regen")
+for img in ${SUBCHART_IMAGES}; do
+  echo "    Pulling: ${img}"
+  docker pull "${img}" --quiet
+  k3d image import "${img}" --cluster "${CLUSTER_NAME}"
+done
+
 # Create namespace (idempotent)
 kubectl create namespace "${NAMESPACE}" 2>/dev/null || true
 

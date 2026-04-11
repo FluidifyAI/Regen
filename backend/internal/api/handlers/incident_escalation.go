@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
 
 // EscalateIncident handles POST /api/v1/incidents/:id/escalate.

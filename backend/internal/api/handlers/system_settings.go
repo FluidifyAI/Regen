@@ -3,10 +3,10 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // GetEscalationSettings handles GET /api/v1/settings/escalation
@@ -74,9 +74,9 @@ func GetSystemSettings(repo repository.SystemSettingsRepository, aiSvc services.
 func UpdateSystemSettings(repo repository.SystemSettingsRepository, aiSvc services.AIService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
-			InstanceName  *string `json:"instance_name"`
-			Timezone      *string `json:"timezone"`
-			OpenAIAPIKey  *string `json:"openai_api_key"`
+			InstanceName *string `json:"instance_name"`
+			Timezone     *string `json:"timezone"`
+			OpenAIAPIKey *string `json:"openai_api_key"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -84,17 +84,20 @@ func UpdateSystemSettings(repo repository.SystemSettingsRepository, aiSvc servic
 		}
 		if req.InstanceName != nil {
 			if err := repo.SetString(repository.KeyInstanceName, *req.InstanceName); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save instance name"}); return
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save instance name"})
+				return
 			}
 		}
 		if req.Timezone != nil {
 			if err := repo.SetString(repository.KeyTimezone, *req.Timezone); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save timezone"}); return
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save timezone"})
+				return
 			}
 		}
 		if req.OpenAIAPIKey != nil {
 			if err := repo.SetString(repository.KeyOpenAIAPIKey, *req.OpenAIAPIKey); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save API key"}); return
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save API key"})
+				return
 			}
 			aiSvc.Reload(*req.OpenAIAPIKey)
 		}

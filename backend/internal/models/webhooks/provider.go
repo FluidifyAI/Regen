@@ -248,9 +248,10 @@ func (n *NormalizedAlert) Fingerprint() string {
 //  4. Return first 32 characters of hex hash
 //
 // Example:
-//   Title: "High CPU"
-//   Labels: {"service": "api", "env": "prod"}
-//   Result: "abc123..." (SHA256 of "title:High CPU|labels:env=prod|service=api")
+//
+//	Title: "High CPU"
+//	Labels: {"service": "api", "env": "prod"}
+//	Result: "abc123..." (SHA256 of "title:High CPU|labels:env=prod|service=api")
 func GenerateExternalID(title string, labels map[string]string) string {
 	// Sort label keys for deterministic output
 	keys := make([]string, 0, len(labels))

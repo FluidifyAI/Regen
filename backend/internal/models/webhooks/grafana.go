@@ -16,13 +16,13 @@ import (
 //   - May include "orgId" in some contexts
 //   - Fingerprint generation may differ slightly from Prometheus
 type GrafanaWebhookPayload struct {
-	Receiver string         `json:"receiver"`                                          // Name of contact point
-	Status   string         `json:"status" binding:"required,oneof=firing resolved"`   // "firing" or "resolved"
-	Alerts   []GrafanaAlert `json:"alerts" binding:"required,min=1,max=100,dive"`      // Array of alerts (max 100)
-	GroupLabels      map[string]string `json:"groupLabels"`      // Labels used for grouping
-	CommonLabels     map[string]string `json:"commonLabels"`     // Labels common to all alerts
-	CommonAnnotations map[string]string `json:"commonAnnotations"` // Annotations common to all alerts
-	ExternalURL      string            `json:"externalURL"`      // Base URL of Grafana instance
+	Receiver          string            `json:"receiver"`                                        // Name of contact point
+	Status            string            `json:"status" binding:"required,oneof=firing resolved"` // "firing" or "resolved"
+	Alerts            []GrafanaAlert    `json:"alerts" binding:"required,min=1,max=100,dive"`    // Array of alerts (max 100)
+	GroupLabels       map[string]string `json:"groupLabels"`                                     // Labels used for grouping
+	CommonLabels      map[string]string `json:"commonLabels"`                                    // Labels common to all alerts
+	CommonAnnotations map[string]string `json:"commonAnnotations"`                               // Annotations common to all alerts
+	ExternalURL       string            `json:"externalURL"`                                     // Base URL of Grafana instance
 }
 
 // GrafanaAlert represents a single alert within a Grafana webhook payload
@@ -36,8 +36,8 @@ type GrafanaAlert struct {
 	Fingerprint  string            `json:"fingerprint" binding:"max=64"`                    // Unique identifier (may be empty)
 
 	// Grafana-specific fields not present in Alertmanager
-	Values       map[string]float64 `json:"values"`       // Query results (e.g., {"A": 95.2, "B": 100})
-	ValueString  string             `json:"valueString"`  // Human-readable query result
+	Values      map[string]float64 `json:"values"`      // Query results (e.g., {"A": 95.2, "B": 100})
+	ValueString string             `json:"valueString"` // Human-readable query result
 
 	// Optional fields for fingerprint derivation when fingerprint field is empty
 	// (Present in some Grafana versions/configurations)

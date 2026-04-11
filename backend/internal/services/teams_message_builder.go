@@ -73,7 +73,6 @@ func teamsStatusUpdateCard(incident *models.Incident, changedBy string) map[stri
 	}
 }
 
-
 // teamsDMCard returns an Adaptive Card for a proactive on-call DM.
 // Uses OpenUrl actions so responders can act even outside the Teams channel context.
 func teamsDMCard(incident *models.Incident, appURL string) map[string]interface{} {

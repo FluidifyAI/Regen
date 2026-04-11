@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
 )
 
 // WebhookHandler is a unified handler for all webhook providers (v0.3+).
@@ -34,8 +34,9 @@ type WebhookHandler struct {
 // NewWebhookHandler creates a handler for a specific webhook provider.
 //
 // Example usage in routes.go:
-//   grafanaHandler := NewWebhookHandler(&webhooks.GrafanaProvider{}, alertService)
-//   router.POST("/webhooks/grafana", grafanaHandler.Handle)
+//
+//	grafanaHandler := NewWebhookHandler(&webhooks.GrafanaProvider{}, alertService)
+//	router.POST("/webhooks/grafana", grafanaHandler.Handle)
 func NewWebhookHandler(provider webhooks.WebhookProvider, alertService services.AlertService) *WebhookHandler {
 	return &WebhookHandler{
 		provider:     provider,

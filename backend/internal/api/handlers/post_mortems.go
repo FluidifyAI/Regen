@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // GetPostMortem handles GET /api/v1/incidents/:id/postmortem
@@ -385,4 +385,3 @@ func DeletePostMortemComment(incidentSvc services.IncidentService, pmSvc service
 		c.Status(http.StatusNoContent)
 	}
 }
-

@@ -13,11 +13,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type teamsConfigResponse struct {
@@ -63,13 +63,13 @@ func GetTeamsConfig(repo repository.TeamsConfigRepository) gin.HandlerFunc {
 func SaveTeamsConfig(repo repository.TeamsConfigRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
-			AppID      string `json:"app_id"      binding:"required"`
+			AppID       string `json:"app_id"      binding:"required"`
 			AppPassword string `json:"app_password" binding:"required"`
-			TenantID   string `json:"tenant_id"   binding:"required"`
-			TeamID     string `json:"team_id"     binding:"required"`
-			BotUserID  string `json:"bot_user_id"`
-			ServiceURL string `json:"service_url"`
-			TeamName   string `json:"team_name"`
+			TenantID    string `json:"tenant_id"   binding:"required"`
+			TeamID      string `json:"team_id"     binding:"required"`
+			BotUserID   string `json:"bot_user_id"`
+			ServiceURL  string `json:"service_url"`
+			TeamName    string `json:"team_name"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "app_id, app_password, tenant_id, and team_id are required"})
@@ -110,10 +110,10 @@ func SaveTeamsConfig(repo repository.TeamsConfigRepository) gin.HandlerFunc {
 func TestTeamsConfig() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
-			AppID      string `json:"app_id"      binding:"required"`
+			AppID       string `json:"app_id"      binding:"required"`
 			AppPassword string `json:"app_password" binding:"required"`
-			TenantID   string `json:"tenant_id"   binding:"required"`
-			TeamID     string `json:"team_id"     binding:"required"`
+			TenantID    string `json:"tenant_id"   binding:"required"`
+			TeamID      string `json:"team_id"     binding:"required"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "app_id, app_password, tenant_id, and team_id are required"})
@@ -225,10 +225,10 @@ func teamsManifestJSON(appID string) ([]byte, error) {
 		"id":              fmt.Sprintf("%s-teams-app", appID),
 		"packageName":     "com.fluidify.regen",
 		"developer": map[string]string{
-			"name":           "Fluidify",
-			"websiteUrl":     "https://fluidify.ai",
-			"privacyUrl":     "https://fluidify.ai/privacy",
-			"termsOfUseUrl":  "https://fluidify.ai/terms",
+			"name":          "Fluidify",
+			"websiteUrl":    "https://fluidify.ai",
+			"privacyUrl":    "https://fluidify.ai/privacy",
+			"termsOfUseUrl": "https://fluidify.ai/terms",
 		},
 		"icons": map[string]string{
 			"color":   "color.png",

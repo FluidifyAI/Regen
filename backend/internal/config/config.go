@@ -58,12 +58,12 @@ type Config struct {
 
 	// SAML SSO (optional — SSO disabled if SAMLIDPMetadataURL is empty)
 	// When disabled all routes are open (backwards-compatible with existing deployments).
-	SAMLIDPMetadataURL   string // SAML_IDP_METADATA_URL — IdP metadata endpoint
-	SAMLEntityID         string // SAML_ENTITY_ID — SP EntityID (defaults to <base_url>/saml/metadata)
-	SAMLBaseURL          string // SAML_BASE_URL — externally reachable base URL of this instance
-	SAMLCertFile         string // SAML_CERT_FILE — path to SP certificate PEM (self-signed generated if empty)
-	SAMLKeyFile          string // SAML_KEY_FILE — path to SP private key PEM
-	SAMLAllowIDPInitiated bool  // SAML_ALLOW_IDP_INITIATED — allow IdP-initiated flows (Okta tile click)
+	SAMLIDPMetadataURL    string // SAML_IDP_METADATA_URL — IdP metadata endpoint
+	SAMLEntityID          string // SAML_ENTITY_ID — SP EntityID (defaults to <base_url>/saml/metadata)
+	SAMLBaseURL           string // SAML_BASE_URL — externally reachable base URL of this instance
+	SAMLCertFile          string // SAML_CERT_FILE — path to SP certificate PEM (self-signed generated if empty)
+	SAMLKeyFile           string // SAML_KEY_FILE — path to SP private key PEM
+	SAMLAllowIDPInitiated bool   // SAML_ALLOW_IDP_INITIATED — allow IdP-initiated flows (Okta tile click)
 }
 
 // Load reads configuration from environment variables
@@ -168,4 +168,3 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 	}
 	return defaultValue
 }
-

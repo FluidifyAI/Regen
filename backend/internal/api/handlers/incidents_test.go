@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
 	"github.com/FluidifyAI/Regen/backend/internal/database"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -31,8 +31,8 @@ func TestListIncidents(t *testing.T) {
 		setupIncidents   []models.Incident // Incidents to create before test
 		queryParams      string
 		expectedStatus   int
-		expectedCount    int  // Expected number of incidents in response
-		expectedTotal    int  // Expected total count
+		expectedCount    int // Expected number of incidents in response
+		expectedTotal    int // Expected total count
 		validateResponse func(*testing.T, *dto.PaginatedResponse)
 		description      string
 	}{

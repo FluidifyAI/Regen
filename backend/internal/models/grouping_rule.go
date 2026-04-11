@@ -121,9 +121,10 @@ func (gr *GroupingRule) BeforeCreate(tx *gorm.DB) error {
 //  4. Hash with SHA256 for consistent, compact key
 //
 // Example:
-//   Rule: MatchLabels = {"service": "*", "env": "*"}
-//   Alert: {service: "api", env: "prod", instance: "web-01"}
-//   GroupKey: SHA256("env=prod|service=api") → "a1b2c3..."
+//
+//	Rule: MatchLabels = {"service": "*", "env": "*"}
+//	Alert: {service: "api", env: "prod", instance: "web-01"}
+//	GroupKey: SHA256("env=prod|service=api") → "a1b2c3..."
 //
 // Note: instance label is NOT included because it's not in MatchLabels.
 // This ensures all alerts from the same service+env are grouped.
@@ -144,9 +145,10 @@ func (gr *GroupingRule) GroupKey(alertLabels map[string]string) string {
 //   - If MatchLabels requires a key, alert must have that key
 //
 // Examples:
-//   Rule: {"alertname": "HighCPU"} matches alert with alertname=HighCPU
-//   Rule: {"severity": "*"} matches any alert with a severity label
-//   Rule: {} matches all alerts
+//
+//	Rule: {"alertname": "HighCPU"} matches alert with alertname=HighCPU
+//	Rule: {"severity": "*"} matches any alert with a severity label
+//	Rule: {} matches all alerts
 func (gr *GroupingRule) Matches(alertLabels map[string]string) bool {
 	// Implementation will be in grouping_engine.go
 	// This is a placeholder method signature

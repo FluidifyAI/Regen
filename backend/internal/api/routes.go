@@ -9,8 +9,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/crewjam/saml/samlsp"
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers"
 	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	"github.com/FluidifyAI/Regen/backend/internal/config"
@@ -20,6 +18,8 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/FluidifyAI/Regen/backend/ui"
+	"github.com/crewjam/saml/samlsp"
+	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gorm.io/gorm"
 )
@@ -136,8 +136,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	router.Use(middleware.CORS())
 	router.Use(middleware.Recovery())
 	router.Use(middleware.Logger())
-	router.Use(metrics.Middleware())                    // Prometheus metrics
-	router.Use(middleware.AuditLog(hooks.Audit))        // Enterprise audit trail (no-op in OSS)
+	router.Use(metrics.Middleware())             // Prometheus metrics
+	router.Use(middleware.AuditLog(hooks.Audit)) // Enterprise audit trail (no-op in OSS)
 
 	// Health check endpoints (always open — liveness/readiness probes)
 	router.GET("/health", handlers.Health(db))

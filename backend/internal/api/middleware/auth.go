@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/crewjam/saml/samlsp"
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/crewjam/saml/samlsp"
+	"github.com/gin-gonic/gin"
 )
 
 // IsSecure returns true if the Secure flag should be set on cookies.

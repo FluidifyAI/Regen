@@ -147,10 +147,10 @@ type CloudWatchDimension struct {
 //
 // CloudWatch does not send webhooks directly - it uses SNS (Simple Notification Service)
 // as a transport layer. This provider handles:
-//   1. SNS envelope parsing and signature verification
-//   2. Automatic SNS subscription confirmation (zero-config setup)
-//   3. CloudWatch alarm JSON extraction from SNS Message field
-//   4. Normalization of CloudWatch states to firing/resolved
+//  1. SNS envelope parsing and signature verification
+//  2. Automatic SNS subscription confirmation (zero-config setup)
+//  3. CloudWatch alarm JSON extraction from SNS Message field
+//  4. Normalization of CloudWatch states to firing/resolved
 //
 // Field Mapping:
 //   - Title: AlarmName
@@ -375,9 +375,9 @@ func (c *CloudWatchProvider) normalizeCloudWatchAlarm(alarm *CloudWatchAlarm) (*
 
 	// Build annotations with additional metadata
 	annotations := map[string]string{
-		"alarm_arn":        alarm.AlarmArn,
-		"state_reason":     alarm.NewStateReason,
-		"old_state":        alarm.OldStateValue,
+		"alarm_arn":         alarm.AlarmArn,
+		"state_reason":      alarm.NewStateReason,
+		"old_state":         alarm.OldStateValue,
 		"state_change_time": alarm.StateChangeTime,
 	}
 	if alarm.AlarmDescription != "" {

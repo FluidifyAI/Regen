@@ -3,20 +3,20 @@ package dto
 import (
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/google/uuid"
 )
 
 // ActionItemResponse is the API representation of an action item.
 type ActionItemResponse struct {
-	ID           uuid.UUID `json:"id"`
-	PostMortemID uuid.UUID `json:"post_mortem_id"`
-	Title        string    `json:"title"`
-	Owner        *string   `json:"owner,omitempty"`
+	ID           uuid.UUID  `json:"id"`
+	PostMortemID uuid.UUID  `json:"post_mortem_id"`
+	Title        string     `json:"title"`
+	Owner        *string    `json:"owner,omitempty"`
 	DueDate      *time.Time `json:"due_date,omitempty"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	Status       string     `json:"status"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 func ToActionItemResponse(a *models.ActionItem) ActionItemResponse {

@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers"
 	"github.com/FluidifyAI/Regen/backend/internal/database"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -26,14 +26,14 @@ func TestPrometheusWebhookIntegration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name                   string
-		payload                *webhooks.AlertmanagerPayload
-		expectedStatus         int
-		expectedAlertsCreated  int
-		expectedIncidents      int
-		verifyAlertInDB        bool
-		verifyIncidentInDB     bool
-		description            string
+		name                  string
+		payload               *webhooks.AlertmanagerPayload
+		expectedStatus        int
+		expectedAlertsCreated int
+		expectedIncidents     int
+		verifyAlertInDB       bool
+		verifyIncidentInDB    bool
+		description           string
 	}{
 		{
 			name: "critical alert creates alert record and incident",
@@ -138,25 +138,25 @@ func TestPrometheusWebhookIntegration(t *testing.T) {
 				Receiver: "test-receiver",
 				Alerts: []webhooks.AlertmanagerAlert{
 					{
-						Status:       "firing",
-						Labels:       map[string]string{"alertname": "Alert1", "severity": "critical"},
-						Annotations:  map[string]string{"summary": "Alert 1 summary"},
-						StartsAt:     time.Now(),
-						Fingerprint:  "multi-1-critical",
+						Status:      "firing",
+						Labels:      map[string]string{"alertname": "Alert1", "severity": "critical"},
+						Annotations: map[string]string{"summary": "Alert 1 summary"},
+						StartsAt:    time.Now(),
+						Fingerprint: "multi-1-critical",
 					},
 					{
-						Status:       "firing",
-						Labels:       map[string]string{"alertname": "Alert2", "severity": "warning"},
-						Annotations:  map[string]string{"summary": "Alert 2 summary"},
-						StartsAt:     time.Now(),
-						Fingerprint:  "multi-2-warning",
+						Status:      "firing",
+						Labels:      map[string]string{"alertname": "Alert2", "severity": "warning"},
+						Annotations: map[string]string{"summary": "Alert 2 summary"},
+						StartsAt:    time.Now(),
+						Fingerprint: "multi-2-warning",
 					},
 					{
-						Status:       "firing",
-						Labels:       map[string]string{"alertname": "Alert3", "severity": "info"},
-						Annotations:  map[string]string{"summary": "Alert 3 summary"},
-						StartsAt:     time.Now(),
-						Fingerprint:  "multi-3-info",
+						Status:      "firing",
+						Labels:      map[string]string{"alertname": "Alert3", "severity": "info"},
+						Annotations: map[string]string{"summary": "Alert 3 summary"},
+						StartsAt:    time.Now(),
+						Fingerprint: "multi-3-info",
 					},
 				},
 			},
@@ -286,11 +286,11 @@ func TestDuplicateAlertUpdate(t *testing.T) {
 		Receiver: "test-receiver",
 		Alerts: []webhooks.AlertmanagerAlert{
 			{
-				Status:       "firing",
-				Labels:       map[string]string{"alertname": "DuplicateTest", "severity": "critical"},
-				Annotations:  map[string]string{"summary": "Initial summary"},
-				StartsAt:     time.Now(),
-				Fingerprint:  fingerprint,
+				Status:      "firing",
+				Labels:      map[string]string{"alertname": "DuplicateTest", "severity": "critical"},
+				Annotations: map[string]string{"summary": "Initial summary"},
+				StartsAt:    time.Now(),
+				Fingerprint: fingerprint,
 			},
 		},
 	}
@@ -320,12 +320,12 @@ func TestDuplicateAlertUpdate(t *testing.T) {
 		Receiver: "test-receiver",
 		Alerts: []webhooks.AlertmanagerAlert{
 			{
-				Status:       "resolved",
-				Labels:       map[string]string{"alertname": "DuplicateTest", "severity": "critical"},
-				Annotations:  map[string]string{"summary": "Updated summary"}, // Changed
-				StartsAt:     time.Now(),
-				EndsAt:       time.Now(),
-				Fingerprint:  fingerprint, // Same fingerprint
+				Status:      "resolved",
+				Labels:      map[string]string{"alertname": "DuplicateTest", "severity": "critical"},
+				Annotations: map[string]string{"summary": "Updated summary"}, // Changed
+				StartsAt:    time.Now(),
+				EndsAt:      time.Now(),
+				Fingerprint: fingerprint, // Same fingerprint
 			},
 		},
 	}

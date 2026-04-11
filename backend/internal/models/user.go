@@ -23,9 +23,9 @@ const (
 // Human users are provisioned automatically on first login (JIT provisioning for SAML)
 // or by an admin (for local auth). AI agent users are seeded on startup.
 type User struct {
-	ID   uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Email string   `gorm:"type:varchar(255);not null;uniqueIndex"          json:"email"`
-	Name  string   `gorm:"type:varchar(255);not null;default:''"           json:"name"`
+	ID    uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Email string    `gorm:"type:varchar(255);not null;uniqueIndex"          json:"email"`
+	Name  string    `gorm:"type:varchar(255);not null;default:''"           json:"name"`
 
 	// SAMLSubject is the NameID from the SAML assertion — immutable after first login.
 	// Nullable so that locally-authenticated users can be stored without a SAML subject.

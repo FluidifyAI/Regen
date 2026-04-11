@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/config"
 	"github.com/FluidifyAI/Regen/backend/internal/integrations/oncall"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
 )
 
 // oncallMigrationRequest is the body for both preview and import endpoints.
@@ -210,10 +210,10 @@ type importResult struct {
 		Schedules          int `json:"schedules"`
 		EscalationPolicies int `json:"escalation_policies"`
 	} `json:"imported"`
-	Skipped   []oncall.SkippedItem   `json:"skipped"`
-	Conflicts []oncall.ConflictItem  `json:"conflicts"`
-	Webhooks  []oncall.WebhookMapping `json:"webhooks"`
-	SetupTokens []userSetupToken     `json:"setup_tokens"`
+	Skipped     []oncall.SkippedItem    `json:"skipped"`
+	Conflicts   []oncall.ConflictItem   `json:"conflicts"`
+	Webhooks    []oncall.WebhookMapping `json:"webhooks"`
+	SetupTokens []userSetupToken        `json:"setup_tokens"`
 }
 
 type userSetupToken struct {
@@ -357,4 +357,3 @@ func generateToken(n int) string {
 	}
 	return string(b)
 }
-

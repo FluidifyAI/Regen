@@ -10,11 +10,11 @@ import (
 // AlertmanagerPayload represents the top-level webhook payload sent by Prometheus Alertmanager
 // Spec: https://prometheus.io/docs/alerting/latest/configuration/#webhook_config
 type AlertmanagerPayload struct {
-	Version  string              `json:"version" binding:"max=10"`                          // Alertmanager version (e.g., "4")
-	GroupKey string              `json:"groupKey" binding:"max=500"`                        // Unique key for alert group
-	Status   string              `json:"status" binding:"required,oneof=firing resolved"`   // "firing" or "resolved"
-	Receiver string              `json:"receiver" binding:"max=200"`                        // Name of configured receiver
-	Alerts   []AlertmanagerAlert `json:"alerts" binding:"required,min=1,max=100,dive"`      // Array of alerts in this notification (max 100 per webhook)
+	Version  string              `json:"version" binding:"max=10"`                        // Alertmanager version (e.g., "4")
+	GroupKey string              `json:"groupKey" binding:"max=500"`                      // Unique key for alert group
+	Status   string              `json:"status" binding:"required,oneof=firing resolved"` // "firing" or "resolved"
+	Receiver string              `json:"receiver" binding:"max=200"`                      // Name of configured receiver
+	Alerts   []AlertmanagerAlert `json:"alerts" binding:"required,min=1,max=100,dive"`    // Array of alerts in this notification (max 100 per webhook)
 }
 
 // AlertmanagerAlert represents a single alert within an Alertmanager webhook payload

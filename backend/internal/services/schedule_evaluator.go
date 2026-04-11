@@ -5,9 +5,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 // TimelineSegment represents a contiguous window during which a single user is on call.

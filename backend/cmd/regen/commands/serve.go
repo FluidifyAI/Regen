@@ -10,8 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"github.com/FluidifyAI/Regen/backend/internal/api"
 	"github.com/FluidifyAI/Regen/backend/internal/auth"
 	"github.com/FluidifyAI/Regen/backend/internal/config"
@@ -24,6 +22,8 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/FluidifyAI/Regen/backend/internal/worker"
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
 

@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
 	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // GetUserLimit handles GET /api/v1/settings/users/limit
@@ -22,9 +22,9 @@ func GetUserLimit(localAuth services.LocalAuthService, limit int) gin.HandlerFun
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
-			"limit":    limit,
-			"current":  count,
-			"at_limit": count >= int64(limit),
+			"limit":      limit,
+			"current":    count,
+			"at_limit":   count >= int64(limit),
 			"near_limit": count >= int64(limit-1),
 		})
 	}

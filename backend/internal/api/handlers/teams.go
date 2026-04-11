@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/gin-gonic/gin"
 )
 
 // TeamsWebhook receives Bot Framework activity payloads from Microsoft Teams

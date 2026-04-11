@@ -3,9 +3,9 @@ package dto
 import (
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/google/uuid"
 )
 
 // ScheduleResponse is the response body for schedule endpoints.

@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"github.com/google/uuid"
 )
 
 const minIncidentDuration = 5 * time.Minute
@@ -22,7 +22,9 @@ const DefaultWaitDuration = 60 * time.Second
 type PostMortemAgentDeps struct {
 	AgentUserID  uuid.UUID
 	AISvc        interface{ IsEnabled() bool }
-	IncidentRepo interface{ GetByID(uuid.UUID) (*models.Incident, error) }
+	IncidentRepo interface {
+		GetByID(uuid.UUID) (*models.Incident, error)
+	}
 	PostMortemSvc interface {
 		GetPostMortem(uuid.UUID) (*models.PostMortem, error)
 		GeneratePostMortem(*models.Incident, *uuid.UUID, string) (*models.PostMortem, error)
@@ -32,9 +34,9 @@ type PostMortemAgentDeps struct {
 	TeamsSvc     interface {                   // nil if not configured
 		PostToConversation(conversationID string, msg services.Message) (string, error)
 	}
-	MultiChat   services.ChatService     // for DM to commander; nil if not configured
-	UserRepo    repository.UserRepository // for commander lookup; nil in tests
-	FrontendURL string
+	MultiChat    services.ChatService      // for DM to commander; nil if not configured
+	UserRepo     repository.UserRepository // for commander lookup; nil in tests
+	FrontendURL  string
 	WaitDuration time.Duration
 }
 

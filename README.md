@@ -15,6 +15,7 @@
   <a href="https://discord.gg/b6PSdhzDa"><img src="https://img.shields.io/discord/1487668241718579342?label=discord&logo=discord&logoColor=white&color=5865F2" alt="Discord"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="License: AGPLv3"></a>
   <a href="https://github.com/FluidifyAI/Regen/pkgs/container/regen"><img src="https://img.shields.io/badge/docker-ready-0ea5e9" alt="Docker"></a>
+  <a href="https://goreportcard.com/report/github.com/FluidifyAI/Regen"><img src="https://goreportcard.com/badge/github.com/FluidifyAI/Regen" alt="Go Report Card"></a>
 </p>
 
 ---

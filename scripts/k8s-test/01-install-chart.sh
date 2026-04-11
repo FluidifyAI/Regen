@@ -6,6 +6,8 @@ CLUSTER_NAME="${K3D_CLUSTER_NAME:-regen-test}"
 RELEASE_NAME="${HELM_RELEASE:-regen-test}"
 NAMESPACE="${K8S_NAMESPACE:-regen-test}"
 IMAGE_TAG="${IMAGE_TAG:-fluidify-regen:test}"
+REGISTRY_NAME="regen-registry"
+REGISTRY_PORT="5001"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CHART_DIR="${REPO_ROOT}/deploy/helm/fluidify-regen"
 VALUES_FILE="${CHART_DIR}/values.test.yaml"
@@ -15,28 +17,29 @@ echo "    Release:   ${RELEASE_NAME}"
 echo "    Namespace: ${NAMESPACE}"
 echo "    Chart:     ${CHART_DIR}"
 
-# Update Bitnami subchart dependencies
-echo "    Updating chart dependencies..."
-helm dependency update "${CHART_DIR}"
+# Use locked chart versions from Chart.lock (avoids downloading newer Bitnami
+# chart versions on every run and keeps images predictable).
+echo "    Building chart dependencies from Chart.lock..."
+helm dependency build "${CHART_DIR}"
 
-# Pre-pull subchart images into k3d so helm install --wait doesn't block on pulls.
-# Must use --platform linux/amd64 — k3d's containerd cannot import multi-arch
-# manifest lists; it needs a single-arch image tarball.
-echo "    Pre-loading subchart images into k3d..."
-SUBCHART_IMAGES=$(helm template "${RELEASE_NAME}" "${CHART_DIR}" \
-  --values "${VALUES_FILE}" \
-  --set image.repository="fluidify-regen" \
-  --set image.tag="test" \
-  2>/dev/null \
-  | grep -E '^\s+image:' \
-  | awk '{print $2}' \
-  | tr -d '"' \
-  | sort -u \
-  | grep -v "^fluidify-regen")
-for img in ${SUBCHART_IMAGES}; do
+# Mirror Bitnami subchart images into the local registry so k3d's containerd
+# pulls from there instead of Docker Hub. docker pull on the runner host is fast
+# and uses the Docker daemon cache between runs. We avoid the OCI+zstd import
+# failures that occur with k3d image import for Bitnami images.
+echo "    Mirroring subchart images to local registry..."
+BITNAMI_IMAGES=(
+  "registry-1.docker.io/bitnami/postgresql:latest"
+  "registry-1.docker.io/bitnami/redis:latest"
+  "registry-1.docker.io/bitnami/os-shell:latest"
+)
+for img in "${BITNAMI_IMAGES[@]}"; do
+  short="${img#registry-1.docker.io/}"   # bitnami/postgresql:latest
+  local_ref="k3d-${REGISTRY_NAME}:${REGISTRY_PORT}/${short}"
   echo "    Pulling: ${img}"
   docker pull --platform linux/amd64 "${img}" --quiet
-  docker save "${img}" | k3d image import --cluster "${CLUSTER_NAME}" -
+  docker tag "${img}" "${local_ref}"
+  docker push "${local_ref}" --quiet
+  echo "    Mirrored → ${local_ref}"
 done
 
 # Create namespace (idempotent)

@@ -73,8 +73,10 @@ jobs:
       - name: Rebuild repo index on gh-pages
         run: |
           git fetch origin gh-pages
-          git checkout gh-pages
-          helm repo index charts --url https://charts.fluidify.ai/charts --merge charts/index.yaml
-          git add charts/index.yaml
+          git worktree add /tmp/gh-pages origin/gh-pages
+          cp /tmp/helm-pkg/*.tgz /tmp/gh-pages/charts/
+          helm repo index /tmp/gh-pages/charts --url https://charts.fluidify.ai/charts --merge /tmp/gh-pages/charts/index.yaml
+          cd /tmp/gh-pages
+          git add charts/
           git diff --cached --quiet || git commit -m "chore: update helm repo index for ${{ github.ref_name }}"
-          git push origin gh-pages
+          git push origin HEAD:gh-pages

@@ -72,6 +72,8 @@ jobs:
 
       - name: Rebuild repo index on gh-pages
         run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
           git fetch origin gh-pages
           git worktree add /tmp/gh-pages origin/gh-pages
           cp /tmp/helm-pkg/*.tgz /tmp/gh-pages/charts/

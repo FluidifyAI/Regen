@@ -3,7 +3,7 @@ package oncall
 import (
 	"testing"
 
-	"github.com/fluidify/regen/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────

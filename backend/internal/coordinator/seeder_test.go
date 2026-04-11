@@ -3,9 +3,9 @@ package coordinator_test
 import (
 	"testing"
 
-	"github.com/fluidify/regen/internal/coordinator"
-	"github.com/fluidify/regen/internal/database"
-	"github.com/fluidify/regen/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/coordinator"
+	"github.com/FluidifyAI/Regen/backend/internal/database"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

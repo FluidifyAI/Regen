@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fluidify/regen/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"golang.org/x/oauth2/clientcredentials"
 )
 

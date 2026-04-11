@@ -4,7 +4,7 @@
 //
 // Enterprise repo usage:
 //
-//	import "github.com/fluidify/regen/internal/enterprise"
+//	import "github.com/FluidifyAI/Regen/backend/internal/enterprise"
 //
 //	hooks := enterprise.Hooks{
 //	    RBAC:      myrbac.NewProvider(db),

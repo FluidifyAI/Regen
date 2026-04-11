@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/fluidify/regen/internal/metrics"
-	"github.com/fluidify/regen/internal/models/webhooks"
-	"github.com/fluidify/regen/internal/services"
+	"github.com/FluidifyAI/Regen/backend/internal/metrics"
+	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
+	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
 
 // WebhookHandler is a unified handler for all webhook providers (v0.3+).

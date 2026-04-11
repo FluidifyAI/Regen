@@ -3,8 +3,8 @@ package importer
 import (
 	"fmt"
 
-	"github.com/fluidify/regen/internal/integrations/pagerduty"
-	"github.com/fluidify/regen/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/pagerduty"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
 )
 
 // scheduleRepoWriter is the minimal subset of repository.ScheduleRepository

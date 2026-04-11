@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fluidify/regen/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
 )
 
 // TelegramService sends incident notification messages to a Telegram group/channel.

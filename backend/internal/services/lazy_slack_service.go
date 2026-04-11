@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/fluidify/regen/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
 )
 
 // ErrSlackNotConfigured is returned by LazySlackService when no valid Slack

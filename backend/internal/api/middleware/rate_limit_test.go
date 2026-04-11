@@ -7,10 +7,10 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
-	redispkg "github.com/fluidify/regen/internal/redis"
+	redispkg "github.com/FluidifyAI/Regen/backend/internal/redis"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/fluidify/regen/internal/api/middleware"
+	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 )
 
 func setupMiniredis(t *testing.T) *miniredis.Miniredis {

@@ -3,7 +3,7 @@ package importer
 import (
 	"fmt"
 
-	"github.com/fluidify/regen/internal/integrations/pagerduty"
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/pagerduty"
 )
 
 // layerValidationResult holds the outcome of validating a single schedule layer.

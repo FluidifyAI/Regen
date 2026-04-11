@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"github.com/fluidify/regen/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
 )
 
 // CreateRoutingRuleRequest is the request body for POST /api/v1/routing-rules

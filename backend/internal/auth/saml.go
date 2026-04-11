@@ -19,8 +19,8 @@ import (
 
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
-	"github.com/fluidify/regen/internal/config"
-	"github.com/fluidify/regen/internal/services"
+	"github.com/FluidifyAI/Regen/backend/internal/config"
+	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
 
 // NewSAMLMiddleware constructs a crewjam/saml Middleware from application config.

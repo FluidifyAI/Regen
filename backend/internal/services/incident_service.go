@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/fluidify/regen/internal/metrics"
-	"github.com/fluidify/regen/internal/models"
-	"github.com/fluidify/regen/internal/repository"
-	appredis "github.com/fluidify/regen/internal/redis"
+	"github.com/FluidifyAI/Regen/backend/internal/metrics"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	appredis "github.com/FluidifyAI/Regen/backend/internal/redis"
 	"gorm.io/gorm"
 )
 

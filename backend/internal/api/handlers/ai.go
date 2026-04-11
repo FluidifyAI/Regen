@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/fluidify/regen/internal/api/handlers/dto"
-	"github.com/fluidify/regen/internal/repository"
-	"github.com/fluidify/regen/internal/services"
+	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
 
 // SummarizeIncident handles POST /api/v1/incidents/:id/summarize

@@ -8,10 +8,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/fluidify/regen/internal/api/handlers/dto"
-	"github.com/fluidify/regen/internal/models"
-	"github.com/fluidify/regen/internal/repository"
-	"github.com/fluidify/regen/internal/services"
+	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
 
 // ListSchedules handles GET /api/v1/schedules

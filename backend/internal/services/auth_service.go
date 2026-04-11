@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fluidify/regen/internal/models"
-	"github.com/fluidify/regen/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
 )
 
 // AuthService handles user provisioning from SAML assertions.

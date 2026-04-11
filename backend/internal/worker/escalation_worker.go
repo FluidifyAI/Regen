@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fluidify/regen/internal/metrics"
-	"github.com/fluidify/regen/internal/models"
-	"github.com/fluidify/regen/internal/services"
+	"github.com/FluidifyAI/Regen/backend/internal/metrics"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
 
 const (

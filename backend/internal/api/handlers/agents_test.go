@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/fluidify/regen/internal/database"
-	"github.com/fluidify/regen/internal/models"
-	"github.com/fluidify/regen/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/database"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

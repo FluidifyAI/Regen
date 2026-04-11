@@ -1,4 +1,4 @@
-module github.com/fluidify/regen
+module github.com/FluidifyAI/Regen/backend
 
 go 1.24.0
 

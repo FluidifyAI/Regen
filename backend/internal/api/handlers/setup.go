@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/fluidify/regen/internal/coordinator"
-	"github.com/fluidify/regen/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/coordinator"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
 )
 
 // SeedDemoData handles POST /api/v1/setup/demo-data.

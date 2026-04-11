@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/fluidify/regen/internal/config"
-	"github.com/fluidify/regen/internal/repository"
-	"github.com/fluidify/regen/internal/services"
+	"github.com/FluidifyAI/Regen/backend/internal/config"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"

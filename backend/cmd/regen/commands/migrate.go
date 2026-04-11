@@ -4,8 +4,8 @@ import (
 	"log/slog"
 
 	"github.com/joho/godotenv"
-	"github.com/fluidify/regen/internal/config"
-	"github.com/fluidify/regen/internal/database"
+	"github.com/FluidifyAI/Regen/backend/internal/config"
+	"github.com/FluidifyAI/Regen/backend/internal/database"
 	"github.com/spf13/cobra"
 )
 

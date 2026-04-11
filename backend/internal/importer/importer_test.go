@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/fluidify/regen/internal/integrations/pagerduty"
-	"github.com/fluidify/regen/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/pagerduty"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

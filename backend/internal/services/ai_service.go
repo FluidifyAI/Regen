@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fluidify/regen/internal/integrations/openai"
-	"github.com/fluidify/regen/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/openai"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
 )
 
 // AIService provides AI-powered features for incidents.

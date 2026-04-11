@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/fluidify/regen/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
 )
 
 // PostMortemTemplateResponse is the API representation of a post-mortem template.

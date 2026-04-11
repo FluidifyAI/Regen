@@ -32,12 +32,15 @@ BITNAMI_IMAGES=(
 )
 for img in "${BITNAMI_IMAGES[@]}"; do
   short="${img#registry-1.docker.io/}"   # bitnami/postgresql:latest
-  local_ref="k3d-${REGISTRY_NAME}:${REGISTRY_PORT}/${short}"
+  # Push via localhost — k3d-regen-registry hostname isn't resolvable on the
+  # runner host (systemd-resolved bypasses /etc/hosts). The registry stores
+  # by name/tag so k3d-regen-registry:5001/bitnami/... finds it correctly.
+  local_ref="localhost:${REGISTRY_PORT}/${short}"
   echo "    Pulling: ${img}"
   docker pull --platform linux/amd64 "${img}" --quiet
   docker tag "${img}" "${local_ref}"
   docker push "${local_ref}" --quiet
-  echo "    Mirrored → ${local_ref}"
+  echo "    Mirrored → k3d-${REGISTRY_NAME}:${REGISTRY_PORT}/${short}"
 done
 
 # Create namespace (idempotent)

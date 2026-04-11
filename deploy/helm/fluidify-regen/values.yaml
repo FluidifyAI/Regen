@@ -2,7 +2,7 @@
 replicaCount: 2
 
 image:
-  repository: ghcr.io/fluidify/regen
+  repository: ghcr.io/fluidifyai/regen
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""

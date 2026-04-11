@@ -41,3 +41,40 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  helm:
+    name: Publish Helm chart
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.4
+
+      - name: Package chart
+        run: |
+          helm dependency update deploy/helm/fluidify-regen
+          helm package deploy/helm/fluidify-regen --destination /tmp/helm-pkg
+
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: /tmp/helm-pkg
+          destination_dir: charts
+          keep_files: true
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+
+      - name: Rebuild repo index on gh-pages
+        run: |
+          git fetch origin gh-pages
+          git checkout gh-pages
+          helm repo index charts --url https://charts.fluidify.ai/charts --merge charts/index.yaml
+          git add charts/index.yaml
+          git diff --cached --quiet || git commit -m "chore: update helm repo index for ${{ github.ref_name }}"
+          git push origin gh-pages

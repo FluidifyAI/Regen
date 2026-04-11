@@ -4,10 +4,10 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/fluidify/regen/internal/config"
-	"github.com/fluidify/regen/internal/enterprise"
-	"github.com/fluidify/regen/internal/repository"
-	"github.com/fluidify/regen/internal/services"
+	"github.com/FluidifyAI/Regen/backend/internal/config"
+	"github.com/FluidifyAI/Regen/backend/internal/enterprise"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"gorm.io/gorm"
 )
 

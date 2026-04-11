@@ -11,9 +11,9 @@ import (
 
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gin-gonic/gin"
-	"github.com/fluidify/regen/internal/api/middleware"
-	appredis "github.com/fluidify/regen/internal/redis"
-	"github.com/fluidify/regen/internal/services"
+	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
+	appredis "github.com/FluidifyAI/Regen/backend/internal/redis"
+	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
 
 const (

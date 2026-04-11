@@ -1,6 +1,6 @@
 package dto
 
-import "github.com/fluidify/regen/internal/repository"
+import "github.com/FluidifyAI/Regen/backend/internal/repository"
 
 // PaginationParams holds pagination query parameters
 type PaginationParams struct {

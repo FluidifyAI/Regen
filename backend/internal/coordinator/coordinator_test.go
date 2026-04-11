@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/fluidify/regen/internal/coordinator"
+	"github.com/FluidifyAI/Regen/backend/internal/coordinator"
 	"github.com/stretchr/testify/assert"
 )
 

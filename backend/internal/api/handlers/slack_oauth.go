@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/fluidify/regen/internal/repository"
-	"github.com/fluidify/regen/internal/services"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
 
 const slackOAuthStateKey = "slack_oauth_state"

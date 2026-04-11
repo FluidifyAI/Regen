@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/fluidify/regen/internal/repository"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
 )
 
 // ListSeverityRules handles GET /api/v1/escalation-policies/severity-rules

@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/fluidify/regen/internal/database"
-	"github.com/fluidify/regen/internal/redis"
+	"github.com/FluidifyAI/Regen/backend/internal/database"
+	"github.com/FluidifyAI/Regen/backend/internal/redis"
 	"gorm.io/gorm"
 )
 

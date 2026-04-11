@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/fluidify/regen/internal/models"
-	"github.com/fluidify/regen/internal/models/webhooks"
+	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
 )
 
 // ── Routing engine: EscalationPolicyID in RoutingDecision ────────────────────

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fluidify/regen/cmd/regen/commands"
+	"github.com/FluidifyAI/Regen/backend/cmd/regen/commands"
 )
 
 func main() {

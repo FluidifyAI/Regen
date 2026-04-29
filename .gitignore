@@ -80,6 +80,7 @@ backend/ui/dist/*
 # Generated artifacts
 *.zip
 *.tar.gz
+*.pdf
 
 # IDE / AI assistant config (local development only)
 .claude/

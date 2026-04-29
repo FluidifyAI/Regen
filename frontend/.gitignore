@@ -27,3 +27,8 @@ dist-ssr
 .env
 .env.local
 .env.production
+
+# Mockup capture output
+.frames/
+mockup.mp4
+mockup.gif

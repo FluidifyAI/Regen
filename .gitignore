@@ -1,6 +1,10 @@
 # Mockup preview files — local only, never committed
 frontend/mockups/
 frontend/mockup.html
+frontend/mockup.mp4
+frontend/mockup.gif
+frontend/.frames/
+frontend/scripts/
 frontend/src/mockup-main.tsx
 frontend/src/components/ui/IncidentMockup.tsx
 frontend/src/pages/MockupPreviewPage.tsx

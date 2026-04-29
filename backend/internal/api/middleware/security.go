@@ -23,10 +23,11 @@ func SecurityHeaders() gin.HandlerFunc {
 	// form-action 'self'     — forms may only submit to our own origin
 	// style-src + 'unsafe-inline' — React components use inline styles; required for SPA
 	// img-src data:          — base64-encoded data URIs used in UI components
+	// img-src cdn.jsdelivr.net — Simple Icons brand logos on the Integrations page
 	const csp = "default-src 'self'; " +
 		"script-src 'self'; " +
 		"style-src 'self' 'unsafe-inline'; " +
-		"img-src 'self' data:; " +
+		"img-src 'self' data: https://cdn.jsdelivr.net; " +
 		"connect-src 'self'; " +
 		"font-src 'self'; " +
 		"object-src 'none'; " +

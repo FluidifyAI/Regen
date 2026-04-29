@@ -175,7 +175,7 @@ const COMING_SOON: ComingSoon[] = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function simpleIconUrl(slug: string): string {
-  return `https://cdn.simpleicons.org/${slug}`
+  return `https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${slug}.svg`
 }
 
 function webhookUrl(path: string): string {
@@ -730,7 +730,7 @@ export function IntegrationsPage() {
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <img
-                    src="https://cdn.simpleicons.org/slack"
+                    src={simpleIconUrl('slack')}
                     alt="Slack"
                     className="w-8 h-8 flex-shrink-0"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -792,7 +792,7 @@ export function IntegrationsPage() {
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <img
-                    src="https://cdn.simpleicons.org/microsoftteams"
+                    src={simpleIconUrl('microsoftteams')}
                     alt="Microsoft Teams"
                     className="w-8 h-8 flex-shrink-0"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
@@ -827,7 +827,7 @@ export function IntegrationsPage() {
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <img
-                    src="https://cdn.simpleicons.org/telegram/2CA5E0"
+                    src={simpleIconUrl('telegram')}
                     alt="Telegram"
                     className="w-8 h-8 flex-shrink-0"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}

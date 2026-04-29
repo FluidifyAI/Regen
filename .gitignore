@@ -64,10 +64,14 @@ backend/ui/dist/*
 /test-infra/
 /ref/
 
+# Demo deployment values (contains secrets — never commit)
+/deploy/demo/
+
 # Private internal docs (product vision, decisions, roadmap) — not for public repo
 /docs/PRODUCT.md
 /docs/ARCHITECTURE.md
 /docs/DECISIONS.md
+/docs/FEATURES.md
 
 # Generated artifacts
 *.zip

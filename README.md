@@ -25,6 +25,12 @@
 
 ---
 
+<p align="center">
+  <img src=".github/assets/demo.gif" alt="Fluidify Regen — incident kanban and Slack collaboration" width="960">
+</p>
+
+---
+
 ## Install
 
 Three ways to run — pick what fits your stack:

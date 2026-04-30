@@ -22,7 +22,7 @@ const posthogAPIKey = "phc_tVN68RCF5waqZs2vqwmCTnuPf8htLDuSUfrezsRpnah2"
 
 // TelemetryWorker runs two background tasks:
 //  1. Daily heartbeat to PostHog with anonymous aggregate stats
-//  2. Every-6h poll of api.fluidify.ai/regen/announcements, cached for the API
+//  2. Every-6h poll of static.fluidify.ai/regen/announcements.json, cached for the API
 type TelemetryWorker struct {
 	db   *gorm.DB
 	cfg  *config.Config
@@ -157,7 +157,7 @@ func (tw *TelemetryWorker) sendHeartbeat(instanceID string) {
 func (tw *TelemetryWorker) fetchAnnouncements() {
 	defer func() { recover() }() //nolint:errcheck
 
-	req, err := http.NewRequest(http.MethodGet, "https://api.fluidify.ai/regen/announcements", nil)
+	req, err := http.NewRequest(http.MethodGet, "https://static.fluidify.ai/regen/announcements.json", nil)
 	if err != nil {
 		return
 	}

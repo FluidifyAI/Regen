@@ -62,6 +62,8 @@ export interface SystemSettings {
   timezone: string
   ai_key_configured: boolean
   ai_key_last4: string
+  telemetry_enabled: boolean
+  telemetry_env_lock: boolean  // true when disabled by REGEN_NO_TELEMETRY env var
 }
 
 export async function getSystemSettings(): Promise<SystemSettings> {
@@ -74,6 +76,10 @@ export async function updateSystemSettings(payload: {
   openai_api_key?: string
 }): Promise<void> {
   await apiClient.patch('/api/v1/settings/system', payload)
+}
+
+export async function updateTelemetrySettings(enabled: boolean): Promise<void> {
+  await apiClient.patch('/api/v1/settings/system/telemetry', { telemetry_enabled: enabled })
 }
 
 export async function testOpenAIKey(apiKey: string): Promise<{ ok: boolean; error?: string }> {

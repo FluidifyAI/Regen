@@ -56,6 +56,9 @@ type Config struct {
 	// Frontend URL (used by agents to build deep links)
 	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
 
+	// Telemetry — enabled by default; set REGEN_NO_TELEMETRY=1 to disable globally
+	TelemetryDisabled bool // REGEN_NO_TELEMETRY=1
+
 	// SAML SSO (optional — SSO disabled if SAMLIDPMetadataURL is empty)
 	// When disabled all routes are open (backwards-compatible with existing deployments).
 	SAMLIDPMetadataURL    string // SAML_IDP_METADATA_URL — IdP metadata endpoint
@@ -112,6 +115,9 @@ func Load() (*Config, error) {
 
 		// Frontend
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
+
+		// Telemetry
+		TelemetryDisabled: getEnvAsBool("REGEN_NO_TELEMETRY", false),
 
 		// SAML SSO
 		SAMLIDPMetadataURL:    getEnv("SAML_IDP_METADATA_URL", ""),

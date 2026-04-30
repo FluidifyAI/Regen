@@ -17,18 +17,20 @@ import (
 // X-XSS-Protection is intentionally omitted: it is deprecated, removed from modern
 // browsers, and can introduce vulnerabilities in older IE/Edge versions.
 func SecurityHeaders() gin.HandlerFunc {
-	// object-src 'none'      — disables plugins (Flash, Java applets)
-	// base-uri 'self'        — prevents <base> tag hijacking (relative URL manipulation)
-	// frame-ancestors 'none' — modern clickjacking protection (supersedes X-Frame-Options)
-	// form-action 'self'     — forms may only submit to our own origin
-	// style-src + 'unsafe-inline' — React components use inline styles; required for SPA
-	// img-src data:          — base64-encoded data URIs used in UI components
-	// img-src cdn.jsdelivr.net — Simple Icons brand logos on the Integrations page
+	// object-src 'none'             — disables plugins (Flash, Java applets)
+	// base-uri 'self'               — prevents <base> tag hijacking (relative URL manipulation)
+	// frame-ancestors 'none'        — modern clickjacking protection (supersedes X-Frame-Options)
+	// form-action 'self'            — forms may only submit to our own origin
+	// style-src + 'unsafe-inline'   — React components use inline styles; required for SPA
+	// img-src data:                 — base64-encoded data URIs used in UI components
+	// img-src cdn.jsdelivr.net      — Simple Icons brand logos on the Integrations page
+	// connect-src us.i.posthog.com  — PostHog analytics (write-only capture; OPE-79)
+	// connect-src api.fluidify.ai   — in-app announcements polling (OPE-79)
 	const csp = "default-src 'self'; " +
 		"script-src 'self'; " +
 		"style-src 'self' 'unsafe-inline'; " +
 		"img-src 'self' data: https://cdn.jsdelivr.net; " +
-		"connect-src 'self'; " +
+		"connect-src 'self' https://us.i.posthog.com https://api.fluidify.ai; " +
 		"font-src 'self'; " +
 		"object-src 'none'; " +
 		"base-uri 'self'; " +

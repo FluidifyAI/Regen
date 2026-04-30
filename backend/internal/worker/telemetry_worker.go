@@ -18,7 +18,7 @@ import (
 
 // posthogAPIKey is a write-only capture key — safe to embed in open-source code.
 // It can only ingest events; it cannot read data or access the PostHog dashboard.
-const posthogAPIKey = "phc_PLACEHOLDER"
+const posthogAPIKey = "phc_tVN68RCF5waqZs2vqwmCTnuPf8htLDuSUfrezsRpnah2"
 
 // TelemetryWorker runs two background tasks:
 //  1. Daily heartbeat to PostHog with anonymous aggregate stats

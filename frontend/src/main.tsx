@@ -7,7 +7,7 @@ import './index.css'
 
 // Start opted-out; AppLayout opts-in after confirming telemetry_enabled from settings API.
 // This ensures no data is captured before the admin's preference is known.
-posthog.init('phc_PLACEHOLDER', {
+posthog.init('phc_tVN68RCF5waqZs2vqwmCTnuPf8htLDuSUfrezsRpnah2', {
   api_host: 'https://us.i.posthog.com',
   capture_pageview: true,
   autocapture: false,

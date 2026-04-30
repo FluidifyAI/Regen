@@ -39,7 +39,7 @@ func TestSecurityHeaders(t *testing.T) {
 	assert.Empty(t, w.Header().Get("X-XSS-Protection"),
 		"X-XSS-Protection should not be set (deprecated header)")
 
-	assert.Equal(t, "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'", w.Header().Get("Content-Security-Policy"),
+	assert.Equal(t, "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://us.i.posthog.com https://static.fluidify.ai; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'", w.Header().Get("Content-Security-Policy"),
 		"Content-Security-Policy should match the hardened policy")
 
 	assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"),

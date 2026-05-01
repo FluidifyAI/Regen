@@ -16,7 +16,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "framer-motion": "^12.35.1",
     "lucide-react": "^0.563.0",
-    "posthog-js": "^1.372.5",
+    "posthog-js": "^1.372.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0"

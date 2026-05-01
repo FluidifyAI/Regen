@@ -122,7 +122,7 @@ func (tw *TelemetryWorker) sendHeartbeat(instanceID string) {
 				"distinct_id": instanceID,
 				"timestamp":   time.Now().UTC().Format(time.RFC3339),
 				"properties": map[string]any{
-					"version":        "1.0.0",
+					"version":        "0.11.0",
 					"incident_count": incidentCount,
 					"user_count":     userCount,
 					"slack_enabled":  tw.cfg.SlackBotToken != "",

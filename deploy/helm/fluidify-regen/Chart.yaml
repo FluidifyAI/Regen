@@ -2,8 +2,8 @@ apiVersion: v2
 name: fluidify-regen
 description: Fluidify Regen — open-source incident management platform
 type: application
-version: 0.1.0
-appVersion: "0.10.0"
+version: 0.11.0
+appVersion: "0.11.0"
 keywords:
   - incident-management
   - on-call

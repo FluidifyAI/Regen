@@ -176,11 +176,17 @@ func runServe(_ *cobra.Command, _ []string) error {
 	// enterprise binary to unlock SCIM, audit log export, RBAC, and retention.
 	enterpriseHooks := enterprise.NewNoOp()
 
+	// Create the telemetry worker before SetupRoutes so we can inject its
+	// announcement getter as a closure — no import cycle with internal/worker.
+	settingsRepoForTelemetry := repository.NewSystemSettingsRepository(database.DB)
+	telemetryWorker := worker.NewTelemetryWorker(database.DB, cfg, settingsRepoForTelemetry)
+	go telemetryWorker.Run(appCtx)
+
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
-	api.SetupRoutes(router, database.DB, cfg, teamsSvc, samlMiddleware, enterpriseHooks, localAuthSvc)
+	api.SetupRoutes(router, database.DB, cfg, teamsSvc, samlMiddleware, enterpriseHooks, localAuthSvc, telemetryWorker.GetCachedAnnouncements)
 
 	worker.StartAll(appCtx, database.DB, cfg, teamsSvc, enterpriseHooks)
 

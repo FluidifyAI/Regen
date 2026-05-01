@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button'
 import {
   getSystemSettings,
   updateSystemSettings,
+  updateTelemetrySettings,
   testOpenAIKey,
   SystemSettings,
 } from '../api/settings'
@@ -58,6 +59,9 @@ export function SystemSettingsPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [savingAI, setSavingAI] = useState(false)
   const [aiSaved, setAISaved] = useState(false)
+
+  // Telemetry
+  const [savingTelemetry, setSavingTelemetry] = useState(false)
 
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin') {
@@ -141,6 +145,18 @@ export function SystemSettingsPage() {
       setError('Failed to remove AI key')
     } finally {
       setSavingAI(false)
+    }
+  }
+
+  async function handleToggleTelemetry(enabled: boolean) {
+    setSavingTelemetry(true)
+    try {
+      await updateTelemetrySettings(enabled)
+      await load()
+    } catch {
+      setError('Failed to update telemetry preference')
+    } finally {
+      setSavingTelemetry(false)
     }
   }
 
@@ -311,6 +327,53 @@ export function SystemSettingsPage() {
             </span>
           )}
         </div>
+      </section>
+
+      {/* ── Telemetry ────────────────────────────────────────────────────── */}
+      <section className="bg-surface-primary border border-border-primary rounded-xl p-6 space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-text-primary">Telemetry</h2>
+          <p className="text-sm text-text-secondary mt-0.5">
+            Anonymous usage statistics help Fluidify understand adoption and improve the product.
+            No incident content, hostnames, credentials, or PII is ever collected.
+          </p>
+        </div>
+
+        {settings?.telemetry_env_lock ? (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            Telemetry is disabled by the <code className="font-mono font-semibold">REGEN_NO_TELEMETRY</code> environment variable.
+          </div>
+        ) : (
+          <label className="flex items-start gap-3 cursor-pointer">
+            <div className="mt-0.5">
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={settings?.telemetry_enabled ?? true}
+                disabled={savingTelemetry}
+                onChange={(e) => handleToggleTelemetry(e.target.checked)}
+              />
+              <div
+                onClick={() => !savingTelemetry && handleToggleTelemetry(!(settings?.telemetry_enabled ?? true))}
+                className={`w-10 h-6 rounded-full relative transition-colors cursor-pointer ${
+                  (settings?.telemetry_enabled ?? true) ? 'bg-brand-primary' : 'bg-border-primary'
+                } ${savingTelemetry ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                  (settings?.telemetry_enabled ?? true) ? 'translate-x-5' : 'translate-x-1'
+                }`} />
+              </div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-text-primary">Share anonymous usage data</div>
+              <div className="text-xs text-text-tertiary mt-0.5">
+                Sends daily aggregate stats: page visit counts, features enabled, instance size.
+                Permanently disable via <code className="font-mono">REGEN_NO_TELEMETRY=1</code>.
+              </div>
+            </div>
+          </label>
+        )}
       </section>
     </div>
   )

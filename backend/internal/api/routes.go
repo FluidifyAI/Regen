@@ -29,7 +29,8 @@ import (
 // samlMiddleware may be nil when SSO is not configured (all routes open).
 // localAuth may be nil when local auth is not configured.
 // hooks contains enterprise extension points; OSS callers pass enterprise.NewNoOp().
-func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks, localAuth services.LocalAuthService) {
+// announcementsGetter returns the cached announcement JSON from the telemetry worker.
+func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks, localAuth services.LocalAuthService, announcementsGetter func() []byte) {
 	// Initialize repositories
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
@@ -275,6 +276,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// Update own profile (name/password) — requires auth but not admin
 		protected.PATCH("/auth/me", handlers.UpdateMe(localAuth))
 
+		// Announcements — served from cached telemetry worker fetch (OPE-79)
+		protected.GET("/announcements", handlers.GetAnnouncements(announcementsGetter))
+
 		// Users — available to all authenticated users for commander assignment
 		protected.GET("/users", handlers.ListUsersForAssignment(userRepo))
 
@@ -425,9 +429,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			settingsGroup.DELETE("/telegram", handlers.DeleteTelegramConfig(telegramConfigRepo, incidentSvc))
 
 			// System settings (OPE-26/27)
-			settingsGroup.GET("/system", handlers.GetSystemSettings(systemSettingsRepo, aiSvc))
+			settingsGroup.GET("/system", handlers.GetSystemSettings(systemSettingsRepo, aiSvc, cfg.TelemetryDisabled))
 			settingsGroup.PATCH("/system", handlers.UpdateSystemSettings(systemSettingsRepo, aiSvc))
 			settingsGroup.POST("/system/ai/test", handlers.TestOpenAIKey(systemSettingsRepo))
+			settingsGroup.PATCH("/system/telemetry", handlers.PatchTelemetrySettings(systemSettingsRepo))
 		}
 
 		// Migrations — admin only (OPE-67)

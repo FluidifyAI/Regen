@@ -12,6 +12,8 @@ const (
 	KeyInstanceName         = "instance.name"
 	KeyTimezone             = "instance.timezone"
 	KeyOpenAIAPIKey         = "ai.openai_api_key"
+	KeyInstanceID           = "instance.id"
+	KeyTelemetryOptOut      = "telemetry.opt_out"
 )
 
 // SystemSettingsRepository manages system-wide configuration stored in the
@@ -30,6 +32,18 @@ type SystemSettingsRepository interface {
 
 	// SetString persists a string value for the given key.
 	SetString(key, value string) error
+
+	// GetInstanceID returns the persistent anonymous instance UUID, or "" on first boot.
+	GetInstanceID() (string, error)
+
+	// SetInstanceID persists the anonymous instance UUID.
+	SetInstanceID(id string) error
+
+	// GetTelemetryOptOut returns true if the admin has disabled telemetry via the UI.
+	GetTelemetryOptOut() (bool, error)
+
+	// SetTelemetryOptOut persists the admin's telemetry preference.
+	SetTelemetryOptOut(disabled bool) error
 }
 
 type systemSettingsRepository struct{ db *gorm.DB }
@@ -93,4 +107,28 @@ func (r *systemSettingsRepository) SetString(key, value string) error {
 			"ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
 		key, string(b),
 	).Error
+}
+
+func (r *systemSettingsRepository) GetInstanceID() (string, error) {
+	return r.GetString(KeyInstanceID)
+}
+
+func (r *systemSettingsRepository) SetInstanceID(id string) error {
+	return r.SetString(KeyInstanceID, id)
+}
+
+func (r *systemSettingsRepository) GetTelemetryOptOut() (bool, error) {
+	v, err := r.GetString(KeyTelemetryOptOut)
+	if err != nil || v == "" {
+		return false, nil
+	}
+	return v == "true", nil
+}
+
+func (r *systemSettingsRepository) SetTelemetryOptOut(disabled bool) error {
+	val := "false"
+	if disabled {
+		val = "true"
+	}
+	return r.SetString(KeyTelemetryOptOut, val)
 }

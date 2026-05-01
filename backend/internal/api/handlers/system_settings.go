@@ -49,7 +49,9 @@ func UpdateEscalationSettings(repo repository.SystemSettingsRepository) gin.Hand
 }
 
 // GetSystemSettings handles GET /api/v1/settings/system
-func GetSystemSettings(repo repository.SystemSettingsRepository, aiSvc services.AIService) gin.HandlerFunc {
+// telemetryDisabled reflects the REGEN_NO_TELEMETRY env var so the UI can show
+// whether telemetry was disabled at the infrastructure level (not just via the toggle).
+func GetSystemSettings(repo repository.SystemSettingsRepository, aiSvc services.AIService, telemetryDisabled bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name, _ := repo.GetString(repository.KeyInstanceName)
 		tz, _ := repo.GetString(repository.KeyTimezone)
@@ -61,12 +63,35 @@ func GetSystemSettings(repo repository.SystemSettingsRepository, aiSvc services.
 			aiKeyLast4 = "..." + aiKeyRaw[len(aiKeyRaw)-4:]
 		}
 
+		optOut, _ := repo.GetTelemetryOptOut()
+		telemetryEnabled := !telemetryDisabled && !optOut
+
 		c.JSON(http.StatusOK, gin.H{
-			"instance_name":     name,
-			"timezone":          tz,
-			"ai_key_configured": aiKeyConfigured,
-			"ai_key_last4":      aiKeyLast4,
+			"instance_name":      name,
+			"timezone":           tz,
+			"ai_key_configured":  aiKeyConfigured,
+			"ai_key_last4":       aiKeyLast4,
+			"telemetry_enabled":  telemetryEnabled,
+			"telemetry_env_lock": telemetryDisabled, // true = locked off by env var
 		})
+	}
+}
+
+// PatchTelemetrySettings handles PATCH /api/v1/settings/system/telemetry
+func PatchTelemetrySettings(repo repository.SystemSettingsRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			TelemetryEnabled bool `json:"telemetry_enabled"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if err := repo.SetTelemetryOptOut(!req.TelemetryEnabled); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save telemetry preference"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }
 

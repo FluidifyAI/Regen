@@ -56,6 +56,9 @@ type Config struct {
 	// Frontend URL (used by agents to build deep links)
 	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
 
+	// Pro licence key (optional — OSS mode when absent)
+	LicenceKey string // REGEN_LICENCE_KEY
+
 	// Telemetry — enabled by default; set REGEN_NO_TELEMETRY=1 to disable globally
 	TelemetryDisabled bool // REGEN_NO_TELEMETRY=1
 
@@ -115,6 +118,9 @@ func Load() (*Config, error) {
 
 		// Frontend
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
+
+		// Pro
+		LicenceKey: getEnv("REGEN_LICENCE_KEY", ""),
 
 		// Telemetry
 		TelemetryDisabled: getEnvAsBool("REGEN_NO_TELEMETRY", false),

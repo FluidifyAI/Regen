@@ -269,7 +269,6 @@ Same format as commit messages: `type(scope): description`
 
 ```
 Regen/
-├── CLAUDE.md                     # Project context for AI assistants
 ├── CONTRIBUTING.md               # This file
 ├── README.md
 ├── LICENSE                       # AGPLv3

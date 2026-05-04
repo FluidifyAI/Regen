@@ -77,6 +77,9 @@ backend/ui/dist/*
 /docs/DECISIONS.md
 /docs/FEATURES.md
 
+# Claude Code project instructions — internal dev playbook, not for public repo
+/CLAUDE.md
+
 # Generated artifacts
 *.zip
 *.tar.gz

@@ -16,6 +16,9 @@ import (
 //go:embed keys/public.pem
 var publicKeyPEM []byte
 
+// testPublicKeyPEM overrides publicKeyPEM during tests. Set via SetPublicKeyForTest.
+var testPublicKeyPEM []byte
+
 var (
 	ErrNoLicence     = errors.New("no licence key provided")
 	ErrExpired       = errors.New("licence key has expired")
@@ -37,6 +40,13 @@ func (l *Licence) SeatLimitExceeded(activeUsers int) bool {
 	return activeUsers <= l.Seats
 }
 
+func activePublicKeyPEM() []byte {
+	if len(testPublicKeyPEM) > 0 {
+		return testPublicKeyPEM
+	}
+	return publicKeyPEM
+}
+
 // Load parses and cryptographically verifies a licence key string.
 // Returns ErrNoLicence for empty input, ErrExpired for expired keys,
 // ErrInvalidIssuer for wrong issuer, ErrMalformed for missing required claims.
@@ -46,7 +56,7 @@ func Load(token string) (*Licence, error) {
 		return nil, ErrNoLicence
 	}
 
-	pubKey, err := parsePublicKey(publicKeyPEM)
+	pubKey, err := parsePublicKey(activePublicKeyPEM())
 	if err != nil {
 		return nil, fmt.Errorf("load public key: %w", err)
 	}
@@ -189,6 +199,14 @@ func HasFeature(feature string) bool {
 		}
 	}
 	return false
+}
+
+// SetPublicKeyForTest overrides the embedded production public key for unit tests.
+// Pass nil to restore the production key.
+func SetPublicKeyForTest(pemBytes []byte) {
+	mu.Lock()
+	defer mu.Unlock()
+	testPublicKeyPEM = pemBytes
 }
 
 // SetForTest replaces the global licence state for unit tests.

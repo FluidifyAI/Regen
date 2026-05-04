@@ -14,26 +14,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testPrivateKey is the Ed25519 private key matching the public key embedded in
-// keys/public.pem. Used only in tests to sign valid and intentionally malformed tokens.
-const testPrivateKeyPEM = `-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIIk0vwsA4tZX54ho3SufRGETUvdmTdlh+l3qXnnZT63K
------END PRIVATE KEY-----
-`
-
-func mustPrivateKey(t *testing.T) ed25519.PrivateKey {
-	t.Helper()
-	block, _ := pem.Decode([]byte(testPrivateKeyPEM))
-	require.NotNil(t, block)
-	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	require.NoError(t, err)
-	return key.(ed25519.PrivateKey)
+// testKeys holds a fresh Ed25519 keypair generated once per test run.
+// The private key is never stored on disk — it exists only in memory.
+var testKeys struct {
+	priv   ed25519.PrivateKey
+	pub    ed25519.PublicKey
+	pubPEM []byte
 }
 
-func signToken(t *testing.T, claims jwt.MapClaims, key ed25519.PrivateKey) string {
+func TestMain(m *testing.M) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	testKeys.priv = priv
+	testKeys.pub = pub
+
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		panic(err)
+	}
+	testKeys.pubPEM = pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})
+
+	// Override the embedded production public key for the entire test run.
+	licence.SetPublicKeyForTest(testKeys.pubPEM)
+	m.Run()
+	licence.SetPublicKeyForTest(nil)
+}
+
+func signToken(t *testing.T, claims jwt.MapClaims) string {
 	t.Helper()
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
-	signed, err := tok.SignedString(key)
+	signed, err := tok.SignedString(testKeys.priv)
 	require.NoError(t, err)
 	return signed
 }
@@ -52,8 +64,7 @@ func validClaims(exp time.Time) jwt.MapClaims {
 // --- Load ---
 
 func TestLoad_ValidKey(t *testing.T) {
-	key := mustPrivateKey(t)
-	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)), key)
+	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)))
 
 	lic, err := licence.Load(token)
 	require.NoError(t, err)
@@ -69,28 +80,24 @@ func TestLoad_EmptyToken(t *testing.T) {
 }
 
 func TestLoad_ExpiredKey(t *testing.T) {
-	key := mustPrivateKey(t)
-	token := signToken(t, validClaims(time.Now().Add(-time.Hour)), key)
+	token := signToken(t, validClaims(time.Now().Add(-time.Hour)))
 
 	_, err := licence.Load(token)
 	assert.ErrorIs(t, err, licence.ErrExpired)
 }
 
 func TestLoad_WrongIssuer(t *testing.T) {
-	key := mustPrivateKey(t)
 	claims := validClaims(time.Now().Add(24 * time.Hour))
 	claims["iss"] = "evil-corp"
-	token := signToken(t, claims, key)
+	token := signToken(t, claims)
 
 	_, err := licence.Load(token)
 	assert.ErrorIs(t, err, licence.ErrInvalidIssuer)
 }
 
 func TestLoad_TamperedPayload(t *testing.T) {
-	key := mustPrivateKey(t)
-	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)), key)
+	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)))
 
-	// Flip a character in the payload segment (middle part of the JWT)
 	parts := splitJWT(token)
 	require.Len(t, parts, 3)
 	payload := []byte(parts[1])
@@ -103,11 +110,13 @@ func TestLoad_TamperedPayload(t *testing.T) {
 }
 
 func TestLoad_SignedWithDifferentKey(t *testing.T) {
-	// Generate a completely different keypair — simulates a forgery attempt.
+	// Simulates a forgery attempt with a completely different keypair.
 	_, otherPriv, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)), otherPriv)
+	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, validClaims(time.Now().Add(24*time.Hour)))
+	token, err := tok.SignedString(otherPriv)
+	require.NoError(t, err)
 
 	_, err = licence.Load(token)
 	assert.Error(t, err)
@@ -116,10 +125,7 @@ func TestLoad_SignedWithDifferentKey(t *testing.T) {
 func TestLoad_AlgorithmConfusionRejected(t *testing.T) {
 	// Sign with HMAC using the public key bytes as the secret.
 	// A naive validator that doesn't pin the algorithm would accept this.
-	block, _ := pem.Decode([]byte(`-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAHqGS6vfrZLOH47AwPoaUFNQp2QCAXtdVDt1j0PEalYA=
------END PUBLIC KEY-----`))
-	hmacKey := block.Bytes
+	hmacKey := testKeys.pubPEM
 
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, validClaims(time.Now().Add(24*time.Hour)))
 	token, err := tok.SignedString(hmacKey)
@@ -130,30 +136,27 @@ MCowBQYDK2VwAyEAHqGS6vfrZLOH47AwPoaUFNQp2QCAXtdVDt1j0PEalYA=
 }
 
 func TestLoad_MissingCustomerID(t *testing.T) {
-	key := mustPrivateKey(t)
 	claims := validClaims(time.Now().Add(24 * time.Hour))
 	delete(claims, "customer_id")
-	token := signToken(t, claims, key)
+	token := signToken(t, claims)
 
 	_, err := licence.Load(token)
 	assert.ErrorIs(t, err, licence.ErrMalformed)
 }
 
 func TestLoad_MissingOrgName(t *testing.T) {
-	key := mustPrivateKey(t)
 	claims := validClaims(time.Now().Add(24 * time.Hour))
 	delete(claims, "org_name")
-	token := signToken(t, claims, key)
+	token := signToken(t, claims)
 
 	_, err := licence.Load(token)
 	assert.ErrorIs(t, err, licence.ErrMalformed)
 }
 
 func TestLoad_ZeroSeats(t *testing.T) {
-	key := mustPrivateKey(t)
 	claims := validClaims(time.Now().Add(24 * time.Hour))
 	claims["seats"] = float64(0)
-	token := signToken(t, claims, key)
+	token := signToken(t, claims)
 
 	_, err := licence.Load(token)
 	assert.ErrorIs(t, err, licence.ErrMalformed)
@@ -162,8 +165,7 @@ func TestLoad_ZeroSeats(t *testing.T) {
 // --- IsProEnabled / HasFeature ---
 
 func TestIsProEnabled_ValidLicence(t *testing.T) {
-	key := mustPrivateKey(t)
-	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)), key)
+	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)))
 	licence.SetForTest(token)
 	defer licence.SetForTest("")
 
@@ -178,8 +180,7 @@ func TestIsProEnabled_NoLicence(t *testing.T) {
 }
 
 func TestHasFeature_Present(t *testing.T) {
-	key := mustPrivateKey(t)
-	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)), key)
+	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)))
 	licence.SetForTest(token)
 	defer licence.SetForTest("")
 
@@ -188,8 +189,7 @@ func TestHasFeature_Present(t *testing.T) {
 }
 
 func TestHasFeature_Absent(t *testing.T) {
-	key := mustPrivateKey(t)
-	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)), key)
+	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)))
 	licence.SetForTest(token)
 	defer licence.SetForTest("")
 
@@ -206,15 +206,14 @@ func TestHasFeature_NoLicence(t *testing.T) {
 // --- Seat check ---
 
 func TestSeatLimit(t *testing.T) {
-	key := mustPrivateKey(t)
-	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)), key)
+	token := signToken(t, validClaims(time.Now().Add(24*time.Hour)))
 
 	lic, err := licence.Load(token)
 	require.NoError(t, err)
 
-	assert.True(t, lic.SeatLimitExceeded(10))  // exactly at limit: not exceeded
-	assert.True(t, lic.SeatLimitExceeded(9))   // under limit: not exceeded
-	assert.False(t, lic.SeatLimitExceeded(11)) // over limit: exceeded
+	assert.True(t, lic.SeatLimitExceeded(10))
+	assert.True(t, lic.SeatLimitExceeded(9))
+	assert.False(t, lic.SeatLimitExceeded(11))
 }
 
 // helpers

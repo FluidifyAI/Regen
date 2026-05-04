@@ -474,16 +474,27 @@ The long-term moat: institutional memory that compounds in the customer's own in
 
 **Problem:** If enterprise features are pushed to the public AGPLv3 repo, they become open source.
 
-**Decision: Two-repo model**
+**Decision: Two-repo model (repo split complete as of OPE-100)**
 
 | Repo | Visibility | License | Contents |
 |------|-----------|---------|----------|
-| `fluidify/regen` | Public | AGPLv3 | Everything through v0.9 OSS |
-| `fluidify/regen-ee` | Private | Commercial | SCIM, audit logs, RBAC, retention |
+| `FluidifyAI/Regen` | Public | AGPLv3 | Core platform — alerts, incidents, on-call, AI, SSO |
+| `FluidifyAI/regen-pro` | Private | Proprietary | SCIM, audit log export, RBAC, retention policies |
 
-The private EE repo imports the public OSS repo as a Go module and adds enterprise packages on top. Paid customers receive a Docker image built from the combined codebase. OSS users never see enterprise code.
+`regen-pro` imports `FluidifyAI/Regen/backend` as a Go module. Paid customers receive a Docker image built from the combined codebase. OSS users never see Pro code.
 
-**When to create the EE repo:** Before writing the first line of SCIM/audit/RBAC code.
+**Local dev setup (two-repo):**
+```bash
+# Clone both repos side by side
+git clone https://github.com/FluidifyAI/Regen.git
+git clone https://github.com/FluidifyAI/regen-pro.git
+
+# The replace directive in regen-pro/backend/go.mod resolves ../Regen/backend automatically
+cd regen-pro/backend
+go build ./cmd/regen-pro/...
+```
+
+**Rule: never write Pro-only code in this repo.** If a feature is gated behind a commercial licence, it lives in `regen-pro`. The replace directive in `regen-pro/backend/go.mod` is the only coupling between repos — keep it that way.
 
 **Why not mono-repo with license headers (GitLab model)?**
 GitLab can do this because they have legal and engineering resources to enforce it. For a pre-v1.0 project, two repos is simpler, legally cleaner, and easier to explain to contributors.

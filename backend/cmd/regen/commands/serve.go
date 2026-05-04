@@ -17,6 +17,7 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/coordinator/agents"
 	"github.com/FluidifyAI/Regen/backend/internal/database"
 	"github.com/FluidifyAI/Regen/backend/internal/enterprise"
+	"github.com/FluidifyAI/Regen/backend/internal/licence"
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/redis"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
@@ -83,6 +84,10 @@ func runServe(_ *cobra.Command, _ []string) error {
 	if err := database.RunMigrations(database.DB, "./migrations"); err != nil {
 		return err
 	}
+
+	// Initialise Pro licence (reads REGEN_LICENCE_KEY, falls back to OSS if absent/invalid).
+	activeUsers, _ := repository.NewUserRepository(database.DB).Count()
+	licence.Init(cfg.LicenceKey, int(activeUsers))
 
 	// Seed AI agent user accounts (idempotent — safe to call on every startup).
 	if err := coordinator.SeedAgents(repository.NewUserRepository(database.DB)); err != nil {

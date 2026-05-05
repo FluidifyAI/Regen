@@ -88,8 +88,8 @@ USER regen
 EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/app/regen", "health"] || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD wget -qO- http://localhost:8080/ready | grep -q '"status":"ready"' || exit 1
 
 # Run the binary
 ENTRYPOINT ["/app/regen"]

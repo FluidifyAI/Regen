@@ -51,7 +51,7 @@ git remote add upstream https://github.com/FluidifyAI/Regen.git
 cp .env.example .env   # defaults work for local dev
 
 # 4. Start dependencies
-docker-compose up -d db redis
+docker compose up -d db redis
 
 # 5. Run backend
 cd backend && go run ./cmd/regen/... serve
@@ -207,19 +207,20 @@ go test ./...
 go test -race ./...    # race detector
 go test -cover ./...   # coverage
 
-# Frontend
+# Frontend — type-check only (no test runner configured yet)
 cd frontend
-npm test
-npm test -- --coverage
+npx tsc --noEmit
 
 # Everything
-make test
+make test   # runs go test -race + frontend tsc --noEmit
 make lint
 ```
 
-Coverage target for new code: **70%+**
+Backend coverage target for new code: **70%+**
 
 Backend integration tests hit a real database — do not mock the DB layer.
+
+The frontend has no unit test suite yet. `make test` runs a TypeScript type-check (`tsc --noEmit`) as the frontend gate.
 
 ---
 

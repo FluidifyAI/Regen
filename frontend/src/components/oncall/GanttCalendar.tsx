@@ -317,10 +317,11 @@ export function GanttCalendar({
                                   {day.getDate()}
                                 </span>
                                 {holiday && (
-                                  <div className="relative group/hday flex justify-center">
-                                    <span className="text-base leading-none cursor-default select-none">
-                                      {countryFlagEmoji(holiday.countryCode)}
-                                    </span>
+                                  <div className="relative group/hday flex justify-center mt-0.5">
+                                    <div className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 border border-amber-300 rounded-full cursor-default">
+                                      <span className="text-sm leading-none">{countryFlagEmoji(holiday.countryCode)}</span>
+                                      <span className="text-[10px] font-semibold text-amber-700 leading-none">{holiday.countryCode}</span>
+                                    </div>
                                     <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap shadow-lg opacity-0 group-hover/hday:opacity-100 transition-opacity duration-150 z-50">
                                       {holiday.name}
                                       <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />

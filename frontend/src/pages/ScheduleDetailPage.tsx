@@ -33,6 +33,7 @@ import type {
   Schedule,
   ScheduleLayer,
   ScheduleOverride,
+  TimelineSegment,
   UpdateScheduleRequest,
   CreateLayerRequest,
   UpdateLayerRequest,
@@ -40,6 +41,52 @@ import type {
   CreateOverrideRequest,
   EscalationPolicy,
 } from '../api/types'
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+
+function formatDuration(startIso: string, endIso: string): string {
+  const ms = new Date(endIso).getTime() - new Date(startIso).getTime()
+  const totalMinutes = Math.round(ms / 60000)
+  if (totalMinutes < 60) return `${totalMinutes}m`
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  if (h < 24) return m > 0 ? `${h}h ${m}m` : `${h}h`
+  const d = Math.floor(h / 24)
+  const rh = h % 24
+  return rh > 0 ? `${d}d ${rh}h` : `${d}d`
+}
+
+function overrideStatus(ov: ScheduleOverride): 'past' | 'active' | 'upcoming' {
+  const now = Date.now()
+  if (new Date(ov.end_time).getTime() < now) return 'past'
+  if (new Date(ov.start_time).getTime() <= now) return 'active'
+  return 'upcoming'
+}
+
+function timeUntil(iso: string): string {
+  const ms = new Date(iso).getTime() - Date.now()
+  if (ms <= 0) return 'now'
+  const totalMinutes = Math.floor(ms / 60000)
+  if (totalMinutes < 60) return `${totalMinutes}m`
+  const h = Math.floor(totalMinutes / 60)
+  if (h >= 24) return `${Math.floor(h / 24)}d`
+  const m = totalMinutes % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+function toScheduleTz(datetimeLocalValue: string, scheduleTz: string): string {
+  const d = new Date(datetimeLocalValue)
+  if (isNaN(d.getTime())) return ''
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: scheduleTz,
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+    }).format(d)
+  } catch {
+    return ''
+  }
+}
 
 // ─── Edit schedule modal ──────────────────────────────────────────────────────
 
@@ -584,37 +631,62 @@ function EditLayerModal({ isOpen, scheduleId, layer, onClose, onSaved }: EditLay
 interface OverrideModalProps {
   isOpen: boolean
   scheduleId: string
+  scheduleTimezone: string
+  prefilledStart?: string
   onClose: () => void
   onSaved: () => void
 }
 
-function OverrideModal({ isOpen, scheduleId, onClose, onSaved }: OverrideModalProps) {
+function OverrideModal({ isOpen, scheduleId, scheduleTimezone, prefilledStart, onClose, onSaved }: OverrideModalProps) {
   const [overrideUser, setOverrideUser] = useState('')
   const [users, setUsers] = useState<UserSummary[]>([])
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
+  const [replacesSegments, setReplacesSegments] = useState<TimelineSegment[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
       setOverrideUser('')
-      // Default start = now (rounded to nearest UTC hour), end = +1 day (UTC)
-      const n = new Date()
-      const startUTC = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate(), n.getUTCHours()))
-      const endUTC = new Date(startUTC.getTime() + 86_400_000)
-      setStartTime(startUTC.toISOString().slice(0, 16))
-      setEndTime(endUTC.toISOString().slice(0, 16))
+      if (prefilledStart) {
+        const end = new Date(new Date(prefilledStart + ':00Z').getTime() + 86_400_000)
+        setStartTime(prefilledStart)
+        setEndTime(end.toISOString().slice(0, 16))
+      } else {
+        const n = new Date()
+        const startUTC = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate(), n.getUTCHours()))
+        const endUTC = new Date(startUTC.getTime() + 86_400_000)
+        setStartTime(startUTC.toISOString().slice(0, 16))
+        setEndTime(endUTC.toISOString().slice(0, 16))
+      }
+      setReplacesSegments([])
       setError(null)
       listUsers().then(setUsers).catch(() => {})
     }
-  }, [isOpen])
+  }, [isOpen, prefilledStart])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     if (isOpen) document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [isOpen, onClose])
+
+  useEffect(() => {
+    if (!startTime || !endTime) { setReplacesSegments([]); return }
+    const start = new Date(startTime)
+    const end = new Date(endTime)
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
+      setReplacesSegments([])
+      return
+    }
+    const timer = setTimeout(() => {
+      getLayerTimelines(scheduleId, start.toISOString(), end.toISOString())
+        .then(data => setReplacesSegments((data.effective ?? []).filter(s => !s.is_override)))
+        .catch(() => setReplacesSegments([]))
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [scheduleId, startTime, endTime])
 
   if (!isOpen) return null
 
@@ -648,6 +720,7 @@ function OverrideModal({ isOpen, scheduleId, onClose, onSaved }: OverrideModalPr
 
   const inputClass = 'w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent disabled:opacity-50'
   const labelClass = 'block text-sm font-medium text-text-primary mb-1'
+  const replacesUsers = [...new Set(replacesSegments.map(s => s.user_name).filter(Boolean))]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -698,12 +771,30 @@ function OverrideModal({ isOpen, scheduleId, onClose, onSaved }: OverrideModalPr
               <div className="flex-1">
                 <label className={labelClass} htmlFor="ov-start">Start (UTC)</label>
                 <input id="ov-start" type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={inputClass} disabled={isSubmitting} required />
+                {startTime && scheduleTimezone && (
+                  <p className="mt-1 text-xs text-text-tertiary">{toScheduleTz(startTime, scheduleTimezone)}</p>
+                )}
               </div>
               <div className="flex-1">
                 <label className={labelClass} htmlFor="ov-end">End (UTC)</label>
                 <input id="ov-end" type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputClass} disabled={isSubmitting} required />
+                {endTime && scheduleTimezone && (
+                  <p className="mt-1 text-xs text-text-tertiary">{toScheduleTz(endTime, scheduleTimezone)}</p>
+                )}
               </div>
             </div>
+            {startTime && endTime && new Date(endTime) > new Date(startTime) && (
+              <p className="text-xs text-text-tertiary">Duration: <span className="font-medium text-text-secondary">{formatDuration(startTime, endTime)}</span></p>
+            )}
+            {replacesUsers.length > 0 && (
+              <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800">
+                  <span className="font-semibold">Replaces: </span>
+                  {replacesUsers.join(', ')}
+                </p>
+              </div>
+            )}
           </div>
           <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
@@ -727,9 +818,10 @@ interface OverridesTableProps {
 
 function OverridesTable({ scheduleId, overrides, onDeleted, onAdd, toast }: OverridesTableProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
 
   const handleDelete = async (ov: ScheduleOverride) => {
-    if (!confirm(`Delete override for "${ov.override_user}"?`)) return
+    setConfirmId(null)
     setDeletingId(ov.id)
     try {
       await deleteOverride(scheduleId, ov.id)
@@ -747,6 +839,27 @@ function OverridesTable({ scheduleId, overrides, onDeleted, onAdd, toast }: Over
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     })
 
+  const sorted = [...overrides].sort((a, b) => {
+    const rank = { active: 0, upcoming: 1, past: 2 }
+    const ra = rank[overrideStatus(a)]
+    const rb = rank[overrideStatus(b)]
+    if (ra !== rb) return ra - rb
+    return new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  })
+
+  const statusPill = (ov: ScheduleOverride) => {
+    const s = overrideStatus(ov)
+    if (s === 'active') return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-green-100 text-green-700">Active</span>
+    )
+    if (s === 'upcoming') return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-blue-100 text-blue-700">Upcoming</span>
+    )
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500">Past</span>
+    )
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -757,38 +870,65 @@ function OverridesTable({ scheduleId, overrides, onDeleted, onAdd, toast }: Over
         </Button>
       </div>
       {overrides.length === 0 ? (
-        <p className="text-sm text-text-tertiary italic">No upcoming overrides.</p>
+        <p className="text-sm text-text-tertiary italic">No overrides.</p>
       ) : (
         <div className="bg-white border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-gray-50">
+                <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">Status</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">On-call user</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">Start</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">End</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">Duration</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">Created by</th>
-                <th className="w-12 px-4 py-2" />
+                <th className="w-24 px-4 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {overrides.map((ov) => (
-                <tr key={ov.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5 font-medium text-text-primary">{ov.override_user}</td>
-                  <td className="px-4 py-2.5 text-text-secondary text-xs">{fmt(ov.start_time)}</td>
-                  <td className="px-4 py-2.5 text-text-secondary text-xs">{fmt(ov.end_time)}</td>
-                  <td className="px-4 py-2.5 text-text-tertiary text-xs">{ov.created_by || '—'}</td>
-                  <td className="px-4 py-2.5">
-                    <button
-                      onClick={() => handleDelete(ov)}
-                      disabled={deletingId === ov.id}
-                      className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                      title="Delete override"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {sorted.map((ov) => {
+                const isPast = overrideStatus(ov) === 'past'
+                return (
+                  <tr key={ov.id} className={`hover:bg-gray-50 ${isPast ? 'opacity-50' : ''}`}>
+                    <td className="px-4 py-2.5">{statusPill(ov)}</td>
+                    <td className="px-4 py-2.5 font-medium text-text-primary">{ov.override_user}</td>
+                    <td className="px-4 py-2.5 text-text-secondary text-xs">{fmt(ov.start_time)}</td>
+                    <td className="px-4 py-2.5 text-text-secondary text-xs">{fmt(ov.end_time)}</td>
+                    <td className="px-4 py-2.5 text-text-tertiary text-xs font-mono">{formatDuration(ov.start_time, ov.end_time)}</td>
+                    <td className="px-4 py-2.5 text-text-tertiary text-xs">{ov.created_by || '—'}</td>
+                    <td className="px-4 py-2.5">
+                      {!isPast && (
+                        confirmId === ov.id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDelete(ov)}
+                              disabled={deletingId === ov.id}
+                              className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition-colors"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              onClick={() => setConfirmId(null)}
+                              className="text-xs px-2 py-1 bg-gray-100 text-text-secondary rounded hover:bg-gray-200 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmId(ov.id)}
+                            disabled={deletingId === ov.id}
+                            className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                            title="Delete override"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -916,6 +1056,7 @@ export function ScheduleDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [addLayerOpen, setAddLayerOpen] = useState(false)
   const [overrideModalOpen, setOverrideModalOpen] = useState(false)
+  const [overridePrefilledStart, setOverridePrefilledStart] = useState<string | undefined>()
   const [editLayerOpen, setEditLayerOpen] = useState(false)
   const [editingLayer, setEditingLayer] = useState<ScheduleLayer | null>(null)
   const [windowStart, setWindowStart] = useState<Date>(() => getMonthStart(new Date()))
@@ -984,6 +1125,12 @@ export function ScheduleDetailPage() {
     invalidateAll()
   }
 
+  const handleDayClick = (date: Date) => {
+    const utcMidnight = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+    setOverridePrefilledStart(utcMidnight.toISOString().slice(0, 16))
+    setOverrideModalOpen(true)
+  }
+
   if (loading) return <SkeletonDetail />
   if (error) return <GeneralError message={error} onRetry={refetch} />
   if (!schedule) return null
@@ -1028,7 +1175,9 @@ export function ScheduleDetailPage() {
         <OverrideModal
           isOpen={overrideModalOpen}
           scheduleId={schedule.id}
-          onClose={() => setOverrideModalOpen(false)}
+          scheduleTimezone={schedule.timezone}
+          prefilledStart={overridePrefilledStart}
+          onClose={() => { setOverrideModalOpen(false); setOverridePrefilledStart(undefined) }}
           onSaved={handleOverrideSaved}
         />
       )}
@@ -1089,7 +1238,17 @@ export function ScheduleDetailPage() {
                 {onCall?.is_override && (
                   <div className="flex items-center gap-1 mt-1">
                     <AlertCircle className="w-3.5 h-3.5 text-orange-600" />
-                    <span className="text-xs text-orange-700 font-medium">Active override</span>
+                    <span className="text-xs text-orange-700 font-medium">
+                      {(() => {
+                        const now = Date.now()
+                        const activeOv = overrides.find(ov =>
+                          new Date(ov.start_time).getTime() <= now && new Date(ov.end_time).getTime() >= now
+                        )
+                        return activeOv
+                          ? `Active override · ends in ${timeUntil(activeOv.end_time)}`
+                          : 'Active override'
+                      })()}
+                    </span>
                   </div>
                 )}
               </>
@@ -1105,6 +1264,7 @@ export function ScheduleDetailPage() {
           windowStart={windowStart}
           days={GANTT_DAYS}
           onNavigate={setWindowStart}
+          onDayClick={handleDayClick}
         />
 
         {/* Overrides */}
@@ -1112,7 +1272,7 @@ export function ScheduleDetailPage() {
           scheduleId={schedule.id}
           overrides={overrides}
           onDeleted={handleOverrideDeleted}
-          onAdd={() => setOverrideModalOpen(true)}
+          onAdd={() => { setOverridePrefilledStart(undefined); setOverrideModalOpen(true) }}
           toast={toast}
         />
 

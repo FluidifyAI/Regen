@@ -22,6 +22,8 @@ interface GanttCalendarProps {
   onRowClick?: (id: string) => void
   /** Optional: delete button shown on hover in the row label */
   onRowDelete?: (id: string) => void
+  /** Clicking a day header pre-fills override creation for that date */
+  onDayClick?: (date: Date) => void
 }
 
 // ─── Exported helpers ─────────────────────────────────────────────────────────
@@ -156,6 +158,7 @@ export function GanttCalendar({
   onNavigate,
   onRowClick,
   onRowDelete,
+  onDayClick,
 }: GanttCalendarProps) {
   // Full day array, then split into 7-day week chunks
   const dayDates: Date[] = Array.from({ length: days }, (_, i) => {
@@ -272,7 +275,9 @@ export function GanttCalendar({
                           key={i}
                           className={`p-0 border-b-2 border-r border-border bg-gray-50 ${
                             today ? 'text-brand-primary' : 'text-text-tertiary'
-                          }`}
+                          }${onDayClick ? ' cursor-pointer hover:bg-brand-primary/10 transition-colors select-none' : ''}`}
+                          onClick={onDayClick ? () => onDayClick(day) : undefined}
+                          title={onDayClick ? `Add override for ${SHORT_DAYS[day.getDay()]} ${day.getDate()}` : undefined}
                         >
                           <div className="py-2 flex flex-col items-center gap-0.5">
                             <span className="text-xs font-medium">
@@ -363,7 +368,10 @@ export function GanttCalendar({
                               {seg.user_name && seg.user_name !== NOBODY ? (
                                 <div
                                   className="absolute inset-y-1.5 left-0 right-0 flex items-center px-2.5 overflow-hidden rounded"
-                                  style={{ backgroundColor: segmentBg(seg.user_name) }}
+                                  style={{
+                                    backgroundColor: segmentBg(seg.user_name),
+                                    ...(seg.is_override && { borderTop: '3px solid #f97316' }),
+                                  }}
                                   title={seg.is_override ? `${seg.user_name} (override)` : seg.user_name}
                                 >
                                   <span className="text-xs font-bold truncate leading-none text-white drop-shadow-sm">

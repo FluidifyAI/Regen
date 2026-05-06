@@ -33,11 +33,19 @@ func (r *CreateScheduleRequest) ToModel() *models.Schedule {
 
 // UpdateScheduleRequest is the request body for PATCH /api/v1/schedules/:id.
 type UpdateScheduleRequest struct {
-	Name                      *string `json:"name"                         binding:"omitempty,min=1,max=255"`
-	Description               *string `json:"description"                  binding:"omitempty,max=1000"`
-	Timezone                  *string `json:"timezone"                     binding:"omitempty,max=100"`
-	NotificationChannel       *string `json:"notification_channel"         binding:"omitempty,max=255"`
-	DefaultEscalationPolicyID *string `json:"default_escalation_policy_id" binding:"omitempty,uuid"`
+	Name                      *string  `json:"name"                         binding:"omitempty,min=1,max=255"`
+	Description               *string  `json:"description"                  binding:"omitempty,max=1000"`
+	Timezone                  *string  `json:"timezone"                     binding:"omitempty,max=100"`
+	NotificationChannel       *string  `json:"notification_channel"         binding:"omitempty,max=255"`
+	DefaultEscalationPolicyID *string  `json:"default_escalation_policy_id" binding:"omitempty,uuid"`
+	// HolidayCountries replaces the holiday country config when non-nil.
+	// Pass [] to clear all countries.
+	HolidayCountries          []string `json:"holiday_countries"`
+}
+
+// HolidayCountriesSet returns true when the request includes a holiday_countries field.
+func (r *UpdateScheduleRequest) HolidayCountriesSet() bool {
+	return r.HolidayCountries != nil
 }
 
 // ApplyTo applies UpdateScheduleRequest fields to an existing Schedule model.

@@ -24,7 +24,9 @@ import {
   createOverride,
   deleteOverride,
   getLayerTimelines,
+  getHolidays,
   COMMON_TIMEZONES,
+  SUPPORTED_HOLIDAY_COUNTRIES,
 } from '../api/schedules'
 import { listUsers } from '../api/users'
 import type { UserSummary } from '../api/users'
@@ -33,6 +35,7 @@ import type {
   Schedule,
   ScheduleLayer,
   ScheduleOverride,
+  ScheduleHoliday,
   TimelineSegment,
   UpdateScheduleRequest,
   CreateLayerRequest,
@@ -88,6 +91,12 @@ function toScheduleTz(datetimeLocalValue: string, scheduleTz: string): string {
   }
 }
 
+function countryFlag(code: string): string {
+  return code.toUpperCase().replace(/./g, c =>
+    String.fromCodePoint(c.charCodeAt(0) + 127397)
+  )
+}
+
 // ─── Edit schedule modal ──────────────────────────────────────────────────────
 
 interface EditScheduleModalProps {
@@ -102,6 +111,7 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
   const [description, setDescription] = useState(schedule.description)
   const [timezone, setTimezone] = useState(schedule.timezone)
   const [defaultPolicyId, setDefaultPolicyId] = useState(schedule.default_escalation_policy_id ?? '')
+  const [holidayCountries, setHolidayCountries] = useState<string[]>(schedule.holiday_countries ?? [])
   const [policies, setPolicies] = useState<EscalationPolicy[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -117,6 +127,7 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
       setDescription(schedule.description)
       setTimezone(schedule.timezone)
       setDefaultPolicyId(schedule.default_escalation_policy_id ?? '')
+      setHolidayCountries(schedule.holiday_countries ?? [])
       setError(null)
       setTimeout(() => nameRef.current?.focus(), 50)
     }
@@ -130,6 +141,12 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
 
   if (!isOpen) return null
 
+  const toggleCountry = (code: string) => {
+    setHolidayCountries(prev =>
+      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+    )
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -140,6 +157,7 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
         timezone,
         description,
         default_escalation_policy_id: defaultPolicyId || null,
+        holiday_countries: holidayCountries,
       }
       await updateSchedule(schedule.id, body)
       onSaved()
@@ -158,14 +176,14 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
-        className="relative z-10 w-full max-w-md bg-surface-primary rounded-xl shadow-xl mx-4"
+        className="relative z-10 w-full max-w-md bg-surface-primary rounded-xl shadow-xl mx-4 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-border">
           <h2 className="text-lg font-semibold text-text-primary">Edit schedule</h2>
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="px-6 py-4 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
             {error && (
               <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
             )}
@@ -198,6 +216,35 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
                 ))}
               </select>
               <p className="mt-1 text-xs text-text-tertiary">Used as fallback when no routing rule specifies a policy.</p>
+            </div>
+            <div>
+              <label className={labelClass}>Public holidays</label>
+              <p className="text-xs text-text-tertiary mb-2">Select countries to show public holidays on the schedule calendar.</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {SUPPORTED_HOLIDAY_COUNTRIES.map(({ code, label }) => (
+                  <label
+                    key={code}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm transition-colors ${
+                      holidayCountries.includes(code)
+                        ? 'border-brand-primary bg-brand-primary-light text-brand-primary font-medium'
+                        : 'border-border text-text-secondary hover:bg-gray-50'
+                    } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={holidayCountries.includes(code)}
+                      onChange={() => !isSubmitting && toggleCountry(code)}
+                      disabled={isSubmitting}
+                    />
+                    <span className="text-base leading-none">{countryFlag(code)}</span>
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+              {holidayCountries.length > 0 && (
+                <p className="mt-2 text-xs text-text-tertiary">Holidays sync in the background after saving.</p>
+              )}
             </div>
           </div>
           <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
@@ -1058,6 +1105,7 @@ export function ScheduleDetailPage() {
   const [overrideModalOpen, setOverrideModalOpen] = useState(false)
   const [overridePrefilledStart, setOverridePrefilledStart] = useState<string | undefined>()
   const [editLayerOpen, setEditLayerOpen] = useState(false)
+  const [holidays, setHolidays] = useState<ScheduleHoliday[]>([])
   const [editingLayer, setEditingLayer] = useState<ScheduleLayer | null>(null)
   const [windowStart, setWindowStart] = useState<Date>(() => getMonthStart(new Date()))
   const GANTT_DAYS = useMemo(() => daysInMonth(windowStart), [windowStart])
@@ -1077,6 +1125,18 @@ export function ScheduleDetailPage() {
       .catch(() => {})
     return () => { cancelled = true }
   }, [id, windowStart, GANTT_DAYS, layerTimelineKey])
+
+  // Fetch holidays for the visible window whenever the schedule or month changes.
+  useEffect(() => {
+    if (!id) return
+    const from = windowStart.toISOString().slice(0, 10)
+    const toDate = new Date(windowStart)
+    toDate.setDate(toDate.getDate() + GANTT_DAYS)
+    const to = toDate.toISOString().slice(0, 10)
+    getHolidays(id, from, to)
+      .then(r => setHolidays(r.data))
+      .catch(() => {})
+  }, [id, windowStart, GANTT_DAYS])
 
   const handleScheduleDeleted = async () => {
     if (!schedule) return
@@ -1250,6 +1310,25 @@ export function ScheduleDetailPage() {
                     </span>
                   </div>
                 )}
+                {(() => {
+                  const todayStr = new Date().toISOString().slice(0, 10)
+                  const todayHoliday = holidays.find(h => h.date === todayStr)
+                  if (!todayHoliday) return null
+                  return (
+                    <div className="mt-2">
+                      <div className="inline-flex items-center gap-2 px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg">
+                        <span className="text-sm">{countryFlag(todayHoliday.country_code)}</span>
+                        <span className="text-xs text-amber-800 font-medium">{todayHoliday.name}</span>
+                        <button
+                          onClick={() => { setOverridePrefilledStart(undefined); setOverrideModalOpen(true) }}
+                          className="text-xs text-brand-primary hover:underline ml-1 font-medium"
+                        >
+                          Cover this shift?
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })()}
               </>
             ) : (
               <div className="text-base text-text-secondary italic">No one configured</div>
@@ -1264,6 +1343,7 @@ export function ScheduleDetailPage() {
           days={GANTT_DAYS}
           onNavigate={setWindowStart}
           onDayClick={handleDayClick}
+          holidays={holidays.map(h => ({ date: h.date, name: h.name, countryCode: h.country_code }))}
         />
 
         {/* Overrides */}

@@ -64,5 +64,10 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *se
 	// Retention enforcer — no-op in OSS, real implementation in enterprise build.
 	hooks.Retention.Start(ctx, db)
 
+	// Holiday worker: daily refresh of public holiday ICS feeds.
+	holidaySvc := services.NewHolidayService(scheduleRepo)
+	holidayWorker := NewHolidayWorker(holidaySvc)
+	go holidayWorker.Run(ctx)
+
 	slog.Info("background workers started")
 }

@@ -62,6 +62,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	scheduleEvaluator := services.NewScheduleEvaluator(scheduleRepo)
 	slog.Info("schedule evaluator initialized")
 
+	// Initialize holiday service (fetches public holidays from ICS feeds)
+	holidaySvc := services.NewHolidayService(scheduleRepo)
+
 	// Initialize escalation engine (v0.5+)
 	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, nil)
 	slog.Info("escalation engine initialized")
@@ -361,10 +364,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.GET("/schedules/:id/oncall/timeline", handlers.GetOnCallTimeline(scheduleEvaluator))
 		protected.GET("/schedules/:id/layer-timelines", handlers.GetLayerTimelines(scheduleEvaluator))
 		protected.GET("/schedules/:id/overrides", handlers.ListOverrides(scheduleRepo))
+		protected.GET("/schedules/:id/holidays", handlers.GetHolidays(scheduleRepo))
 
 		// Schedule mutations — admin only
 		protected.POST("/schedules", middleware.RequireAdmin(), handlers.CreateSchedule(scheduleRepo))
-		protected.PATCH("/schedules/:id", middleware.RequireAdmin(), handlers.UpdateSchedule(scheduleRepo))
+		protected.PATCH("/schedules/:id", middleware.RequireAdmin(), handlers.UpdateSchedule(scheduleRepo, holidaySvc))
 		protected.DELETE("/schedules/:id", middleware.RequireAdmin(), handlers.DeleteSchedule(scheduleRepo))
 		protected.POST("/schedules/:id/layers", middleware.RequireAdmin(), handlers.CreateLayer(scheduleRepo))
 		protected.PATCH("/schedules/:id/layers/:layer_id", middleware.RequireAdmin(), handlers.UpdateLayer(scheduleRepo))

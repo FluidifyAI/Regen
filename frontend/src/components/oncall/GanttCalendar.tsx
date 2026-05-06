@@ -10,6 +10,12 @@ export interface GanttRow {
   segments: TimelineSegment[]
 }
 
+export interface HolidayMarker {
+  date: string       // YYYY-MM-DD
+  name: string
+  countryCode: string
+}
+
 interface GanttCalendarProps {
   rows: GanttRow[]
   /** First day of the visible window (1st of a month) */
@@ -24,6 +30,8 @@ interface GanttCalendarProps {
   onRowDelete?: (id: string) => void
   /** Clicking a day header pre-fills override creation for that date */
   onDayClick?: (date: Date) => void
+  /** Public holidays to mark on day headers */
+  holidays?: HolidayMarker[]
 }
 
 // ─── Exported helpers ─────────────────────────────────────────────────────────
@@ -149,6 +157,10 @@ const MONTHS = [
 
 const WEEK_SIZE = 7
 
+function countryFlagEmoji(code: string): string {
+  return code.toUpperCase().replace(/./g, c => String.fromCodePoint(c.charCodeAt(0) + 127397))
+}
+
 // ─── GanttCalendar ────────────────────────────────────────────────────────────
 
 export function GanttCalendar({
@@ -159,7 +171,12 @@ export function GanttCalendar({
   onRowClick,
   onRowDelete,
   onDayClick,
+  holidays = [],
 }: GanttCalendarProps) {
+  const holidayMap = new Map<string, HolidayMarker>()
+  for (const h of holidays) {
+    holidayMap.set(h.date, h)
+  }
   // Full day array, then split into 7-day week chunks
   const dayDates: Date[] = Array.from({ length: days }, (_, i) => {
     const d = new Date(windowStart)
@@ -277,20 +294,42 @@ export function GanttCalendar({
                             today ? 'text-brand-primary' : 'text-text-tertiary'
                           }${onDayClick ? ' cursor-pointer hover:bg-brand-primary/10 transition-colors select-none' : ''}`}
                           onClick={onDayClick ? () => onDayClick(day) : undefined}
-                          title={onDayClick ? `Add override for ${SHORT_DAYS[day.getDay()]} ${day.getDate()}` : undefined}
+                          title={(() => {
+                            const dateKey = `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`
+                            const holiday = holidayMap.get(dateKey)
+                            if (holiday) return `🎉 ${holiday.name}${onDayClick ? ' · Click to add override' : ''}`
+                            return onDayClick ? `Add override for ${SHORT_DAYS[day.getDay()]} ${day.getDate()}` : undefined
+                          })()}
                         >
-                          <div className="py-2 flex flex-col items-center gap-0.5">
-                            <span className="text-xs font-medium">
-                              {SHORT_DAYS[day.getDay()]}
-                            </span>
-                            <span
-                              className={`text-xs w-5 h-5 flex items-center justify-center rounded-full leading-none ${
-                                today ? 'bg-brand-primary text-white font-semibold' : ''
-                              }`}
-                            >
-                              {day.getDate()}
-                            </span>
-                          </div>
+                          {(() => {
+                            const dateKey = `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`
+                            const holiday = holidayMap.get(dateKey)
+                            return (
+                              <div className="py-1.5 flex flex-col items-center gap-0.5">
+                                <span className="text-xs font-medium">
+                                  {SHORT_DAYS[day.getDay()]}
+                                </span>
+                                <span
+                                  className={`text-xs w-5 h-5 flex items-center justify-center rounded-full leading-none ${
+                                    today ? 'bg-brand-primary text-white font-semibold' : ''
+                                  }`}
+                                >
+                                  {day.getDate()}
+                                </span>
+                                {holiday && (
+                                  <div className="relative group/hday flex justify-center mt-0.5">
+                                    <div className="inline-flex items-center px-1.5 py-0.5 bg-amber-50 border border-amber-300 rounded-full cursor-default">
+                                      <span className="text-[11px] font-semibold text-amber-700 leading-none">{countryFlagEmoji(holiday.countryCode)}</span>
+                                    </div>
+                                    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap shadow-lg opacity-0 group-hover/hday:opacity-100 transition-opacity duration-150 z-50">
+                                      {holiday.name}
+                                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </th>
                       )
                     })}

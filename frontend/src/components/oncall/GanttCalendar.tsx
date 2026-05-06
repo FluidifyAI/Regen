@@ -369,7 +369,7 @@ export function GanttCalendar({
                                 <div
                                   className="absolute inset-y-1.5 left-0 right-0 flex items-center px-2.5 overflow-hidden rounded"
                                   style={{
-                                    backgroundColor: segmentBg(seg.user_name),
+                                    backgroundColor: seg.is_override ? '#7c3aed' : '#475569',
                                     ...(seg.is_override && { borderTop: '3px solid #f97316' }),
                                   }}
                                   title={seg.is_override ? `${seg.user_name} (override)` : seg.user_name}

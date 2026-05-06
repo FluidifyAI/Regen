@@ -1099,17 +1099,16 @@ export function ScheduleDetailPage() {
     setLayerTimelineKey((k) => k + 1)
   }, [refetch])
 
-  const ganttRows: GanttRow[] = useMemo(
-    () =>
-      [...(schedule?.layers ?? [])]
-        .sort((a, b) => a.order_index - b.order_index)
-        .map((layer) => ({
-          id: layer.id,
-          label: layer.name,
-          segments: layerTimelines?.layers[layer.id] ?? [],
-        })),
-    [schedule?.layers, layerTimelines],
-  )
+  const ganttRows: GanttRow[] = useMemo(() => {
+    const overrideSegments = (layerTimelines?.effective ?? []).filter(s => s.is_override)
+    return [...(schedule?.layers ?? [])]
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((layer) => ({
+        id: layer.id,
+        label: layer.name,
+        segments: [...(layerTimelines?.layers[layer.id] ?? []), ...overrideSegments],
+      }))
+  }, [schedule?.layers, layerTimelines])
 
   const handleEditLayer = (layer: ScheduleLayer) => {
     setEditingLayer(layer)

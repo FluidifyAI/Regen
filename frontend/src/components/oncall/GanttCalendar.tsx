@@ -157,6 +157,10 @@ const MONTHS = [
 
 const WEEK_SIZE = 7
 
+function countryFlagEmoji(code: string): string {
+  return code.toUpperCase().replace(/./g, c => String.fromCodePoint(c.charCodeAt(0) + 127397))
+}
+
 // ─── GanttCalendar ────────────────────────────────────────────────────────────
 
 export function GanttCalendar({
@@ -313,9 +317,15 @@ export function GanttCalendar({
                                   {day.getDate()}
                                 </span>
                                 {holiday && (
-                                  <span className="text-[9px] leading-none text-amber-600 font-semibold truncate max-w-full px-0.5" title={holiday.name}>
-                                    {holiday.name.length > 8 ? holiday.name.slice(0, 7) + '…' : holiday.name}
-                                  </span>
+                                  <div className="relative group/hday flex justify-center">
+                                    <span className="text-base leading-none cursor-default select-none">
+                                      {countryFlagEmoji(holiday.countryCode)}
+                                    </span>
+                                    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap shadow-lg opacity-0 group-hover/hday:opacity-100 transition-opacity duration-150 z-50">
+                                      {holiday.name}
+                                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                    </div>
+                                  </div>
                                 )}
                               </div>
                             )

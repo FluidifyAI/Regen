@@ -7,6 +7,7 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ScheduleRepository defines all database operations for schedules.
@@ -404,12 +405,17 @@ func (r *scheduleRepository) UpsertHolidays(holidays []models.ScheduleHoliday) e
 	if len(holidays) == 0 {
 		return nil
 	}
-	return r.db.Exec(`
-		INSERT INTO schedule_holidays (id, schedule_id, country_code, date, name, created_at)
-		SELECT gen_random_uuid(), unnest(?::uuid[]), unnest(?::varchar[]), unnest(?::date[]), unnest(?::varchar[]), NOW()
-		ON CONFLICT (schedule_id, country_code, date) DO UPDATE SET name = EXCLUDED.name`,
-		collectUUIDs(holidays), collectCodes(holidays), collectDates(holidays), collectNames(holidays),
-	).Error
+	for i := range holidays {
+		if holidays[i].ID == uuid.Nil {
+			holidays[i].ID = uuid.New()
+		}
+	}
+	return r.db.
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "schedule_id"}, {Name: "country_code"}, {Name: "date"}},
+			DoUpdates: clause.AssignmentColumns([]string{"name"}),
+		}).
+		CreateInBatches(holidays, 100).Error
 }
 
 func (r *scheduleRepository) ListHolidays(scheduleID uuid.UUID, from, to time.Time) ([]models.ScheduleHoliday, error) {
@@ -450,40 +456,6 @@ func (r *scheduleRepository) ListSchedulesWithHolidays() ([]models.Schedule, err
 		schedules[i].HolidayCountries = codes
 	}
 	return schedules, nil
-}
-
-// collect helpers for UpsertHolidays bulk insert
-
-func collectUUIDs(hh []models.ScheduleHoliday) []string {
-	out := make([]string, len(hh))
-	for i, h := range hh {
-		out[i] = h.ScheduleID.String()
-	}
-	return out
-}
-
-func collectCodes(hh []models.ScheduleHoliday) []string {
-	out := make([]string, len(hh))
-	for i, h := range hh {
-		out[i] = h.CountryCode
-	}
-	return out
-}
-
-func collectDates(hh []models.ScheduleHoliday) []string {
-	out := make([]string, len(hh))
-	for i, h := range hh {
-		out[i] = h.Date.Format("2006-01-02")
-	}
-	return out
-}
-
-func collectNames(hh []models.ScheduleHoliday) []string {
-	out := make([]string, len(hh))
-	for i, h := range hh {
-		out[i] = h.Name
-	}
-	return out
 }
 
 // --- Validation helpers ---

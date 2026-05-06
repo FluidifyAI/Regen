@@ -116,6 +116,11 @@ func UpdateSchedule(repo repository.ScheduleRepository, holidaySvc *services.Hol
 			// Sync newly added countries in the background so the HTTP response is not delayed.
 			if len(added) > 0 {
 				go func() {
+					defer func() {
+						if r := recover(); r != nil {
+							slog.Error("holiday sync goroutine panicked", "schedule_id", id, "panic", r)
+						}
+					}()
 					if err := holidaySvc.SyncSchedule(id, added); err != nil {
 						slog.Error("background holiday sync failed", "schedule_id", id, "error", err)
 					}

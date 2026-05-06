@@ -405,17 +405,27 @@ func (r *scheduleRepository) UpsertHolidays(holidays []models.ScheduleHoliday) e
 	if len(holidays) == 0 {
 		return nil
 	}
-	for i := range holidays {
-		if holidays[i].ID == uuid.Nil {
-			holidays[i].ID = uuid.New()
+	// Deduplicate by (schedule_id, country_code, date) before inserting.
+	// ICS feeds (particularly India) can include multiple VEVENT entries for
+	// the same date (regional variants). ON CONFLICT DO UPDATE fails if the
+	// same row is targeted twice within a single batch.
+	seen := make(map[string]struct{}, len(holidays))
+	deduped := make([]models.ScheduleHoliday, 0, len(holidays))
+	for _, h := range holidays {
+		key := h.ScheduleID.String() + "|" + h.CountryCode + "|" + h.Date.Format("2006-01-02")
+		if _, exists := seen[key]; exists {
+			continue
 		}
+		seen[key] = struct{}{}
+		h.ID = uuid.New()
+		deduped = append(deduped, h)
 	}
 	return r.db.
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "schedule_id"}, {Name: "country_code"}, {Name: "date"}},
 			DoUpdates: clause.AssignmentColumns([]string{"name"}),
 		}).
-		CreateInBatches(holidays, 100).Error
+		CreateInBatches(deduped, 100).Error
 }
 
 func (r *scheduleRepository) ListHolidays(scheduleID uuid.UUID, from, to time.Time) ([]models.ScheduleHoliday, error) {

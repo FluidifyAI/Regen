@@ -69,6 +69,28 @@ type ScheduleRepository interface {
 	// ListUpcomingOverrides returns all overrides for a schedule whose end_time is in the future,
 	// ordered by start_time ASC. Used by the UI override management table.
 	ListUpcomingOverrides(scheduleID uuid.UUID) ([]models.ScheduleOverride, error)
+
+	// --- Holiday operations ---
+
+	// GetHolidayCountries returns the country codes configured for this schedule.
+	GetHolidayCountries(scheduleID uuid.UUID) ([]string, error)
+
+	// SetHolidayCountries atomically replaces the holiday country config for a schedule.
+	// Removed countries have their holiday rows purged. Returns the added codes.
+	SetHolidayCountries(scheduleID uuid.UUID, countries []string) (added []string, removed []string, err error)
+
+	// UpsertHolidays inserts or ignores holiday rows (unique on schedule_id+country+date).
+	UpsertHolidays(holidays []models.ScheduleHoliday) error
+
+	// ListHolidays returns holidays for a schedule within [from, to) ordered by date.
+	ListHolidays(scheduleID uuid.UUID, from, to time.Time) ([]models.ScheduleHoliday, error)
+
+	// DeleteHolidaysByCountry removes all holidays for a schedule+country pair.
+	DeleteHolidaysByCountry(scheduleID uuid.UUID, countryCode string) error
+
+	// ListSchedulesWithHolidays returns all schedules that have at least one
+	// holiday country configured, with HolidayCountries populated.
+	ListSchedulesWithHolidays() ([]models.Schedule, error)
 }
 
 // scheduleRepository implements ScheduleRepository.
@@ -183,6 +205,14 @@ func (r *scheduleRepository) GetWithLayers(id uuid.UUID) (*models.Schedule, erro
 	}
 
 	schedule.Layers = layers
+
+	// Query 4: holiday country configs
+	codes, err := r.GetHolidayCountries(id)
+	if err != nil {
+		return nil, err
+	}
+	schedule.HolidayCountries = codes
+
 	return schedule, nil
 }
 
@@ -301,6 +331,159 @@ func (r *scheduleRepository) ListUpcomingOverrides(scheduleID uuid.UUID) ([]mode
 		return nil, fmt.Errorf("failed to list upcoming overrides: %w", err)
 	}
 	return overrides, nil
+}
+
+// --- Holiday operations ---
+
+func (r *scheduleRepository) GetHolidayCountries(scheduleID uuid.UUID) ([]string, error) {
+	var codes []string
+	err := r.db.Raw(
+		"SELECT country_code FROM schedule_holiday_configs WHERE schedule_id = ? ORDER BY country_code",
+		scheduleID,
+	).Scan(&codes).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get holiday countries: %w", err)
+	}
+	if codes == nil {
+		codes = []string{}
+	}
+	return codes, nil
+}
+
+func (r *scheduleRepository) SetHolidayCountries(scheduleID uuid.UUID, countries []string) ([]string, []string, error) {
+	existing, err := r.GetHolidayCountries(scheduleID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	existingSet := make(map[string]struct{}, len(existing))
+	for _, c := range existing {
+		existingSet[c] = struct{}{}
+	}
+	newSet := make(map[string]struct{}, len(countries))
+	for _, c := range countries {
+		newSet[c] = struct{}{}
+	}
+
+	var added, removed []string
+	for _, c := range countries {
+		if _, ok := existingSet[c]; !ok {
+			added = append(added, c)
+		}
+	}
+	for _, c := range existing {
+		if _, ok := newSet[c]; !ok {
+			removed = append(removed, c)
+		}
+	}
+
+	return added, removed, r.db.Transaction(func(tx *gorm.DB) error {
+		// Remove deleted countries
+		for _, c := range removed {
+			if err := tx.Exec("DELETE FROM schedule_holidays WHERE schedule_id = ? AND country_code = ?", scheduleID, c).Error; err != nil {
+				return fmt.Errorf("delete holidays for %s: %w", c, err)
+			}
+			if err := tx.Exec("DELETE FROM schedule_holiday_configs WHERE schedule_id = ? AND country_code = ?", scheduleID, c).Error; err != nil {
+				return fmt.Errorf("delete config for %s: %w", c, err)
+			}
+		}
+		// Add new countries
+		for _, c := range added {
+			if err := tx.Exec(
+				"INSERT INTO schedule_holiday_configs(schedule_id, country_code) VALUES(?, ?) ON CONFLICT DO NOTHING",
+				scheduleID, c,
+			).Error; err != nil {
+				return fmt.Errorf("insert config for %s: %w", c, err)
+			}
+		}
+		return nil
+	})
+}
+
+func (r *scheduleRepository) UpsertHolidays(holidays []models.ScheduleHoliday) error {
+	if len(holidays) == 0 {
+		return nil
+	}
+	return r.db.Exec(`
+		INSERT INTO schedule_holidays (id, schedule_id, country_code, date, name, created_at)
+		SELECT gen_random_uuid(), unnest(?::uuid[]), unnest(?::varchar[]), unnest(?::date[]), unnest(?::varchar[]), NOW()
+		ON CONFLICT (schedule_id, country_code, date) DO UPDATE SET name = EXCLUDED.name`,
+		collectUUIDs(holidays), collectCodes(holidays), collectDates(holidays), collectNames(holidays),
+	).Error
+}
+
+func (r *scheduleRepository) ListHolidays(scheduleID uuid.UUID, from, to time.Time) ([]models.ScheduleHoliday, error) {
+	var holidays []models.ScheduleHoliday
+	err := r.db.
+		Where("schedule_id = ? AND date >= ? AND date < ?", scheduleID, from.Format("2006-01-02"), to.Format("2006-01-02")).
+		Order("date ASC").
+		Find(&holidays).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to list holidays: %w", err)
+	}
+	return holidays, nil
+}
+
+func (r *scheduleRepository) DeleteHolidaysByCountry(scheduleID uuid.UUID, countryCode string) error {
+	return r.db.Exec(
+		"DELETE FROM schedule_holidays WHERE schedule_id = ? AND country_code = ?",
+		scheduleID, countryCode,
+	).Error
+}
+
+func (r *scheduleRepository) ListSchedulesWithHolidays() ([]models.Schedule, error) {
+	var schedules []models.Schedule
+	err := r.db.Raw(`
+		SELECT DISTINCT s.* FROM schedules s
+		JOIN schedule_holiday_configs c ON c.schedule_id = s.id
+		ORDER BY s.name
+	`).Scan(&schedules).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to list schedules with holidays: %w", err)
+	}
+
+	for i := range schedules {
+		codes, err := r.GetHolidayCountries(schedules[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		schedules[i].HolidayCountries = codes
+	}
+	return schedules, nil
+}
+
+// collect helpers for UpsertHolidays bulk insert
+
+func collectUUIDs(hh []models.ScheduleHoliday) []string {
+	out := make([]string, len(hh))
+	for i, h := range hh {
+		out[i] = h.ScheduleID.String()
+	}
+	return out
+}
+
+func collectCodes(hh []models.ScheduleHoliday) []string {
+	out := make([]string, len(hh))
+	for i, h := range hh {
+		out[i] = h.CountryCode
+	}
+	return out
+}
+
+func collectDates(hh []models.ScheduleHoliday) []string {
+	out := make([]string, len(hh))
+	for i, h := range hh {
+		out[i] = h.Date.Format("2006-01-02")
+	}
+	return out
+}
+
+func collectNames(hh []models.ScheduleHoliday) []string {
+	out := make([]string, len(hh))
+	for i, h := range hh {
+		out[i] = h.Name
+	}
+	return out
 }
 
 // --- Validation helpers ---

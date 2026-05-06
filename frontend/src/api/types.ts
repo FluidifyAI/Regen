@@ -209,9 +209,18 @@ export interface Schedule {
   timezone: string
   notification_channel: string
   default_escalation_policy_id?: string
+  holiday_countries: string[]
   created_at: string
   updated_at: string
   layers?: ScheduleLayer[]
+}
+
+export interface ScheduleHoliday {
+  id: string
+  schedule_id: string
+  country_code: string
+  date: string   // YYYY-MM-DD
+  name: string
 }
 
 export interface ScheduleLayer {
@@ -273,6 +282,7 @@ export interface UpdateScheduleRequest {
   timezone?: string
   notification_channel?: string
   default_escalation_policy_id?: string | null
+  holiday_countries?: string[]
 }
 
 export interface CreateLayerRequest {

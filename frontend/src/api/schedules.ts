@@ -3,6 +3,7 @@ import type {
   Schedule,
   ScheduleLayer,
   ScheduleOverride,
+  ScheduleHoliday,
   OnCallResponse,
   TimelineSegment,
   CreateScheduleRequest,
@@ -123,3 +124,21 @@ export async function createOverride(
 export async function deleteOverride(scheduleId: string, overrideId: string): Promise<void> {
   return apiClient.delete<void>(`/api/v1/schedules/${scheduleId}/overrides/${overrideId}`)
 }
+
+export async function getHolidays(
+  scheduleId: string,
+  from: string,
+  to: string,
+): Promise<{ data: ScheduleHoliday[]; total: number }> {
+  return apiClient.get(`/api/v1/schedules/${scheduleId}/holidays?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+}
+
+export const SUPPORTED_HOLIDAY_COUNTRIES: { code: string; label: string }[] = [
+  { code: 'AU', label: 'Australia' },
+  { code: 'CA', label: 'Canada' },
+  { code: 'FR', label: 'France' },
+  { code: 'DE', label: 'Germany' },
+  { code: 'IN', label: 'India' },
+  { code: 'GB', label: 'United Kingdom' },
+  { code: 'US', label: 'United States' },
+]

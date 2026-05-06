@@ -75,7 +75,7 @@ func CreateSchedule(repo repository.ScheduleRepository) gin.HandlerFunc {
 }
 
 // UpdateSchedule handles PATCH /api/v1/schedules/:id
-func UpdateSchedule(repo repository.ScheduleRepository) gin.HandlerFunc {
+func UpdateSchedule(repo repository.ScheduleRepository, holidaySvc *services.HolidayService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
@@ -103,8 +103,72 @@ func UpdateSchedule(repo repository.ScheduleRepository) gin.HandlerFunc {
 			dto.InternalError(c, err)
 			return
 		}
+
+		// Handle holiday country config changes when the field is present in the request.
+		if req.HolidayCountriesSet() {
+			added, _, err := repo.SetHolidayCountries(id, req.HolidayCountries)
+			if err != nil {
+				slog.Error("failed to set holiday countries", "error", err, "id", id)
+				dto.InternalError(c, err)
+				return
+			}
+			schedule.HolidayCountries = req.HolidayCountries
+			// Sync newly added countries in the background so the HTTP response is not delayed.
+			if len(added) > 0 {
+				go func() {
+					if err := holidaySvc.SyncSchedule(id, added); err != nil {
+						slog.Error("background holiday sync failed", "schedule_id", id, "error", err)
+					}
+				}()
+			}
+		} else {
+			codes, _ := repo.GetHolidayCountries(id)
+			schedule.HolidayCountries = codes
+		}
+
 		slog.Info("schedule updated", "id", schedule.ID, "request_id", c.GetString("request_id"))
 		c.JSON(http.StatusOK, dto.ToScheduleResponse(schedule))
+	}
+}
+
+// GetHolidays handles GET /api/v1/schedules/:id/holidays
+func GetHolidays(repo repository.ScheduleRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid schedule ID", map[string]interface{}{"id": "must be a valid UUID"})
+			return
+		}
+
+		fromStr := c.Query("from")
+		toStr := c.Query("to")
+
+		from := time.Now().Truncate(24 * time.Hour)
+		to := from.AddDate(0, 3, 0) // default: next 3 months
+
+		if fromStr != "" {
+			if t, err := time.Parse("2006-01-02", fromStr); err == nil {
+				from = t.UTC()
+			}
+		}
+		if toStr != "" {
+			if t, err := time.Parse("2006-01-02", toStr); err == nil {
+				to = t.UTC()
+			}
+		}
+
+		holidays, err := repo.ListHolidays(id, from, to)
+		if err != nil {
+			slog.Error("failed to list holidays", "error", err, "id", id)
+			dto.InternalError(c, err)
+			return
+		}
+
+		responses := make([]dto.HolidayResponse, len(holidays))
+		for i := range holidays {
+			responses[i] = dto.ToHolidayResponse(&holidays[i])
+		}
+		c.JSON(http.StatusOK, gin.H{"data": responses, "total": len(responses)})
 	}
 }
 

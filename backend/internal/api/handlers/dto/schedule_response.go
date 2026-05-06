@@ -16,9 +16,19 @@ type ScheduleResponse struct {
 	Timezone                  string          `json:"timezone"`
 	NotificationChannel       string          `json:"notification_channel"`
 	DefaultEscalationPolicyID *uuid.UUID      `json:"default_escalation_policy_id,omitempty"`
+	HolidayCountries          []string        `json:"holiday_countries"`
 	CreatedAt                 time.Time       `json:"created_at"`
 	UpdatedAt                 time.Time       `json:"updated_at"`
 	Layers                    []LayerResponse `json:"layers,omitempty"`
+}
+
+// HolidayResponse is the response body for a single public holiday.
+type HolidayResponse struct {
+	ID          uuid.UUID `json:"id"`
+	ScheduleID  uuid.UUID `json:"schedule_id"`
+	CountryCode string    `json:"country_code"`
+	Date        string    `json:"date"` // YYYY-MM-DD
+	Name        string    `json:"name"`
 }
 
 // LayerResponse is the response body for a schedule layer.
@@ -70,8 +80,23 @@ type TimelineResponse struct {
 	Segments   []services.TimelineSegment `json:"segments"`
 }
 
+// ToHolidayResponse converts a models.ScheduleHoliday to HolidayResponse.
+func ToHolidayResponse(h *models.ScheduleHoliday) HolidayResponse {
+	return HolidayResponse{
+		ID:          h.ID,
+		ScheduleID:  h.ScheduleID,
+		CountryCode: h.CountryCode,
+		Date:        h.Date.Format("2006-01-02"),
+		Name:        h.Name,
+	}
+}
+
 // ToScheduleResponse converts a models.Schedule to ScheduleResponse.
 func ToScheduleResponse(s *models.Schedule) ScheduleResponse {
+	countries := s.HolidayCountries
+	if countries == nil {
+		countries = []string{}
+	}
 	resp := ScheduleResponse{
 		ID:                        s.ID,
 		Name:                      s.Name,
@@ -79,6 +104,7 @@ func ToScheduleResponse(s *models.Schedule) ScheduleResponse {
 		Timezone:                  s.Timezone,
 		NotificationChannel:       s.NotificationChannel,
 		DefaultEscalationPolicyID: s.DefaultEscalationPolicyID,
+		HolidayCountries:          countries,
 		CreatedAt:                 s.CreatedAt,
 		UpdatedAt:                 s.UpdatedAt,
 	}

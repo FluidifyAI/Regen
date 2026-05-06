@@ -57,6 +57,11 @@ type Schedule struct {
 	// Layers are loaded via GetWithLayers — not auto-loaded by GORM.
 	// Populated only when explicitly fetched.
 	Layers []ScheduleLayer `gorm:"-" json:"layers,omitempty"`
+
+	// HolidayCountries is the list of ISO 3166-1 country codes for which public
+	// holidays are surfaced on this schedule. Loaded separately from
+	// schedule_holiday_configs; not a real column on the schedules table.
+	HolidayCountries []string `gorm:"-" json:"holiday_countries"`
 }
 
 // TableName specifies the database table name.
@@ -169,4 +174,20 @@ type ScheduleOverride struct {
 // TableName specifies the database table name.
 func (ScheduleOverride) TableName() string {
 	return "schedule_overrides"
+}
+
+// ScheduleHoliday is a single public holiday date for a schedule, fetched from
+// a country's ICS feed and stored locally for offline access.
+type ScheduleHoliday struct {
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	ScheduleID  uuid.UUID `gorm:"type:uuid;not null;index"                      json:"schedule_id"`
+	CountryCode string    `gorm:"type:varchar(10);not null"                     json:"country_code"`
+	Date        time.Time `gorm:"type:date;not null"                            json:"date"`
+	Name        string    `gorm:"type:varchar(255);not null"                    json:"name"`
+	CreatedAt   time.Time `gorm:"not null;default:now()"                        json:"created_at"`
+}
+
+// TableName specifies the database table name.
+func (ScheduleHoliday) TableName() string {
+	return "schedule_holidays"
 }

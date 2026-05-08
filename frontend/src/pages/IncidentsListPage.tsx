@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { IncidentTable } from '../components/incidents/IncidentTable'
-import { IncidentCard } from '../components/incidents/IncidentCard'
 import { CreateIncidentModal } from '../components/incidents/CreateIncidentModal'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyIncidentsList } from '../components/ui/EmptyState'
@@ -137,17 +136,7 @@ export function IncidentsListPage() {
 
         {!loading && !error && filteredIncidents.length > 0 && (
           <>
-            {/* Desktop: table view */}
-            <div className="hidden md:block">
-              <IncidentTable incidents={filteredIncidents} />
-            </div>
-
-            {/* Mobile: card list */}
-            <div className="md:hidden space-y-3">
-              {filteredIncidents.map((incident) => (
-                <IncidentCard key={incident.id} incident={incident} />
-              ))}
-            </div>
+            <IncidentTable incidents={filteredIncidents} />
 
             {/* Pagination */}
             {!searchQuery && totalPages > 1 && (

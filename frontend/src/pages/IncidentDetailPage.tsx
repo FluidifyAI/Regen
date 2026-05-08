@@ -97,9 +97,9 @@ export function IncidentDetailPage() {
     <div className="flex h-full">
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto bg-surface-secondary">
-        <div className="max-w-5xl mx-auto px-4 md:px-6 py-4 md:py-6">
-          {/* Breadcrumb — hidden on mobile to save space */}
-          <nav className="hidden sm:flex items-center gap-2 text-sm mb-4">
+        <div className="max-w-5xl mx-auto px-6 py-6">
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-2 text-sm mb-4">
             <Link to="/" className="text-text-tertiary hover:text-text-primary">
               Home
             </Link>
@@ -114,7 +114,7 @@ export function IncidentDetailPage() {
           </nav>
 
           {/* Page Header */}
-          <div className="bg-white border border-border rounded-lg p-4 md:p-6 mb-4 md:mb-6">
+          <div className="bg-white border border-border rounded-lg p-6 mb-6">
             {/* INC number + title */}
             <div className="mb-3">
               <span className="text-xs text-text-tertiary font-medium">
@@ -166,8 +166,8 @@ export function IncidentDetailPage() {
           </div>
 
           {/* Tabs */}
-          <div className="border-b border-border mb-4 md:mb-6">
-            <div className="flex gap-4 md:gap-6 overflow-x-auto">
+          <div className="border-b border-border mb-6">
+            <div className="flex gap-6">
               <TabButton
                 active={activeTab === 'activity'}
                 onClick={() => setActiveTab('activity')}
@@ -190,7 +190,7 @@ export function IncidentDetailPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="bg-white border border-border rounded-lg p-4 md:p-6">
+          <div className="bg-white border border-border rounded-lg p-6">
             {activeTab === 'activity' && (
               <div className="space-y-6">
                 <AddTimelineEntry

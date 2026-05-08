@@ -26,7 +26,7 @@ export function AppLayout() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
 
-      <div className="flex flex-col flex-1 md:ml-60 transition-all duration-200 overflow-hidden">
+      <div className="flex flex-col flex-1 md:ml-60 pt-14 md:pt-0 transition-all duration-200 overflow-hidden">
         <AnnouncementBanner />
 
         {/* Main Content Area */}

@@ -346,14 +346,25 @@ export function Sidebar() {
         {sidebarContent}
       </aside>
 
-      {/* Mobile Menu Button */}
-      <button
-        onClick={() => setIsMobileOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-sidebar-bg text-sidebar-text rounded shadow-lg"
-        aria-label="Open menu"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
+      {/* Mobile Top Bar — sticky header replacing the floating hamburger */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center h-14 px-3 bg-sidebar-bg border-b border-sidebar-border">
+        <button
+          onClick={() => setIsMobileOpen(true)}
+          className="p-2 text-sidebar-text hover:bg-sidebar-hover rounded transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <img
+          src="/logo-icon.png"
+          alt="Fluidify Regen"
+          width={24}
+          height={24}
+          className="ml-2 object-contain flex-shrink-0"
+          draggable={false}
+        />
+        <span className="ml-2 font-bold text-sm tracking-tight text-white">Fluidify Regen</span>
+      </div>
 
       {/* Mobile Sidebar Overlay */}
       {isMobileOpen && (

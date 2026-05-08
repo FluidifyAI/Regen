@@ -74,7 +74,7 @@ export function SeverityDropdown({
       <button
         onClick={() => !isUpdating && setIsOpen(!isOpen)}
         disabled={isUpdating}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-surface-secondary transition-colors ${
+        className={`flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-lg border border-border hover:bg-surface-secondary transition-colors ${
           isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         }`}
       >
@@ -95,7 +95,7 @@ export function SeverityDropdown({
                 <button
                   key={severity}
                   onClick={() => handleSeverityChange(severity)}
-                  className={`w-full px-3 py-2.5 text-left hover:bg-surface-secondary transition-colors flex items-start gap-3 ${
+                  className={`w-full px-3 py-3 min-h-[44px] text-left hover:bg-surface-secondary transition-colors flex items-start gap-3 ${
                     isSelected ? 'bg-surface-secondary' : ''
                   }`}
                 >

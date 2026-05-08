@@ -97,9 +97,9 @@ export function IncidentDetailPage() {
     <div className="flex h-full">
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto bg-surface-secondary">
-        <div className="max-w-5xl mx-auto px-6 py-6">
-          {/* Breadcrumb */}
-          <nav className="flex items-center gap-2 text-sm mb-4">
+        <div className="max-w-5xl mx-auto px-4 md:px-6 py-4 md:py-6">
+          {/* Breadcrumb — hidden on mobile to save space */}
+          <nav className="hidden sm:flex items-center gap-2 text-sm mb-4">
             <Link to="/" className="text-text-tertiary hover:text-text-primary">
               Home
             </Link>
@@ -114,44 +114,45 @@ export function IncidentDetailPage() {
           </nav>
 
           {/* Page Header */}
-          <div className="bg-white border border-border rounded-lg p-6 mb-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-sm text-text-tertiary font-medium">
-                    INC-{incident.incident_number}
-                  </span>
-                  <SeverityDropdown
-                    incidentId={incident.id}
-                    currentSeverity={incident.severity}
-                    onSeverityChange={() => {}}
-                    onSuccess={success}
-                    onError={showError}
-                    onRefetch={refetch}
-                  />
-                  <StatusDropdown
-                    incidentId={incident.id}
-                    currentStatus={incident.status}
-                    onStatusChange={() => {}}
-                    onSuccess={success}
-                    onError={showError}
-                    onRefetch={refetch}
-                  />
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowEscalateModal(true)}
-                  >
-                    <Bell className="w-4 h-4 mr-1" />
-                    Escalate
-                  </Button>
-                </div>
-                <h1 className="text-2xl font-semibold text-text-primary mb-2">
-                  {incident.title}
-                </h1>
-                {incident.summary && (
-                  <p className="text-sm text-text-secondary">{incident.summary}</p>
-                )}
-              </div>
+          <div className="bg-white border border-border rounded-lg p-4 md:p-6 mb-4 md:mb-6">
+            {/* INC number + title */}
+            <div className="mb-3">
+              <span className="text-xs text-text-tertiary font-medium">
+                INC-{incident.incident_number}
+              </span>
+              <h1 className="text-lg md:text-2xl font-semibold text-text-primary mt-0.5">
+                {incident.title}
+              </h1>
+              {incident.summary && (
+                <p className="text-sm text-text-secondary mt-1">{incident.summary}</p>
+              )}
+            </div>
+
+            {/* Action row — wraps on mobile */}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <SeverityDropdown
+                incidentId={incident.id}
+                currentSeverity={incident.severity}
+                onSeverityChange={() => {}}
+                onSuccess={success}
+                onError={showError}
+                onRefetch={refetch}
+              />
+              <StatusDropdown
+                incidentId={incident.id}
+                currentStatus={incident.status}
+                onStatusChange={() => {}}
+                onSuccess={success}
+                onError={showError}
+                onRefetch={refetch}
+              />
+              <Button
+                variant="ghost"
+                onClick={() => setShowEscalateModal(true)}
+              >
+                <Bell className="w-4 h-4 mr-1" />
+                Escalate
+              </Button>
             </div>
 
             {/* AI Summary — inline in header */}
@@ -165,8 +166,8 @@ export function IncidentDetailPage() {
           </div>
 
           {/* Tabs */}
-          <div className="border-b border-border mb-6">
-            <div className="flex gap-6">
+          <div className="border-b border-border mb-4 md:mb-6">
+            <div className="flex gap-4 md:gap-6 overflow-x-auto">
               <TabButton
                 active={activeTab === 'activity'}
                 onClick={() => setActiveTab('activity')}
@@ -189,7 +190,7 @@ export function IncidentDetailPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="bg-white border border-border rounded-lg p-6">
+          <div className="bg-white border border-border rounded-lg p-4 md:p-6">
             {activeTab === 'activity' && (
               <div className="space-y-6">
                 <AddTimelineEntry

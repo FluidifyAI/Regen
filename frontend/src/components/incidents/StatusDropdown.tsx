@@ -77,7 +77,7 @@ export function StatusDropdown({
         <button
           onClick={() => !isUpdating && setIsOpen(!isOpen)}
           disabled={isUpdating}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-surface-secondary transition-colors ${
+          className={`flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-lg border border-border hover:bg-surface-secondary transition-colors ${
             isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
           }`}
         >
@@ -98,7 +98,7 @@ export function StatusDropdown({
                 <button
                   key={status}
                   onClick={() => handleStatusClick(status)}
-                  className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-secondary transition-colors flex items-center gap-2 ${
+                  className={`w-full px-3 py-3 min-h-[44px] text-left text-sm hover:bg-surface-secondary transition-colors flex items-center gap-2 ${
                     status === currentStatus ? 'bg-surface-secondary' : ''
                   }`}
                 >

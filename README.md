@@ -44,11 +44,11 @@
 - Docker Compose + Kubernetes Helm chart
 - PostgreSQL HA + Redis Sentinel support
 
-> SSO is free. Gating SSO behind a paid tier is user-hostile. We stay off SSO Tax.
+> SSO is free. Gating SSO behind a paid tier is user-hostile. We stay off [sso.tax](https://sso.tax).
 
 ---
 
-## Highlight from AI
+## AI Agents
 
 ### Incident Summarization
 

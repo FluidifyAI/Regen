@@ -98,8 +98,9 @@ type ScheduleRepository interface {
 	// CreateUnavailability records a user's leave/unavailability window.
 	CreateUnavailability(u *models.ScheduleUnavailability) error
 
-	// DeleteUnavailability removes an unavailability record by ID.
-	DeleteUnavailability(id uuid.UUID) error
+	// DeleteUnavailability removes an unavailability record by ID, scoped to the
+	// given scheduleID so that cross-schedule deletions are rejected.
+	DeleteUnavailability(scheduleID, id uuid.UUID) error
 
 	// ListUnavailabilities returns all unavailabilities for a schedule whose
 	// end_date is today or in the future, ordered by start_date ASC.
@@ -497,8 +498,8 @@ func (r *scheduleRepository) CreateUnavailability(u *models.ScheduleUnavailabili
 	return nil
 }
 
-func (r *scheduleRepository) DeleteUnavailability(id uuid.UUID) error {
-	result := r.db.Delete(&models.ScheduleUnavailability{}, "id = ?", id)
+func (r *scheduleRepository) DeleteUnavailability(scheduleID, id uuid.UUID) error {
+	result := r.db.Delete(&models.ScheduleUnavailability{}, "id = ? AND schedule_id = ?", id, scheduleID)
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete unavailability: %w", result.Error)
 	}

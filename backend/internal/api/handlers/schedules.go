@@ -693,21 +693,26 @@ func CreateUnavailability(repo repository.ScheduleRepository) gin.HandlerFunc {
 // DeleteUnavailability handles DELETE /api/v1/schedules/:id/unavailabilities/:uid
 func DeleteUnavailability(repo repository.ScheduleRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		scheduleID, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid schedule ID", map[string]interface{}{"id": "must be a valid UUID"})
+			return
+		}
 		uid, err := uuid.Parse(c.Param("uid"))
 		if err != nil {
 			dto.BadRequest(c, "Invalid unavailability ID", map[string]interface{}{"uid": "must be a valid UUID"})
 			return
 		}
-		if err := repo.DeleteUnavailability(uid); err != nil {
+		if err := repo.DeleteUnavailability(scheduleID, uid); err != nil {
 			if isNotFound(err) {
 				dto.NotFound(c, "schedule_unavailability", uid.String())
 				return
 			}
-			slog.Error("failed to delete unavailability", "error", err, "id", uid, "request_id", c.GetString("request_id"))
+			slog.Error("failed to delete unavailability", "error", err, "id", uid, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
-		slog.Info("schedule unavailability deleted", "id", uid, "request_id", c.GetString("request_id"))
+		slog.Info("schedule unavailability deleted", "id", uid, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 		c.JSON(http.StatusNoContent, nil)
 	}
 }

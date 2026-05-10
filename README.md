@@ -20,7 +20,8 @@
 
 ---
 
-> **Fluidify Regen is free, forever** — unlimited seats, unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
+> Unlimited seats, unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
+
 > The **one-stop alternative to PagerDuty + incident.io**, with **1-click import from Grafana OnCall**.
 
 ---

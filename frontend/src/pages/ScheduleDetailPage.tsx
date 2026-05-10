@@ -1430,6 +1430,17 @@ export function ScheduleDetailPage() {
       }))
   }, [schedule?.layers, layerTimelines])
 
+  const allParticipants = useMemo(() => {
+    const seen = new Set<string>()
+    const names: string[] = []
+    for (const layer of schedule?.layers ?? []) {
+      for (const p of layer.participants ?? []) {
+        if (!seen.has(p.user_name)) { seen.add(p.user_name); names.push(p.user_name) }
+      }
+    }
+    return names
+  }, [schedule?.layers])
+
   const handleEditLayer = (layer: ScheduleLayer) => {
     setEditingLayer(layer)
     setEditLayerOpen(true)
@@ -1456,16 +1467,6 @@ export function ScheduleDetailPage() {
 
   const currentUser = onCall?.user_name || null
   const nextOrderIndex = (schedule.layers?.length ?? 0)
-  const allParticipants = useMemo(() => {
-    const seen = new Set<string>()
-    const names: string[] = []
-    for (const layer of schedule.layers ?? []) {
-      for (const p of layer.participants ?? []) {
-        if (!seen.has(p.user_name)) { seen.add(p.user_name); names.push(p.user_name) }
-      }
-    }
-    return names
-  }, [schedule.layers])
 
   return (
     <div className="flex flex-col h-full">

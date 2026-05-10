@@ -24,13 +24,15 @@ func SecurityHeaders() gin.HandlerFunc {
 	// style-src + 'unsafe-inline'   — React components use inline styles; required for SPA
 	// img-src data:                 — base64-encoded data URIs used in UI components
 	// img-src cdn.jsdelivr.net      — Simple Icons brand logos on the Integrations page
-	// connect-src us.i.posthog.com    — PostHog analytics (write-only capture; OPE-79)
-	// connect-src static.fluidify.ai — in-app announcements polling (OPE-79)
+	// script-src us-assets.i.posthog.com — PostHog JS client loads its config bundle from this CDN (OPE-79)
+	// connect-src us.i.posthog.com       — PostHog analytics capture endpoint (write-only; OPE-79)
+	// connect-src us-assets.i.posthog.com — PostHog config fetch (OPE-79)
+	// connect-src static.fluidify.ai    — in-app announcements polling (OPE-79)
 	const csp = "default-src 'self'; " +
-		"script-src 'self'; " +
+		"script-src 'self' https://us-assets.i.posthog.com; " +
 		"style-src 'self' 'unsafe-inline'; " +
 		"img-src 'self' data: https://cdn.jsdelivr.net; " +
-		"connect-src 'self' https://us.i.posthog.com https://static.fluidify.ai; " +
+		"connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://static.fluidify.ai; " +
 		"font-src 'self'; " +
 		"object-src 'none'; " +
 		"base-uri 'self'; " +

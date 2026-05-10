@@ -504,3 +504,172 @@ func TestResolveAtTime_OverrideWins_EvenWhenUnavailable(t *testing.T) {
 		t.Errorf("override should win: expected carol, got %q", user)
 	}
 }
+
+// ── Multi-day and boundary timeline tests ────────────────────────────────────
+
+// TestBuildTimeline_MultiDayUnavailability verifies that a participant unavailable
+// for several days across a rotation boundary is skipped on every affected day.
+// With daily rotation (alice=even slots, bob=odd slots) and alice out May 3-5:
+//   - May 3 slot 2 (alice) → skip → bob
+//   - May 4 slot 3 (bob)   → bob  (naturally)
+//   - May 5 slot 4 (alice) → skip → bob
+//   - May 6 slot 5 (bob)   → bob  (naturally; alice available but slot is bob's)
+//   - May 7 slot 6 (alice) → alice (back)
+func TestBuildTimeline_MultiDayUnavailability(t *testing.T) {
+	schedID := uuid.New()
+	epoch := day(2026, 5, 1)
+	layer := makeLayer(epoch, 24*time.Hour, "alice", "bob")
+	schedule := &models.Schedule{ID: schedID, Layers: []models.ScheduleLayer{layer}}
+
+	unavail := makeUnavailability(schedID, "alice", day(2026, 5, 3), day(2026, 5, 5))
+
+	from := day(2026, 5, 1)
+	to := day(2026, 5, 8)
+	segments := buildTimeline(schedule, nil, []models.ScheduleUnavailability{unavail}, from, to)
+
+	// Iterate through all days in each segment (segments may span multiple days after merging).
+	dayUser := map[string]string{}
+	for _, s := range segments {
+		for d := s.Start; d.Before(s.End); d = d.Add(24 * time.Hour) {
+			dayUser[d.UTC().Format("2006-01-02")] = s.UserName
+		}
+	}
+
+	// May 1: slot 0 = alice, available
+	if dayUser["2026-05-01"] != "alice" {
+		t.Errorf("May 1: expected alice (slot 0), got %q", dayUser["2026-05-01"])
+	}
+	// May 3, 4, 5: alice unavailable → bob covers all three days
+	for _, d := range []string{"2026-05-03", "2026-05-04", "2026-05-05"} {
+		if dayUser[d] != "bob" {
+			t.Errorf("%s: expected bob (alice unavailable), got %q", d, dayUser[d])
+		}
+	}
+	// May 6: slot 5 = bob (naturally); alice is available but it's bob's day
+	if dayUser["2026-05-06"] != "bob" {
+		t.Errorf("May 6: expected bob (slot 5), got %q", dayUser["2026-05-06"])
+	}
+	// May 7: slot 6 mod 2 = 0 = alice, available
+	if dayUser["2026-05-07"] != "alice" {
+		t.Errorf("May 7: expected alice (slot 6), got %q", dayUser["2026-05-07"])
+	}
+}
+
+// TestBuildTimeline_UnavailabilityStartsAtWindowFrom verifies boundary case where
+// the unavailability begins exactly at the window start.
+func TestBuildTimeline_UnavailabilityStartsAtWindowFrom(t *testing.T) {
+	schedID := uuid.New()
+	epoch := day(2026, 5, 1)
+	layer := makeLayer(epoch, 24*time.Hour, "alice", "bob")
+	schedule := &models.Schedule{ID: schedID, Layers: []models.ScheduleLayer{layer}}
+
+	// Alice is unavailable starting exactly at `from`.
+	from := day(2026, 5, 3) // slot 2 mod 2 = 0 → alice
+	unavail := makeUnavailability(schedID, "alice", from, from)
+	to := day(2026, 5, 5)
+
+	segments := buildTimeline(schedule, nil, []models.ScheduleUnavailability{unavail}, from, to)
+
+	if len(segments) == 0 {
+		t.Fatal("expected segments")
+	}
+	// First segment (May 3) should be bob because alice is unavailable
+	if segments[0].UserName != "bob" {
+		t.Errorf("May 3 (at window start): expected bob, got %q", segments[0].UserName)
+	}
+}
+
+// TestBuildTimeline_TwoDisjointUnavailabilities verifies that two separate
+// unavailability windows for the same user are both applied independently.
+// Slot arithmetic with epoch May 1, daily rotation [alice, bob]:
+//   - May 3 slot 2 (alice) → skip → bob
+//   - May 5 slot 4 (alice) → available (gap between windows) → alice
+//   - May 7 slot 6 (alice) → skip → bob
+//   - May 8 slot 7 (bob)   → bob (naturally; alice available but it's bob's day)
+func TestBuildTimeline_TwoDisjointUnavailabilities(t *testing.T) {
+	schedID := uuid.New()
+	epoch := day(2026, 5, 1)
+	layer := makeLayer(epoch, 24*time.Hour, "alice", "bob")
+	schedule := &models.Schedule{ID: schedID, Layers: []models.ScheduleLayer{layer}}
+
+	unavails := []models.ScheduleUnavailability{
+		makeUnavailability(schedID, "alice", day(2026, 5, 3), day(2026, 5, 3)),
+		makeUnavailability(schedID, "alice", day(2026, 5, 7), day(2026, 5, 7)),
+	}
+
+	from := day(2026, 5, 1)
+	to := day(2026, 5, 9)
+	segments := buildTimeline(schedule, nil, unavails, from, to)
+
+	// Iterate all days in each segment to handle merged segments.
+	dayUser := map[string]string{}
+	for _, s := range segments {
+		for d := s.Start; d.Before(s.End); d = d.Add(24 * time.Hour) {
+			dayUser[d.UTC().Format("2006-01-02")] = s.UserName
+		}
+	}
+
+	// May 3: alice (slot 2) is unavailable → skip → bob
+	if dayUser["2026-05-03"] != "bob" {
+		t.Errorf("May 3: expected bob (alice skipped), got %q", dayUser["2026-05-03"])
+	}
+	// May 5: alice (slot 4) is available (gap between windows) → alice
+	if dayUser["2026-05-05"] != "alice" {
+		t.Errorf("May 5: expected alice (available in gap), got %q", dayUser["2026-05-05"])
+	}
+	// May 7: alice (slot 6) is unavailable → skip → bob
+	if dayUser["2026-05-07"] != "bob" {
+		t.Errorf("May 7: expected bob (alice skipped), got %q", dayUser["2026-05-07"])
+	}
+	// May 8: slot 7 = bob (naturally); alice available but it's bob's rotation day
+	if dayUser["2026-05-08"] != "bob" {
+		t.Errorf("May 8: expected bob (slot 7, natural), got %q", dayUser["2026-05-08"])
+	}
+}
+
+// TestBuildTimeline_WeeklyRotation_UnavailabilityMidShift verifies skip logic
+// with weekly (not daily) shifts — the rotation boundary and unavailability boundary
+// are independent and both must appear in collectBoundaries.
+func TestBuildTimeline_WeeklyRotation_UnavailabilityMidShift(t *testing.T) {
+	schedID := uuid.New()
+	// Weekly rotation starting May 1: alice week 1, bob week 2.
+	epoch := day(2026, 5, 1)
+	layer := makeLayer(epoch, 7*24*time.Hour, "alice", "bob")
+	schedule := &models.Schedule{ID: schedID, Layers: []models.ScheduleLayer{layer}}
+
+	// Alice unavailable May 4-6 (mid-week 1).
+	unavail := makeUnavailability(schedID, "alice", day(2026, 5, 4), day(2026, 5, 6))
+
+	from := day(2026, 5, 1)
+	to := day(2026, 5, 15)
+	segments := buildTimeline(schedule, nil, []models.ScheduleUnavailability{unavail}, from, to)
+
+	dayUser := map[string]string{}
+	for _, s := range segments {
+		// Map each day in the segment to the user
+		for d := s.Start; d.Before(s.End); d = d.Add(24 * time.Hour) {
+			dayUser[d.UTC().Format("2006-01-02")] = s.UserName
+		}
+	}
+
+	// May 1-3: alice's week, she's available
+	for _, d := range []string{"2026-05-01", "2026-05-02", "2026-05-03"} {
+		if dayUser[d] != "alice" {
+			t.Errorf("%s: expected alice, got %q", d, dayUser[d])
+		}
+	}
+	// May 4-6: alice unavailable → bob covers
+	for _, d := range []string{"2026-05-04", "2026-05-05", "2026-05-06"} {
+		if dayUser[d] != "bob" {
+			t.Errorf("%s: expected bob (alice mid-week unavailable), got %q", d, dayUser[d])
+		}
+	}
+	// May 7: alice's week, she's back
+	if dayUser["2026-05-07"] != "alice" {
+		t.Errorf("May 7: expected alice back, got %q", dayUser["2026-05-07"])
+	}
+	// May 8+: bob's week starts
+	if dayUser["2026-05-08"] != "bob" {
+		t.Errorf("May 8: expected bob (week 2), got %q", dayUser["2026-05-08"])
+	}
+}

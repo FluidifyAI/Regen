@@ -160,15 +160,9 @@ func (e *scheduleEvaluator) GetLayerTimelines(scheduleID uuid.UUID, from, to tim
 
 // --- Pure computation helpers (no DB access) ---
 
-// computeOnCallFromLayers determines the on-call user by walking layers.
-// The first layer (by order_index) with at least one participant wins.
-// Returns "" if no layer can yield a user.
-func computeOnCallFromLayers(layers []models.ScheduleLayer, at time.Time) string {
-	return computeOnCallFromLayersSkipping(layers, at, nil)
-}
-
-// computeOnCallFromLayersSkipping is like computeOnCallFromLayers but skips
-// participants listed in the unavailable set.
+// computeOnCallFromLayersSkipping determines the on-call user by walking layers,
+// skipping participants listed in the unavailable set.
+// The first layer with an available participant wins; returns "" if none found.
 func computeOnCallFromLayersSkipping(layers []models.ScheduleLayer, at time.Time, unavailable map[string]struct{}) string {
 	for _, layer := range layers {
 		if len(layer.Participants) == 0 {

@@ -223,6 +223,36 @@ func TestComputeSlotSkipping_WrapAround(t *testing.T) {
 	}
 }
 
+func TestComputeSlotSkipping_CaseInsensitive_ParticipantMixedCase(t *testing.T) {
+	// Participant stored as "Alice" (display name casing); unavailability created as "alice" (lowercase).
+	// buildUnavailableSet lowercases keys; computeSlotSkipping lowercases participant names before lookup.
+	epoch := day(2026, 1, 1)
+	layer := makeLayer(epoch, 24*time.Hour, "Alice", "Bob")
+
+	at := epoch // slot 0 → Alice
+	// Simulate what buildUnavailableSet produces: lowercase key
+	unavailable := map[string]struct{}{"alice": {}}
+
+	got := computeSlotSkipping(layer, at, unavailable)
+	if got != "Bob" {
+		t.Errorf("expected Bob (Alice skipped via case-insensitive match), got %q", got)
+	}
+}
+
+func TestBuildUnavailableSet_CaseInsensitive_StoresLowercaseKey(t *testing.T) {
+	schedID := uuid.New()
+	at := day(2026, 5, 10)
+	// UserName stored with capital — should appear as lowercase key in the returned set.
+	u := makeUnavailability(schedID, "Alice", day(2026, 5, 10), day(2026, 5, 10))
+	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at)
+	if _, ok := result["alice"]; !ok {
+		t.Error("expected lowercase key 'alice' in unavailable set for input UserName 'Alice'")
+	}
+	if _, ok := result["Alice"]; ok {
+		t.Error("should not store mixed-case key 'Alice'; only lowercase keys are expected")
+	}
+}
+
 // ── computeOnCallFromLayersSkipping ──────────────────────────────────────────
 
 func TestComputeOnCallFromLayersSkipping_FallsThrough_WhenLayerFullyUnavailable(t *testing.T) {

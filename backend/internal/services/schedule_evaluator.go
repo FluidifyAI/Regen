@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
@@ -205,9 +206,10 @@ func computeSlotSkipping(layer models.ScheduleLayer, at time.Time, unavailable m
 	}
 	slotIndex := int(elapsed / shiftDur)
 	// Walk forward through participants until we find one who is available.
+	// Comparison is case-insensitive: unavailable set stores lowercase keys.
 	for i := 0; i < len(layer.Participants); i++ {
 		p := layer.Participants[(slotIndex+i)%len(layer.Participants)]
-		if _, skip := unavailable[p.UserName]; !skip {
+		if _, skip := unavailable[strings.ToLower(p.UserName)]; !skip {
 			return p.UserName
 		}
 	}
@@ -363,7 +365,7 @@ func buildUnavailableSet(unavailabilities []models.ScheduleUnavailability, at ti
 		startDate := u.StartDate.UTC().Truncate(24 * time.Hour)
 		endDate := u.EndDate.UTC().Truncate(24 * time.Hour)
 		if !atDate.Before(startDate) && !atDate.After(endDate) {
-			unavailable[u.UserName] = struct{}{}
+			unavailable[strings.ToLower(u.UserName)] = struct{}{}
 		}
 	}
 	return unavailable

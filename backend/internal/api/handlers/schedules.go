@@ -627,3 +627,92 @@ func DeleteOverride(repo repository.ScheduleRepository) gin.HandlerFunc {
 		c.JSON(http.StatusNoContent, nil)
 	}
 }
+
+// ListUnavailabilities handles GET /api/v1/schedules/:id/unavailabilities
+func ListUnavailabilities(repo repository.ScheduleRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scheduleID, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid schedule ID", map[string]interface{}{"id": "must be a valid UUID"})
+			return
+		}
+		if _, err := repo.GetByID(scheduleID); err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "schedule", scheduleID.String())
+				return
+			}
+			dto.InternalError(c, err)
+			return
+		}
+		unavailabilities, err := repo.ListUnavailabilities(scheduleID)
+		if err != nil {
+			slog.Error("failed to list unavailabilities", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+		responses := make([]dto.UnavailabilityResponse, len(unavailabilities))
+		for i := range unavailabilities {
+			responses[i] = dto.ToUnavailabilityResponse(&unavailabilities[i])
+		}
+		c.JSON(http.StatusOK, responses)
+	}
+}
+
+// CreateUnavailability handles POST /api/v1/schedules/:id/unavailabilities
+func CreateUnavailability(repo repository.ScheduleRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scheduleID, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid schedule ID", map[string]interface{}{"id": "must be a valid UUID"})
+			return
+		}
+		if _, err := repo.GetByID(scheduleID); err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "schedule", scheduleID.String())
+				return
+			}
+			dto.InternalError(c, err)
+			return
+		}
+		var req dto.CreateUnavailabilityRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			dto.ValidationError(c, err)
+			return
+		}
+		u := req.ToModel(scheduleID)
+		if err := repo.CreateUnavailability(u); err != nil {
+			slog.Error("failed to create unavailability", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+		slog.Info("schedule unavailability created", "id", u.ID, "schedule_id", scheduleID, "user_name", u.UserName, "request_id", c.GetString("request_id"))
+		c.JSON(http.StatusCreated, dto.ToUnavailabilityResponse(u))
+	}
+}
+
+// DeleteUnavailability handles DELETE /api/v1/schedules/:id/unavailabilities/:uid
+func DeleteUnavailability(repo repository.ScheduleRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scheduleID, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid schedule ID", map[string]interface{}{"id": "must be a valid UUID"})
+			return
+		}
+		uid, err := uuid.Parse(c.Param("uid"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid unavailability ID", map[string]interface{}{"uid": "must be a valid UUID"})
+			return
+		}
+		if err := repo.DeleteUnavailability(scheduleID, uid); err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "schedule_unavailability", uid.String())
+				return
+			}
+			slog.Error("failed to delete unavailability", "error", err, "id", uid, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+		slog.Info("schedule unavailability deleted", "id", uid, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+		c.JSON(http.StatusNoContent, nil)
+	}
+}

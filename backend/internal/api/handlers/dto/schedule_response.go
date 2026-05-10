@@ -64,6 +64,32 @@ type OverrideResponse struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+// UnavailabilityResponse is the response body for a schedule unavailability record.
+type UnavailabilityResponse struct {
+	ID         uuid.UUID `json:"id"`
+	ScheduleID uuid.UUID `json:"schedule_id"`
+	UserName   string    `json:"user_name"`
+	StartDate  string    `json:"start_date"` // YYYY-MM-DD
+	EndDate    string    `json:"end_date"`   // YYYY-MM-DD
+	Reason     string    `json:"reason,omitempty"`
+	CreatedBy  string    `json:"created_by"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// ToUnavailabilityResponse converts a models.ScheduleUnavailability to UnavailabilityResponse.
+func ToUnavailabilityResponse(u *models.ScheduleUnavailability) UnavailabilityResponse {
+	return UnavailabilityResponse{
+		ID:         u.ID,
+		ScheduleID: u.ScheduleID,
+		UserName:   u.UserName,
+		StartDate:  u.StartDate.UTC().Format("2006-01-02"),
+		EndDate:    u.EndDate.UTC().Format("2006-01-02"),
+		Reason:     u.Reason,
+		CreatedBy:  u.CreatedBy,
+		CreatedAt:  u.CreatedAt,
+	}
+}
+
 // OnCallResponse is the response body for GET /schedules/:id/oncall.
 type OnCallResponse struct {
 	ScheduleID uuid.UUID `json:"schedule_id"`

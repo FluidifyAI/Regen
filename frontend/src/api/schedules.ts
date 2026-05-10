@@ -4,6 +4,7 @@ import type {
   ScheduleLayer,
   ScheduleOverride,
   ScheduleHoliday,
+  ScheduleUnavailability,
   OnCallResponse,
   TimelineSegment,
   CreateScheduleRequest,
@@ -12,6 +13,7 @@ import type {
   UpdateLayerRequest,
   LayerTimelinesResponse,
   CreateOverrideRequest,
+  CreateUnavailabilityRequest,
 } from './types'
 
 // Top 30 most-used IANA timezone names + UTC, alphabetical
@@ -123,6 +125,23 @@ export async function createOverride(
 
 export async function deleteOverride(scheduleId: string, overrideId: string): Promise<void> {
   return apiClient.delete<void>(`/api/v1/schedules/${scheduleId}/overrides/${overrideId}`)
+}
+
+export async function listUnavailabilities(
+  scheduleId: string,
+): Promise<ScheduleUnavailability[]> {
+  return apiClient.get<ScheduleUnavailability[]>(`/api/v1/schedules/${scheduleId}/unavailabilities`)
+}
+
+export async function createUnavailability(
+  scheduleId: string,
+  body: CreateUnavailabilityRequest,
+): Promise<ScheduleUnavailability> {
+  return apiClient.post<ScheduleUnavailability>(`/api/v1/schedules/${scheduleId}/unavailabilities`, body)
+}
+
+export async function deleteUnavailability(scheduleId: string, uid: string): Promise<void> {
+  return apiClient.delete<void>(`/api/v1/schedules/${scheduleId}/unavailabilities/${uid}`)
 }
 
 export async function getHolidays(

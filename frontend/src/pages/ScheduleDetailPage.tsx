@@ -23,6 +23,8 @@ import {
   deleteLayer,
   createOverride,
   deleteOverride,
+  createUnavailability,
+  deleteUnavailability,
   getLayerTimelines,
   getHolidays,
   COMMON_TIMEZONES,
@@ -35,6 +37,7 @@ import type {
   Schedule,
   ScheduleLayer,
   ScheduleOverride,
+  ScheduleUnavailability,
   ScheduleHoliday,
   TimelineSegment,
   UpdateScheduleRequest,
@@ -984,6 +987,262 @@ function OverridesTable({ scheduleId, overrides, onDeleted, onAdd, toast }: Over
   )
 }
 
+// ─── Unavailability modal ─────────────────────────────────────────────────────
+
+interface UnavailabilityModalProps {
+  isOpen: boolean
+  scheduleId: string
+  users: string[]
+  onClose: () => void
+  onSaved: () => void
+}
+
+function UnavailabilityModal({ isOpen, scheduleId, users, onClose, onSaved }: UnavailabilityModalProps) {
+  const [userName, setUserName] = useState(users[0] ?? '')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      setUserName(users[0] ?? '')
+      setStartDate('')
+      setEndDate('')
+      setReason('')
+      setError(null)
+    }
+  }, [isOpen, users])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!startDate || !endDate) { setError('Start and end dates are required'); return }
+    if (endDate < startDate) { setError('End date must be on or after start date'); return }
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      await createUnavailability(scheduleId, {
+        user_name: userName,
+        start_date: new Date(startDate).toISOString(),
+        end_date: new Date(endDate).toISOString(),
+        reason: reason || undefined,
+      })
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create unavailability')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (!isOpen) return null
+
+  const labelClass = 'block text-xs font-medium text-text-secondary mb-1'
+  const inputClass = 'w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <h2 className="text-lg font-semibold text-text-primary mb-4">Mark as unavailable</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className={labelClass} htmlFor="unav-user">User</label>
+            {users.length > 0 ? (
+              <select
+                id="unav-user"
+                className={inputClass}
+                value={userName}
+                onChange={e => setUserName(e.target.value)}
+                required
+              >
+                {users.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+            ) : (
+              <input
+                id="unav-user"
+                className={inputClass}
+                value={userName}
+                onChange={e => setUserName(e.target.value)}
+                placeholder="user_name"
+                required
+              />
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass} htmlFor="unav-start">Start date</label>
+              <input
+                id="unav-start"
+                type="date"
+                className={inputClass}
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="unav-end">End date (inclusive)</label>
+              <input
+                id="unav-end"
+                type="date"
+                className={inputClass}
+                value={endDate}
+                min={startDate}
+                onChange={e => setEndDate(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="unav-reason">Reason (optional)</label>
+            <input
+              id="unav-reason"
+              className={inputClass}
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="PTO, sick leave, etc."
+              maxLength={500}
+            />
+          </div>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving…' : 'Mark unavailable'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Unavailabilities table ───────────────────────────────────────────────────
+
+interface UnavailabilitiesTableProps {
+  scheduleId: string
+  unavailabilities: ScheduleUnavailability[]
+  onDeleted: () => void
+  onAdd: () => void
+  toast: ReturnType<typeof useToast>
+}
+
+function UnavailabilitiesTable({ scheduleId, unavailabilities, onDeleted, onAdd, toast }: UnavailabilitiesTableProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+
+  const handleDelete = async (u: ScheduleUnavailability) => {
+    setConfirmId(null)
+    setDeletingId(u.id)
+    try {
+      await deleteUnavailability(scheduleId, u.id)
+      toast.success('Unavailability removed')
+      onDeleted()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove unavailability')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  const statusPill = (u: ScheduleUnavailability) => {
+    if (u.end_date < today) return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500">Past</span>
+    )
+    if (u.start_date <= today) return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-700">Active</span>
+    )
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-blue-100 text-blue-700">Upcoming</span>
+    )
+  }
+
+  const dayCount = (u: ScheduleUnavailability) => {
+    const start = new Date(u.start_date)
+    const end = new Date(u.end_date)
+    const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
+    return days === 1 ? '1 day' : `${days} days`
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-text-primary">Leave / Unavailability</h2>
+        <Button size="sm" variant="secondary" onClick={onAdd}>
+          <Plus className="w-3.5 h-3.5" />
+          Mark unavailable
+        </Button>
+      </div>
+      {unavailabilities.length === 0 ? (
+        <p className="text-sm text-text-tertiary italic">No unavailabilities.</p>
+      ) : (
+        <div className="bg-white border border-border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-gray-50">
+                <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">Status</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">User</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">Start</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">End</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">Duration</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">Reason</th>
+                <th className="w-24 px-4 py-2" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {unavailabilities.map((u) => {
+                const isPast = u.end_date < today
+                return (
+                  <tr key={u.id} className={`hover:bg-gray-50 ${isPast ? 'opacity-50' : ''}`}>
+                    <td className="px-4 py-2.5">{statusPill(u)}</td>
+                    <td className="px-4 py-2.5 font-medium text-text-primary">{u.user_name}</td>
+                    <td className="px-4 py-2.5 text-text-secondary text-xs font-mono">{u.start_date}</td>
+                    <td className="px-4 py-2.5 text-text-secondary text-xs font-mono">{u.end_date}</td>
+                    <td className="px-4 py-2.5 text-text-tertiary text-xs">{dayCount(u)}</td>
+                    <td className="px-4 py-2.5 text-text-tertiary text-xs">{u.reason || '—'}</td>
+                    <td className="px-4 py-2.5">
+                      {confirmId === u.id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleDelete(u)}
+                            disabled={deletingId === u.id}
+                            className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition-colors"
+                          >
+                            Remove
+                          </button>
+                          <button
+                            onClick={() => setConfirmId(null)}
+                            className="text-xs px-2 py-1 bg-gray-100 text-text-secondary rounded hover:bg-gray-200 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmId(u.id)}
+                          disabled={deletingId === u.id}
+                          className="p-1.5 text-text-tertiary hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                          title="Remove unavailability"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Layer card ───────────────────────────────────────────────────────────────
 
 interface LayerCardProps {
@@ -1098,12 +1357,13 @@ export function ScheduleDetailPage() {
   const navigate = useNavigate()
   const toast = useToast()
 
-  const { schedule, onCall, overrides, loading, error, refetch } = useSchedule(id!)
+  const { schedule, onCall, overrides, unavailabilities, loading, error, refetch } = useSchedule(id!)
 
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [addLayerOpen, setAddLayerOpen] = useState(false)
   const [overrideModalOpen, setOverrideModalOpen] = useState(false)
   const [overridePrefilledStart, setOverridePrefilledStart] = useState<string | undefined>()
+  const [unavailModalOpen, setUnavailModalOpen] = useState(false)
   const [editLayerOpen, setEditLayerOpen] = useState(false)
   const [holidays, setHolidays] = useState<ScheduleHoliday[]>([])
   const [editingLayer, setEditingLayer] = useState<ScheduleLayer | null>(null)
@@ -1169,6 +1429,17 @@ export function ScheduleDetailPage() {
         segments: [...(layerTimelines?.layers[layer.id] ?? []), ...overrideSegments],
       }))
   }, [schedule?.layers, layerTimelines])
+
+  const allParticipants = useMemo(() => {
+    const seen = new Set<string>()
+    const names: string[] = []
+    for (const layer of schedule?.layers ?? []) {
+      for (const p of layer.participants ?? []) {
+        if (!seen.has(p.user_name)) { seen.add(p.user_name); names.push(p.user_name) }
+      }
+    }
+    return names
+  }, [schedule?.layers])
 
   const handleEditLayer = (layer: ScheduleLayer) => {
     setEditingLayer(layer)
@@ -1238,6 +1509,16 @@ export function ScheduleDetailPage() {
           prefilledStart={overridePrefilledStart}
           onClose={() => { setOverrideModalOpen(false); setOverridePrefilledStart(undefined) }}
           onSaved={handleOverrideSaved}
+        />
+      )}
+
+      {unavailModalOpen && (
+        <UnavailabilityModal
+          isOpen={unavailModalOpen}
+          scheduleId={schedule.id}
+          users={allParticipants}
+          onClose={() => setUnavailModalOpen(false)}
+          onSaved={() => { toast.success('Unavailability recorded'); refetch() }}
         />
       )}
 
@@ -1352,6 +1633,15 @@ export function ScheduleDetailPage() {
           overrides={overrides}
           onDeleted={handleOverrideDeleted}
           onAdd={() => { setOverridePrefilledStart(undefined); setOverrideModalOpen(true) }}
+          toast={toast}
+        />
+
+        {/* Leave / Unavailability */}
+        <UnavailabilitiesTable
+          scheduleId={schedule.id}
+          unavailabilities={unavailabilities}
+          onDeleted={refetch}
+          onAdd={() => setUnavailModalOpen(true)}
           toast={toast}
         />
 

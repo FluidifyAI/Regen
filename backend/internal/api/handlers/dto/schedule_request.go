@@ -155,6 +155,31 @@ func (r *CreateOverrideRequest) ToModel(scheduleID uuid.UUID) *models.ScheduleOv
 	}
 }
 
+// CreateUnavailabilityRequest is the request body for POST /api/v1/schedules/:id/unavailabilities.
+type CreateUnavailabilityRequest struct {
+	UserName  string    `json:"user_name"  binding:"required,min=1,max=255"`
+	StartDate time.Time `json:"start_date" binding:"required"`
+	EndDate   time.Time `json:"end_date"   binding:"required"`
+	Reason    string    `json:"reason"     binding:"max=500"`
+	CreatedBy string    `json:"created_by" binding:"max=255"`
+}
+
+// ToModel converts CreateUnavailabilityRequest to models.ScheduleUnavailability.
+func (r *CreateUnavailabilityRequest) ToModel(scheduleID uuid.UUID) *models.ScheduleUnavailability {
+	createdBy := r.CreatedBy
+	if createdBy == "" {
+		createdBy = "api"
+	}
+	return &models.ScheduleUnavailability{
+		ScheduleID: scheduleID,
+		UserName:   r.UserName,
+		StartDate:  r.StartDate.UTC().Truncate(24 * time.Hour),
+		EndDate:    r.EndDate.UTC().Truncate(24 * time.Hour),
+		Reason:     r.Reason,
+		CreatedBy:  createdBy,
+	}
+}
+
 // midnightUTC returns midnight UTC for today.
 func midnightUTC() time.Time {
 	now := time.Now().UTC()

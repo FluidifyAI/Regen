@@ -45,6 +45,14 @@ jobs:
           DATABASE_URL: postgres://regen:secret@localhost:5432/regen_test?sslmode=disable
         run: go run ./cmd/regen/... migrate
 
+      - name: Migrate rollback test
+        working-directory: backend
+        env:
+          DATABASE_URL: postgres://regen:secret@localhost:5432/regen_test?sslmode=disable
+        run: |
+          go run ./cmd/regen/... migrate down 1
+          go run ./cmd/regen/... migrate
+
       - name: Test
         working-directory: backend
         env:

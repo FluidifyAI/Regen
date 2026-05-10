@@ -316,6 +316,25 @@ export interface CreateOverrideRequest {
   created_by?: string
 }
 
+export interface ScheduleUnavailability {
+  id: string
+  schedule_id: string
+  user_name: string
+  start_date: string  // YYYY-MM-DD
+  end_date: string    // YYYY-MM-DD
+  reason?: string
+  created_by: string
+  created_at: string
+}
+
+export interface CreateUnavailabilityRequest {
+  user_name: string
+  start_date: string  // ISO date or datetime (backend truncates to day)
+  end_date: string
+  reason?: string
+  created_by?: string
+}
+
 // Escalation Policies (v0.5)
 
 export type EscalationTargetType = 'schedule' | 'users' | 'both'

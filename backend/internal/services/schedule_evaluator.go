@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
@@ -67,9 +68,14 @@ func (e *scheduleEvaluator) WhoIsOnCall(scheduleID uuid.UUID, at time.Time) (str
 		return overrides[0].OverrideUser, nil
 	}
 
-	// Walk layers by order_index (already sorted by repo). First layer with
-	// a non-empty participant list for this time wins.
-	return computeOnCallFromLayers(schedule.Layers, at), nil
+	// Load unavailabilities covering this single point in time.
+	unavailabilities, err := e.repo.GetUnavailabilitiesInWindow(scheduleID, at, at.Add(time.Nanosecond))
+	if err != nil {
+		return "", fmt.Errorf("failed to load unavailabilities: %w", err)
+	}
+
+	unavailableAt := buildUnavailableSet(unavailabilities, at)
+	return computeOnCallFromLayersSkipping(schedule.Layers, at, unavailableAt), nil
 }
 
 func (e *scheduleEvaluator) GetTimeline(scheduleID uuid.UUID, from, to time.Time) ([]TimelineSegment, error) {
@@ -95,7 +101,12 @@ func (e *scheduleEvaluator) GetTimeline(scheduleID uuid.UUID, from, to time.Time
 		return nil, fmt.Errorf("failed to load overrides: %w", err)
 	}
 
-	return buildTimeline(schedule, overrides, from, to), nil
+	unavailabilities, err := e.repo.GetUnavailabilitiesInWindow(scheduleID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load unavailabilities: %w", err)
+	}
+
+	return buildTimeline(schedule, overrides, unavailabilities, from, to), nil
 }
 
 func (e *scheduleEvaluator) GetLayerTimelines(scheduleID uuid.UUID, from, to time.Time) (map[uuid.UUID][]TimelineSegment, []TimelineSegment, error) {
@@ -121,12 +132,18 @@ func (e *scheduleEvaluator) GetLayerTimelines(scheduleID uuid.UUID, from, to tim
 		return nil, nil, fmt.Errorf("failed to load overrides: %w", err)
 	}
 
+	unavailabilities, err := e.repo.GetUnavailabilitiesInWindow(scheduleID, from, to)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load unavailabilities: %w", err)
+	}
+
 	// Per-layer timelines: each layer computed independently, no overrides applied.
+	// Unavailabilities still apply — they reflect real absence regardless of layer.
 	layerTimelines := make(map[uuid.UUID][]TimelineSegment, len(schedule.Layers))
 	for _, layer := range schedule.Layers {
 		singleLayer := *schedule // shallow copy preserves ID, Timezone, etc.
 		singleLayer.Layers = []models.ScheduleLayer{layer}
-		segs := buildTimeline(&singleLayer, nil, from, to)
+		segs := buildTimeline(&singleLayer, nil, unavailabilities, from, to)
 		// Tag each segment with the layer ID.
 		for i := range segs {
 			layerID := layer.ID
@@ -135,23 +152,23 @@ func (e *scheduleEvaluator) GetLayerTimelines(scheduleID uuid.UUID, from, to tim
 		layerTimelines[layer.ID] = segs
 	}
 
-	// Effective timeline: all layers + overrides (same as GetTimeline).
-	effective := buildTimeline(schedule, overrides, from, to)
+	// Effective timeline: all layers + overrides + unavailabilities.
+	effective := buildTimeline(schedule, overrides, unavailabilities, from, to)
 
 	return layerTimelines, effective, nil
 }
 
 // --- Pure computation helpers (no DB access) ---
 
-// computeOnCallFromLayers determines the on-call user by walking layers.
-// The first layer (by order_index) with at least one participant wins.
-// Returns "" if no layer can yield a user.
-func computeOnCallFromLayers(layers []models.ScheduleLayer, at time.Time) string {
+// computeOnCallFromLayersSkipping determines the on-call user by walking layers,
+// skipping participants listed in the unavailable set.
+// The first layer with an available participant wins; returns "" if none found.
+func computeOnCallFromLayersSkipping(layers []models.ScheduleLayer, at time.Time, unavailable map[string]struct{}) string {
 	for _, layer := range layers {
 		if len(layer.Participants) == 0 {
 			continue
 		}
-		user := computeSlot(layer, at)
+		user := computeSlotSkipping(layer, at, unavailable)
 		if user != "" {
 			return user
 		}
@@ -163,6 +180,12 @@ func computeOnCallFromLayers(layers []models.ScheduleLayer, at time.Time) string
 // Uses modulo arithmetic: slotIndex = floor((at - rotation_start) / shift_duration).
 // Returns "" if the layer has no participants or at is before rotation_start.
 func computeSlot(layer models.ScheduleLayer, at time.Time) string {
+	return computeSlotSkipping(layer, at, nil)
+}
+
+// computeSlotSkipping is like computeSlot but advances past participants in the
+// unavailable set. Returns "" if all participants are unavailable.
+func computeSlotSkipping(layer models.ScheduleLayer, at time.Time, unavailable map[string]struct{}) string {
 	if len(layer.Participants) == 0 {
 		return ""
 	}
@@ -176,15 +199,23 @@ func computeSlot(layer models.ScheduleLayer, at time.Time) string {
 		return ""
 	}
 	slotIndex := int(elapsed / shiftDur)
-	participant := layer.Participants[slotIndex%len(layer.Participants)]
-	return participant.UserName
+	// Walk forward through participants until we find one who is available.
+	// Comparison is case-insensitive: unavailable set stores lowercase keys.
+	for i := 0; i < len(layer.Participants); i++ {
+		p := layer.Participants[(slotIndex+i)%len(layer.Participants)]
+		if _, skip := unavailable[strings.ToLower(p.UserName)]; !skip {
+			return p.UserName
+		}
+	}
+	return "" // all participants are unavailable
 }
 
 // buildTimeline constructs contiguous TimelineSegments for [from, to).
 //
 // Algorithm:
 //  1. Collect all "boundary" time points within the window: from, to, every
-//     shift boundary from each layer, and every override start/end.
+//     shift boundary from each layer, every override start/end, and every
+//     unavailability day boundary.
 //  2. Sort and deduplicate boundaries.
 //  3. For each sub-interval [boundaries[i], boundaries[i+1]), evaluate
 //     WhoIsOnCall at the midpoint using the in-memory schedule and overrides.
@@ -195,9 +226,10 @@ func computeSlot(layer models.ScheduleLayer, at time.Time) string {
 func buildTimeline(
 	schedule *models.Schedule,
 	overrides []models.ScheduleOverride,
+	unavailabilities []models.ScheduleUnavailability,
 	from, to time.Time,
 ) []TimelineSegment {
-	boundaries := collectBoundaries(schedule.Layers, overrides, from, to)
+	boundaries := collectBoundaries(schedule.Layers, overrides, unavailabilities, from, to)
 
 	var segments []TimelineSegment
 	for i := 0; i < len(boundaries)-1; i++ {
@@ -205,7 +237,7 @@ func buildTimeline(
 		end := boundaries[i+1]
 		mid := start.Add(end.Sub(start) / 2)
 
-		isOverride, user := resolveAtTime(schedule.Layers, overrides, mid)
+		isOverride, user := resolveAtTime(schedule.Layers, overrides, unavailabilities, mid)
 		if user == "" {
 			user = "(nobody)"
 		}
@@ -232,6 +264,7 @@ func buildTimeline(
 func collectBoundaries(
 	layers []models.ScheduleLayer,
 	overrides []models.ScheduleOverride,
+	unavailabilities []models.ScheduleUnavailability,
 	from, to time.Time,
 ) []time.Time {
 	seen := map[time.Time]struct{}{
@@ -274,6 +307,19 @@ func collectBoundaries(
 		}
 	}
 
+	// Unavailability day boundaries: add midnight UTC at start_date and the
+	// midnight after end_date (the day when availability resumes).
+	for _, u := range unavailabilities {
+		startMidnight := u.StartDate.UTC().Truncate(24 * time.Hour)
+		resumeMidnight := u.EndDate.UTC().Truncate(24*time.Hour).Add(24 * time.Hour)
+		if startMidnight.After(from) && startMidnight.Before(to) {
+			seen[startMidnight] = struct{}{}
+		}
+		if resumeMidnight.After(from) && resumeMidnight.Before(to) {
+			seen[resumeMidnight] = struct{}{}
+		}
+	}
+
 	// Sort into a slice
 	times := make([]time.Time, 0, len(seen))
 	for t := range seen {
@@ -289,6 +335,7 @@ func collectBoundaries(
 func resolveAtTime(
 	layers []models.ScheduleLayer,
 	overrides []models.ScheduleOverride,
+	unavailabilities []models.ScheduleUnavailability,
 	at time.Time,
 ) (bool, string) {
 	for _, ov := range overrides {
@@ -296,5 +343,24 @@ func resolveAtTime(
 			return true, ov.OverrideUser
 		}
 	}
-	return false, computeOnCallFromLayers(layers, at)
+	unavailable := buildUnavailableSet(unavailabilities, at)
+	return false, computeOnCallFromLayersSkipping(layers, at, unavailable)
+}
+
+// buildUnavailableSet returns a set of usernames who are unavailable at the given time.
+// Unavailability is date-granular: a user is unavailable for the full UTC day.
+func buildUnavailableSet(unavailabilities []models.ScheduleUnavailability, at time.Time) map[string]struct{} {
+	if len(unavailabilities) == 0 {
+		return nil
+	}
+	atDate := at.UTC().Truncate(24 * time.Hour)
+	unavailable := make(map[string]struct{})
+	for _, u := range unavailabilities {
+		startDate := u.StartDate.UTC().Truncate(24 * time.Hour)
+		endDate := u.EndDate.UTC().Truncate(24 * time.Hour)
+		if !atDate.Before(startDate) && !atDate.After(endDate) {
+			unavailable[strings.ToLower(u.UserName)] = struct{}{}
+		}
+	}
+	return unavailable
 }

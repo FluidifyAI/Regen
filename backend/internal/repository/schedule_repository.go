@@ -92,6 +92,23 @@ type ScheduleRepository interface {
 	// ListSchedulesWithHolidays returns all schedules that have at least one
 	// holiday country configured, with HolidayCountries populated.
 	ListSchedulesWithHolidays() ([]models.Schedule, error)
+
+	// --- Unavailability operations ---
+
+	// CreateUnavailability records a user's leave/unavailability window.
+	CreateUnavailability(u *models.ScheduleUnavailability) error
+
+	// DeleteUnavailability removes an unavailability record by ID.
+	DeleteUnavailability(id uuid.UUID) error
+
+	// ListUnavailabilities returns all unavailabilities for a schedule whose
+	// end_date is today or in the future, ordered by start_date ASC.
+	ListUnavailabilities(scheduleID uuid.UUID) ([]models.ScheduleUnavailability, error)
+
+	// GetUnavailabilitiesInWindow returns all unavailabilities that overlap the
+	// given date window [from, to). Used by the evaluator to determine who may
+	// be skipped during timeline construction.
+	GetUnavailabilitiesInWindow(scheduleID uuid.UUID, from, to time.Time) ([]models.ScheduleUnavailability, error)
 }
 
 // scheduleRepository implements ScheduleRepository.
@@ -468,6 +485,57 @@ func (r *scheduleRepository) ListSchedulesWithHolidays() ([]models.Schedule, err
 	return schedules, nil
 }
 
+// --- Unavailability operations ---
+
+func (r *scheduleRepository) CreateUnavailability(u *models.ScheduleUnavailability) error {
+	if err := validateUnavailability(u); err != nil {
+		return err
+	}
+	if err := r.db.Create(u).Error; err != nil {
+		return fmt.Errorf("failed to create unavailability: %w", err)
+	}
+	return nil
+}
+
+func (r *scheduleRepository) DeleteUnavailability(id uuid.UUID) error {
+	result := r.db.Delete(&models.ScheduleUnavailability{}, "id = ?", id)
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete unavailability: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return &NotFoundError{Resource: "schedule_unavailability", ID: id.String()}
+	}
+	return nil
+}
+
+func (r *scheduleRepository) ListUnavailabilities(scheduleID uuid.UUID) ([]models.ScheduleUnavailability, error) {
+	var unavailabilities []models.ScheduleUnavailability
+	err := r.db.
+		Where("schedule_id = ? AND end_date >= CURRENT_DATE", scheduleID).
+		Order("start_date ASC").
+		Find(&unavailabilities).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to list unavailabilities: %w", err)
+	}
+	return unavailabilities, nil
+}
+
+func (r *scheduleRepository) GetUnavailabilitiesInWindow(scheduleID uuid.UUID, from, to time.Time) ([]models.ScheduleUnavailability, error) {
+	var unavailabilities []models.ScheduleUnavailability
+	// Overlap: unavailability starts on or before the last date in window AND ends on or after the first date.
+	fromDate := from.UTC().Format("2006-01-02")
+	// to is exclusive (a timestamp), so the last date in the window is the day before to.
+	toDate := to.UTC().Add(-time.Nanosecond).Format("2006-01-02")
+	err := r.db.
+		Where("schedule_id = ? AND start_date <= ? AND end_date >= ?", scheduleID, toDate, fromDate).
+		Order("start_date ASC").
+		Find(&unavailabilities).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get unavailabilities in window: %w", err)
+	}
+	return unavailabilities, nil
+}
+
 // --- Validation helpers ---
 
 func validateSchedule(s *models.Schedule) error {
@@ -507,6 +575,21 @@ func validateOverride(o *models.ScheduleOverride) error {
 	}
 	if !o.EndTime.After(o.StartTime) {
 		return fmt.Errorf("override end_time must be after start_time")
+	}
+	return nil
+}
+
+func validateUnavailability(u *models.ScheduleUnavailability) error {
+	if u.ScheduleID == uuid.Nil {
+		return fmt.Errorf("unavailability must belong to a schedule")
+	}
+	if u.UserName == "" {
+		return fmt.Errorf("user_name cannot be empty")
+	}
+	startDate := u.StartDate.UTC().Truncate(24 * time.Hour)
+	endDate := u.EndDate.UTC().Truncate(24 * time.Hour)
+	if endDate.Before(startDate) {
+		return fmt.Errorf("end_date must be on or after start_date")
 	}
 	return nil
 }

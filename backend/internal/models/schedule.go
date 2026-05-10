@@ -176,6 +176,40 @@ func (ScheduleOverride) TableName() string {
 	return "schedule_overrides"
 }
 
+// ScheduleUnavailability marks a user as unavailable for on-call during a date range.
+// Unlike overrides (which appoint a replacement), an unavailability causes the rotation
+// to automatically advance to the next eligible participant.
+type ScheduleUnavailability struct {
+	// ID is the unique identifier for this unavailability record.
+	ID uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+
+	// ScheduleID is the parent schedule.
+	ScheduleID uuid.UUID `gorm:"type:uuid;not null;index" json:"schedule_id"`
+
+	// UserName is the user who is unavailable.
+	UserName string `gorm:"type:varchar(255);not null" json:"user_name"`
+
+	// StartDate is the first day of unavailability (inclusive, stored as DATE).
+	StartDate time.Time `gorm:"type:date;not null" json:"start_date"`
+
+	// EndDate is the last day of unavailability (inclusive, stored as DATE).
+	EndDate time.Time `gorm:"type:date;not null" json:"end_date"`
+
+	// Reason is an optional human-readable explanation (e.g., "PTO", "sick leave").
+	Reason string `gorm:"type:varchar(500)" json:"reason,omitempty"`
+
+	// CreatedBy is the user_name of whoever created this record.
+	CreatedBy string `gorm:"type:varchar(255);not null;default:'system'" json:"created_by"`
+
+	// CreatedAt is when this record was created (immutable, server-generated).
+	CreatedAt time.Time `gorm:"not null;default:now()" json:"created_at"`
+}
+
+// TableName specifies the database table name.
+func (ScheduleUnavailability) TableName() string {
+	return "schedule_unavailabilities"
+}
+
 // ScheduleHoliday is a single public holiday date for a schedule, fetched from
 // a country's ICS feed and stored locally for offline access.
 type ScheduleHoliday struct {

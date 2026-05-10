@@ -1,26 +1,22 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getSchedule, getOnCall, listOverrides } from '../api/schedules'
-import type { Schedule, OnCallResponse, ScheduleOverride } from '../api/types'
+import { getSchedule, getOnCall, listOverrides, listUnavailabilities } from '../api/schedules'
+import type { Schedule, OnCallResponse, ScheduleOverride, ScheduleUnavailability } from '../api/types'
 
 interface UseScheduleResult {
   schedule: Schedule | null
   onCall: OnCallResponse | null
   overrides: ScheduleOverride[]
+  unavailabilities: ScheduleUnavailability[]
   loading: boolean
   error: string | null
   refetch: () => Promise<void>
 }
 
-/**
- * Hook for fetching a single schedule's full detail.
- * Parallel-fetches: schedule (with layers), current on-call, and upcoming overrides.
- * On-call and overrides are fetched with .catch() fallbacks so a missing/empty
- * schedule still loads cleanly.
- */
 export function useSchedule(id: string): UseScheduleResult {
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [onCall, setOnCall] = useState<OnCallResponse | null>(null)
   const [overrides, setOverrides] = useState<ScheduleOverride[]>([])
+  const [unavailabilities, setUnavailabilities] = useState<ScheduleUnavailability[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,19 +24,22 @@ export function useSchedule(id: string): UseScheduleResult {
     setLoading(true)
     setError(null)
     try {
-      const [scheduleData, onCallData, overridesData] = await Promise.all([
+      const [scheduleData, onCallData, overridesData, unavailData] = await Promise.all([
         getSchedule(id),
         getOnCall(id).catch(() => null),
         listOverrides(id).catch(() => ({ data: [], total: 0 })),
+        listUnavailabilities(id).catch(() => [] as ScheduleUnavailability[]),
       ])
       setSchedule(scheduleData)
       setOnCall(onCallData)
       setOverrides(overridesData.data)
+      setUnavailabilities(unavailData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch schedule')
       setSchedule(null)
       setOnCall(null)
       setOverrides([])
+      setUnavailabilities([])
     } finally {
       setLoading(false)
     }
@@ -50,5 +49,5 @@ export function useSchedule(id: string): UseScheduleResult {
     fetchAll()
   }, [fetchAll])
 
-  return { schedule, onCall, overrides, loading, error, refetch: fetchAll }
+  return { schedule, onCall, overrides, unavailabilities, loading, error, refetch: fetchAll }
 }

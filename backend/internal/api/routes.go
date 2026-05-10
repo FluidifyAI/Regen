@@ -365,6 +365,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.GET("/schedules/:id/layer-timelines", handlers.GetLayerTimelines(scheduleEvaluator))
 		protected.GET("/schedules/:id/overrides", handlers.ListOverrides(scheduleRepo))
 		protected.GET("/schedules/:id/holidays", handlers.GetHolidays(scheduleRepo))
+		protected.GET("/schedules/:id/unavailabilities", handlers.ListUnavailabilities(scheduleRepo))
 
 		// Schedule mutations — admin only
 		protected.POST("/schedules", middleware.RequireAdmin(), handlers.CreateSchedule(scheduleRepo))
@@ -375,6 +376,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.DELETE("/schedules/:id/layers/:layer_id", middleware.RequireAdmin(), handlers.DeleteLayer(scheduleRepo))
 		protected.POST("/schedules/:id/overrides", middleware.RequireAdmin(), handlers.CreateOverride(scheduleRepo))
 		protected.DELETE("/schedules/:id/overrides/:override_id", middleware.RequireAdmin(), handlers.DeleteOverride(scheduleRepo))
+		protected.POST("/schedules/:id/unavailabilities", middleware.RequireAdmin(), handlers.CreateUnavailability(scheduleRepo))
+		protected.DELETE("/schedules/:id/unavailabilities/:uid", middleware.RequireAdmin(), handlers.DeleteUnavailability(scheduleRepo))
 
 		// Escalation Policies (v0.5) — reads open to all, mutations admin-only
 		protected.GET("/escalation-policies", handlers.ListEscalationPolicies(escalationPolicyRepo))

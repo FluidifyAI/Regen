@@ -20,8 +20,9 @@
 
 ---
 
-> **Grafana OnCall was archived in March 2026.** ~50,000 teams are looking for a self-hosted alternative.
-> PagerDuty costs $50/user/month — **$120,000/year** for a 200-person team. Fluidify Regen is free, forever.
+> Unlimited seats, unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
+
+> The **one-stop alternative to PagerDuty + incident.io**, with **1-click import from Grafana OnCall**.
 
 ---
 

@@ -44,8 +44,7 @@
 - SSO / SAML — Okta, Azure AD, Google Workspace — **free, always**
 - Docker Compose + Kubernetes Helm chart
 - PostgreSQL HA + Redis Sentinel support
-
-> SSO is free. Gating SSO behind a paid tier is user-hostile. We stay off [sso.tax](https://sso.tax).
+- No limits on seats/incidents/AI features
 
 ---
 
@@ -62,11 +61,11 @@ curl -X POST http://localhost:8080/api/v1/incidents/INC-042/summarize \
 
 ### Historical Pattern Matching
 
+Engineers stop re-diagnosing problems they've already solved. Every incident makes the next one faster. 
 When an incident fires, Regen searches your full incident history for similar patterns — same service, same alert fingerprint, similar timeline signatures — and surfaces the match directly in Slack:
 
 > 🤖 **Regen:** This looks like INC-157 from November (Redis memory eviction, resolved in 18 min). [View timeline →]
 
-Engineers stop re-diagnosing problems they've already solved. Every incident makes the next one faster.
 
 ### Post-Mortem Agent
 
@@ -269,4 +268,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [Makefile](Makefile) (`make help`) fo
 
 ---
 
-<p align="center">Built by <a href="https://fluidify.ai">Fluidify</a> · your incident data belongs to you</p>
+<p align="center">Built by <a href="https://fluidify.ai">Fluidify AI</a> · your incident data belongs to you</p>

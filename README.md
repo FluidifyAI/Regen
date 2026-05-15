@@ -281,4 +281,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [Makefile](Makefile) (`make help`) fo
 
 ---
 
-<p align="center">Built by <a href="https://fluidify.ai">Fluidify</a> · your incident data belongs to you</p>
+<p align="center">Built by <a href="https://fluidify.ai">Fluidify AI</a> · your incident data belongs to you</p>

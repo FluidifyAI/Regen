@@ -82,6 +82,7 @@ backend/ui/dist/*
 /.claude-project.md
 /.claude-project.md.template
 /methodology/
+/docs/superpowers/
 
 # Generated artifacts
 *.zip

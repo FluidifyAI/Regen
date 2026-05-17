@@ -114,7 +114,7 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 
 ## Coming from Grafana OnCall?
 
-Grafana OnCall was archived in March 2026. Fluidify Regen is built to be the drop-in OSS successor — same self-hosted model, no SaaS lock-in.
+Grafana OnCall was archived in March 2026. Fluidify Regen is built to be the drop-in OSS successor — same self-hosted model.
 
 Point your Alertmanager at Regen and you're receiving alerts in minutes:
 

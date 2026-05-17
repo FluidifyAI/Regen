@@ -20,7 +20,7 @@
 
 ---
 
-> Unlimited seats, unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
+> Unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
 
 > The **one-stop alternative to PagerDuty + incident.io**, with **1-click import from Grafana OnCall**.
 
@@ -44,7 +44,7 @@
 - SSO / SAML — Okta, Azure AD, Google Workspace — **free, always**
 - Docker Compose + Kubernetes Helm chart
 - PostgreSQL HA + Redis Sentinel support
-- No limits on seats/incidents/AI features
+- No limits on incidents/AI features
 
 ---
 
@@ -61,8 +61,7 @@ curl -X POST http://localhost:8080/api/v1/incidents/INC-042/summarize \
 
 ### Historical Pattern Matching
 
-Engineers stop re-diagnosing problems they've already solved. Every incident makes the next one faster. 
-When an incident fires, Regen searches your full incident history for similar patterns — same service, same alert fingerprint, similar timeline signatures — and surfaces the match directly in Slack:
+Stop re-diagnosing solved problems. When an incident fires, Regen scans your history for matches — same service, alert fingerprint, timeline — and surfaces them in Slack:
 
 > 🤖 **Regen:** This looks like INC-157 from November (Redis memory eviction, resolved in 18 min). [View timeline →]
 
@@ -114,7 +113,7 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 
 ## Coming from Grafana OnCall?
 
-Grafana OnCall was archived in March 2026. Fluidify Regen is built to be the drop-in OSS successor — same self-hosted model, no SaaS lock-in.
+Grafana OnCall was archived in March 2026. Fluidify Regen is built to be the drop-in OSS successor — same self-hosted model.
 
 Point your Alertmanager at Regen and you're receiving alerts in minutes:
 

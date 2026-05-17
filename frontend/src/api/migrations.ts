@@ -94,3 +94,55 @@ export async function importOnCallMigration(
 ): Promise<OnCallImportResponse> {
   return apiClient.post<OnCallImportResponse>('/api/v1/migrations/oncall/import', req)
 }
+
+// ── PagerDuty migration ───────────────────────────────────────────────────────
+
+export interface PDMigrationRequest {
+  api_key: string
+  force?: boolean
+}
+
+export interface PDPreviewSchedule {
+  name: string
+  timezone: string
+  layer_count: number
+  user_count: number
+}
+
+export interface PDPreviewPolicy {
+  name: string
+  tier_count: number
+}
+
+export interface PDPreviewResponse {
+  schedules: PDPreviewSchedule[]
+  policies: PDPreviewPolicy[]
+  warnings: string[]
+}
+
+export interface PDReportSummary {
+  schedules_found: number
+  schedules_imported: number
+  schedules_skipped: number
+  layers_imported: number
+  layers_skipped: number
+  policies_found: number
+  policies_imported: number
+  policies_skipped: number
+  tiers_imported: number
+}
+
+export interface PDImportResponse {
+  imported_at: string
+  summary: PDReportSummary
+  warnings: string[]
+  errors: string[]
+}
+
+export async function previewPagerDutyMigration(req: PDMigrationRequest): Promise<PDPreviewResponse> {
+  return apiClient.post<PDPreviewResponse>('/api/v1/migrations/pagerduty/preview', req)
+}
+
+export async function importPagerDutyMigration(req: PDMigrationRequest): Promise<PDImportResponse> {
+  return apiClient.post<PDImportResponse>('/api/v1/migrations/pagerduty/import', req)
+}

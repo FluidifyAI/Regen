@@ -25,7 +25,8 @@ type UpdateIncidentRequest struct {
 	// AIEnabled can toggle AI agent processing on/off after creation.
 	AIEnabled *bool `json:"ai_enabled"`
 	// CommanderID assigns the incident commander. Use null/omit to leave unchanged.
-	CommanderID *uuid.UUID `json:"commander_id"`
+	CommanderID  *uuid.UUID        `json:"commander_id"`
+	CustomFields map[string]string `json:"custom_fields"`
 }
 
 // IncidentFilters holds query parameters for filtering incidents

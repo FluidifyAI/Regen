@@ -7,6 +7,7 @@ import type { Alert, TimelineEntry } from '../../api/types'
 import { updateIncident } from '../../api/incidents'
 import { useAuth } from '../../contexts/AuthContext'
 import { listUsers, type UserSummary } from '../../api/users'
+import { listCustomFields, CustomFieldDefinition } from '../../api/customFields'
 
 type StatusType = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
 type SeverityType = 'critical' | 'high' | 'medium' | 'low'
@@ -30,6 +31,8 @@ interface Incident {
   commander_name?: string
   // AI Agents (v0.9+)
   ai_enabled: boolean
+  // Custom fields
+  custom_fields?: Record<string, string>
   // Detail fields
   alerts: Alert[]
   timeline: TimelineEntry[]
@@ -47,6 +50,26 @@ interface PropertiesPanelProps {
  */
 export function PropertiesPanel({ incident, onIncidentUpdated, lastActivityAt }: PropertiesPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDefinition[]>([])
+  const [editingCfKey, setEditingCfKey] = useState<string | null>(null)
+  const [cfDraft, setCfDraft] = useState('')
+
+  useEffect(() => {
+    listCustomFields().then(setCustomFieldDefs).catch(() => {})
+  }, [])
+
+  async function saveCfValue(key: string, value: string) {
+    const existing = incident.custom_fields ?? {}
+    const updated = { ...existing }
+    if (value.trim() === '') {
+      delete updated[key]
+    } else {
+      updated[key] = value.trim()
+    }
+    await updateIncident(incident.id, { custom_fields: updated } as never)
+    onIncidentUpdated?.()
+    setEditingCfKey(null)
+  }
 
   const { user: currentUser } = useAuth()
   const [users, setUsers] = useState<UserSummary[]>([])
@@ -253,6 +276,59 @@ export function PropertiesPanel({ incident, onIncidentUpdated, lastActivityAt }:
                 <span className="text-sm text-text-primary">
                   {incident.alerts.length} alert{incident.alerts.length !== 1 ? 's' : ''}
                 </span>
+              </div>
+            </PropertySection>
+          )}
+
+          {/* ── Custom Fields ────────────────────────── */}
+          {customFieldDefs.length > 0 && (
+            <PropertySection title="Custom Fields">
+              <div className="space-y-2">
+                {customFieldDefs.map(def => {
+                  const currentValue = incident.custom_fields?.[def.key] ?? ''
+                  const isEditing = editingCfKey === def.key
+                  return (
+                    <div key={def.key} className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-text-secondary flex-shrink-0">{def.name}</span>
+                      {isEditing ? (
+                        <div className="flex items-center gap-1 flex-1 min-w-0">
+                          {def.field_type === 'dropdown' ? (
+                            <select
+                              autoFocus
+                              value={cfDraft}
+                              onChange={e => setCfDraft(e.target.value)}
+                              onBlur={() => saveCfValue(def.key, cfDraft)}
+                              className="flex-1 px-2 py-0.5 text-xs border border-border rounded bg-surface-primary focus:outline-none"
+                            >
+                              <option value="">— clear —</option>
+                              {def.options.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              autoFocus
+                              type={def.field_type === 'number' ? 'number' : 'text'}
+                              value={cfDraft}
+                              onChange={e => setCfDraft(e.target.value)}
+                              onBlur={() => saveCfValue(def.key, cfDraft)}
+                              onKeyDown={e => { if (e.key === 'Enter') saveCfValue(def.key, cfDraft); if (e.key === 'Escape') setEditingCfKey(null) }}
+                              className="flex-1 px-2 py-0.5 text-xs border border-border rounded bg-surface-primary focus:outline-none min-w-0"
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setEditingCfKey(def.key); setCfDraft(currentValue) }}
+                          className="text-xs text-text-primary hover:text-brand-primary truncate max-w-[120px] text-right"
+                          title={currentValue || 'Click to set'}
+                        >
+                          {currentValue || <span className="text-text-tertiary italic">—</span>}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </PropertySection>
           )}

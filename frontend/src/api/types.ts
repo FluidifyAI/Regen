@@ -127,6 +127,7 @@ export interface UpdateIncidentRequest {
   summary?: string
   ai_enabled?: boolean
   commander_id?: string | null
+  custom_fields?: Record<string, string>
 }
 
 // AI Agents (v0.9+)

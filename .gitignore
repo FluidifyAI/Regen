@@ -79,6 +79,10 @@ backend/ui/dist/*
 
 # Claude Code project instructions — internal dev playbook, not for public repo
 /CLAUDE.md
+/.claude-project.md
+/.claude-project.md.template
+/methodology/
+/docs/superpowers/
 
 # Generated artifacts
 *.zip

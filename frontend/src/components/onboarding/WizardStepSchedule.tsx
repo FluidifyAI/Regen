@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Loader2, AlertCircle, CheckCircle } from 'lucide-react'
-import { previewOnCallMigration, importOnCallMigration } from '../../api/migrations'
+import { importOnCallMigration } from '../../api/migrations'
 import { createSchedule, createLayer, COMMON_TIMEZONES } from '../../api/schedules'
 
 interface Props {

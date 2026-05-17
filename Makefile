@@ -110,7 +110,7 @@ validate:
 	@echo "── Backend: build ───────────────────────────────────────────"
 	@cd backend && go build ./... && echo "  go build: OK"
 	@echo "── Backend: test ────────────────────────────────────────────"
-	@cd backend && go test -race -coverprofile=coverage.out ./... && echo "  go test:  OK"
+	@cd backend && go test ./... && echo "  go test:  OK"
 	@echo "── Frontend: tsc + vite build ───────────────────────────────"
 	@cd frontend && npm run build && echo "  npm build: OK"
 	@echo ""

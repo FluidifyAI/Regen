@@ -45,6 +45,7 @@
 - 1-click migration from Grafana OnCall/PagerDuty
 - Docker Compose + Kubernetes Helm chart
 - PostgreSQL HA + Redis Sentinel support
+- 1 click import from Grafana Oncall/Pagerduty
 - No limits on incidents/AI features
 
 ---
@@ -109,6 +110,7 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 | BYO AI | ✅ | ❌ | ❌ | ❌ |
 | Agent-native | ✅ | ❌ | ❌ | ❌ |
 | Alert + incident + on-call in one | ✅ | ⚠️ | ⚠️ | ⚠️ |
+| 1-Click imports | ✅ | ❌ | ❌ | ❌ |
 
 ---
 

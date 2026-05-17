@@ -118,6 +118,7 @@ export interface CreateIncidentRequest {
   severity?: 'critical' | 'high' | 'medium' | 'low'
   description?: string
   ai_enabled?: boolean
+  custom_fields?: Record<string, string>
 }
 
 export interface UpdateIncidentRequest {
@@ -152,6 +153,7 @@ export interface ListIncidentsParams {
   limit?: number
   page?: number
   offset?: number
+  customFields?: Record<string, string>
 }
 
 export interface ListTimelineParams {

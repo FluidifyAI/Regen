@@ -104,13 +104,15 @@ dev-docker:
 	@echo "Stop:      make down"
 
 # validate: mirror CI locally — go build, go test, npm run build.
-# Run before every git push. Works in git worktrees (node_modules must be symlinked first;
-# see .claude/prompts/new-feature.md for the one-time setup command).
+# Prerequisites (one-time WSL2 setup):
+#   sudo apt-get install -y gcc   ← required for go-sqlite3 (CGO)
+#   ln -s $(pwd)/frontend/node_modules <worktree>/frontend/node_modules  ← for git worktrees
 validate:
 	@echo "── Backend: build ───────────────────────────────────────────"
 	@cd backend && go build ./... && echo "  go build: OK"
 	@echo "── Backend: test ────────────────────────────────────────────"
-	@cd backend && go test ./... && echo "  go test:  OK"
+	@which gcc > /dev/null 2>&1 || (echo "  ✗ gcc not found — run: sudo apt-get install -y gcc" && exit 1)
+	@cd backend && CGO_ENABLED=1 go test ./... && echo "  go test:  OK"
 	@echo "── Frontend: tsc + vite build ───────────────────────────────"
 	@cd frontend && npm run build && echo "  npm build: OK"
 	@echo ""

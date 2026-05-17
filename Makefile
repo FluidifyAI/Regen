@@ -1,4 +1,4 @@
-.PHONY: help start stop dev dev-docker backend migrate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test load-test chaos-db chaos-redis ha-up ha-down k8s-test-up k8s-test k8s-test-down
+.PHONY: help start stop dev dev-docker dev-local backend migrate validate test fmt lint build build-frontend docker down clean logs health install helm-deps helm-lint helm-template helm-test load-test chaos-db chaos-redis ha-up ha-down k8s-test-up k8s-test k8s-test-down
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -12,12 +12,16 @@ help:
 	@echo "Development:"
 	@echo "  dev          Start backend in Docker (Air hot-reload) + Vite frontend locally"
 	@echo "               Best for active development — full HMR on :3000, API on :8080."
+	@echo "  dev-local    Validate (build + test) then start the full dev stack."
+	@echo "               Use this in worktrees — checks pass before anything starts."
 	@echo "  dev-docker   Start everything in Docker (nginx frontend, no local Node needed)"
 	@echo "  backend      Start db + redis + api in Docker only (no frontend)"
 	@echo "  migrate      Run database migrations inside the running app container"
 	@echo "  install      Install all backend and frontend dependencies"
 	@echo ""
 	@echo "Code quality:"
+	@echo "  validate     Mirror CI locally: go build + go test + npm run build."
+	@echo "               Run before every push. Works in git worktrees."
 	@echo "  test         Run Go and frontend test suites"
 	@echo "  lint         Run golangci-lint and eslint"
 	@echo "  fmt          Format Go and TypeScript code"
@@ -99,6 +103,24 @@ dev-docker:
 	@echo "View logs: make logs"
 	@echo "Stop:      make down"
 
+# validate: mirror CI locally — go build, go test, npm run build.
+# Run before every git push. Works in git worktrees (node_modules must be symlinked first;
+# see .claude/prompts/new-feature.md for the one-time setup command).
+validate:
+	@echo "── Backend: build ───────────────────────────────────────────"
+	@cd backend && go build ./... && echo "  go build: OK"
+	@echo "── Backend: test ────────────────────────────────────────────"
+	@cd backend && go test -race -coverprofile=coverage.out ./... && echo "  go test:  OK"
+	@echo "── Frontend: tsc + vite build ───────────────────────────────"
+	@cd frontend && npm run build && echo "  npm build: OK"
+	@echo ""
+	@echo "✓ validate passed — safe to push"
+
+# dev-local: validate first, then bring up the full dev stack.
+# Use this in git worktrees so you never start a broken stack.
+dev-local: validate
+	@$(MAKE) dev
+
 # Start infra + API only (no frontend).
 # Useful when working on backend with a separately running frontend, or API-only testing.
 backend:
@@ -118,8 +140,8 @@ test:
 	@echo "Running backend tests..."
 	@cd backend && go test -race -coverprofile=coverage.out ./...
 	@echo ""
-	@echo "Running frontend type check..."
-	@cd frontend && npx tsc --noEmit
+	@echo "Running frontend build (tsc + vite)..."
+	@cd frontend && npm run build
 	@echo ""
 	@echo "All checks passed"
 

@@ -40,14 +40,34 @@ func SeedDemoData(
 }
 
 // GetSetupStatus handles GET /api/v1/setup/status.
-// Returns whether demo data can still be loaded (i.e. no incidents exist yet).
-func GetSetupStatus(incidentRepo repository.IncidentRepository) gin.HandlerFunc {
+func GetSetupStatus(
+	incidentRepo repository.IncidentRepository,
+	slackConfigRepo repository.SlackConfigRepository,
+	scheduleRepo repository.ScheduleRepository,
+) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		exists, err := coordinator.DemoDataExists(incidentRepo)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to check status"}})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"demo_data_available": !exists})
+
+		slackCfg, err := slackConfigRepo.Get()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to check slack status"}})
+			return
+		}
+
+		schedules, err := scheduleRepo.GetAll()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to check schedule status"}})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"demo_data_available": !exists,
+			"slack_connected":     slackCfg != nil,
+			"has_schedule":        len(schedules) > 0,
+		})
 	}
 }

@@ -12,6 +12,9 @@ import {
   ConflictItem,
   SkippedItem,
 } from '../api/migrations'
+import { PagerDutyImportPanel } from '../components/migrations/PagerDutyImportPanel'
+
+type MigrationSource = 'oncall' | 'pagerduty'
 
 type Step = 'connect' | 'previewing' | 'preview' | 'importing' | 'done'
 
@@ -19,6 +22,7 @@ export function SettingsMigrationsPage() {
   const { user: currentUser } = useAuth()
   const navigate = useNavigate()
 
+  const [source, setSource] = useState<MigrationSource>('oncall')
   const [step, setStep] = useState<Step>('connect')
   const [oncallURL, setOncallURL] = useState('')
   const [apiToken, setApiToken] = useState('')
@@ -75,13 +79,43 @@ export function SettingsMigrationsPage() {
           <div>
             <h1 className="text-2xl font-semibold text-text-primary">Migrations</h1>
             <p className="mt-1 text-sm text-text-secondary">
-              Import your existing on-call configuration from Grafana OnCall OSS.
+              Import your existing on-call configuration into Regen.
             </p>
           </div>
         </div>
       </div>
 
       <div className="px-6 py-6 max-w-3xl">
+        {/* Source selector */}
+        <div className="flex gap-2 mb-6">
+          {(['oncall', 'pagerduty'] as MigrationSource[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => setSource(s)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                source === s
+                  ? 'bg-brand-primary text-white border-brand-primary'
+                  : 'bg-surface-primary text-text-secondary border-border hover:text-text-primary'
+              }`}
+            >
+              {s === 'oncall' ? 'Grafana OnCall' : 'PagerDuty'}
+            </button>
+          ))}
+        </div>
+
+        {/* PagerDuty panel */}
+        {source === 'pagerduty' && (
+          <div className="rounded-xl border border-border bg-surface-primary p-6">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Import from PagerDuty</h2>
+            <p className="text-sm text-text-secondary mb-4">
+              Schedules and escalation policies are imported. Services are not imported — configure alert routing manually after import.
+            </p>
+            <PagerDutyImportPanel />
+          </div>
+        )}
+
+        {/* Grafana OnCall flow */}
+        {source === 'oncall' && <>
         {/* Step indicator */}
         <StepIndicator current={step} />
 
@@ -248,6 +282,7 @@ export function SettingsMigrationsPage() {
         {step === 'done' && result && (
           <ImportResultsPanel result={result} />
         )}
+        </>}
       </div>
     </div>
   )

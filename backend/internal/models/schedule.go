@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // RotationType defines the cadence of a schedule layer's rotation.
@@ -69,6 +70,15 @@ func (Schedule) TableName() string {
 	return "schedules"
 }
 
+// BeforeCreate generates a UUID if none is set. Needed for SQLite tests where
+// gen_random_uuid() is unavailable; PostgreSQL production uses the GORM-set value.
+func (s *Schedule) BeforeCreate(_ *gorm.DB) error {
+	if s.ID == uuid.Nil {
+		s.ID = uuid.New()
+	}
+	return nil
+}
+
 // ScheduleLayer defines one rotation layer within a schedule.
 //
 // Layers are stacked by order_index. The evaluator walks layers 0, 1, 2, …
@@ -114,6 +124,14 @@ func (ScheduleLayer) TableName() string {
 	return "schedule_layers"
 }
 
+// BeforeCreate generates a UUID if none is set.
+func (l *ScheduleLayer) BeforeCreate(_ *gorm.DB) error {
+	if l.ID == uuid.Nil {
+		l.ID = uuid.New()
+	}
+	return nil
+}
+
 // ScheduleParticipant is a single user slot within a layer.
 //
 // Participants are ordered by order_index to define rotation order.
@@ -141,6 +159,14 @@ type ScheduleParticipant struct {
 // TableName specifies the database table name.
 func (ScheduleParticipant) TableName() string {
 	return "schedule_participants"
+}
+
+// BeforeCreate generates a UUID if none is set.
+func (p *ScheduleParticipant) BeforeCreate(_ *gorm.DB) error {
+	if p.ID == uuid.Nil {
+		p.ID = uuid.New()
+	}
+	return nil
 }
 
 // ScheduleOverride temporarily replaces the computed on-call user for a

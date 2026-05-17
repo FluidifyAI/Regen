@@ -30,6 +30,15 @@ func NewClient(apiKey string) *Client {
 	}
 }
 
+// NewClientWithBaseURL creates a client with a custom base URL. Used in tests.
+func NewClientWithBaseURL(apiKey, base string) *Client {
+	return &Client{
+		apiKey:     apiKey,
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		baseURL:    base,
+	}
+}
+
 // ValidateAPIKey checks the API key by calling GET /users/me.
 // Returns an error if the key is invalid or the API is unreachable.
 func (c *Client) ValidateAPIKey() error {

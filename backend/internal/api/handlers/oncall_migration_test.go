@@ -65,13 +65,14 @@ func setupMigrationTestDB(t *testing.T) *gorm.DB {
 			created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE schedules (
-			id                   TEXT PRIMARY KEY,
-			name                 TEXT NOT NULL,
-			description          TEXT NOT NULL DEFAULT '',
-			timezone             TEXT NOT NULL DEFAULT 'UTC',
-			notification_channel TEXT NOT NULL DEFAULT '',
-			created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			id                           TEXT PRIMARY KEY,
+			name                         TEXT NOT NULL,
+			description                  TEXT NOT NULL DEFAULT '',
+			timezone                     TEXT NOT NULL DEFAULT 'UTC',
+			notification_channel         TEXT NOT NULL DEFAULT '',
+			default_escalation_policy_id TEXT,
+			created_at                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE schedule_layers (
 			id                     TEXT PRIMARY KEY,

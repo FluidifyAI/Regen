@@ -37,7 +37,7 @@ export function WizardStepTestAlert({ onComplete, onSkip }: Props) {
       }
       try {
         const res = await listAlerts({ limit: 5 })
-        const first = res.data?.at(0)
+        const first = res.data?.[0]
         if (!stopped && first) {
           setAlertDetected(true)
           setAlertId(first.id)

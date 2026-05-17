@@ -88,7 +88,7 @@ export function PagerDutyImportPanel({ onComplete }: PagerDutyImportPanelProps) 
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="u+xxxxxxxxxxxxxxxxxxxx"
-                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 pr-10 text-sm text-text-primary placeholder-text-tertiary focus:border-accent-primary focus:outline-none"
+                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 pr-10 text-sm text-text-primary placeholder-text-tertiary focus:border-brand-primary focus:outline-none"
               />
               <button
                 type="button"
@@ -122,7 +122,7 @@ export function PagerDutyImportPanel({ onComplete }: PagerDutyImportPanelProps) 
 
             {/* Schedules */}
             <button
-              className="flex w-full items-center justify-between py-2 text-sm text-text-primary hover:text-accent-primary"
+              className="flex w-full items-center justify-between py-2 text-sm text-text-primary hover:text-brand-primary"
               onClick={() => toggle('schedules')}
             >
               <span className="font-medium">
@@ -142,7 +142,7 @@ export function PagerDutyImportPanel({ onComplete }: PagerDutyImportPanelProps) 
 
             {/* Escalation policies */}
             <button
-              className="flex w-full items-center justify-between py-2 text-sm text-text-primary hover:text-accent-primary"
+              className="flex w-full items-center justify-between py-2 text-sm text-text-primary hover:text-brand-primary"
               onClick={() => toggle('policies')}
             >
               <span className="font-medium">

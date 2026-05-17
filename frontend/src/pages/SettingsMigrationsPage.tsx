@@ -94,7 +94,7 @@ export function SettingsMigrationsPage() {
               onClick={() => setSource(s)}
               className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
                 source === s
-                  ? 'bg-accent-primary text-white border-accent-primary'
+                  ? 'bg-brand-primary text-white border-brand-primary'
                   : 'bg-surface-primary text-text-secondary border-border hover:text-text-primary'
               }`}
             >

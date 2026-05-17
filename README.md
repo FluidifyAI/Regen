@@ -20,9 +20,9 @@
 
 ---
 
-> Unlimited seats, unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
+> **Fluidify Regen is free, forever** — unlimited seats, unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
 
-> The **one-stop alternative to PagerDuty + incident.io**, with **1-click import from Grafana OnCall**.
+> The **one-stop alternative to PagerDuty + incident.io**, with **1-click import from Grafana OnCall and PagerDuty**.
 
 ---
 
@@ -42,6 +42,7 @@
 - Microsoft Teams integration — Adaptive Cards, bot commands
 - AI incident summaries + post-mortem drafts (BYO OpenAI key)
 - SSO / SAML — Okta, Azure AD, Google Workspace — **free, always**
+- 1-click migration from Grafana OnCall and PagerDuty
 - Docker Compose + Kubernetes Helm chart
 - PostgreSQL HA + Redis Sentinel support
 
@@ -93,6 +94,7 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 | **Chat** | Slack · Microsoft Teams · Telegram |
 | **AI** | OpenAI GPT-4o / GPT-4 / GPT-3.5 (BYO key) |
 | **Auth** | SAML 2.0 — Okta · Azure AD · Google Workspace · any compliant IdP |
+| **Migration** | Grafana OnCall · PagerDuty |
 | **Deploy** | Docker Compose · Kubernetes Helm · bare metal |
 
 > Missing something? [Open an issue](https://github.com/FluidifyAI/Regen/issues/new) — the generic webhook covers most tools today.
@@ -137,6 +139,19 @@ Your new Regen webhook URLs are shown immediately — just update them in Grafan
 
 ---
 
+## Coming from PagerDuty?
+
+PagerDuty's pricing scales fast — $21–50/user/month adds up. Fluidify Regen gives you the same on-call and escalation coverage, self-hosted, for free.
+
+**One-click migration from PagerDuty** — import your schedules and escalation policies in under 60 seconds:
+
+1. Go to **Settings → Migrations → PagerDuty**
+2. Enter your PagerDuty API key (read-only key is enough)
+3. Preview exactly what will be imported, then click **Import everything**
+
+No data leaves your network — Regen calls the PagerDuty API directly from your server, imports the records, and you're done.
+
+---
 
 ## Install
 

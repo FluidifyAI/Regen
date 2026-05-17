@@ -19,6 +19,7 @@ import { SettingsMigrationsPage } from './pages/SettingsMigrationsPage'
 import { AnalyticsPage } from './pages/AnalyticsPage'
 import { IntegrationsPage } from './pages/IntegrationsPage'
 import { LogoutPage } from './pages/LogoutPage'
+import { SetupWizardPage } from './pages/SetupWizardPage'
 
 /** Redirect /escalation-policies/:id → /on-call/escalation-paths/:id */
 function EscalationPoliciesRedirect() {
@@ -54,6 +55,9 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             {/* Shown after successful sign-out — always accessible, bypasses AuthGate */}
             <Route path="/logout" element={<LogoutPage />} />
+
+            {/* Full-page onboarding wizard — requires auth, no sidebar */}
+            <Route path="/setup" element={<SetupWizardPage />} />
 
             <Route element={<AppLayout />}>
               <Route path="/" element={<HomePage />} />

@@ -35,6 +35,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
 	timelineRepo := repository.NewTimelineRepository(db)
+	customFieldRepo := repository.NewCustomFieldRepository(db)
 	groupingRuleRepo := repository.NewGroupingRuleRepository(db)
 	routingRuleRepo := repository.NewRoutingRuleRepository(db)
 	escalationPolicyRepo := repository.NewEscalationPolicyRepository(db)
@@ -321,6 +322,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.GET("/incidents/:id/postmortem/comments", handlers.ListPostMortemComments(incidentSvc, postMortemSvc))
 		protected.POST("/incidents/:id/postmortem/comments", handlers.CreatePostMortemComment(incidentSvc, postMortemSvc))
 		protected.DELETE("/incidents/:id/postmortem/comments/:commentId", handlers.DeletePostMortemComment(incidentSvc, postMortemSvc))
+
+		// Custom Fields
+		protected.GET("/custom-fields", handlers.ListCustomFields(customFieldRepo))
+		protected.POST("/custom-fields", handlers.CreateCustomField(customFieldRepo))
+		protected.PUT("/custom-fields/:id", handlers.UpdateCustomField(customFieldRepo))
+		protected.DELETE("/custom-fields/:id", handlers.DeleteCustomField(customFieldRepo))
+		protected.PATCH("/custom-fields/reorder", handlers.ReorderCustomFields(customFieldRepo))
 
 		// Grouping Rules (v0.3)
 		protected.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))

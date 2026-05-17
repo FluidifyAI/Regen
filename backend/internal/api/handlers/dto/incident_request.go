@@ -30,18 +30,20 @@ type UpdateIncidentRequest struct {
 
 // IncidentFilters holds query parameters for filtering incidents
 type IncidentFilters struct {
-	Status        string     `form:"status" binding:"omitempty,oneof=triggered acknowledged resolved canceled"`
-	Severity      string     `form:"severity" binding:"omitempty,oneof=critical high medium low"`
-	CreatedAfter  *time.Time `form:"created_after" time_format:"2006-01-02T15:04:05Z07:00"`
-	CreatedBefore *time.Time `form:"created_before" time_format:"2006-01-02T15:04:05Z07:00"`
+	Status        string            `form:"status" binding:"omitempty,oneof=triggered acknowledged resolved canceled"`
+	Severity      string            `form:"severity" binding:"omitempty,oneof=critical high medium low"`
+	CreatedAfter  *time.Time        `form:"created_after" time_format:"2006-01-02T15:04:05Z07:00"`
+	CreatedBefore *time.Time        `form:"created_before" time_format:"2006-01-02T15:04:05Z07:00"`
+	CustomFields  map[string]string `form:"cf"`
 }
 
 // ToRepository converts API filters to repository filters
 func (f *IncidentFilters) ToRepository() repository.IncidentFilters {
 	return repository.IncidentFilters{
-		Status:    models.IncidentStatus(f.Status),
-		Severity:  models.IncidentSeverity(f.Severity),
-		StartDate: f.CreatedAfter,
-		EndDate:   f.CreatedBefore,
+		Status:       models.IncidentStatus(f.Status),
+		Severity:     models.IncidentSeverity(f.Severity),
+		StartDate:    f.CreatedAfter,
+		EndDate:      f.CreatedBefore,
+		CustomFields: f.CustomFields,
 	}
 }

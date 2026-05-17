@@ -110,6 +110,9 @@ dev-docker:
 validate:
 	@echo "── Backend: build ───────────────────────────────────────────"
 	@cd backend && go build ./... && echo "  go build: OK"
+	@echo "── Backend: lint ────────────────────────────────────────────"
+	@PATH="$$PATH:$$(go env GOPATH)/bin" which golangci-lint > /dev/null 2>&1 || (echo "  ✗ golangci-lint not found — run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest" && exit 1)
+	@cd backend && PATH="$$PATH:$$(go env GOPATH)/bin" golangci-lint run && echo "  golangci-lint: OK"
 	@echo "── Backend: test ────────────────────────────────────────────"
 	@which gcc > /dev/null 2>&1 || (echo "  ✗ gcc not found — run: sudo apt-get install -y gcc" && exit 1)
 	@cd backend && CGO_ENABLED=1 go test ./... && echo "  go test:  OK"
@@ -149,7 +152,7 @@ test:
 
 lint:
 	@echo "Linting Go code..."
-	@cd backend && golangci-lint run
+	@cd backend && PATH="$$PATH:$$(go env GOPATH)/bin" golangci-lint run
 	@echo "Linting TypeScript..."
 	@cd frontend && npm run lint
 	@echo "Lint complete"

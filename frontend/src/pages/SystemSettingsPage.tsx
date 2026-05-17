@@ -7,7 +7,8 @@ import {
   getSystemSettings,
   updateSystemSettings,
   updateTelemetrySettings,
-  testOpenAIKey,
+  testAIKey,
+  AIProvider,
   SystemSettings,
 } from '../api/settings'
 
@@ -53,7 +54,11 @@ export function SystemSettingsPage() {
   const [instanceSaved, setInstanceSaved] = useState(false)
 
   // AI fields
+  const [aiProvider, setAIProvider] = useState<AIProvider>('openai')
   const [openaiKey, setOpenaiKey] = useState('')
+  const [anthropicKey, setAnthropicKey] = useState('')
+  const [ollamaURL, setOllamaURL] = useState('')
+  const [ollamaModel, setOllamaModel] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [testingKey, setTestingKey] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
@@ -80,6 +85,9 @@ export function SystemSettingsPage() {
       setSettings(data)
       setInstanceName(data.instance_name || '')
       setTimezone(data.timezone || 'UTC')
+      setAIProvider((data.ai_provider as AIProvider) || 'openai')
+      setOllamaURL(data.ollama_base_url || '')
+      setOllamaModel(data.ollama_model || '')
       setError('')
     } catch {
       setError('Failed to load system settings')
@@ -102,30 +110,49 @@ export function SystemSettingsPage() {
     }
   }
 
+  function aiTestPayload() {
+    if (aiProvider === 'anthropic') return { provider: aiProvider as AIProvider, api_key: anthropicKey.trim() }
+    if (aiProvider === 'ollama') return { provider: aiProvider as AIProvider, ollama_base_url: ollamaURL.trim() }
+    return { provider: aiProvider as AIProvider, api_key: openaiKey.trim() }
+  }
+
+  function aiSavePayload() {
+    if (aiProvider === 'anthropic') return { ai_provider: aiProvider, anthropic_api_key: anthropicKey.trim() }
+    if (aiProvider === 'ollama') return { ai_provider: aiProvider, ollama_base_url: ollamaURL.trim(), ollama_model: ollamaModel.trim() || 'llama3' }
+    return { ai_provider: aiProvider, openai_api_key: openaiKey.trim() }
+  }
+
+  function aiInputValid() {
+    if (aiProvider === 'anthropic') return anthropicKey.trim().length > 0
+    if (aiProvider === 'ollama') return ollamaURL.trim().length > 0
+    return openaiKey.trim().length > 0
+  }
+
   async function handleTestKey() {
-    if (!openaiKey.trim()) return
+    if (!aiInputValid()) return
     setTestingKey(true)
     setTestResult(null)
     try {
-      const res = await testOpenAIKey(openaiKey.trim())
-      setTestResult({ ok: res.ok, message: res.ok ? 'Key is valid — connection successful.' : (res.error ?? 'Key validation failed.') })
+      const res = await testAIKey(aiTestPayload())
+      setTestResult({ ok: res.ok, message: res.ok ? 'Connection successful.' : (res.error ?? 'Validation failed.') })
     } catch {
-      setTestResult({ ok: false, message: 'Could not reach the server to test the key.' })
+      setTestResult({ ok: false, message: 'Could not reach the server.' })
     } finally {
       setTestingKey(false)
     }
   }
 
   async function handleSaveAI() {
-    if (!openaiKey.trim()) return
+    if (!aiInputValid()) return
     setSavingAI(true)
     setAISaved(false)
     try {
-      await updateSystemSettings({ openai_api_key: openaiKey.trim() })
+      await updateSystemSettings(aiSavePayload())
       setAISaved(true)
       setOpenaiKey('')
+      setAnthropicKey('')
       setTestResult(null)
-      await load() // refresh to show new masked key
+      await load()
       setTimeout(() => setAISaved(false), 3000)
     } catch {
       setError('Failed to save AI settings')
@@ -137,12 +164,14 @@ export function SystemSettingsPage() {
   async function handleClearAI() {
     setSavingAI(true)
     try {
-      await updateSystemSettings({ openai_api_key: '' })
+      await updateSystemSettings({ openai_api_key: '', anthropic_api_key: '', ollama_base_url: '' })
       setOpenaiKey('')
+      setAnthropicKey('')
+      setOllamaURL('')
       setTestResult(null)
       await load()
     } catch {
-      setError('Failed to remove AI key')
+      setError('Failed to remove AI configuration')
     } finally {
       setSavingAI(false)
     }
@@ -230,96 +259,142 @@ export function SystemSettingsPage() {
         </div>
       </section>
 
-      {/* ── AI / OpenAI ──────────────────────────────────────────────────── */}
+      {/* ── AI Provider ──────────────────────────────────────────────────── */}
       <section className="bg-surface-primary border border-border-primary rounded-xl p-6 space-y-5">
         <div>
-          <h2 className="text-base font-semibold text-text-primary">AI — OpenAI</h2>
+          <h2 className="text-base font-semibold text-text-primary">AI Provider</h2>
           <p className="text-sm text-text-secondary mt-0.5">
-            Enable AI-powered incident summaries and post-mortem drafts. Your key is stored encrypted and never logged.
+            Enable AI-powered incident summaries and post-mortem drafts. BYO key — your data never leaves your infrastructure unless you choose a cloud provider.
           </p>
         </div>
 
-        {/* Current key status */}
+        {/* Current status */}
         {settings?.ai_key_configured ? (
           <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-200">
             <div className="flex items-center gap-2 text-sm text-green-700">
               <CheckCircle className="w-4 h-4" />
-              <span>OpenAI key configured — ends in <code className="font-mono font-semibold">...{settings.ai_key_last4}</code></span>
+              <span>
+                {settings.ai_provider === 'ollama'
+                  ? 'Ollama configured'
+                  : settings.ai_provider === 'anthropic'
+                    ? 'Anthropic key configured'
+                    : <>OpenAI key configured — ends in <code className="font-mono font-semibold">...{settings.ai_key_last4}</code></>
+                }
+              </span>
             </div>
-            <button
-              onClick={handleClearAI}
-              disabled={savingAI}
-              className="text-xs text-red-600 hover:text-red-800 font-medium"
-            >
-              Remove key
+            <button onClick={handleClearAI} disabled={savingAI} className="text-xs text-red-600 hover:text-red-800 font-medium">
+              Remove
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            No OpenAI key configured — AI features are disabled.
+            No AI provider configured — AI features are disabled.
           </div>
         )}
 
-        {/* Key input */}
+        {/* Provider selector */}
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">
-            {settings?.ai_key_configured ? 'Replace API key' : 'Add API key'}
-          </label>
-          <div className="relative">
-            <input
-              type={showKey ? 'text' : 'password'}
-              value={openaiKey}
-              onChange={(e) => { setOpenaiKey(e.target.value); setTestResult(null) }}
-              placeholder="sk-..."
-              className="w-full px-3 py-2 pr-10 rounded-lg border border-border-primary bg-surface-secondary text-text-primary text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-primary"
-            />
-            <button
-              type="button"
-              onClick={() => setShowKey(!showKey)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary"
-            >
-              {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-          </div>
-          <p className="mt-1 text-xs text-text-tertiary">
-            Get your key from{' '}
-            <span className="font-medium text-text-secondary">platform.openai.com → API keys</span>.
-            You provide the key; we don&apos;t proxy usage.
-          </p>
+          <label className="block text-sm font-medium text-text-primary mb-1">Provider</label>
+          <select
+            value={aiProvider}
+            onChange={(e) => { setAIProvider(e.target.value as AIProvider); setTestResult(null) }}
+            className="w-full px-3 py-2 rounded-lg border border-border-primary bg-surface-secondary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
+          >
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="ollama">Ollama (local / self-hosted)</option>
+          </select>
         </div>
+
+        {/* Per-provider credential inputs */}
+        {aiProvider === 'openai' && (
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1">
+              {settings?.ai_key_configured && settings.ai_provider === 'openai' ? 'Replace API key' : 'API key'}
+            </label>
+            <div className="relative">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={openaiKey}
+                onChange={(e) => { setOpenaiKey(e.target.value); setTestResult(null) }}
+                placeholder="sk-..."
+                className="w-full px-3 py-2 pr-10 rounded-lg border border-border-primary bg-surface-secondary text-text-primary text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              />
+              <button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary">
+                {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-text-tertiary">Get your key from <span className="font-medium text-text-secondary">platform.openai.com → API keys</span>.</p>
+          </div>
+        )}
+
+        {aiProvider === 'anthropic' && (
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1">
+              {settings?.ai_key_configured && settings.ai_provider === 'anthropic' ? 'Replace API key' : 'API key'}
+            </label>
+            <div className="relative">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={anthropicKey}
+                onChange={(e) => { setAnthropicKey(e.target.value); setTestResult(null) }}
+                placeholder="sk-ant-..."
+                className="w-full px-3 py-2 pr-10 rounded-lg border border-border-primary bg-surface-secondary text-text-primary text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              />
+              <button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary">
+                {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-text-tertiary">Get your key from <span className="font-medium text-text-secondary">console.anthropic.com → API keys</span>. Default model: claude-haiku-4-5-20251001.</p>
+          </div>
+        )}
+
+        {aiProvider === 'ollama' && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1">Base URL</label>
+              <input
+                type="text"
+                value={ollamaURL}
+                onChange={(e) => { setOllamaURL(e.target.value); setTestResult(null) }}
+                placeholder="http://localhost:11434"
+                className="w-full px-3 py-2 rounded-lg border border-border-primary bg-surface-secondary text-text-primary text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              />
+              <p className="mt-1 text-xs text-text-tertiary">URL where Ollama is reachable from this server.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1">Model</label>
+              <input
+                type="text"
+                value={ollamaModel}
+                onChange={(e) => setOllamaModel(e.target.value)}
+                placeholder="llama3"
+                className="w-full px-3 py-2 rounded-lg border border-border-primary bg-surface-secondary text-text-primary text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              />
+              <p className="mt-1 text-xs text-text-tertiary">Recommended: llama3.1:8b (minimum) or llama3.1:70b (best quality).</p>
+            </div>
+          </div>
+        )}
 
         {/* Test result */}
         {testResult && (
           <div className={`flex items-center gap-2 p-3 rounded-lg text-sm border ${
-            testResult.ok
-              ? 'bg-green-50 border-green-200 text-green-700'
-              : 'bg-red-50 border-red-200 text-red-700'
+            testResult.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
           }`}>
-            {testResult.ok
-              ? <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+            {testResult.ok ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
             {testResult.message}
           </div>
         )}
 
         <div className="flex items-center gap-3">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleTestKey}
-            disabled={!openaiKey.trim() || testingKey}
-          >
+          <Button variant="secondary" size="sm" onClick={handleTestKey} disabled={!aiInputValid() || testingKey}>
             {testingKey && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
-            Test key
+            Test connection
           </Button>
-          <Button
-            size="sm"
-            onClick={handleSaveAI}
-            disabled={!openaiKey.trim() || savingAI}
-          >
+          <Button size="sm" onClick={handleSaveAI} disabled={!aiInputValid() || savingAI}>
             {savingAI ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
-            Save key
+            Save
           </Button>
           {aiSaved && (
             <span className="flex items-center gap-1 text-sm text-green-600">

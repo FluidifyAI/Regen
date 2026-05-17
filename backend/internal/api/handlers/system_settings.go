@@ -56,6 +56,12 @@ func GetSystemSettings(repo repository.SystemSettingsRepository, aiSvc services.
 		name, _ := repo.GetString(repository.KeyInstanceName)
 		tz, _ := repo.GetString(repository.KeyTimezone)
 		aiKeyRaw, _ := repo.GetString(repository.KeyOpenAIAPIKey)
+		aiProvider, _ := repo.GetString(repository.KeyAIProvider)
+		if aiProvider == "" {
+			aiProvider = "openai"
+		}
+		ollamaURL, _ := repo.GetString(repository.KeyOllamaBaseURL)
+		ollamaModel, _ := repo.GetString(repository.KeyOllamaModel)
 
 		aiKeyConfigured := aiSvc.IsEnabled() || aiKeyRaw != ""
 		aiKeyLast4 := ""
@@ -69,10 +75,13 @@ func GetSystemSettings(repo repository.SystemSettingsRepository, aiSvc services.
 		c.JSON(http.StatusOK, gin.H{
 			"instance_name":      name,
 			"timezone":           tz,
+			"ai_provider":        aiProvider,
 			"ai_key_configured":  aiKeyConfigured,
 			"ai_key_last4":       aiKeyLast4,
+			"ollama_base_url":    ollamaURL,
+			"ollama_model":       ollamaModel,
 			"telemetry_enabled":  telemetryEnabled,
-			"telemetry_env_lock": telemetryDisabled, // true = locked off by env var
+			"telemetry_env_lock": telemetryDisabled,
 		})
 	}
 }
@@ -99,9 +108,13 @@ func PatchTelemetrySettings(repo repository.SystemSettingsRepository) gin.Handle
 func UpdateSystemSettings(repo repository.SystemSettingsRepository, aiSvc services.AIService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
-			InstanceName *string `json:"instance_name"`
-			Timezone     *string `json:"timezone"`
-			OpenAIAPIKey *string `json:"openai_api_key"`
+			InstanceName    *string `json:"instance_name"`
+			Timezone        *string `json:"timezone"`
+			OpenAIAPIKey    *string `json:"openai_api_key"`
+			AIProvider      *string `json:"ai_provider"`
+			AnthropicAPIKey *string `json:"anthropic_api_key"`
+			OllamaBaseURL   *string `json:"ollama_base_url"`
+			OllamaModel     *string `json:"ollama_model"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -121,37 +134,115 @@ func UpdateSystemSettings(repo repository.SystemSettingsRepository, aiSvc servic
 		}
 		if req.OpenAIAPIKey != nil {
 			if err := repo.SetString(repository.KeyOpenAIAPIKey, *req.OpenAIAPIKey); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save API key"})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save OpenAI API key"})
 				return
 			}
-			aiSvc.Reload(*req.OpenAIAPIKey)
+		}
+		if req.AIProvider != nil {
+			if err := repo.SetString(repository.KeyAIProvider, *req.AIProvider); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save AI provider"})
+				return
+			}
+		}
+		if req.AnthropicAPIKey != nil {
+			if err := repo.SetString(repository.KeyAnthropicAPIKey, *req.AnthropicAPIKey); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save Anthropic API key"})
+				return
+			}
+		}
+		if req.OllamaBaseURL != nil {
+			if err := repo.SetString(repository.KeyOllamaBaseURL, *req.OllamaBaseURL); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save Ollama base URL"})
+				return
+			}
+		}
+		if req.OllamaModel != nil {
+			if err := repo.SetString(repository.KeyOllamaModel, *req.OllamaModel); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save Ollama model"})
+				return
+			}
+		}
+		// Reload AI service if any provider setting changed.
+		if req.AIProvider != nil || req.OpenAIAPIKey != nil || req.AnthropicAPIKey != nil || req.OllamaBaseURL != nil || req.OllamaModel != nil {
+			provider, _ := repo.GetString(repository.KeyAIProvider)
+			if provider == "" {
+				provider = "openai"
+			}
+			var apiKey, model, ollamaURL string
+			switch provider {
+			case "anthropic":
+				apiKey, _ = repo.GetString(repository.KeyAnthropicAPIKey)
+				model = "claude-haiku-4-5-20251001"
+			case "ollama":
+				ollamaURL, _ = repo.GetString(repository.KeyOllamaBaseURL)
+				model, _ = repo.GetString(repository.KeyOllamaModel)
+				if model == "" {
+					model = "llama3"
+				}
+			default:
+				apiKey, _ = repo.GetString(repository.KeyOpenAIAPIKey)
+				model = "gpt-4o-mini"
+			}
+			aiSvc.Reload(provider, apiKey, model, ollamaURL)
 		}
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }
 
-// TestOpenAIKey handles POST /api/v1/settings/system/ai/test
-// Accepts an optional key in the body; falls back to the currently configured key.
-func TestOpenAIKey(repo repository.SystemSettingsRepository) gin.HandlerFunc {
+// TestAIKey handles POST /api/v1/settings/system/ai/test
+// Validates that the given provider credentials are sufficient to enable AI features.
+func TestAIKey(repo repository.SystemSettingsRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
-			APIKey string `json:"openai_api_key"`
+			Provider    string `json:"provider"`
+			APIKey      string `json:"api_key"`
+			OllamaURL   string `json:"ollama_base_url"`
 		}
 		_ = c.ShouldBindJSON(&req)
 
-		key := req.APIKey
-		if key == "" {
-			key, _ = repo.GetString(repository.KeyOpenAIAPIKey)
+		provider := req.Provider
+		if provider == "" {
+			provider, _ = repo.GetString(repository.KeyAIProvider)
 		}
-		if key == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "no API key provided or configured"})
-			return
+		if provider == "" {
+			provider = "openai"
 		}
 
-		// Make a minimal models-list call to validate the key
-		testSvc := services.NewAIService(key, "gpt-4o-mini", 10, 10)
+		apiKey := req.APIKey
+		ollamaURL := req.OllamaURL
+
+		// Fall back to stored values
+		switch provider {
+		case "anthropic":
+			if apiKey == "" {
+				apiKey, _ = repo.GetString(repository.KeyAnthropicAPIKey)
+			}
+			if apiKey == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "no Anthropic API key provided or configured"})
+				return
+			}
+		case "ollama":
+			if ollamaURL == "" {
+				ollamaURL, _ = repo.GetString(repository.KeyOllamaBaseURL)
+			}
+			if ollamaURL == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "no Ollama base URL provided or configured"})
+				return
+			}
+		default:
+			provider = "openai"
+			if apiKey == "" {
+				apiKey, _ = repo.GetString(repository.KeyOpenAIAPIKey)
+			}
+			if apiKey == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "no API key provided or configured"})
+				return
+			}
+		}
+
+		testSvc := services.NewAIService(provider, apiKey, "gpt-4o-mini", 10, 10, ollamaURL)
 		if !testSvc.IsEnabled() {
-			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "invalid key"})
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "invalid credentials"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"ok": true})

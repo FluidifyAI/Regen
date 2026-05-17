@@ -57,11 +57,16 @@ export async function resetUserPassword(id: string): Promise<{ setup_token: stri
 
 // ── System Settings ───────────────────────────────────────────────────────────
 
+export type AIProvider = 'openai' | 'anthropic' | 'ollama'
+
 export interface SystemSettings {
   instance_name: string
   timezone: string
+  ai_provider: AIProvider
   ai_key_configured: boolean
   ai_key_last4: string
+  ollama_base_url: string
+  ollama_model: string
   telemetry_enabled: boolean
   telemetry_env_lock: boolean  // true when disabled by REGEN_NO_TELEMETRY env var
 }
@@ -74,6 +79,10 @@ export async function updateSystemSettings(payload: {
   instance_name?: string
   timezone?: string
   openai_api_key?: string
+  ai_provider?: AIProvider
+  anthropic_api_key?: string
+  ollama_base_url?: string
+  ollama_model?: string
 }): Promise<void> {
   await apiClient.patch('/api/v1/settings/system', payload)
 }
@@ -82,8 +91,12 @@ export async function updateTelemetrySettings(enabled: boolean): Promise<void> {
   await apiClient.patch('/api/v1/settings/system/telemetry', { telemetry_enabled: enabled })
 }
 
-export async function testOpenAIKey(apiKey: string): Promise<{ ok: boolean; error?: string }> {
-  return apiClient.post<{ ok: boolean; error?: string }>('/api/v1/settings/system/ai/test', { api_key: apiKey })
+export async function testAIKey(payload: {
+  provider: AIProvider
+  api_key?: string
+  ollama_base_url?: string
+}): Promise<{ ok: boolean; error?: string }> {
+  return apiClient.post<{ ok: boolean; error?: string }>('/api/v1/settings/system/ai/test', payload)
 }
 
 // ── User Limit ────────────────────────────────────────────────────────────────

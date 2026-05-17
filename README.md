@@ -40,7 +40,7 @@
 - Escalation policies with multi-step timeouts
 - Slack integration — channels, bot commands, timeline sync
 - Microsoft Teams integration — Adaptive Cards, bot commands
-- AI incident summaries + post-mortem drafts (BYO OpenAI key)
+- AI incident summaries + post-mortem drafts (BYO key — OpenAI, Anthropic, or Ollama)
 - SSO / SAML — Okta, Azure AD, Google Workspace — **free, always**
 - 1-click migration from Grafana OnCall and PagerDuty
 - Docker Compose + Kubernetes Helm chart
@@ -92,7 +92,7 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 |---|---|
 | **Alert ingestion** | Prometheus Alertmanager · Grafana · AWS CloudWatch · Generic webhook |
 | **Chat** | Slack · Microsoft Teams · Telegram |
-| **AI** | OpenAI GPT-4o / GPT-4 / GPT-3.5 (BYO key) |
+| **AI** | OpenAI · Anthropic · Ollama (BYO key — local or cloud) |
 | **Auth** | SAML 2.0 — Okta · Azure AD · Google Workspace · any compliant IdP |
 | **Migration** | Grafana OnCall · PagerDuty |
 | **Deploy** | Docker Compose · Kubernetes Helm · bare metal |
@@ -150,6 +150,47 @@ PagerDuty's pricing scales fast — $21–50/user/month adds up. Fluidify Regen 
 3. Preview exactly what will be imported, then click **Import everything**
 
 No data leaves your network — Regen calls the PagerDuty API directly from your server, imports the records, and you're done.
+
+---
+
+## Using Ollama for fully local AI
+
+If you operate in a regulated environment or simply don't want incident data leaving your infrastructure, Regen supports [Ollama](https://ollama.ai) as a drop-in AI backend. No API key required — AI features run entirely on your own hardware.
+
+**Recommended models:**
+- `llama3.1:8b` — minimum spec, fast on CPU
+- `llama3.1:70b` — best quality, GPU recommended
+
+**Setup:**
+
+1. Install Ollama and pull your preferred model:
+   ```bash
+   ollama pull llama3.1:8b
+   ```
+
+2. Set the environment variables (or configure via Settings → System → AI Provider):
+   ```env
+   AI_PROVIDER=ollama
+   OLLAMA_BASE_URL=http://localhost:11434
+   OLLAMA_MODEL=llama3.1:8b
+   ```
+
+3. Or via Docker Compose alongside Regen:
+   ```yaml
+   services:
+     ollama:
+       image: ollama/ollama
+       ports:
+         - "11434:11434"
+       volumes:
+         - ollama_data:/root/.ollama
+
+   volumes:
+     ollama_data:
+   ```
+   Set `OLLAMA_BASE_URL=http://ollama:11434` in Regen's environment.
+
+All incident summaries, post-mortem drafts, and handoff digests will use Ollama — no data ever leaves your network.
 
 ---
 

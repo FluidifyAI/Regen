@@ -57,7 +57,7 @@ type openAIChatResponse struct {
 func (c *openAIClient) Complete(ctx context.Context, messages []Message) (string, error) {
 	msgs := make([]openAIChatMessage, len(messages))
 	for i, m := range messages {
-		msgs[i] = openAIChatMessage{Role: m.Role, Content: m.Content}
+		msgs[i] = openAIChatMessage(m)
 	}
 
 	body, _ := json.Marshal(openAIChatRequest{Model: c.model, Messages: msgs, MaxTokens: c.maxTokens})

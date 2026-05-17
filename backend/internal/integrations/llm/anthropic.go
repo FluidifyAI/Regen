@@ -67,7 +67,7 @@ func (c *anthropicClient) Complete(ctx context.Context, messages []Message) (str
 		if m.Role == "system" {
 			system = m.Content
 		} else {
-			msgs = append(msgs, anthropicMessage{Role: m.Role, Content: m.Content})
+			msgs = append(msgs, anthropicMessage(m))
 		}
 	}
 

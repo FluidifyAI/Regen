@@ -23,6 +23,7 @@ func newImportCmd() *cobra.Command {
 		Short: "Import data from external services",
 	}
 	cmd.AddCommand(newImportPagerdutyCmd())
+	cmd.AddCommand(newImportOpsgenieCmd())
 	return cmd
 }
 

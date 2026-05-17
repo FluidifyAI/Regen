@@ -1,10 +1,13 @@
-import type { ReactNode } from 'react'
-import { useLocation } from 'react-router-dom'
+import { type ReactNode, useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { LoginPage } from '../../pages/LoginPage'
+import { getSetupStatus } from '../../api/setup'
 
 // Routes that are always accessible regardless of auth state.
 const PUBLIC_PATHS = ['/login', '/logout']
+
+const WIZARD_STORAGE_KEY = 'regen_setup_wizard_v1'
 
 /**
  * AuthGate wraps the entire app.
@@ -20,12 +23,31 @@ const PUBLIC_PATHS = ['/login', '/logout']
  * │ Unauthenticated              │ Show LoginPage               │
  * └──────────────────────────────┴──────────────────────────────┘
  *
+ * On first authenticated render, checks whether the onboarding wizard
+ * has been dismissed. If not and Slack isn't connected, redirects to /setup.
+ *
  * Open mode (no users exist yet) no longer bypasses auth. The LoginPage
  * detects open mode and shows the first-run setup form automatically.
  */
 export function AuthGate({ children }: { children: ReactNode }) {
   const { loading, authenticated } = useAuth()
   const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const setupChecked = useRef(false)
+
+  useEffect(() => {
+    if (!authenticated || setupChecked.current || pathname === '/setup') return
+    if (localStorage.getItem(WIZARD_STORAGE_KEY)) {
+      setupChecked.current = true
+      return
+    }
+    getSetupStatus()
+      .then(status => {
+        setupChecked.current = true
+        if (!status.slack_connected) navigate('/setup')
+      })
+      .catch(() => { setupChecked.current = true })
+  }, [authenticated, pathname, navigate])
 
   // Always let public pages render, even before the auth check completes.
   if (PUBLIC_PATHS.includes(pathname)) {

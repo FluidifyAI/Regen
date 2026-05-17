@@ -114,10 +114,6 @@ func overridePDFactory(t *testing.T, baseURL string) {
 
 // ── Router builder ────────────────────────────────────────────────────────────
 
-func buildPDMigrationRouter(db interface{ DB() interface{ Exec(string, ...interface{}) (interface{}, error) } }) *gin.Engine {
-	return nil // placeholder — real builder below
-}
-
 func buildPDRouter(scheduleRepo repository.ScheduleRepository, escalationRepo repository.EscalationPolicyRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

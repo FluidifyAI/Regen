@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
@@ -34,10 +35,11 @@ type IncidentRepository interface {
 
 // IncidentFilters holds filter options for listing incidents
 type IncidentFilters struct {
-	Status    models.IncidentStatus
-	Severity  models.IncidentSeverity
-	StartDate *time.Time
-	EndDate   *time.Time
+	Status       models.IncidentStatus
+	Severity     models.IncidentSeverity
+	StartDate    *time.Time
+	EndDate      *time.Time
+	CustomFields map[string]string
 }
 
 // incidentRepository implements IncidentRepository
@@ -113,6 +115,9 @@ func (r *incidentRepository) List(filters IncidentFilters, pagination Pagination
 	}
 	if filters.EndDate != nil {
 		query = query.Where("triggered_at <= ?", filters.EndDate)
+	}
+	for k, v := range filters.CustomFields {
+		query = query.Where("custom_fields @> ?", fmt.Sprintf(`{"%s":"%s"}`, k, v))
 	}
 
 	// Get total count

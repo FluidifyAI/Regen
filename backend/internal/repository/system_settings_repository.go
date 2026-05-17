@@ -14,6 +14,12 @@ const (
 	KeyOpenAIAPIKey         = "ai.openai_api_key"
 	KeyInstanceID           = "instance.id"
 	KeyTelemetryOptOut      = "telemetry.opt_out"
+
+	// Multi-provider AI connector keys (OPE-113)
+	KeyAIProvider      = "ai.provider"
+	KeyAnthropicAPIKey = "ai.anthropic_api_key"
+	KeyOllamaBaseURL   = "ai.ollama_base_url"
+	KeyOllamaModel     = "ai.ollama_model"
 )
 
 // SystemSettingsRepository manages system-wide configuration stored in the

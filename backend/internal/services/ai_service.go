@@ -8,20 +8,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/FluidifyAI/Regen/backend/internal/integrations/openai"
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/llm"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 )
 
 // AIService provides AI-powered features for incidents.
-// When OpenAI is not configured, NewAIService returns a noopAIService that
-// satisfies the interface but returns clear errors — callers must check IsEnabled().
+// When no provider is configured, the service is disabled; callers must check IsEnabled().
 type AIService interface {
 	// IsEnabled returns true if the AI service is properly configured.
 	IsEnabled() bool
 
-	// Reload replaces the API key and re-initialises the OpenAI clients in place.
-	// Calling with an empty string disables AI features until a key is set again.
-	Reload(apiKey string)
+	// Reload reinitialises the LLM clients with the given provider and credentials.
+	// Passing an empty apiKey (for cloud providers) or empty ollamaBaseURL disables AI features.
+	Reload(provider, apiKey, model, ollamaBaseURL string)
 
 	// GenerateSummary generates a concise incident summary using all available context.
 	// slackMessages should be the plain-text messages from the incident Slack thread.
@@ -51,17 +50,17 @@ type AIService interface {
 	AnswerQuestion(ctx context.Context, question string, current *models.Incident, similar []models.Incident, postMortems map[string]string) (string, error)
 }
 
-// NewAIService creates a reloadable AIService. If apiKey is empty the service
-// starts disabled; call Reload(key) after saving a key from the UI.
-func NewAIService(apiKey, model string, maxTokens, postMortemMaxTokens int) AIService {
-	svc := &aiService{
-		model:       model,
-		maxTokens:   maxTokens,
-		pmMaxTokens: postMortemMaxTokens,
-	}
-	if apiKey != "" {
-		svc.client = openai.New(apiKey, model, maxTokens)
-		svc.postMortemClient = openai.New(apiKey, model, postMortemMaxTokens)
+// NewAIService creates a reloadable AIService backed by the given provider.
+// If the provider cannot be initialised (e.g. empty key, missing Ollama URL) the
+// service starts disabled; call Reload after credentials are saved in Settings.
+func NewAIService(provider, apiKey, model string, maxTokens, pmMaxTokens int, ollamaBaseURL string) AIService {
+	svc := &aiService{maxTokens: maxTokens, pmMaxTokens: pmMaxTokens}
+	svc.client, _ = llm.New(llm.Config{Provider: provider, APIKey: apiKey, Model: model, MaxTokens: maxTokens, BaseURL: ollamaBaseURL})
+	svc.pmClient, _ = llm.New(llm.Config{Provider: provider, APIKey: apiKey, Model: model, MaxTokens: pmMaxTokens, BaseURL: ollamaBaseURL})
+	// Treat a client with no usable credential as disabled.
+	if !svc.hasCredential(provider, apiKey, ollamaBaseURL) {
+		svc.client = nil
+		svc.pmClient = nil
 	}
 	return svc
 }
@@ -69,12 +68,11 @@ func NewAIService(apiKey, model string, maxTokens, postMortemMaxTokens int) AISe
 // ─── Implementation ───────────────────────────────────────────────────────────
 
 type aiService struct {
-	mu               sync.RWMutex
-	client           *openai.Client
-	postMortemClient *openai.Client
-	model            string
-	maxTokens        int
-	pmMaxTokens      int
+	mu          sync.RWMutex
+	client      llm.Client
+	pmClient    llm.Client
+	maxTokens   int
+	pmMaxTokens int
 }
 
 func (s *aiService) IsEnabled() bool {
@@ -83,16 +81,26 @@ func (s *aiService) IsEnabled() bool {
 	return s.client != nil
 }
 
-func (s *aiService) Reload(apiKey string) {
+// hasCredential returns true when the provider has enough configuration to attempt a call.
+func (s *aiService) hasCredential(provider, apiKey, ollamaBaseURL string) bool {
+	switch provider {
+	case "ollama":
+		return ollamaBaseURL != ""
+	default: // openai, anthropic
+		return apiKey != ""
+	}
+}
+
+func (s *aiService) Reload(provider, apiKey, model, ollamaBaseURL string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if apiKey == "" {
+	if !s.hasCredential(provider, apiKey, ollamaBaseURL) {
 		s.client = nil
-		s.postMortemClient = nil
-	} else {
-		s.client = openai.New(apiKey, s.model, s.maxTokens)
-		s.postMortemClient = openai.New(apiKey, s.model, s.pmMaxTokens)
+		s.pmClient = nil
+		return
 	}
+	s.client, _ = llm.New(llm.Config{Provider: provider, APIKey: apiKey, Model: model, MaxTokens: s.maxTokens, BaseURL: ollamaBaseURL})
+	s.pmClient, _ = llm.New(llm.Config{Provider: provider, APIKey: apiKey, Model: model, MaxTokens: s.pmMaxTokens, BaseURL: ollamaBaseURL})
 }
 
 func (s *aiService) GenerateSummary(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, slackMessages []string) (string, error) {
@@ -102,7 +110,7 @@ func (s *aiService) GenerateSummary(ctx context.Context, incident *models.Incide
 	if client == nil {
 		return "", fmt.Errorf("AI features are not configured")
 	}
-	messages := []openai.ChatMessage{
+	messages := []llm.Message{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: buildSummaryPrompt(incident, timeline, alerts, slackMessages)},
 	}
@@ -116,7 +124,7 @@ func (s *aiService) GenerateHandoffDigest(ctx context.Context, incident *models.
 	if client == nil {
 		return "", fmt.Errorf("AI features are not configured")
 	}
-	messages := []openai.ChatMessage{
+	messages := []llm.Message{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: buildHandoffPrompt(incident, timeline, alerts)},
 	}
@@ -125,12 +133,12 @@ func (s *aiService) GenerateHandoffDigest(ctx context.Context, incident *models.
 
 func (s *aiService) GeneratePostMortem(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) (string, error) {
 	s.mu.RLock()
-	client := s.postMortemClient
+	client := s.pmClient
 	s.mu.RUnlock()
 	if client == nil {
 		return "", fmt.Errorf("AI features are not configured")
 	}
-	messages := []openai.ChatMessage{
+	messages := []llm.Message{
 		{Role: "system", Content: postMortemSystemPrompt},
 		{Role: "user", Content: buildPostMortemPrompt(incident, timeline, alerts, sections)},
 	}
@@ -139,12 +147,12 @@ func (s *aiService) GeneratePostMortem(ctx context.Context, incident *models.Inc
 
 func (s *aiService) EnhancePostMortem(ctx context.Context, content string) (string, error) {
 	s.mu.RLock()
-	client := s.postMortemClient
+	client := s.pmClient
 	s.mu.RUnlock()
 	if client == nil {
 		return "", fmt.Errorf("AI features are not configured")
 	}
-	messages := []openai.ChatMessage{
+	messages := []llm.Message{
 		{Role: "system", Content: postMortemSystemPrompt},
 		{Role: "user", Content: buildEnhancePrompt(content)},
 	}
@@ -158,7 +166,7 @@ func (s *aiService) EnhanceIncidentDraft(ctx context.Context, brief string) (str
 	if client == nil {
 		return "", "", fmt.Errorf("AI features are not configured")
 	}
-	messages := []openai.ChatMessage{
+	messages := []llm.Message{
 		{Role: "system", Content: `You are an expert incident management assistant. Convert rough incident descriptions into professional incident titles and summaries. Always respond with valid JSON only, no markdown, no commentary.`},
 		{Role: "user", Content: buildEnhanceDraftPrompt(brief)},
 	}
@@ -372,9 +380,9 @@ func (s *aiService) AnswerQuestion(ctx context.Context, question string, current
 	client := s.client
 	s.mu.RUnlock()
 	if client == nil {
-		return "AI features are not configured. Add an OpenAI API key in Settings → System.", nil
+		return "AI features are not configured. Add an AI provider key in Settings → System.", nil
 	}
-	messages := []openai.ChatMessage{
+	messages := []llm.Message{
 		{Role: "system", Content: buildAnswerQuestionSystemPrompt()},
 		{Role: "user", Content: buildAnswerQuestionPrompt(question, current, similar, postMortems)},
 	}

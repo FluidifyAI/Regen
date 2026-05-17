@@ -40,6 +40,14 @@ type Config struct {
 	OpenAIMaxTokens           int    `default:"1000"`
 	OpenAIPostMortemMaxTokens int    `default:"3000"`
 
+	// Multi-provider AI connector (OPE-113)
+	// AI_PROVIDER selects the active backend; existing OPENAI_API_KEY deployments work unchanged.
+	AIProvider      string // AI_PROVIDER — "openai" | "anthropic" | "ollama" (default: "openai")
+	AnthropicAPIKey string // ANTHROPIC_API_KEY
+	AnthropicModel  string // ANTHROPIC_MODEL (default: claude-haiku-4-5-20251001)
+	OllamaBaseURL   string // OLLAMA_BASE_URL — e.g. http://localhost:11434
+	OllamaModel     string // OLLAMA_MODEL (default: llama3)
+
 	// Microsoft Teams (optional — Teams features disabled if AppID is empty)
 	TeamsAppID       string
 	TeamsAppPassword string
@@ -104,6 +112,13 @@ func Load() (*Config, error) {
 		OpenAIModel:               getEnv("OPENAI_MODEL", "gpt-4o-mini"),
 		OpenAIMaxTokens:           getEnvAsInt("OPENAI_MAX_TOKENS", 1000),
 		OpenAIPostMortemMaxTokens: getEnvAsInt("OPENAI_POSTMORTEM_MAX_TOKENS", 3000),
+
+		// Multi-provider AI connector
+		AIProvider:      getEnv("AI_PROVIDER", "openai"),
+		AnthropicAPIKey: getEnv("ANTHROPIC_API_KEY", ""),
+		AnthropicModel:  getEnv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
+		OllamaBaseURL:   getEnv("OLLAMA_BASE_URL", ""),
+		OllamaModel:     getEnv("OLLAMA_MODEL", "llama3"),
 
 		// Microsoft Teams
 		TeamsAppID:       getEnv("TEAMS_APP_ID", ""),

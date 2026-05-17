@@ -224,7 +224,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 			multiChat = services.NewMultiChatService(activeChatSvcs...)
 		}
 
-		aiSvc := services.NewAIService(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIMaxTokens, cfg.OpenAIPostMortemMaxTokens)
+		aiSvc := services.NewAIService(cfg.AIProvider, cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIMaxTokens, cfg.OpenAIPostMortemMaxTokens, cfg.OllamaBaseURL)
 		pmRepo := repository.NewPostMortemRepository(database.DB)
 		pmTemplateRepo := repository.NewPostMortemTemplateRepository(database.DB)
 		agentIncidentRepo := repository.NewIncidentRepository(database.DB)

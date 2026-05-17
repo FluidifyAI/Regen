@@ -69,18 +69,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, nil)
 	slog.Info("escalation engine initialized")
 
-	// Initialize AI service (v0.6+) — noop if OPENAI_API_KEY is not set
-	aiSvc := services.NewAIService(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIMaxTokens, cfg.OpenAIPostMortemMaxTokens)
+	// Initialize AI service (v0.6+) — noop if no provider is configured
+	aiProvider, aiKey, aiModel, ollamaURL := resolveAIConfig(cfg, systemSettingsRepo)
+	aiSvc := services.NewAIService(aiProvider, aiKey, aiModel, cfg.OpenAIMaxTokens, cfg.OpenAIPostMortemMaxTokens, ollamaURL)
 	if aiSvc.IsEnabled() {
-		slog.Info("AI service enabled", "model", cfg.OpenAIModel)
+		slog.Info("AI service enabled", "provider", aiProvider, "model", aiModel)
 	} else {
-		// Check if a key was previously saved via the UI
-		if dbKey, err := systemSettingsRepo.GetString(repository.KeyOpenAIAPIKey); err == nil && dbKey != "" {
-			aiSvc.Reload(dbKey)
-			slog.Info("AI service enabled from DB key", "model", cfg.OpenAIModel)
-		} else {
-			slog.Warn("AI service disabled — set OPENAI_API_KEY or configure via Settings → System")
-		}
+		slog.Warn("AI service disabled — configure a provider via Settings → System or env vars")
 	}
 
 	// Post-mortem repositories (v0.7+)
@@ -438,7 +433,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			// System settings (OPE-26/27)
 			settingsGroup.GET("/system", handlers.GetSystemSettings(systemSettingsRepo, aiSvc, cfg.TelemetryDisabled))
 			settingsGroup.PATCH("/system", handlers.UpdateSystemSettings(systemSettingsRepo, aiSvc))
-			settingsGroup.POST("/system/ai/test", handlers.TestOpenAIKey(systemSettingsRepo))
+			settingsGroup.POST("/system/ai/test", handlers.TestAIKey(systemSettingsRepo))
 			settingsGroup.PATCH("/system/telemetry", handlers.PatchTelemetrySettings(systemSettingsRepo))
 		}
 
@@ -527,4 +522,44 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	} else {
 		slog.Info("no embedded frontend — API-only mode (run `npm run dev` for the UI)")
 	}
+}
+
+// resolveAIConfig picks the active provider, key, model, and Ollama URL.
+// Priority: env vars first, then DB-persisted values from the Settings UI.
+func resolveAIConfig(cfg *config.Config, repo repository.SystemSettingsRepository) (provider, apiKey, model, ollamaURL string) {
+	provider = cfg.AIProvider
+	if provider == "" {
+		provider = "openai"
+	}
+
+	// Respect DB overrides so Settings UI takes effect without a restart.
+	if dbProvider, err := repo.GetString(repository.KeyAIProvider); err == nil && dbProvider != "" {
+		provider = dbProvider
+	}
+
+	switch provider {
+	case "anthropic":
+		apiKey = cfg.AnthropicAPIKey
+		model = cfg.AnthropicModel
+		if dbKey, err := repo.GetString(repository.KeyAnthropicAPIKey); err == nil && dbKey != "" {
+			apiKey = dbKey
+		}
+	case "ollama":
+		ollamaURL = cfg.OllamaBaseURL
+		model = cfg.OllamaModel
+		if dbURL, err := repo.GetString(repository.KeyOllamaBaseURL); err == nil && dbURL != "" {
+			ollamaURL = dbURL
+		}
+		if dbModel, err := repo.GetString(repository.KeyOllamaModel); err == nil && dbModel != "" {
+			model = dbModel
+		}
+	default: // openai
+		provider = "openai"
+		apiKey = cfg.OpenAIAPIKey
+		model = cfg.OpenAIModel
+		if dbKey, err := repo.GetString(repository.KeyOpenAIAPIKey); err == nil && dbKey != "" {
+			apiKey = dbKey
+		}
+	}
+	return
 }

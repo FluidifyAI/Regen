@@ -146,3 +146,56 @@ export async function previewPagerDutyMigration(req: PDMigrationRequest): Promis
 export async function importPagerDutyMigration(req: PDMigrationRequest): Promise<PDImportResponse> {
   return apiClient.post<PDImportResponse>('/api/v1/migrations/pagerduty/import', req)
 }
+
+// ── Opsgenie migration ────────────────────────────────────────────────────────
+
+export interface OGMigrationRequest {
+  api_key: string
+  region: 'us' | 'eu'
+  force?: boolean
+}
+
+export interface OGPreviewSchedule {
+  name: string
+  timezone: string
+  rotation_count: number
+  user_count: number
+}
+
+export interface OGPreviewPolicy {
+  name: string
+  rule_count: number
+}
+
+export interface OGPreviewResponse {
+  schedules: OGPreviewSchedule[]
+  policies: OGPreviewPolicy[]
+  warnings: string[]
+}
+
+export interface OGReportSummary {
+  schedules_found: number
+  schedules_imported: number
+  schedules_skipped: number
+  layers_imported: number
+  layers_skipped: number
+  policies_found: number
+  policies_imported: number
+  policies_skipped: number
+  tiers_imported: number
+}
+
+export interface OGImportResponse {
+  imported_at: string
+  summary: OGReportSummary
+  warnings: string[]
+  errors: string[]
+}
+
+export async function previewOpsgenieMigration(req: OGMigrationRequest): Promise<OGPreviewResponse> {
+  return apiClient.post<OGPreviewResponse>('/api/v1/migrations/opsgenie/preview', req)
+}
+
+export async function importOpsgenieMigration(req: OGMigrationRequest): Promise<OGImportResponse> {
+  return apiClient.post<OGImportResponse>('/api/v1/migrations/opsgenie/import', req)
+}

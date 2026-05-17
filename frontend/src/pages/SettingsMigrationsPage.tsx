@@ -13,8 +13,9 @@ import {
   SkippedItem,
 } from '../api/migrations'
 import { PagerDutyImportPanel } from '../components/migrations/PagerDutyImportPanel'
+import { OpsgenieImportPanel } from '../components/migrations/OpsgenieImportPanel'
 
-type MigrationSource = 'oncall' | 'pagerduty'
+type MigrationSource = 'oncall' | 'pagerduty' | 'opsgenie'
 
 type Step = 'connect' | 'previewing' | 'preview' | 'importing' | 'done'
 
@@ -88,7 +89,7 @@ export function SettingsMigrationsPage() {
       <div className="px-6 py-6 max-w-3xl">
         {/* Source selector */}
         <div className="flex gap-2 mb-6">
-          {(['oncall', 'pagerduty'] as MigrationSource[]).map((s) => (
+          {(['oncall', 'pagerduty', 'opsgenie'] as MigrationSource[]).map((s) => (
             <button
               key={s}
               onClick={() => setSource(s)}
@@ -98,7 +99,7 @@ export function SettingsMigrationsPage() {
                   : 'bg-surface-primary text-text-secondary border-border hover:text-text-primary'
               }`}
             >
-              {s === 'oncall' ? 'Grafana OnCall' : 'PagerDuty'}
+              {s === 'oncall' ? 'Grafana OnCall' : s === 'pagerduty' ? 'PagerDuty' : 'Opsgenie'}
             </button>
           ))}
         </div>
@@ -111,6 +112,17 @@ export function SettingsMigrationsPage() {
               Schedules and escalation policies are imported. Services are not imported — configure alert routing manually after import.
             </p>
             <PagerDutyImportPanel />
+          </div>
+        )}
+
+        {/* Opsgenie panel */}
+        {source === 'opsgenie' && (
+          <div className="rounded-xl border border-border bg-surface-primary p-6">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Import from Opsgenie</h2>
+            <p className="text-sm text-text-secondary mb-4">
+              Schedules and escalation policies are imported. Team targets are not imported — assign users directly in Regen after import.
+            </p>
+            <OpsgenieImportPanel />
           </div>
         )}
 

@@ -22,7 +22,7 @@
 
 > Unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
 
-> The **one-stop alternative to PagerDuty + incident.io**, with **1-click import from Grafana OnCall**.
+> The **one-stop alternative to PagerDuty + incident.io**, with **1-click import from Grafana OnCall/Pagerduty**.
 
 ---
 
@@ -44,6 +44,7 @@
 - SSO / SAML — Okta, Azure AD, Google Workspace — **free, always**
 - Docker Compose + Kubernetes Helm chart
 - PostgreSQL HA + Redis Sentinel support
+- 1 click import from Grafana Oncall/Pagerduty
 - No limits on incidents/AI features
 
 ---
@@ -108,6 +109,7 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 | BYO AI | ✅ | ❌ | ❌ | ❌ |
 | Agent-native | ✅ | ❌ | ❌ | ❌ |
 | Alert + incident + on-call in one | ✅ | ⚠️ | ⚠️ | ⚠️ |
+| 1-Click imports | ✅ | ❌ | ❌ | ❌ |
 
 ---
 

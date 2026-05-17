@@ -449,6 +449,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			migrationsGroup.POST("/oncall/import", handlers.ImportOnCallMigration(localAuth, scheduleRepo, escalationPolicyRepo, cfg))
 			migrationsGroup.POST("/pagerduty/preview", handlers.PreviewPagerDutyMigration(scheduleRepo, escalationPolicyRepo))
 			migrationsGroup.POST("/pagerduty/import", handlers.ImportPagerDutyMigration(scheduleRepo, escalationPolicyRepo))
+			migrationsGroup.POST("/opsgenie/preview", handlers.PreviewOpsgenieMigration(scheduleRepo, escalationPolicyRepo))
+			migrationsGroup.POST("/opsgenie/import", handlers.ImportOpsgenieMigration(scheduleRepo, escalationPolicyRepo))
 		}
 	}
 

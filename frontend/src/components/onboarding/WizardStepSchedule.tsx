@@ -3,6 +3,7 @@ import { Loader2, AlertCircle, CheckCircle } from 'lucide-react'
 import { importOnCallMigration } from '../../api/migrations'
 import { createSchedule, createLayer, COMMON_TIMEZONES } from '../../api/schedules'
 import { PagerDutyImportPanel } from '../migrations/PagerDutyImportPanel'
+import { OpsgenieImportPanel } from '../migrations/OpsgenieImportPanel'
 
 interface Props {
   hasSchedule: boolean
@@ -10,7 +11,7 @@ interface Props {
   onSkip: () => void
 }
 
-type Mode = 'choose' | 'grafana' | 'pagerduty' | 'manual'
+type Mode = 'choose' | 'grafana' | 'pagerduty' | 'opsgenie' | 'manual'
 
 export function WizardStepSchedule({ hasSchedule, onComplete, onSkip }: Props) {
   const [mode, setMode] = useState<Mode>('choose')
@@ -52,6 +53,18 @@ export function WizardStepSchedule({ hasSchedule, onComplete, onSkip }: Props) {
     </div>
   )
 
+  if (mode === 'opsgenie') return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 mb-2">
+        <button onClick={() => setMode('choose')} className="text-sm text-text-tertiary hover:text-text-secondary transition-colors">
+          ← Back
+        </button>
+        <h3 className="text-sm font-semibold text-text-primary">Import from Opsgenie</h3>
+      </div>
+      <OpsgenieImportPanel onComplete={onComplete} />
+    </div>
+  )
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-text-secondary">
@@ -85,15 +98,18 @@ export function WizardStepSchedule({ hasSchedule, onComplete, onSkip }: Props) {
           </div>
         </button>
 
-        <div className="flex items-start gap-3 rounded-lg border border-border bg-surface-secondary/40 px-4 py-3 opacity-60 cursor-not-allowed">
+        <button
+          onClick={() => setMode('opsgenie')}
+          className="flex items-start gap-3 text-left rounded-lg border border-border bg-surface-primary hover:border-brand-primary hover:bg-surface-secondary/50 px-4 py-3 transition-colors"
+        >
           <div className="mt-0.5 w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
             <span className="text-blue-700 text-xs font-bold">OG</span>
           </div>
           <div>
-            <p className="text-sm font-medium text-text-primary">Opsgenie</p>
-            <p className="text-xs text-text-tertiary mt-0.5">Coming soon</p>
+            <p className="text-sm font-medium text-text-primary">Import from Opsgenie</p>
+            <p className="text-xs text-text-tertiary mt-0.5">Migrate schedules and escalation policies</p>
           </div>
-        </div>
+        </button>
 
         <button
           onClick={() => setMode('manual')}

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/opsgenie"
 	"github.com/FluidifyAI/Regen/backend/internal/integrations/pagerduty"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/google/uuid"
@@ -355,4 +356,201 @@ func TestImportPolicy_BothTargetType(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, repo.tiers, 1)
 	assert.Equal(t, models.EscalationTargetBoth, repo.tiers[0].TargetType)
+}
+
+// ─── Opsgenie schedule importer tests ────────────────────────────────────────
+
+func TestImportOpsgenieSchedule_Weekly(t *testing.T) {
+	repo := &mockScheduleRepo{}
+	report := &ImportReport{}
+
+	detail := opsgenie.OGScheduleDetail{
+		ID: "s1", Name: "Primary On-Call", Timezone: "UTC",
+		Rotations: []opsgenie.OGRotation{
+			{
+				ID: "r1", Name: "Weekly Rotation", Type: "weekly", Length: 1,
+				Participants: []opsgenie.OGParticipant{
+					{Type: "user", Username: "alice@example.com", Name: "Alice"},
+				},
+			},
+		},
+	}
+
+	err := importOpsgenieSchedule(repo, detail, map[string]string{"alice@example.com": "Alice"}, false, report)
+	require.NoError(t, err)
+	assert.Equal(t, 1, report.Summary.SchedulesImported)
+	require.Len(t, repo.layers, 1)
+	assert.Equal(t, models.RotationTypeWeekly, repo.layers[0].RotationType)
+	assert.Equal(t, 604800, repo.layers[0].ShiftDurationSeconds)
+	require.Len(t, repo.participants, 1)
+	assert.Equal(t, "Alice", repo.participants[0].UserName)
+}
+
+func TestImportOpsgenieSchedule_Daily(t *testing.T) {
+	repo := &mockScheduleRepo{}
+	report := &ImportReport{}
+
+	detail := opsgenie.OGScheduleDetail{
+		ID: "s2", Name: "Daily Rota",
+		Rotations: []opsgenie.OGRotation{
+			{Type: "daily", Length: 1, Participants: []opsgenie.OGParticipant{{Type: "user", Name: "Bob"}}},
+		},
+	}
+	err := importOpsgenieSchedule(repo, detail, nil, false, report)
+	require.NoError(t, err)
+	assert.Equal(t, models.RotationTypeDaily, repo.layers[0].RotationType)
+	assert.Equal(t, 86400, repo.layers[0].ShiftDurationSeconds)
+}
+
+func TestImportOpsgenieSchedule_Hourly(t *testing.T) {
+	repo := &mockScheduleRepo{}
+	report := &ImportReport{}
+
+	detail := opsgenie.OGScheduleDetail{
+		ID: "s3", Name: "Hourly Rota",
+		Rotations: []opsgenie.OGRotation{
+			{Type: "hourly", Length: 2, Participants: []opsgenie.OGParticipant{{Type: "user", Name: "Carol"}}},
+		},
+	}
+	err := importOpsgenieSchedule(repo, detail, nil, false, report)
+	require.NoError(t, err)
+	assert.Equal(t, models.RotationTypeCustom, repo.layers[0].RotationType)
+	assert.Equal(t, 7200, repo.layers[0].ShiftDurationSeconds) // 2 × 3600
+}
+
+func TestImportOpsgenieSchedule_BiweeklyCustom(t *testing.T) {
+	repo := &mockScheduleRepo{}
+	report := &ImportReport{}
+
+	detail := opsgenie.OGScheduleDetail{
+		ID: "s4", Name: "Biweekly",
+		Rotations: []opsgenie.OGRotation{
+			{Type: "weekly", Length: 2, Participants: []opsgenie.OGParticipant{{Type: "user", Name: "Dave"}}},
+		},
+	}
+	err := importOpsgenieSchedule(repo, detail, nil, false, report)
+	require.NoError(t, err)
+	assert.Equal(t, models.RotationTypeCustom, repo.layers[0].RotationType)
+	assert.Equal(t, 1209600, repo.layers[0].ShiftDurationSeconds) // 2 × 604800
+}
+
+func TestImportOpsgenieSchedule_Conflict_Skip(t *testing.T) {
+	repo := &mockScheduleRepo{schedules: []models.Schedule{{Name: "Existing"}}}
+	report := &ImportReport{}
+
+	detail := opsgenie.OGScheduleDetail{ID: "s5", Name: "Existing"}
+	err := importOpsgenieSchedule(repo, detail, nil, false, report)
+	require.NoError(t, err)
+	assert.Equal(t, 1, report.Summary.SchedulesSkipped)
+}
+
+func TestImportOgsgenieSchedule_TimestampPreserved(t *testing.T) {
+	repo := &mockScheduleRepo{}
+	report := &ImportReport{}
+	start := time.Date(2026, 1, 6, 9, 0, 0, 0, time.UTC)
+
+	detail := opsgenie.OGScheduleDetail{
+		ID: "s6", Name: "Stamped",
+		Rotations: []opsgenie.OGRotation{
+			{Type: "weekly", Length: 1, StartDate: start, Participants: []opsgenie.OGParticipant{{Type: "user", Name: "Eve"}}},
+		},
+	}
+	err := importOpsgenieSchedule(repo, detail, nil, false, report)
+	require.NoError(t, err)
+	assert.Equal(t, start, repo.layers[0].RotationStart)
+}
+
+// ─── Opsgenie policy importer tests ─────────────────────────────────────────
+
+func TestImportOgsgeniePolicy_ScheduleTarget(t *testing.T) {
+	repo := &mockPolicyRepo{}
+	scheduleID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	report := &ImportReport{}
+
+	policy := opsgenie.OGEscalationPolicy{
+		ID: "e1", Name: "Default",
+		Rules: []opsgenie.OGRule{
+			{
+				Delay:     opsgenie.OGDelay{TimeAmount: 5, TimeUnit: "minutes"},
+				Recipient: []opsgenie.OGRecipient{{Type: "schedule", Name: "Primary On-Call"}},
+			},
+		},
+	}
+
+	err := importOpsgeniePolicy(repo, policy, map[string]uuid.UUID{"Primary On-Call": scheduleID}, nil, false, report)
+	require.NoError(t, err)
+	assert.Equal(t, 1, report.Summary.PoliciesImported)
+	require.Len(t, repo.tiers, 1)
+	assert.Equal(t, 300, repo.tiers[0].TimeoutSeconds)
+	assert.Equal(t, models.EscalationTargetSchedule, repo.tiers[0].TargetType)
+	assert.Equal(t, scheduleID, *repo.tiers[0].ScheduleID)
+}
+
+func TestImportOpsgeniePolicy_UserTarget(t *testing.T) {
+	repo := &mockPolicyRepo{}
+	report := &ImportReport{}
+
+	policy := opsgenie.OGEscalationPolicy{
+		ID: "e2", Name: "User Policy",
+		Rules: []opsgenie.OGRule{
+			{
+				Delay:     opsgenie.OGDelay{TimeAmount: 1, TimeUnit: "hours"},
+				Recipient: []opsgenie.OGRecipient{{Type: "user", Username: "alice@example.com", Name: "Alice"}},
+			},
+		},
+	}
+
+	err := importOpsgeniePolicy(repo, policy, nil, map[string]string{"alice@example.com": "Alice"}, false, report)
+	require.NoError(t, err)
+	require.Len(t, repo.tiers, 1)
+	assert.Equal(t, 3600, repo.tiers[0].TimeoutSeconds) // 1 hour
+	assert.Equal(t, models.EscalationTargetUsers, repo.tiers[0].TargetType)
+	assert.Equal(t, models.JSONBArray{"Alice"}, repo.tiers[0].UserNames)
+}
+
+func TestImportOpsgeniePolicy_DelayDays(t *testing.T) {
+	repo := &mockPolicyRepo{}
+	report := &ImportReport{}
+
+	policy := opsgenie.OGEscalationPolicy{
+		ID: "e3", Name: "Slow",
+		Rules: []opsgenie.OGRule{
+			{
+				Delay:     opsgenie.OGDelay{TimeAmount: 2, TimeUnit: "days"},
+				Recipient: []opsgenie.OGRecipient{{Type: "user", Name: "Bob"}},
+			},
+		},
+	}
+	err := importOpsgeniePolicy(repo, policy, nil, nil, false, report)
+	require.NoError(t, err)
+	assert.Equal(t, 172800, repo.tiers[0].TimeoutSeconds) // 2 days
+}
+
+func TestImportOpsgeniePolicy_TeamTarget_Warn(t *testing.T) {
+	repo := &mockPolicyRepo{}
+	report := &ImportReport{}
+
+	policy := opsgenie.OGEscalationPolicy{
+		ID: "e4", Name: "Team Policy",
+		Rules: []opsgenie.OGRule{
+			{
+				Delay:     opsgenie.OGDelay{TimeAmount: 5, TimeUnit: "minutes"},
+				Recipient: []opsgenie.OGRecipient{{Type: "team", Name: "Infra Team"}},
+			},
+		},
+	}
+	err := importOpsgeniePolicy(repo, policy, nil, nil, false, report)
+	require.NoError(t, err)
+	assert.Len(t, report.Warnings, 1)
+	assert.Contains(t, report.Warnings[0], "team target")
+}
+
+func TestImportOpsgeniePolicy_Conflict_Skip(t *testing.T) {
+	repo := &mockPolicyRepo{policies: []models.EscalationPolicy{{Name: "Existing"}}}
+	report := &ImportReport{}
+
+	policy := opsgenie.OGEscalationPolicy{ID: "e5", Name: "Existing"}
+	err := importOpsgeniePolicy(repo, policy, nil, nil, false, report)
+	require.NoError(t, err)
+	assert.Equal(t, 1, report.Summary.PoliciesSkipped)
 }

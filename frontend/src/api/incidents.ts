@@ -14,7 +14,14 @@ import type {
 export async function listIncidents(
   params?: ListIncidentsParams
 ): Promise<PaginatedResponse<Incident>> {
-  return apiClient.get<PaginatedResponse<Incident>>('/api/v1/incidents', params)
+  const { customFields, ...rest } = params ?? {}
+  const query: Record<string, string | number | undefined> = { ...rest }
+  if (customFields) {
+    for (const [k, v] of Object.entries(customFields)) {
+      if (v) query[`cf[${k}]`] = v
+    }
+  }
+  return apiClient.get<PaginatedResponse<Incident>>('/api/v1/incidents', query)
 }
 
 /**

@@ -47,6 +47,8 @@ export function useIncidents(params: ListIncidentsParams = {}): UseIncidentsResu
     params.severity,
     params.limit,
     params.page,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    JSON.stringify(params.customFields),
   ])
 
   useEffect(() => {
@@ -78,6 +80,8 @@ export function useIncidents(params: ListIncidentsParams = {}): UseIncidentsResu
     params.severity,
     params.limit,
     params.page,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    JSON.stringify(params.customFields),
   ])
 
   return {

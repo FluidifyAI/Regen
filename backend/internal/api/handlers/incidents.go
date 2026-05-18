@@ -264,14 +264,23 @@ func UpdateIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 		}
 
 		// Update incident
+		var cfJSONB models.JSONB
+		if req.CustomFields != nil {
+			cfJSONB = make(models.JSONB, len(req.CustomFields))
+			for k, v := range req.CustomFields {
+				cfJSONB[k] = v
+			}
+		}
+
 		params := services.UpdateIncidentParams{
-			Status:      models.IncidentStatus(req.Status),
-			Severity:    models.IncidentSeverity(req.Severity),
-			Summary:     req.Summary,
-			UpdatedBy:   actorIDFromContext(c),
-			ClientIP:    c.ClientIP(),
-			AIEnabled:   req.AIEnabled,
-			CommanderID: req.CommanderID,
+			Status:       models.IncidentStatus(req.Status),
+			Severity:     models.IncidentSeverity(req.Severity),
+			Summary:      req.Summary,
+			UpdatedBy:    actorIDFromContext(c),
+			ClientIP:     c.ClientIP(),
+			AIEnabled:    req.AIEnabled,
+			CommanderID:  req.CommanderID,
+			CustomFields: cfJSONB,
 		}
 
 		updatedIncident, err := incidentSvc.UpdateIncident(incident.ID, &params)

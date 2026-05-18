@@ -28,6 +28,9 @@ export interface Incident {
   ai_summary_generated_at?: string
   // AI Agents (v0.9+)
   ai_enabled: boolean
+
+  // Custom fields (OPE-109)
+  custom_fields?: Record<string, string>
 }
 
 // AI response types (v0.6+)

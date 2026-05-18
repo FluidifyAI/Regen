@@ -34,6 +34,9 @@ type IncidentResponse struct {
 
 	// AI Agents (v0.9+)
 	AIEnabled bool `json:"ai_enabled"`
+
+	// Custom fields (OPE-109)
+	CustomFields map[string]interface{} `json:"custom_fields,omitempty"`
 }
 
 // SlackChannelInfo contains Slack channel details
@@ -98,6 +101,9 @@ func ToIncidentResponse(incident *models.Incident) IncidentResponse {
 
 		// AI Agents (v0.9+)
 		AIEnabled: incident.AIEnabled,
+
+		// Custom fields (OPE-109)
+		CustomFields: incident.CustomFields,
 	}
 
 	// Add Slack channel info if available

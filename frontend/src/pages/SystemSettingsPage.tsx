@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle, AlertCircle, Eye, EyeOff, Loader2, Save } from 'lucide-react'
+import { CheckCircle, AlertCircle, Eye, EyeOff, Loader2, Save, ExternalLink } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { Button } from '../components/ui/Button'
 import {
@@ -257,6 +257,25 @@ export function SystemSettingsPage() {
             </span>
           )}
         </div>
+      </section>
+
+      {/* ── Status Page ──────────────────────────────────────────────────── */}
+      <section className="bg-surface-primary border border-border-primary rounded-xl p-6 space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-text-primary">Status Page</h2>
+          <p className="text-sm text-text-secondary mt-0.5">
+            A public, read-only page showing active and recently resolved incidents. No login required.
+          </p>
+        </div>
+        <a
+          href="/status"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-sm text-brand-primary hover:underline"
+        >
+          <ExternalLink className="w-4 h-4" />
+          {window.location.origin}/status
+        </a>
       </section>
 
       {/* ── AI Provider ──────────────────────────────────────────────────── */}

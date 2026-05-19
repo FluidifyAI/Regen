@@ -5,7 +5,7 @@ import { LoginPage } from '../../pages/LoginPage'
 import { getSetupStatus } from '../../api/setup'
 
 // Routes that are always accessible regardless of auth state.
-const PUBLIC_PATHS = ['/login', '/logout']
+const PUBLIC_PATHS = ['/login', '/logout', '/status']
 
 const WIZARD_STORAGE_KEY = 'regen_setup_wizard_v1'
 

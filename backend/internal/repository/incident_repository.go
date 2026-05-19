@@ -35,11 +35,12 @@ type IncidentRepository interface {
 
 // IncidentFilters holds filter options for listing incidents
 type IncidentFilters struct {
-	Status       models.IncidentStatus
-	Severity     models.IncidentSeverity
-	StartDate    *time.Time
-	EndDate      *time.Time
-	CustomFields map[string]string
+	Status        models.IncidentStatus
+	Severity      models.IncidentSeverity
+	StartDate     *time.Time
+	EndDate       *time.Time
+	CustomFields  map[string]string
+	ResolvedSince *time.Time // filters on resolved_at >= value
 }
 
 // incidentRepository implements IncidentRepository
@@ -118,6 +119,9 @@ func (r *incidentRepository) List(filters IncidentFilters, pagination Pagination
 	}
 	for k, v := range filters.CustomFields {
 		query = query.Where("custom_fields @> ?", fmt.Sprintf(`{"%s":"%s"}`, k, v))
+	}
+	if filters.ResolvedSince != nil {
+		query = query.Where("resolved_at >= ?", filters.ResolvedSince)
 	}
 
 	// Get total count

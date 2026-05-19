@@ -47,8 +47,6 @@ interface NavSection {
  * Features: collapsible sections, localStorage persistence, mobile overlay
  */
 const ADMIN_EXPANDED_KEY = 'sidebar-admin-expanded'
-// Height of exactly 3 nav items (h-10 = 40px each, space-y-1 = 4px gap)
-const ADMIN_COLLAPSED_MAX_H = 128
 
 export function Sidebar() {
   const location = useLocation()
@@ -322,18 +320,14 @@ export function Sidebar() {
               </button>
 
               {/* Items with smooth height transition */}
-              <div className="relative px-2 pb-2">
+              <div className="px-2 pb-2">
                 <div
                   className="space-y-1 overflow-hidden transition-all duration-200 ease-in-out"
-                  style={{ maxHeight: adminExpanded ? `${adminBottomItems.length * 44}px` : `${ADMIN_COLLAPSED_MAX_H}px` }}
+                  style={{ maxHeight: adminExpanded ? `${adminBottomItems.length * 44}px` : '0px' }}
                 >
                   {adminBottomItems.map(renderNavItem)}
                 </div>
 
-                {/* Fade mask — only when collapsed and items overflow */}
-                {!adminExpanded && adminBottomItems.length > 3 && (
-                  <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-sidebar-bg to-transparent pointer-events-none" />
-                )}
               </div>
             </>
           )}

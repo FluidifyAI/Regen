@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  Part of the <a href="https://fluidify.ai">Fluidify</a> open-source suite
+  Part of the <a href="https://fluidify.ai">FluidifyAI</a> open-source suite
 </p>
 
 <p align="center">
@@ -20,9 +20,9 @@
 
 ---
 
-> **Fluidify Regen is free, forever** — unlimited seats, unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
+> Unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
 
-> The **one-stop alternative to PagerDuty + incident.io**, with **1-click import from Grafana OnCall and PagerDuty**.
+> The **one-stop alternative to PagerDuty + incident.io**, with **1-click import from Grafana OnCall/PagerDuty**.
 
 ---
 
@@ -40,13 +40,13 @@
 - Escalation policies with multi-step timeouts
 - Slack integration — channels, bot commands, timeline sync
 - Microsoft Teams integration — Adaptive Cards, bot commands
-- AI incident summaries + post-mortem drafts (BYO key — OpenAI, Anthropic, or Ollama)
+- AI incident summaries + post-mortem drafts (BYO key — OpenAI/Anthropic/Ollama)
 - SSO / SAML — Okta, Azure AD, Google Workspace — **free, always**
-- 1-click migration from Grafana OnCall and PagerDuty
+- 1-click migration from Grafana OnCall/PagerDuty
 - Docker Compose + Kubernetes Helm chart
 - PostgreSQL HA + Redis Sentinel support
-
-> SSO is free. Gating SSO behind a paid tier is user-hostile. We stay off [sso.tax](https://sso.tax).
+- 1 click import from Grafana Oncall/Pagerduty
+- No limits on incidents/AI features
 
 ---
 
@@ -63,11 +63,9 @@ curl -X POST http://localhost:8080/api/v1/incidents/INC-042/summarize \
 
 ### Historical Pattern Matching
 
-When an incident fires, Regen searches your full incident history for similar patterns — same service, same alert fingerprint, similar timeline signatures — and surfaces the match directly in Slack:
+Stop re-diagnosing solved problems. When an incident fires, Regen scans your history for matches — same service, alert fingerprint, timeline — and surfaces them in Slack:
 
 > 🤖 **Regen:** This looks like INC-157 from November (Redis memory eviction, resolved in 18 min). [View timeline →]
-
-Engineers stop re-diagnosing problems they've already solved. Every incident makes the next one faster.
 
 ### Post-Mortem Agent
 
@@ -112,12 +110,13 @@ Generates a shift-handoff briefing covering all open incidents, recent status ch
 | BYO AI | ✅ | ❌ | ❌ | ❌ |
 | Agent-native | ✅ | ❌ | ❌ | ❌ |
 | Alert + incident + on-call in one | ✅ | ⚠️ | ⚠️ | ⚠️ |
+| 1-Click imports | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
 ## Coming from Grafana OnCall?
 
-Grafana OnCall was archived in March 2026. Fluidify Regen is built to be the drop-in OSS successor — same self-hosted model, no SaaS lock-in.
+Grafana OnCall was archived in March 2026. Fluidify Regen is built to be the drop-in OSS successor — same self-hosted model.
 
 Point your Alertmanager at Regen and you're receiving alerts in minutes:
 
@@ -150,49 +149,6 @@ PagerDuty's pricing scales fast — $21–50/user/month adds up. Fluidify Regen 
 3. Preview exactly what will be imported, then click **Import everything**
 
 No data leaves your network — Regen calls the PagerDuty API directly from your server, imports the records, and you're done.
-
----
-
-## Using Ollama for fully local AI
-
-If you operate in a regulated environment or simply don't want incident data leaving your infrastructure, Regen supports [Ollama](https://ollama.ai) as a drop-in AI backend. No API key required — AI features run entirely on your own hardware.
-
-**Recommended models:**
-- `llama3.1:8b` — minimum spec, fast on CPU
-- `llama3.1:70b` — best quality, GPU recommended
-
-**Setup:**
-
-1. Install Ollama and pull your preferred model:
-   ```bash
-   ollama pull llama3.1:8b
-   ```
-
-2. Set the environment variables (or configure via Settings → System → AI Provider):
-   ```env
-   AI_PROVIDER=ollama
-   OLLAMA_BASE_URL=http://localhost:11434
-   OLLAMA_MODEL=llama3.1:8b
-   ```
-
-3. Or via Docker Compose alongside Regen:
-   ```yaml
-   services:
-     ollama:
-       image: ollama/ollama
-       ports:
-         - "11434:11434"
-       volumes:
-         - ollama_data:/root/.ollama
-
-   volumes:
-     ollama_data:
-   ```
-   Set `OLLAMA_BASE_URL=http://ollama:11434` in Regen's environment.
-
-All incident summaries, post-mortem drafts, and handoff digests will use Ollama — no data ever leaves your network.
-
----
 
 ## Install
 
@@ -231,6 +187,8 @@ helm install fluidify-regen deploy/helm/fluidify-regen \
 ```
 
 For production HA (external DB, Redis Sentinel, zero-downtime deploys), see [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
+---
 
 ## Built for production
 
@@ -325,4 +283,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [Makefile](Makefile) (`make help`) fo
 
 ---
 
-<p align="center">Built by <a href="https://fluidify.ai">Fluidify</a> · your incident data belongs to you</p>
+<p align="center">Built by <a href="https://fluidify.ai">FluidifyAI</a> · your incident data belongs to you</p>

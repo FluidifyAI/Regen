@@ -46,6 +46,10 @@ interface NavSection {
  * Persistent dark left sidebar navigation matching incident.io patterns
  * Features: collapsible sections, localStorage persistence, mobile overlay
  */
+const ADMIN_EXPANDED_KEY = 'sidebar-admin-expanded'
+// Height of exactly 3 nav items (h-10 = 40px each, space-y-1 = 4px gap)
+const ADMIN_COLLAPSED_MAX_H = 128
+
 export function Sidebar() {
   const location = useLocation()
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -55,6 +59,9 @@ export function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [sectionsExpanded, setSectionsExpanded] = useState<Record<string, boolean>>({
     organization: true,
+  })
+  const [adminExpanded, setAdminExpanded] = useState(() => {
+    try { return localStorage.getItem(ADMIN_EXPANDED_KEY) !== 'false' } catch { return true }
   })
   const { user: currentUser, signOut } = useAuth()
   const [showProfile, setShowProfile] = useState(false)
@@ -68,6 +75,13 @@ export function Sidebar() {
   const toggleCollapse = () => setIsCollapsed(!isCollapsed)
   const toggleSection = (sectionId: string) => {
     setSectionsExpanded((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }))
+  }
+  const toggleAdminSection = () => {
+    setAdminExpanded(prev => {
+      const next = !prev
+      try { localStorage.setItem(ADMIN_EXPANDED_KEY, String(next)) } catch {}
+      return next
+    })
   }
 
   const topNavItems: NavItem[] = [
@@ -286,10 +300,43 @@ export function Sidebar() {
         ))}
       </div>
 
-      {/* Admin bottom-pinned nav (Users etc.) — sits just above the profile bar */}
+      {/* Admin bottom-pinned nav — collapsible when sidebar is expanded */}
       {adminBottomItems.length > 0 && (
-        <div className="border-t border-sidebar-border px-2 py-2 space-y-1">
-          {adminBottomItems.map(renderNavItem)}
+        <div className="border-t border-sidebar-border">
+          {isCollapsed ? (
+            // Icon-only mode: show all items, no expand toggle needed
+            <div className="px-2 py-2 space-y-1">
+              {adminBottomItems.map(renderNavItem)}
+            </div>
+          ) : (
+            <>
+              {/* Section header with expand/collapse toggle */}
+              <button
+                onClick={toggleAdminSection}
+                className="flex items-center w-full px-3 py-2 text-xs uppercase tracking-wider text-text-tertiary hover:text-sidebar-text transition-colors"
+              >
+                <span className="flex-1 text-left">Settings</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${adminExpanded ? '' : '-rotate-90'}`}
+                />
+              </button>
+
+              {/* Items with smooth height transition */}
+              <div className="relative px-2 pb-2">
+                <div
+                  className="space-y-1 overflow-hidden transition-all duration-200 ease-in-out"
+                  style={{ maxHeight: adminExpanded ? `${adminBottomItems.length * 44}px` : `${ADMIN_COLLAPSED_MAX_H}px` }}
+                >
+                  {adminBottomItems.map(renderNavItem)}
+                </div>
+
+                {/* Fade mask — only when collapsed and items overflow */}
+                {!adminExpanded && adminBottomItems.length > 3 && (
+                  <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-sidebar-bg to-transparent pointer-events-none" />
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 

@@ -259,6 +259,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		// is kept for SAML redirect flows and deep-link compatibility.
 		v1.POST("/auth/logout", handlers.APILogout(samlMiddleware, localAuth))
 
+		// Status page — public, no auth required (OPE-111)
+		v1.GET("/status", handlers.GetStatusPage(incidentRepo, systemSettingsRepo))
+
 		// Auth identity endpoint — no RequireAuth so unauthenticated callers can
 		// read ssoEnabled to show the SSO button. InjectSAMLSession populates the
 		// SAML session in context without aborting, so authenticated SAML users

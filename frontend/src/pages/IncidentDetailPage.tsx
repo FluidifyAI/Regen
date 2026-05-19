@@ -126,8 +126,8 @@ export function IncidentDetailPage() {
         {/* Sticky compact bar (IntersectionObserver-driven, no scroll listener) */}
         <div
           className={`sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-border shadow-sm
-            transition-all duration-200 ease-out
-            ${stickyVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1 pointer-events-none'}`}
+            transition-all duration-200 ease-out overflow-hidden
+            ${stickyVisible ? 'opacity-100 translate-y-0 h-12' : 'opacity-0 -translate-y-1 pointer-events-none h-0'}`}
         >
           <div className="flex items-center gap-3 px-6 h-12 max-w-5xl">
             <span className="text-xs font-mono text-text-tertiary flex-shrink-0">

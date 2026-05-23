@@ -181,7 +181,9 @@ docker-compose up -d
 ### Kubernetes (Helm)
 
 ```bash
-helm install fluidify-regen deploy/helm/fluidify-regen \
+helm repo add fluidify https://charts.fluidify.ai
+helm repo update
+helm install fluidify-regen fluidify/fluidify-regen \
   --set ingress.host=incidents.your-domain.com \
   --set postgresql.auth.password=<strong-password>
 ```

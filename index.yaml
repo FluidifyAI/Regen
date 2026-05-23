@@ -27,7 +27,7 @@ entries:
     - https://github.com/FluidifyAI/Regen
     type: application
     urls:
-    - https://charts.fluidify.ai/charts/fluidify-regen-0.11.0.tgz
+    - https://charts.fluidify.ai/fluidify-regen-0.11.0.tgz
     version: 0.11.0
   - apiVersion: v2
     appVersion: 0.10.0
@@ -55,6 +55,6 @@ entries:
     - https://github.com/FluidifyAI/Regen
     type: application
     urls:
-    - https://charts.fluidify.ai/charts/fluidify-regen-0.1.0.tgz
+    - https://charts.fluidify.ai/fluidify-regen-0.1.0.tgz
     version: 0.1.0
 generated: "2026-05-23T18:35:51.887163548Z"

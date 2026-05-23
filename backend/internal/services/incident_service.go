@@ -64,6 +64,7 @@ type IncidentService interface {
 	ListIncidents(filters repository.IncidentFilters, pagination repository.Pagination) ([]models.Incident, int64, error)
 	GetIncident(id uuid.UUID, number int) (*models.Incident, error)
 	GetIncidentBySlackChannelID(channelID string) (*models.Incident, error)
+	GetIncidentBySlackMessageTS(messageTS string) (*models.Incident, error)
 	CreateIncident(params *CreateIncidentParams) (*models.Incident, error)
 	UpdateIncident(id uuid.UUID, params *UpdateIncidentParams) (*models.Incident, error)
 	AcknowledgeIncident(id uuid.UUID, actorType, actorID string) error
@@ -71,6 +72,9 @@ type IncidentService interface {
 	GetIncidentAlerts(incidentID uuid.UUID) ([]models.Alert, error)
 	GetIncidentTimeline(incidentID uuid.UUID, pagination repository.Pagination) ([]models.TimelineEntry, int64, error)
 	CreateTimelineEntry(params *CreateTimelineEntryParams) (*models.TimelineEntry, error)
+
+	// Generic status transition used by bots/integrations (e.g. Slack reactions).
+	UpdateIncidentStatus(id uuid.UUID, status models.IncidentStatus, actorType, actorID string) error
 
 	// Slack notifications
 	PostStatusUpdateToSlack(incident *models.Incident, previousStatus, newStatus models.IncidentStatus) error
@@ -861,6 +865,40 @@ func (s *incidentService) GetIncidentBySlackChannelID(channelID string) (*models
 	return s.incidentRepo.GetBySlackChannelID(channelID)
 }
 
+// GetIncidentBySlackMessageTS looks up an incident by the message timestamp of its pinned Slack card.
+// Returns nil, nil if no incident has that message timestamp.
+func (s *incidentService) GetIncidentBySlackMessageTS(messageTS string) (*models.Incident, error) {
+	return s.incidentRepo.GetBySlackMessageTS(messageTS)
+}
+
+// UpdateIncidentStatus transitions an incident to the given status and records a timeline entry.
+// Used by bots and integrations (e.g. Slack emoji reactions) where the target status is dynamic.
+func (s *incidentService) UpdateIncidentStatus(id uuid.UUID, status models.IncidentStatus, actorType, actorID string) error {
+	incident, err := s.incidentRepo.GetByID(id)
+	if err != nil {
+		return err
+	}
+	previousStatus := incident.Status
+	if err := s.incidentRepo.UpdateStatus(id, status); err != nil {
+		return err
+	}
+	s.createTimelineEntry(id, models.TimelineTypeStatusChanged, models.JSONB{
+		"previous_status": string(previousStatus),
+		"new_status":      string(status),
+		"actor":           actorID,
+	})
+	if status == models.IncidentStatusResolved {
+		go publishResolved(id, incident.AIEnabled)
+		if updatedIncident, err := s.incidentRepo.GetByID(id); err == nil && s.teamsSvc != nil {
+			go func() {
+				defer recoverAsyncPanic("postStatusUpdateToTeams(reaction-resolve)", "incident_id", id)
+				s.postStatusUpdateToTeams(updatedIncident, previousStatus, status, actorID)
+			}()
+		}
+	}
+	return nil
+}
+
 // CreateIncident creates a new incident manually (not from an alert)
 func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.Incident, error) {
 	// Generate slug
@@ -1302,7 +1340,8 @@ func (s *incidentService) postTimelineNoteToSlack(incidentID uuid.UUID, content 
 	}
 
 	slackMessage := Message{
-		Text: fmt.Sprintf(":memo: *Note from web UI:*\n%s", messageText),
+		Text:     fmt.Sprintf(":memo: *Note from web UI:*\n%s", messageText),
+		ThreadTS: incident.SlackMessageTS,
 	}
 
 	if _, err := s.chatService.PostMessage(incident.SlackChannelID, slackMessage); err != nil {

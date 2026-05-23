@@ -31,6 +31,9 @@ func (m *mockIncidentRepoForSetup) GetByID(_ uuid.UUID) (*models.Incident, error
 func (m *mockIncidentRepoForSetup) GetBySlackChannelID(_ string) (*models.Incident, error) {
 	return nil, nil
 }
+func (m *mockIncidentRepoForSetup) GetBySlackMessageTS(_ string) (*models.Incident, error) {
+	return nil, nil
+}
 func (m *mockIncidentRepoForSetup) GetByTeamsChannelID(_ string) (*models.Incident, error) {
 	return nil, nil
 }

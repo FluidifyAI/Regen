@@ -16,6 +16,7 @@ type IncidentRepository interface {
 	GetByID(id uuid.UUID) (*models.Incident, error)
 	GetByNumber(number int) (*models.Incident, error)
 	GetBySlackChannelID(channelID string) (*models.Incident, error)
+	GetBySlackMessageTS(messageTS string) (*models.Incident, error)
 	GetByTeamsChannelID(channelID string) (*models.Incident, error)
 	GetByTeamsConversationID(conversationID string) (*models.Incident, error)
 	List(filters IncidentFilters, pagination Pagination) ([]models.Incident, int64, error)
@@ -93,6 +94,19 @@ func (r *incidentRepository) GetBySlackChannelID(channelID string) (*models.Inci
 			return nil, nil // Not found is not an error — caller checks nil
 		}
 		return nil, &DatabaseError{Op: "get incident by slack channel id", Err: err}
+	}
+	return &incident, nil
+}
+
+// GetBySlackMessageTS retrieves an incident by the message timestamp of its pinned Slack card.
+// Returns nil (not an error) when not found — caller checks nil.
+func (r *incidentRepository) GetBySlackMessageTS(messageTS string) (*models.Incident, error) {
+	var incident models.Incident
+	if err := r.db.Where("slack_message_ts = ?", messageTS).First(&incident).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, &DatabaseError{Op: "get incident by slack message ts", Err: err}
 	}
 	return &incident, nil
 }

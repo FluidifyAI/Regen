@@ -69,6 +69,12 @@ func (m *mockIncidentService) GetIncident(id uuid.UUID, number int) (*models.Inc
 func (m *mockIncidentService) GetIncidentBySlackChannelID(channelID string) (*models.Incident, error) {
 	return nil, nil
 }
+func (m *mockIncidentService) GetIncidentBySlackMessageTS(_ string) (*models.Incident, error) {
+	return nil, nil
+}
+func (m *mockIncidentService) UpdateIncidentStatus(_ uuid.UUID, _ models.IncidentStatus, _, _ string) error {
+	return nil
+}
 func (m *mockIncidentService) CreateIncident(params *CreateIncidentParams) (*models.Incident, error) {
 	return &models.Incident{ID: uuid.New()}, nil
 }

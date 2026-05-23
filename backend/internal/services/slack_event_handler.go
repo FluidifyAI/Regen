@@ -416,6 +416,8 @@ func (h *SlackEventHandler) handleEventsAPI(evt socketmode.Event) {
 		h.handleChannelMessage(ev)
 	case *slackevents.AppMentionEvent:
 		go h.handleAppMention(ev)
+	case *slackevents.ReactionAddedEvent:
+		go h.handleReactionAdded(ev)
 	default:
 		slog.Warn("slack events api: unhandled inner event type", "type", eventsAPIEvent.InnerEvent.Type)
 	}
@@ -998,6 +1000,52 @@ func sanitizeForSlack(text string) string {
 	text = reBoldTriple.ReplaceAllString(text, "*$1*")
 	text = reHeaderPattern.ReplaceAllString(text, "*")
 	return strings.TrimSpace(text)
+}
+
+// handleReactionAdded processes emoji reactions on the incident card.
+// ✅ (white_check_mark) → acknowledged, 🔴 (red_circle) → resolved.
+// Reactions on non-message items, non-incident channels, or invalid transitions are silent no-ops.
+func (h *SlackEventHandler) handleReactionAdded(ev *slackevents.ReactionAddedEvent) {
+	if ev.Item.Type != "message" {
+		return
+	}
+	var targetStatus models.IncidentStatus
+	switch ev.Reaction {
+	case "white_check_mark":
+		targetStatus = models.IncidentStatusAcknowledged
+	case "red_circle":
+		targetStatus = models.IncidentStatusResolved
+	default:
+		return
+	}
+	incident, err := h.incidentService.GetIncidentBySlackMessageTS(ev.Item.Timestamp)
+	if err != nil || incident == nil {
+		return
+	}
+	if incident.SlackChannelID != ev.Item.Channel {
+		return
+	}
+	allowed, ok := validSlackTransitions[incident.Status]
+	if !ok {
+		return
+	}
+	canTransition := false
+	for _, s := range allowed {
+		if s == targetStatus {
+			canTransition = true
+			break
+		}
+	}
+	if !canTransition {
+		return
+	}
+	if err := h.incidentService.UpdateIncidentStatus(incident.ID, targetStatus, "slack_reaction", ev.User); err != nil {
+		slog.Warn("reaction: failed to update incident status",
+			"incident_id", incident.ID,
+			"reaction", ev.Reaction,
+			"target_status", targetStatus,
+			"error", err)
+	}
 }
 
 func (h *SlackEventHandler) postToThread(channelID, threadTS, text string) (string, error) {

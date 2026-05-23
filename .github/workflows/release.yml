@@ -65,8 +65,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: /tmp/helm-pkg
-          destination_dir: charts
           keep_files: true
+          cname: charts.fluidify.ai
           user_name: github-actions[bot]
           user_email: github-actions[bot]@users.noreply.github.com
 
@@ -76,9 +76,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git fetch origin gh-pages
           git worktree add /tmp/gh-pages origin/gh-pages
-          cp /tmp/helm-pkg/*.tgz /tmp/gh-pages/charts/
-          helm repo index /tmp/gh-pages/charts --url https://charts.fluidify.ai/charts --merge /tmp/gh-pages/charts/index.yaml
+          cp /tmp/helm-pkg/*.tgz /tmp/gh-pages/
+          helm repo index /tmp/gh-pages --url https://charts.fluidify.ai --merge /tmp/gh-pages/index.yaml
           cd /tmp/gh-pages
-          git add charts/
+          git add *.tgz index.yaml
           git diff --cached --quiet || git commit -m "chore: update helm repo index for ${{ github.ref_name }}"
           git push origin HEAD:gh-pages

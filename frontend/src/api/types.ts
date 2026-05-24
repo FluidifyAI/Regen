@@ -28,9 +28,6 @@ export interface Incident {
   ai_summary_generated_at?: string
   // AI Agents (v0.9+)
   ai_enabled: boolean
-
-  // Custom fields (OPE-109)
-  custom_fields?: Record<string, string>
 }
 
 // AI response types (v0.6+)
@@ -121,7 +118,6 @@ export interface CreateIncidentRequest {
   severity?: 'critical' | 'high' | 'medium' | 'low'
   description?: string
   ai_enabled?: boolean
-  custom_fields?: Record<string, string>
 }
 
 export interface UpdateIncidentRequest {
@@ -130,7 +126,6 @@ export interface UpdateIncidentRequest {
   summary?: string
   ai_enabled?: boolean
   commander_id?: string | null
-  custom_fields?: Record<string, string>
 }
 
 // AI Agents (v0.9+)
@@ -157,7 +152,6 @@ export interface ListIncidentsParams {
   limit?: number
   page?: number
   offset?: number
-  customFields?: Record<string, string>
 }
 
 export interface ListTimelineParams {

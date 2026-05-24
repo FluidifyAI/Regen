@@ -7,7 +7,6 @@ import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyIncidentsList } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
 import { useIncidents } from '../hooks/useIncidents'
-import { listCustomFields, CustomFieldDefinition } from '../api/customFields'
 import { Search, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Incident } from '../api/types'
 
@@ -23,28 +22,17 @@ export function IncidentsListPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDefinition[]>([])
-  const [customFieldFilters, setCustomFieldFilters] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    listCustomFields().then(setCustomFieldDefs).catch(() => {})
-  }, [])
 
   // Reset to page 1 whenever server-side filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [statusFilter, severityFilter, customFieldFilters])
-
-  const activeCustomFieldFilters = Object.fromEntries(
-    Object.entries(customFieldFilters).filter(([, v]) => v.trim() !== '')
-  )
+  }, [statusFilter, severityFilter])
 
   const { incidents, loading, error, total, refetch } = useIncidents({
     status: statusFilter || undefined,
     severity: severityFilter || undefined,
     limit: PAGE_SIZE,
     page: currentPage,
-    customFields: Object.keys(activeCustomFieldFilters).length > 0 ? activeCustomFieldFilters : undefined,
   })
 
   // Client-side search filters the current page's results
@@ -122,32 +110,6 @@ export function IncidentsListPage() {
             <option value="low">Low</option>
           </select>
 
-          {/* Custom field filters */}
-          {customFieldDefs.map(def => (
-            def.field_type === 'dropdown' ? (
-              <select
-                key={def.key}
-                value={customFieldFilters[def.key] ?? ''}
-                onChange={e => setCustomFieldFilters(prev => ({ ...prev, [def.key]: e.target.value }))}
-                className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
-              >
-                <option value="">All {def.name.toLowerCase()}</option>
-                {def.options.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                key={def.key}
-                type={def.field_type === 'number' ? 'number' : 'text'}
-                placeholder={def.name}
-                value={customFieldFilters[def.key] ?? ''}
-                onChange={e => setCustomFieldFilters(prev => ({ ...prev, [def.key]: e.target.value }))}
-                className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent w-36"
-              />
-            )
-          ))}
-
           {/* Results Count */}
           <div className="text-sm text-text-secondary">
             {loading ? '...' : searchQuery
@@ -169,7 +131,7 @@ export function IncidentsListPage() {
         {!loading && !error && filteredIncidents.length === 0 && (
           <EmptyIncidentsList
             onDeclare={handleDeclareIncident}
-            hasFilters={!!(statusFilter || severityFilter || searchQuery || Object.keys(activeCustomFieldFilters).length > 0)}
+            hasFilters={!!(statusFilter || severityFilter || searchQuery)}
           />
         )}
 

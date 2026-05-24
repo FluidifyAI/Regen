@@ -32,14 +32,13 @@ type CreateIncidentParams struct {
 
 // UpdateIncidentParams holds parameters for updating an incident
 type UpdateIncidentParams struct {
-	Status       models.IncidentStatus
-	Severity     models.IncidentSeverity
-	Summary      string
-	UpdatedBy    string
-	ClientIP     string      // For audit logging
-	AIEnabled    *bool       // Controls whether AI agents process this incident. nil = no change.
-	CommanderID  *uuid.UUID  // nil = no change
-	CustomFields models.JSONB // nil = no change; non-nil replaces the entire map
+	Status      models.IncidentStatus
+	Severity    models.IncidentSeverity
+	Summary     string
+	UpdatedBy   string
+	ClientIP    string     // For audit logging
+	AIEnabled   *bool      // Controls whether AI agents process this incident. nil = no change.
+	CommanderID *uuid.UUID // nil = no change
 }
 
 // CreateTimelineEntryParams holds parameters for creating a timeline entry
@@ -1135,11 +1134,6 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 					return err
 				}
 			}
-		}
-
-		// Replace custom fields if explicitly provided
-		if params.CustomFields != nil {
-			incident.CustomFields = params.CustomFields
 		}
 
 		// Update incident

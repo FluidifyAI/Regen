@@ -12,12 +12,11 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers"
 	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	"github.com/FluidifyAI/Regen/backend/internal/config"
-	"github.com/FluidifyAI/Regen/backend/internal/enterprise"
+	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
-	"github.com/FluidifyAI/Regen/backend/ui"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -440,6 +439,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			settingsGroup.PATCH("/system/telemetry", handlers.PatchTelemetrySettings(systemSettingsRepo))
 		}
 
+		// Custom fields — Pro tier; no-op returns 402 in OSS build.
+		cfGroup := protected.Group("/custom-fields", middleware.RequireAdmin())
+		hooks.CustomFields.RegisterRoutes(cfGroup, db)
+
 		// Migrations — admin only (OPE-67)
 		migrationsGroup := protected.Group("/migrations", middleware.RequireAdmin())
 		{
@@ -459,7 +462,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	// ui.Files() returns nil when the frontend has not been built (e.g. local
 	// development using `npm run dev`), in which case we skip static serving
 	// so the API remains fully functional on its own.
-	if distFS := ui.FS(); distFS != nil {
+	if distFS := hooks.UI.FS(); distFS != nil {
 		slog.Info("serving embedded frontend")
 
 		// Read index.html once at startup. All SPA routes serve this same file;

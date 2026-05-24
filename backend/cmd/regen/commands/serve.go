@@ -16,7 +16,6 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/coordinator"
 	"github.com/FluidifyAI/Regen/backend/internal/coordinator/agents"
 	"github.com/FluidifyAI/Regen/backend/internal/database"
-	"github.com/FluidifyAI/Regen/backend/internal/enterprise"
 	"github.com/FluidifyAI/Regen/backend/internal/licence"
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/redis"
@@ -177,9 +176,8 @@ func runServe(_ *cobra.Command, _ []string) error {
 	}
 
 	// Enterprise hooks — no-op stubs in the OSS build.
-	// Replace enterprise.NewNoOp() with the real implementation in the
-	// enterprise binary to unlock SCIM, audit log export, RBAC, and retention.
-	enterpriseHooks := enterprise.NewNoOp()
+	// regen-pro sets these via SetEnterpriseHooks() before calling Execute().
+	enterpriseHooks := proHooks
 
 	// Create the telemetry worker before SetupRoutes so we can inject its
 	// announcement getter as a closure — no import cycle with internal/worker.

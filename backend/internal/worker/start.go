@@ -5,7 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/FluidifyAI/Regen/backend/internal/config"
-	"github.com/FluidifyAI/Regen/backend/internal/enterprise"
+	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"gorm.io/gorm"

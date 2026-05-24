@@ -17,9 +17,11 @@ package enterprise
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/ui"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -82,6 +84,17 @@ type RetentionEnforcer interface {
 	Start(ctx context.Context, db *gorm.DB)
 }
 
+// ── UI ────────────────────────────────────────────────────────────────────────
+
+// UIProvider supplies the embedded frontend filesystem served by the API server.
+// The OSS no-op returns the OSS build; the Pro binary returns a Pro-built FS
+// that includes all Pro-only pages and components.
+type UIProvider interface {
+	// FS returns the embedded frontend as an fs.FS rooted at dist/, or nil when
+	// no frontend has been built (the API still works, just no SPA).
+	FS() fs.FS
+}
+
 // ── Custom Fields ─────────────────────────────────────────────────────────────
 
 // CustomFieldsHandler mounts custom field definition endpoints.
@@ -100,6 +113,7 @@ type Hooks struct {
 	SCIM         SCIMHandler
 	Retention    RetentionEnforcer
 	CustomFields CustomFieldsHandler
+	UI           UIProvider
 }
 
 // NewNoOp returns Hooks with all no-op stubs — the default for the OSS build.
@@ -110,6 +124,7 @@ func NewNoOp() Hooks {
 		SCIM:         noopSCIM{},
 		Retention:    noopRetention{},
 		CustomFields: noopCustomFields{},
+		UI:           noopUI{},
 	}
 }
 
@@ -142,6 +157,12 @@ func (noopSCIM) RegisterRoutes(group *gin.RouterGroup) {
 type noopRetention struct{}
 
 func (noopRetention) Start(_ context.Context, _ *gorm.DB) {}
+
+// noopUI serves the OSS-built frontend. When no frontend has been compiled,
+// FS() returns nil and the router silently skips static file serving.
+type noopUI struct{}
+
+func (noopUI) FS() fs.FS { return ui.FS() }
 
 // noopCustomFields returns 402 on all routes — custom fields are a Pro feature.
 type noopCustomFields struct{}

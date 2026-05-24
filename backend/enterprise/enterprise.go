@@ -4,7 +4,7 @@
 //
 // Enterprise repo usage:
 //
-//	import "github.com/FluidifyAI/Regen/backend/internal/enterprise"
+//	import "github.com/FluidifyAI/Regen/backend/enterprise"
 //
 //	hooks := enterprise.Hooks{
 //	    RBAC:      myrbac.NewProvider(db),
@@ -87,7 +87,7 @@ type RetentionEnforcer interface {
 // CustomFieldsHandler mounts custom field definition endpoints.
 // The no-op stub returns 402 on all routes — custom fields require a Pro licence.
 type CustomFieldsHandler interface {
-	RegisterRoutes(group *gin.RouterGroup)
+	RegisterRoutes(group *gin.RouterGroup, db *gorm.DB)
 }
 
 // ── Hooks — the single struct threaded through the app ───────────────────────
@@ -146,7 +146,7 @@ func (noopRetention) Start(_ context.Context, _ *gorm.DB) {}
 // noopCustomFields returns 402 on all routes — custom fields are a Pro feature.
 type noopCustomFields struct{}
 
-func (noopCustomFields) RegisterRoutes(group *gin.RouterGroup) {
+func (noopCustomFields) RegisterRoutes(group *gin.RouterGroup, _ *gorm.DB) {
 	group.Any("/*path", func(c *gin.Context) {
 		c.JSON(http.StatusPaymentRequired, gin.H{
 			"error": "custom fields require a Fluidify Regen Pro licence",

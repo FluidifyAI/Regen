@@ -12,7 +12,7 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers"
 	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	"github.com/FluidifyAI/Regen/backend/internal/config"
-	"github.com/FluidifyAI/Regen/backend/internal/enterprise"
+	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
@@ -439,7 +439,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 
 		// Custom fields — Pro tier; no-op returns 402 in OSS build.
 		cfGroup := protected.Group("/custom-fields", middleware.RequireAdmin())
-		hooks.CustomFields.RegisterRoutes(cfGroup)
+		hooks.CustomFields.RegisterRoutes(cfGroup, db)
 
 		// Migrations — admin only (OPE-67)
 		migrationsGroup := protected.Group("/migrations", middleware.RequireAdmin())

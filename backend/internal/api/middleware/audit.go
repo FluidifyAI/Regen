@@ -3,7 +3,7 @@ package middleware
 import (
 	"time"
 
-	"github.com/FluidifyAI/Regen/backend/internal/enterprise"
+	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/gin-gonic/gin"
 )
 

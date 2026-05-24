@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"github.com/FluidifyAI/Regen/backend/internal/enterprise"
+	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/spf13/cobra"
 )
 

@@ -437,6 +437,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 			settingsGroup.PATCH("/system/telemetry", handlers.PatchTelemetrySettings(systemSettingsRepo))
 		}
 
+		// Custom fields — Pro tier; no-op returns 402 in OSS build.
+		cfGroup := protected.Group("/custom-fields", middleware.RequireAdmin())
+		hooks.CustomFields.RegisterRoutes(cfGroup)
+
 		// Migrations — admin only (OPE-67)
 		migrationsGroup := protected.Group("/migrations", middleware.RequireAdmin())
 		{

@@ -82,24 +82,34 @@ type RetentionEnforcer interface {
 	Start(ctx context.Context, db *gorm.DB)
 }
 
+// ── Custom Fields ─────────────────────────────────────────────────────────────
+
+// CustomFieldsHandler mounts custom field definition endpoints.
+// The no-op stub returns 402 on all routes — custom fields require a Pro licence.
+type CustomFieldsHandler interface {
+	RegisterRoutes(group *gin.RouterGroup)
+}
+
 // ── Hooks — the single struct threaded through the app ───────────────────────
 
 // Hooks is passed from serve.go to routes.go and worker.StartAll.
 // All fields default to their no-op stubs via NewNoOp().
 type Hooks struct {
-	RBAC      RBACProvider
-	Audit     AuditExporter
-	SCIM      SCIMHandler
-	Retention RetentionEnforcer
+	RBAC         RBACProvider
+	Audit        AuditExporter
+	SCIM         SCIMHandler
+	Retention    RetentionEnforcer
+	CustomFields CustomFieldsHandler
 }
 
 // NewNoOp returns Hooks with all no-op stubs — the default for the OSS build.
 func NewNoOp() Hooks {
 	return Hooks{
-		RBAC:      noopRBAC{},
-		Audit:     noopAudit{},
-		SCIM:      noopSCIM{},
-		Retention: noopRetention{},
+		RBAC:         noopRBAC{},
+		Audit:        noopAudit{},
+		SCIM:         noopSCIM{},
+		Retention:    noopRetention{},
+		CustomFields: noopCustomFields{},
 	}
 }
 
@@ -132,3 +142,14 @@ func (noopSCIM) RegisterRoutes(group *gin.RouterGroup) {
 type noopRetention struct{}
 
 func (noopRetention) Start(_ context.Context, _ *gorm.DB) {}
+
+// noopCustomFields returns 402 on all routes — custom fields are a Pro feature.
+type noopCustomFields struct{}
+
+func (noopCustomFields) RegisterRoutes(group *gin.RouterGroup) {
+	group.Any("/*path", func(c *gin.Context) {
+		c.JSON(http.StatusPaymentRequired, gin.H{
+			"error": "custom fields require a Fluidify Regen Pro licence",
+		})
+	})
+}

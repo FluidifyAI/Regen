@@ -2,7 +2,6 @@ package repository
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
@@ -40,7 +39,6 @@ type IncidentFilters struct {
 	Severity      models.IncidentSeverity
 	StartDate     *time.Time
 	EndDate       *time.Time
-	CustomFields  map[string]string
 	ResolvedSince *time.Time // filters on resolved_at >= value
 }
 
@@ -130,9 +128,6 @@ func (r *incidentRepository) List(filters IncidentFilters, pagination Pagination
 	}
 	if filters.EndDate != nil {
 		query = query.Where("triggered_at <= ?", filters.EndDate)
-	}
-	for k, v := range filters.CustomFields {
-		query = query.Where("custom_fields @> ?", fmt.Sprintf(`{"%s":"%s"}`, k, v))
 	}
 	if filters.ResolvedSince != nil {
 		query = query.Where("resolved_at >= ?", filters.ResolvedSince)

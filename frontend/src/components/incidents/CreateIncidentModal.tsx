@@ -2,7 +2,6 @@ import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { X, AlertTriangle, Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { createIncident, enhanceIncidentDraft } from '../../api/incidents'
-import { listCustomFields, CustomFieldDefinition } from '../../api/customFields'
 import type { Incident } from '../../api/types'
 
 interface CreateIncidentModalProps {
@@ -97,10 +96,6 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Custom fields
-  const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDefinition[]>([])
-  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
-
   // AI assist state
   const [aiOpen, setAiOpen] = useState(false)
   const [brief, setBrief] = useState('')
@@ -116,10 +111,6 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
   }, [isOpen, onClose])
 
   useEffect(() => {
-    listCustomFields().then(setCustomFieldDefs).catch(() => {})
-  }, [])
-
-  useEffect(() => {
     if (!isOpen) {
       setTitle('')
       setSeverity('high')
@@ -128,7 +119,6 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
       setAiOpen(false)
       setBrief('')
       setAiError(null)
-      setCustomFieldValues({})
     }
   }, [isOpen])
 
@@ -169,15 +159,11 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
     setIsSubmitting(true)
     setError(null)
     try {
-      const cfValues = Object.fromEntries(
-        Object.entries(customFieldValues).filter(([, v]) => v.trim() !== '')
-      )
       const incident = await createIncident({
         title: title.trim(),
         severity,
         description: summary.trim() || undefined,
         ai_enabled: false,
-        custom_fields: Object.keys(cfValues).length > 0 ? cfValues : undefined,
       })
       onCreated(incident)
       onClose()
@@ -354,41 +340,6 @@ export function CreateIncidentModal({ isOpen, onClose, onCreated }: CreateIncide
               disabled={isSubmitting}
             />
           </div>
-
-          {/* Custom fields */}
-          {customFieldDefs.length > 0 && (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-text-primary">Additional fields
-                <span className="text-text-tertiary text-xs font-normal ml-1">(optional)</span>
-              </p>
-              {customFieldDefs.map((def) => (
-                <div key={def.key}>
-                  <label className="block text-xs font-medium text-text-secondary mb-1">{def.name}</label>
-                  {def.field_type === 'dropdown' ? (
-                    <select
-                      value={customFieldValues[def.key] ?? ''}
-                      onChange={e => setCustomFieldValues(prev => ({ ...prev, [def.key]: e.target.value }))}
-                      disabled={isSubmitting}
-                      className="w-full px-3 py-2 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-colors"
-                    >
-                      <option value="">— select —</option>
-                      {def.options.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={def.field_type === 'number' ? 'number' : 'text'}
-                      value={customFieldValues[def.key] ?? ''}
-                      onChange={e => setCustomFieldValues(prev => ({ ...prev, [def.key]: e.target.value }))}
-                      disabled={isSubmitting}
-                      className="w-full px-3 py-2 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-colors"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </form>
 
         {/* Footer */}

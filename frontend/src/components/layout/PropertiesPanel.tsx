@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   ChevronDown, ChevronUp, Hash, Clock, ExternalLink, Timer,
-  Activity, AlertCircle, Type, ChevronRight, User, Search, X,
+  Activity, AlertCircle, ChevronRight, User, Search, X,
 } from 'lucide-react'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
@@ -10,7 +10,6 @@ import type { Alert, TimelineEntry } from '../../api/types'
 import { updateIncident } from '../../api/incidents'
 import { useAuth } from '../../contexts/AuthContext'
 import { listUsers, type UserSummary } from '../../api/users'
-import { listCustomFields, type CustomFieldDefinition } from '../../api/customFields'
 
 type StatusType = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
 type SeverityType = 'critical' | 'high' | 'medium' | 'low'
@@ -33,7 +32,6 @@ interface Incident {
   commander_id?: string
   commander_name?: string
   ai_enabled: boolean
-  custom_fields?: Record<string, string>
   alerts: Alert[]
   timeline: TimelineEntry[]
 }
@@ -46,14 +44,13 @@ interface PropertiesPanelProps {
 
 // ── Section collapse ───────────────────────────────────────────────────────────
 
-type SectionKey = 'status' | 'commander' | 'time' | 'customFields' | 'channels' | 'alerts'
+type SectionKey = 'status' | 'commander' | 'time' | 'channels' | 'alerts'
 
 const SECTION_STORAGE_KEY = 'properties-panel-sections-v2'
 
 function useSectionCollapse() {
   const defaults: Record<SectionKey, boolean> = {
-    status: true, commander: true, time: true,
-    customFields: true, channels: true, alerts: true,
+    status: true, commander: true, time: true, channels: true, alerts: true,
   }
   const [open, setOpen] = useState<Record<SectionKey, boolean>>(() => {
     try {
@@ -78,31 +75,6 @@ function useSectionCollapse() {
 export function PropertiesPanel({ incident, onIncidentUpdated, lastActivityAt }: PropertiesPanelProps) {
   const [panelCollapsed, setPanelCollapsed] = useState(false)
   const { open, toggle } = useSectionCollapse()
-
-  // Custom fields state
-  const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDefinition[]>([])
-  const [editingCfKey, setEditingCfKey] = useState<string | null>(null)
-  const [cfDraft, setCfDraft] = useState('')
-  const [flashingCfKey, setFlashingCfKey] = useState<string | null>(null)
-
-  useEffect(() => {
-    listCustomFields().then(setCustomFieldDefs).catch(() => {})
-  }, [])
-
-  async function saveCfValue(key: string, value: string) {
-    const existing = incident.custom_fields ?? {}
-    const updated = { ...existing }
-    if (value.trim() === '') {
-      delete updated[key]
-    } else {
-      updated[key] = value.trim()
-    }
-    await updateIncident(incident.id, { custom_fields: updated } as never)
-    onIncidentUpdated?.()
-    setEditingCfKey(null)
-    setFlashingCfKey(key)
-    setTimeout(() => setFlashingCfKey(null), 700)
-  }
 
   // Commander state
   const { user: currentUser } = useAuth()
@@ -283,80 +255,6 @@ export function PropertiesPanel({ incident, onIncidentUpdated, lastActivityAt }:
             </div>
           </Section>
 
-          {/* CUSTOM FIELDS */}
-          {customFieldDefs.length > 0 && (
-            <Section title="Custom Fields" sectionKey="customFields" open={open.customFields} onToggle={() => toggle('customFields')}>
-              <div className="bg-surface-secondary border border-border rounded-lg overflow-hidden">
-                {customFieldDefs.map((def, idx) => {
-                  const currentValue = incident.custom_fields?.[def.key] ?? ''
-                  const isEditing = editingCfKey === def.key
-                  const isFlashing = flashingCfKey === def.key
-                  return (
-                    <div
-                      key={def.key}
-                      className={[
-                        'flex items-center gap-2 px-3 py-2 transition-colors duration-300',
-                        idx < customFieldDefs.length - 1 ? 'border-b border-border' : '',
-                        isFlashing ? 'bg-brand-primary-light' : '',
-                      ].join(' ')}
-                    >
-                      <FieldTypeIcon type={def.field_type} />
-                      <span
-                        className="text-xs text-text-secondary flex-shrink-0 truncate"
-                        style={{ width: '72px' }}
-                        title={def.name}
-                      >
-                        {def.name}
-                      </span>
-                      {isEditing ? (
-                        <div className="flex-1 min-w-0">
-                          {def.field_type === 'dropdown' ? (
-                            <select
-                              autoFocus
-                              value={cfDraft}
-                              onChange={e => setCfDraft(e.target.value)}
-                              onBlur={() => saveCfValue(def.key, cfDraft)}
-                              className="w-full px-1.5 py-0.5 text-xs border border-brand-primary rounded bg-white focus:outline-none"
-                            >
-                              <option value="">— clear —</option>
-                              {def.options.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <input
-                              autoFocus
-                              type={def.field_type === 'number' ? 'number' : 'text'}
-                              value={cfDraft}
-                              onChange={e => setCfDraft(e.target.value)}
-                              onBlur={() => saveCfValue(def.key, cfDraft)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') saveCfValue(def.key, cfDraft)
-                                if (e.key === 'Escape') setEditingCfKey(null)
-                              }}
-                              className="w-full px-1.5 py-0.5 text-xs border border-brand-primary rounded bg-white focus:outline-none"
-                            />
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setEditingCfKey(def.key); setCfDraft(currentValue) }}
-                          className="flex-1 text-right text-xs truncate hover:text-brand-primary transition-colors"
-                          title={currentValue || 'Click to set'}
-                        >
-                          {currentValue
-                            ? <span className="text-text-primary">{currentValue}</span>
-                            : <span className="text-text-tertiary italic">+ Add value</span>
-                          }
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </Section>
-          )}
-
           {/* CHANNELS */}
           {(incident.slack_channel_name || incident.teams_channel_name) && (
             <Section title="Channels" sectionKey="channels" open={open.channels} onToggle={() => toggle('channels')}>
@@ -451,12 +349,6 @@ function Section({
       </div>
     </div>
   )
-}
-
-function FieldTypeIcon({ type }: { type: string }) {
-  if (type === 'number') return <Hash className="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />
-  if (type === 'dropdown') return <ChevronDown className="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />
-  return <Type className="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />
 }
 
 function TimeRow({ label, ts }: { label: string; ts: string }) {

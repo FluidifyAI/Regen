@@ -49,32 +49,6 @@ CREATE TABLE IF NOT EXISTS users (
 	updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`
 
-const createCustomFieldDefinitionsTableSQL = `
-CREATE TABLE IF NOT EXISTS custom_field_definitions (
-	id            TEXT NOT NULL PRIMARY KEY,
-	name          TEXT NOT NULL,
-	key           TEXT NOT NULL UNIQUE,
-	field_type    TEXT NOT NULL,
-	options       TEXT NOT NULL DEFAULT '[]',
-	display_order INTEGER NOT NULL DEFAULT 0,
-	created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-)`
-
-const createIncidentsTableSQL = `
-CREATE TABLE IF NOT EXISTS incidents (
-	id              TEXT NOT NULL PRIMARY KEY,
-	incident_number INTEGER NOT NULL DEFAULT 0,
-	title           TEXT NOT NULL DEFAULT '',
-	slug            TEXT NOT NULL DEFAULT '',
-	status          TEXT NOT NULL DEFAULT 'triggered',
-	severity        TEXT NOT NULL DEFAULT 'low',
-	summary         TEXT NOT NULL DEFAULT '',
-	custom_fields   TEXT NOT NULL DEFAULT '{}',
-	created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	triggered_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-)`
-
 // SetupTestDB creates an isolated in-memory SQLite database for a single test,
 // creates the users table, and registers a cleanup function that closes the
 // connection when the test finishes.
@@ -96,15 +70,8 @@ func SetupTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("SetupTestDB: get sql.DB: %v", err)
 	}
-
-	for _, ddl := range []string{
-		createUsersTableSQL,
-		createCustomFieldDefinitionsTableSQL,
-		createIncidentsTableSQL,
-	} {
-		if _, err := sqlDB.Exec(ddl); err != nil {
-			t.Fatalf("SetupTestDB: create table: %v", err)
-		}
+	if _, err := sqlDB.Exec(createUsersTableSQL); err != nil {
+		t.Fatalf("SetupTestDB: create users table: %v", err)
 	}
 
 	t.Cleanup(func() {

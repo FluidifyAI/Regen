@@ -99,6 +99,7 @@ export async function importOnCallMigration(
 
 export interface PDMigrationRequest {
   api_key: string
+  region?: 'us' | 'eu'
   force?: boolean
 }
 

@@ -106,7 +106,7 @@ func newPDMockServer(t *testing.T, cfg pdMockConfig) *httptest.Server {
 func overridePDFactory(t *testing.T, baseURL string) {
 	t.Helper()
 	original := pdClientFactory
-	pdClientFactory = func(apiKey string) *pagerduty.Client {
+	pdClientFactory = func(apiKey, _ string) *pagerduty.Client {
 		return pagerduty.NewClientWithBaseURL(apiKey, baseURL)
 	}
 	t.Cleanup(func() { pdClientFactory = original })
@@ -277,4 +277,37 @@ func TestImportPagerDutyMigration_InvalidAPIKey(t *testing.T) {
 
 	w := postJSON(r, "/api/v1/migrations/pagerduty/import", map[string]string{"api_key": "bad"})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// ── Region tests ──────────────────────────────────────────────────────────────
+
+func TestPDBaseURL_DefaultsToUS(t *testing.T) {
+	assert.Equal(t, "https://api.pagerduty.com", pdBaseURL(""))
+	assert.Equal(t, "https://api.pagerduty.com", pdBaseURL("us"))
+}
+
+func TestPDBaseURL_EU(t *testing.T) {
+	assert.Equal(t, "https://api.eu.pagerduty.com", pdBaseURL("eu"))
+}
+
+func TestPreviewPagerDutyMigration_EURegion(t *testing.T) {
+	srv := newPDMockServer(t, pdMockConfig{})
+	overridePDFactory(t, srv.URL)
+
+	db := setupMigrationTestDB(t)
+	r := buildPDRouter(repository.NewScheduleRepository(db), repository.NewEscalationPolicyRepository(db))
+
+	w := postJSON(r, "/api/v1/migrations/pagerduty/preview", map[string]string{"api_key": "tok", "region": "eu"})
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestImportPagerDutyMigration_EURegion(t *testing.T) {
+	srv := newPDMockServer(t, pdMockConfig{})
+	overridePDFactory(t, srv.URL)
+
+	db := setupMigrationTestDB(t)
+	r := buildPDRouter(repository.NewScheduleRepository(db), repository.NewEscalationPolicyRepository(db))
+
+	w := postJSON(r, "/api/v1/migrations/pagerduty/import", map[string]string{"api_key": "tok", "region": "eu"})
+	assert.Equal(t, http.StatusOK, w.Code)
 }

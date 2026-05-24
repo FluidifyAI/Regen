@@ -9,6 +9,7 @@ import {
 } from '../../api/migrations'
 
 type Step = 'idle' | 'previewing' | 'preview' | 'importing' | 'done'
+type Region = 'us' | 'eu'
 
 interface PagerDutyImportPanelProps {
   onComplete?: () => void
@@ -22,6 +23,7 @@ function extractError(e: unknown): string {
 export function PagerDutyImportPanel({ onComplete }: PagerDutyImportPanelProps) {
   const [step, setStep] = useState<Step>('idle')
   const [apiKey, setApiKey] = useState('')
+  const [region, setRegion] = useState<Region>('us')
   const [showKey, setShowKey] = useState(false)
   const [force, setForce] = useState(false)
   const [error, setError] = useState('')
@@ -39,7 +41,7 @@ export function PagerDutyImportPanel({ onComplete }: PagerDutyImportPanelProps) 
     }
     setStep('previewing')
     try {
-      const data = await previewPagerDutyMigration({ api_key: apiKey.trim() })
+      const data = await previewPagerDutyMigration({ api_key: apiKey.trim(), region })
       setPreview(data)
       setStep('preview')
     } catch (e) {
@@ -53,7 +55,7 @@ export function PagerDutyImportPanel({ onComplete }: PagerDutyImportPanelProps) 
     setError('')
     setStep('importing')
     try {
-      const data = await importPagerDutyMigration({ api_key: apiKey.trim(), force })
+      const data = await importPagerDutyMigration({ api_key: apiKey.trim(), region, force })
       setResult(data)
       setStep('done')
     } catch (e) {
@@ -72,9 +74,35 @@ export function PagerDutyImportPanel({ onComplete }: PagerDutyImportPanelProps) 
         </div>
       )}
 
-      {/* ── Step 1: API key input ─────────────────────────────────────────── */}
+      {/* ── Step 1: API key + region input ───────────────────────────────── */}
       {(step === 'idle' || step === 'previewing') && (
         <div className="space-y-4">
+          {/* Region selector */}
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Region
+            </label>
+            <div className="flex gap-4">
+              {(['us', 'eu'] as Region[]).map((r) => (
+                <label key={r} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="pd-region"
+                    value={r}
+                    checked={region === r}
+                    onChange={() => setRegion(r)}
+                    className="accent-brand-primary"
+                  />
+                  <span className="text-sm text-text-primary uppercase">{r}</span>
+                  <span className="text-xs text-text-secondary">
+                    ({r === 'us' ? 'api.pagerduty.com' : 'api.eu.pagerduty.com'})
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* API key */}
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1">
               PagerDuty API Key

@@ -13,12 +13,22 @@ import (
 
 // pdClientFactory is a package-level variable so tests can override it to point
 // the real PagerDuty client at a mock HTTP server.
-var pdClientFactory = func(apiKey string) *pagerduty.Client {
-	return pagerduty.NewClient(apiKey)
+var pdClientFactory = func(apiKey, baseURL string) *pagerduty.Client {
+	return pagerduty.NewClientWithBaseURL(apiKey, baseURL)
+}
+
+// pdBaseURL maps a region string ("us" or "eu") to the PagerDuty API base URL.
+// Defaults to the US endpoint for empty or unrecognised values.
+func pdBaseURL(region string) string {
+	if region == "eu" {
+		return "https://api.eu.pagerduty.com"
+	}
+	return "https://api.pagerduty.com"
 }
 
 type pdMigrationRequest struct {
 	APIKey string `json:"api_key" binding:"required"`
+	Region string `json:"region"`
 	Force  bool   `json:"force"`
 }
 
@@ -57,7 +67,7 @@ func PreviewPagerDutyMigration(
 			return
 		}
 
-		client := pdClientFactory(req.APIKey)
+		client := pdClientFactory(req.APIKey, pdBaseURL(req.Region))
 		if err := client.ValidateAPIKey(); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
 			return
@@ -87,7 +97,7 @@ func ImportPagerDutyMigration(
 			return
 		}
 
-		client := pdClientFactory(req.APIKey)
+		client := pdClientFactory(req.APIKey, pdBaseURL(req.Region))
 		if err := client.ValidateAPIKey(); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": err.Error()}})
 			return

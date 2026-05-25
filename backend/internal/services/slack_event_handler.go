@@ -1045,7 +1045,22 @@ func (h *SlackEventHandler) handleReactionAdded(ev *slackevents.ReactionAddedEve
 			"reaction", ev.Reaction,
 			"target_status", targetStatus,
 			"error", err)
+		return
 	}
+
+	// Refresh the incident card so the Slack message reflects the new status
+	if updated, err := h.incidentService.GetIncident(incident.ID, 0); err == nil {
+		h.refreshIncidentCard(updated)
+	}
+
+	// Post public confirmation so the whole team sees who acted
+	actionText := "acknowledged"
+	if targetStatus == models.IncidentStatusResolved {
+		actionText = "resolved"
+	}
+	_, _ = h.chatService.PostMessage(incident.SlackChannelID, Message{
+		Text: fmt.Sprintf("<@%s> %s INC-%d via reaction", ev.User, actionText, incident.IncidentNumber),
+	})
 }
 
 func (h *SlackEventHandler) postToThread(channelID, threadTS, text string) (string, error) {

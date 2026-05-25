@@ -62,16 +62,18 @@ oauth_config:
       - chat:write            # Post messages and status updates
       - chat:write.public     # Post to public channels without joining
       - users:read            # Resolve user display names for timeline
+      - users:read.email      # Email lookup for Slack → Regen account linking
       - im:write              # Send DMs to on-call responders
-    user:
-      - openid                # Slack SSO login
-      - email                 # Match Slack user to Regen account
-      - profile               # Display name for login
+      - app_mentions:read     # Required for app_mention events (@regen bot)
+      - reactions:read        # Required for reaction_added events (✅ ack, 🔴 resolve)
+    user: []                  # No user-delegated scopes — this is a pure bot app
 
 settings:
   event_subscriptions:
     bot_events:
       - message.channels      # Sync channel messages → incident timeline
+      - app_mention           # @regen bot mentions → AI answer in thread
+      - reaction_added        # ✅ white_check_mark → ack, 🔴 red_circle → resolve
 
   interactivity:
     is_enabled: true          # Required for buttons and modals

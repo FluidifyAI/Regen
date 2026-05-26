@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -115,23 +114,21 @@ func TestSlackSignatureVerification(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup environment
-			if tt.setupEnv {
-				os.Setenv("SLACK_SIGNING_SECRET", tt.signingSecret)
-			} else {
-				os.Unsetenv("SLACK_SIGNING_SECRET")
-			}
-			defer os.Unsetenv("SLACK_SIGNING_SECRET")
-
 			// Compute signature if requested
 			signature := tt.signature
 			if tt.computeSignature && tt.timestamp != "" && tt.setupEnv {
 				signature = computeTestSignature(tt.signingSecret, tt.timestamp, []byte(tt.body))
 			}
 
+			// Pass the signing secret directly (DB-stored, not via env var)
+			secret := ""
+			if tt.setupEnv {
+				secret = tt.signingSecret
+			}
+
 			// Create test router
 			router := gin.New()
-			router.Use(SlackSignatureVerification())
+			router.Use(SlackSignatureVerification(func() string { return secret }))
 			router.POST("/slack/events", func(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"ok": true})
 			})

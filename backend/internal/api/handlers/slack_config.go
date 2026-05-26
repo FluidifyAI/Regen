@@ -18,7 +18,6 @@ type slackConfigResponse struct {
 	WorkspaceName  string     `json:"workspace_name,omitempty"`
 	BotUserID      string     `json:"bot_user_id,omitempty"`
 	HasBotToken    bool       `json:"has_bot_token"`
-	HasAppToken    bool       `json:"has_app_token"`
 	HasOAuthConfig bool       `json:"has_oauth_config"`
 	ConnectedAt    *time.Time `json:"connected_at,omitempty"`
 }
@@ -33,7 +32,6 @@ func toSlackConfigResponse(cfg *models.SlackConfig) slackConfigResponse {
 		WorkspaceName:  cfg.WorkspaceName,
 		BotUserID:      cfg.BotUserID,
 		HasBotToken:    cfg.BotToken != "",
-		HasAppToken:    cfg.AppToken != "",
 		HasOAuthConfig: cfg.OAuthClientID != "" && cfg.OAuthClientSecret != "",
 		ConnectedAt:    &cfg.ConnectedAt,
 	}
@@ -51,13 +49,18 @@ func GetSlackConfig(repo repository.SlackConfigRepository) gin.HandlerFunc {
 	}
 }
 
+// HandlerInvalidator is implemented by types that cache a Slack event handler
+// and need to be notified when config changes.
+type HandlerInvalidator interface {
+	Invalidate()
+}
+
 // SaveSlackConfig stores Slack tokens.
-func SaveSlackConfig(repo repository.SlackConfigRepository) gin.HandlerFunc {
+func SaveSlackConfig(repo repository.SlackConfigRepository, invalidator ...HandlerInvalidator) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			BotToken          string `json:"bot_token"`
 			SigningSecret     string `json:"signing_secret"`
-			AppToken          string `json:"app_token"`
 			WorkspaceID       string `json:"workspace_id"`
 			WorkspaceName     string `json:"workspace_name"`
 			BotUserID         string `json:"bot_user_id"`
@@ -83,7 +86,6 @@ func SaveSlackConfig(repo repository.SlackConfigRepository) gin.HandlerFunc {
 		cfg := &models.SlackConfig{
 			BotToken:          req.BotToken,
 			SigningSecret:     req.SigningSecret,
-			AppToken:          req.AppToken,
 			WorkspaceID:       req.WorkspaceID,
 			WorkspaceName:     req.WorkspaceName,
 			BotUserID:         req.BotUserID,
@@ -96,6 +98,9 @@ func SaveSlackConfig(repo repository.SlackConfigRepository) gin.HandlerFunc {
 			slog.Error("failed to save slack config", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save slack config"})
 			return
+		}
+		for _, inv := range invalidator {
+			inv.Invalidate()
 		}
 		c.JSON(http.StatusOK, toSlackConfigResponse(cfg))
 	}
@@ -129,11 +134,14 @@ func TestSlackConfig() gin.HandlerFunc {
 }
 
 // DeleteSlackConfig removes the Slack integration.
-func DeleteSlackConfig(repo repository.SlackConfigRepository) gin.HandlerFunc {
+func DeleteSlackConfig(repo repository.SlackConfigRepository, invalidator ...HandlerInvalidator) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if err := repo.Delete(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete slack config"})
 			return
+		}
+		for _, inv := range invalidator {
+			inv.Invalidate()
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "slack integration removed"})
 	}

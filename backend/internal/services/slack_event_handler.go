@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
-	"github.com/slack-go/slack/socketmode"
 )
 
 // validSlackTransitions mirrors the state machine in the HTTP handler.
@@ -31,11 +30,12 @@ var validSlackTransitions = map[models.IncidentStatus][]models.IncidentStatus{
 	models.IncidentStatusCanceled: {},
 }
 
-// SlackEventHandler listens for Slack events via Socket Mode (WebSocket) and
-// dispatches them to the appropriate handlers. Socket Mode avoids needing a
-// public URL or SSL certificate — it uses an outbound WebSocket connection.
+// SlackEventHandler processes inbound Slack payloads delivered over HTTP
+// (Events API, interactive components, slash commands). Each public Handle*
+// method is called by the corresponding Gin route handler after the request
+// signature has been verified by SlackSignatureMiddleware.
 type SlackEventHandler struct {
-	client          *socketmode.Client
+	client          *slack.Client
 	incidentService IncidentService
 	chatService     ChatService
 	userRepo        repository.UserRepository
@@ -49,38 +49,29 @@ func (h *SlackEventHandler) SetAIService(ai AIService) {
 	h.aiService = ai
 }
 
-// NewSlackEventHandler creates a Socket Mode event handler.
-// Requires both SLACK_APP_TOKEN (xapp-...) and SLACK_BOT_TOKEN (xoxb-...).
+// NewSlackEventHandler creates an HTTP-based Slack event handler.
+// Requires SLACK_BOT_TOKEN (xoxb-...) for Web API calls.
 func NewSlackEventHandler(
-	appToken string,
 	botToken string,
 	incidentService IncidentService,
 	chatService ChatService,
 	userRepo repository.UserRepository,
 	pmRepo repository.PostMortemRepository,
 ) (*SlackEventHandler, error) {
-	if appToken == "" {
-		return nil, fmt.Errorf("SLACK_APP_TOKEN is required for Socket Mode")
-	}
 	if botToken == "" {
-		return nil, fmt.Errorf("SLACK_BOT_TOKEN is required for Socket Mode")
+		return nil, fmt.Errorf("SLACK_BOT_TOKEN is required")
 	}
 
-	api := slack.New(
-		botToken,
-		slack.OptionAppLevelToken(appToken),
-	)
-
-	client := socketmode.New(api)
+	client := slack.New(botToken)
 
 	// Identify the bot's own user ID so we can filter out its messages
 	// (prevents echo loops when the bot posts status updates)
-	auth, err := api.AuthTest()
+	auth, err := client.AuthTest()
 	if err != nil {
 		return nil, fmt.Errorf("slack auth failed: %w", err)
 	}
 
-	slog.Info("slack socket mode initialized",
+	slog.Info("slack http event handler initialized",
 		"bot_id", auth.BotID,
 		"bot_user_id", auth.UserID,
 		"team", auth.Team,
@@ -96,27 +87,10 @@ func NewSlackEventHandler(
 	}, nil
 }
 
-// Start begins the Socket Mode connection and event listener in background goroutines.
-// It returns immediately; events are processed asynchronously.
-func (h *SlackEventHandler) Start() {
-	go h.listen()
-	go func() {
-		if err := h.client.Run(); err != nil {
-			slog.Error("slack socket mode client stopped", "error", err)
-		}
-	}()
-}
-
-// handleInteraction handles block action button clicks and modal submissions.
-func (h *SlackEventHandler) handleInteraction(evt socketmode.Event) {
-	slog.Info("slack interaction event received", "data_type", fmt.Sprintf("%T", evt.Data))
-	callback, ok := evt.Data.(slack.InteractionCallback)
-	if !ok {
-		slog.Warn("slack interaction: unexpected data type, skipping")
-		h.client.Ack(*evt.Request)
-		return
-	}
-	h.client.Ack(*evt.Request)
+// HandleInteraction handles block action button clicks and modal submissions.
+// Called by the HTTP route handler after signature verification; the HTTP 200
+// response is the implicit ACK (no socketmode Ack call needed).
+func (h *SlackEventHandler) HandleInteraction(callback slack.InteractionCallback) {
 	slog.Info("slack interaction callback", "type", callback.Type, "user_id", callback.User.ID, "channel", callback.Channel.ID)
 
 	switch callback.Type {
@@ -220,16 +194,11 @@ func isValidSlackTransition(current, target models.IncidentStatus) bool {
 	return false
 }
 
-// handleSlashCommand handles /incident slash commands.
-// Supported: /incident new [title], /incident list, /incident help
-func (h *SlackEventHandler) handleSlashCommand(evt socketmode.Event) {
-	cmd, ok := evt.Data.(slack.SlashCommand)
-	if !ok {
-		h.client.Ack(*evt.Request)
-		return
-	}
-	h.client.Ack(*evt.Request)
-
+// HandleCommand handles /regen slash commands.
+// Called by the HTTP route handler after signature verification; the HTTP 200
+// response is the implicit ACK.
+// Supported: /regen new [title], /regen list, /regen help
+func (h *SlackEventHandler) HandleCommand(cmd slack.SlashCommand) {
 	parts := strings.Fields(cmd.Text)
 	if len(parts) == 0 {
 		h.sendHelpResponse(cmd)
@@ -264,7 +233,7 @@ func (h *SlackEventHandler) handleSlashCommand(evt socketmode.Event) {
 }
 
 // openCreateIncidentModal opens a Block Kit modal for declaring a new incident.
-// Pre-fills the title from the text after "new" (e.g. /incident new High CPU).
+// Pre-fills the title from the text after "new" (e.g. /regen new High CPU).
 func (h *SlackEventHandler) openCreateIncidentModal(cmd slack.SlashCommand) {
 	prefillTitle := strings.TrimSpace(strings.TrimPrefix(cmd.Text, "new"))
 
@@ -390,26 +359,20 @@ func (h *SlackEventHandler) sendHelpResponse(cmd slack.SlashCommand) {
 	h.postEphemeral(cmd.ChannelID, cmd.UserID,
 		"*Fluidify Regen Slash Commands:*\n\n"+
 			"*Declare & Browse*\n"+
-			"• `/incident new [title]` — Declare a new incident (opens form)\n"+
-			"• `/incident list` — List open incidents\n\n"+
+			"• `/regen new [title]` — Declare a new incident (opens form)\n"+
+			"• `/regen list` — List open incidents\n\n"+
 			"*In an Incident Channel*\n"+
-			"• `/incident ack` — Acknowledge this incident\n"+
-			"• `/incident resolve` — Resolve this incident\n"+
-			"• `/incident status` — Show incident status\n"+
-			"• `/incident note <text>` — Add a timeline note (opens form if no text)\n"+
-			"• `/incident lead [me|@user]` — Assign incident commander\n\n"+
-			"• `/incident help` — Show this message")
+			"• `/regen ack` — Acknowledge this incident\n"+
+			"• `/regen resolve` — Resolve this incident\n"+
+			"• `/regen status` — Show incident status\n"+
+			"• `/regen note <text>` — Add a timeline note (opens form if no text)\n"+
+			"• `/regen lead [me|@user]` — Assign incident commander\n\n"+
+			"• `/regen help` — Show this message")
 }
 
-// handleEventsAPI handles Events API payloads (message events, etc.).
-func (h *SlackEventHandler) handleEventsAPI(evt socketmode.Event) {
-	eventsAPIEvent, ok := evt.Data.(slackevents.EventsAPIEvent)
-	if !ok {
-		h.client.Ack(*evt.Request)
-		return
-	}
-	h.client.Ack(*evt.Request)
-
+// HandleEventsAPI dispatches an inbound Events API payload to the appropriate
+// handler. Called by the HTTP route handler after signature verification.
+func (h *SlackEventHandler) HandleEventsAPI(eventsAPIEvent slackevents.EventsAPIEvent) {
 	slog.Info("slack events api event received", "type", eventsAPIEvent.InnerEvent.Type)
 	switch ev := eventsAPIEvent.InnerEvent.Data.(type) {
 	case *slackevents.MessageEvent:
@@ -609,7 +572,7 @@ func (h *SlackEventHandler) showIncidentStatus(cmd slack.SlashCommand) {
 	h.postEphemeral(cmd.ChannelID, cmd.UserID, msg)
 }
 
-// assignLeadFromSlash assigns an incident commander via /incident lead [me|@user].
+// assignLeadFromSlash assigns an incident commander via /regen lead [me|@user].
 // targetArg="" or "me" → self; "<@UXXXXXX>" or "<@UXXXXXX|name>" → that user.
 func (h *SlackEventHandler) assignLeadFromSlash(cmd slack.SlashCommand, targetArg string) {
 	incident, err := h.getIncidentFromChannel(cmd.ChannelID)
@@ -624,7 +587,7 @@ func (h *SlackEventHandler) assignLeadFromSlash(cmd slack.SlashCommand, targetAr
 		slackUserID = parseSlackMention(targetArg)
 		if slackUserID == "" {
 			h.postEphemeral(cmd.ChannelID, cmd.UserID,
-				"Could not parse user. Usage: `/incident lead` or `/incident lead @username`")
+				"Could not parse user. Usage: `/regen lead` or `/regen lead @username`")
 			return
 		}
 	}
@@ -798,15 +761,15 @@ func (h *SlackEventHandler) handleViewCommands(callback slack.InteractionCallbac
 	h.postEphemeral(callback.Channel.ID, callback.User.ID,
 		"*Fluidify Regen Slash Commands:*\n\n"+
 			"*Declare & Browse*\n"+
-			"• `/incident new [title]` — Declare a new incident (opens form)\n"+
-			"• `/incident list` — List open incidents\n\n"+
+			"• `/regen new [title]` — Declare a new incident (opens form)\n"+
+			"• `/regen list` — List open incidents\n\n"+
 			"*In an Incident Channel*\n"+
-			"• `/incident ack` — Acknowledge this incident\n"+
-			"• `/incident resolve` — Resolve this incident\n"+
-			"• `/incident status` — Show incident status\n"+
-			"• `/incident note <text>` — Add a timeline note (opens form if no text)\n"+
-			"• `/incident lead [me|@user]` — Assign incident commander\n\n"+
-			"• `/incident help` — Show this message")
+			"• `/regen ack` — Acknowledge this incident\n"+
+			"• `/regen resolve` — Resolve this incident\n"+
+			"• `/regen status` — Show incident status\n"+
+			"• `/regen note <text>` — Add a timeline note (opens form if no text)\n"+
+			"• `/regen lead [me|@user]` — Assign incident commander\n\n"+
+			"• `/regen help` — Show this message")
 }
 
 // ── Shared utilities ─────────────────────────────────────────────────────────
@@ -926,7 +889,7 @@ func (h *SlackEventHandler) handleAppMention(ev *slackevents.AppMentionEvent) {
 	incident, err := h.incidentService.GetIncidentBySlackChannelID(ev.Channel)
 	if err != nil || incident == nil {
 		// Not an incident channel — give a generic help response
-		_, _ = h.postToThread(ev.Channel, ev.TimeStamp, "*Fluidify Regen* here! I respond to questions in incident channels. Use `/incident new` to create an incident.")
+		_, _ = h.postToThread(ev.Channel, ev.TimeStamp, "*Fluidify Regen* here! I respond to questions in incident channels. Use `/regen new` to create an incident.")
 		return
 	}
 
@@ -1049,8 +1012,7 @@ func (h *SlackEventHandler) handleReactionAdded(ev *slackevents.ReactionAddedEve
 }
 
 func (h *SlackEventHandler) postToThread(channelID, threadTS, text string) (string, error) {
-	api := h.client.Client
-	_, msgTS, err := api.PostMessage(
+	_, msgTS, err := h.client.PostMessage(
 		channelID,
 		slack.MsgOptionText(text, false),
 		slack.MsgOptionTS(threadTS),
@@ -1063,26 +1025,6 @@ func (h *SlackEventHandler) postToThread(channelID, threadTS, text string) (stri
 
 // deleteMessage deletes a message by channel and timestamp.
 func (h *SlackEventHandler) deleteMessage(channelID, msgTS string) error {
-	_, _, err := h.client.Client.DeleteMessage(channelID, msgTS)
+	_, _, err := h.client.DeleteMessage(channelID, msgTS)
 	return err
-}
-
-// listen processes events from the Socket Mode channel.
-func (h *SlackEventHandler) listen() {
-	for evt := range h.client.Events {
-		switch evt.Type {
-		case socketmode.EventTypeConnecting:
-			slog.Info("slack socket mode connecting...")
-		case socketmode.EventTypeConnectionError:
-			slog.Warn("slack socket mode connection error, will retry")
-		case socketmode.EventTypeConnected:
-			slog.Info("slack socket mode connected - bidirectional sync active")
-		case socketmode.EventTypeInteractive:
-			h.handleInteraction(evt)
-		case socketmode.EventTypeSlashCommand:
-			h.handleSlashCommand(evt)
-		case socketmode.EventTypeEventsAPI:
-			h.handleEventsAPI(evt)
-		}
-	}
 }

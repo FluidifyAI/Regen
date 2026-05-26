@@ -85,8 +85,7 @@ dev:
 	@sleep 3
 	@echo "API running at http://localhost:8080"
 	@echo ""
-	@echo "Installing frontend dependencies..."
-	@cd frontend && npm install --silent
+	@if [ ! -d frontend/node_modules ]; then echo "Installing frontend dependencies..." && cd frontend && npm install --silent; fi
 	@echo "Starting Vite dev server at http://localhost:3000"
 	@echo ""
 	@cd frontend && npm run dev

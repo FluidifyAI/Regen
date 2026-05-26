@@ -1,0 +1,10 @@
+frontend/node_modules
+frontend/dist
+backend/tmp
+backend/bin
+backend/ui/dist
+.git
+.claude
+*.local
+.env
+.env.*

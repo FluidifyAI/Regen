@@ -45,7 +45,6 @@ yarn-error.log*
 
 # Docker
 *.pid
-.dockerignore
 
 # OS
 .DS_Store

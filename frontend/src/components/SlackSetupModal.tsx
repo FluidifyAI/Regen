@@ -13,12 +13,6 @@ interface Props {
 }
 
 function slackManifest(appUrl: string): string {
-  // Slack requires HTTPS for webhook URLs. For local dev (http:// or localhost),
-  // we use Socket Mode which doesn't need public URLs.
-  const isLocal =
-    appUrl.startsWith('http://') || appUrl.includes('localhost') || appUrl.includes('127.0.0.1')
-  const useSocketMode = isLocal
-
   const manifest: Record<string, unknown> = {
     _metadata: {
       major_version: 1,
@@ -26,27 +20,24 @@ function slackManifest(appUrl: string): string {
     },
     display_information: {
       name: 'Fluidify Regen',
-      description: 'Incident management — alert routing, on-call scheduling, and Slack coordination',
-      background_color: '#ffffff',
-      long_description:
-        'Fluidify Regen is an open-source incident management platform. This bot creates dedicated Slack channels for each incident, posts status updates, and accepts /incident commands for managing incidents directly from Slack.',
+      description: 'Incident management for Slack',
+      background_color: '#1800ad',
     },
     features: {
       app_home: {
-        home_tab_enabled: false,
-        messages_tab_enabled: true,
+        home_tab_enabled: true,
+        messages_tab_enabled: false,
         messages_tab_read_only_enabled: false,
       },
       bot_user: {
         display_name: 'Fluidify Regen',
-        always_online: true,
       },
       slash_commands: [
         {
-          command: '/incident',
-          ...(useSocketMode ? {} : { url: `${appUrl}/api/v1/webhooks/slack/commands` }),
-          description: 'Manage incidents from Slack',
-          usage_hint: 'new [title] | ack | resolve | status',
+          command: '/regen',
+          url: `${appUrl}/api/v1/slack/commands`,
+          description: 'Manage incidents — new, ack, resolve, status, note, lead, list',
+          usage_hint: 'new [title] | ack | resolve | status | note <text> | lead [me|@user] | list | help',
           should_escape: false,
         },
       ],
@@ -55,47 +46,32 @@ function slackManifest(appUrl: string): string {
       redirect_urls: [`${appUrl}/api/v1/auth/slack/callback`],
       scopes: {
         bot: [
+          'commands',
+          'app_mentions:read',
           'channels:history',
           'channels:manage',
           'channels:read',
           'channels:write.invites',
           'chat:write',
           'chat:write.public',
-          'commands',
-          'groups:history',
-          'groups:read',
-          'groups:write',
-          'groups:write.invites',
           'im:write',
-          'mpim:write',
+          'reactions:read',
           'users:read',
           'users:read.email',
         ],
-        user: ['openid', 'email', 'profile'],
       },
     },
     settings: {
-      ...(useSocketMode
-        ? {
-            socket_mode_enabled: true,
-          }
-        : {
-            event_subscriptions: {
-              request_url: `${appUrl}/api/v1/webhooks/slack/events`,
-              bot_events: [
-                'message.channels',
-                'message.groups',
-                'app_mention',
-                'member_joined_channel',
-              ],
-            },
-            interactivity: {
-              is_enabled: true,
-              request_url: `${appUrl}/api/v1/webhooks/slack/interactive`,
-            },
-            socket_mode_enabled: false,
-          }),
+      event_subscriptions: {
+        request_url: `${appUrl}/api/v1/slack/events`,
+        bot_events: ['app_mention', 'message.channels', 'reaction_added'],
+      },
+      interactivity: {
+        is_enabled: true,
+        request_url: `${appUrl}/api/v1/slack/interactions`,
+      },
       org_deploy_enabled: false,
+      socket_mode_enabled: false,
       token_rotation_enabled: false,
     },
   }
@@ -316,9 +292,7 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
                 Bot Token <span className="text-red-500">*</span>
               </label>
               <p className="text-xs text-text-tertiary mb-1.5">
-                Sidebar → <strong>OAuth &amp; Permissions</strong> → scroll to{' '}
-                <strong>OAuth Tokens</strong> section → copy{' '}
-                <strong>Bot User OAuth Token</strong> (starts with <code className="bg-surface-secondary px-1 rounded">xoxb-</code>)
+                <strong>OAuth &amp; Permissions</strong> → <strong>Install to Workspace</strong> → copy <strong>Bot User OAuth Token</strong> (starts with <code className="bg-surface-secondary px-1 rounded">xoxb-</code>)
               </p>
               <input
                 type="password"

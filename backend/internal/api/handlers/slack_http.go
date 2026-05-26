@@ -15,7 +15,7 @@ import (
 
 // SlackEvents handles POST /api/v1/slack/events — Slack Events API payloads.
 // Signature verification is done by SlackSignatureVerification middleware upstream.
-func SlackEvents(handler *services.SlackEventHandler) gin.HandlerFunc {
+func SlackEvents(resolver *services.SlackHandlerResolver) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		body, err := middleware.SlackBodyFromContext(c)
 		if err != nil {
@@ -24,12 +24,19 @@ func SlackEvents(handler *services.SlackEventHandler) gin.HandlerFunc {
 		}
 
 		// url_verification is Slack's one-time challenge when saving the Events URL.
+		// Respond even when the handler isn't ready yet.
 		var challenge struct {
 			Type      string `json:"type"`
 			Challenge string `json:"challenge"`
 		}
 		if err := json.Unmarshal(body, &challenge); err == nil && challenge.Type == "url_verification" {
 			c.JSON(http.StatusOK, gin.H{"challenge": challenge.Challenge})
+			return
+		}
+
+		handler := resolver.Get()
+		if handler == nil {
+			c.Status(http.StatusOK) // ACK Slack; processing unavailable until config is saved
 			return
 		}
 
@@ -42,13 +49,19 @@ func SlackEvents(handler *services.SlackEventHandler) gin.HandlerFunc {
 
 		// ACK immediately; dispatch is async inside HandleEventsAPI.
 		c.Status(http.StatusOK)
-		handler.HandleEventsAPI(eventsAPIEvent)
+		go handler.HandleEventsAPI(eventsAPIEvent)
 	}
 }
 
 // SlackInteractions handles POST /api/v1/slack/interactions — button clicks and modal submissions.
-func SlackInteractions(handler *services.SlackEventHandler) gin.HandlerFunc {
+func SlackInteractions(resolver *services.SlackHandlerResolver) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		handler := resolver.Get()
+		if handler == nil {
+			c.Status(http.StatusOK)
+			return
+		}
+
 		body, err := middleware.SlackBodyFromContext(c)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read body"})
@@ -81,8 +94,14 @@ func SlackInteractions(handler *services.SlackEventHandler) gin.HandlerFunc {
 }
 
 // SlackCommands handles POST /api/v1/slack/commands — slash command payloads.
-func SlackCommands(handler *services.SlackEventHandler) gin.HandlerFunc {
+func SlackCommands(resolver *services.SlackHandlerResolver) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		handler := resolver.Get()
+		if handler == nil {
+			c.Status(http.StatusOK)
+			return
+		}
+
 		body, err := middleware.SlackBodyFromContext(c)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read body"})

@@ -161,8 +161,13 @@ func (g *GenericProvider) ParsePayload(body []byte) ([]NormalizedAlert, error) {
 		return nil, fmt.Errorf("invalid generic webhook payload: %w", err)
 	}
 
+	// If no alerts array, try interpreting the body as a single flat alert object.
 	if len(payload.Alerts) == 0 {
-		return nil, fmt.Errorf("generic webhook payload contains no alerts")
+		var single GenericAlert
+		if err := json.Unmarshal(body, &single); err != nil || single.Title == "" {
+			return nil, fmt.Errorf("generic webhook payload contains no alerts")
+		}
+		payload.Alerts = []GenericAlert{single}
 	}
 
 	alerts := make([]NormalizedAlert, 0, len(payload.Alerts))

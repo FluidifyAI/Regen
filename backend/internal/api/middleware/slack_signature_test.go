@@ -128,7 +128,7 @@ func TestSlackSignatureVerification(t *testing.T) {
 
 			// Create test router
 			router := gin.New()
-			router.Use(SlackSignatureVerification(secret))
+			router.Use(SlackSignatureVerification(func() string { return secret }))
 			router.POST("/slack/events", func(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"ok": true})
 			})

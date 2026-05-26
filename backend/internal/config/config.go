@@ -32,7 +32,6 @@ type Config struct {
 	// Slack
 	SlackBotToken      string
 	SlackSigningSecret string
-	SlackAppToken      string
 
 	// OpenAI (optional — AI features disabled if APIKey is empty)
 	OpenAIAPIKey              string
@@ -105,7 +104,6 @@ func Load() (*Config, error) {
 		// Slack
 		SlackBotToken:      getEnv("SLACK_BOT_TOKEN", ""),
 		SlackSigningSecret: getEnv("SLACK_SIGNING_SECRET", ""),
-		SlackAppToken:      getEnv("SLACK_APP_TOKEN", ""),
 
 		// OpenAI
 		OpenAIAPIKey:              getEnv("OPENAI_API_KEY", ""),

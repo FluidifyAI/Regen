@@ -38,7 +38,7 @@ func (r *slackConfigRepository) Save(cfg *models.SlackConfig) error {
 	cfg.ID = 1
 	return r.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"bot_token", "signing_secret", "app_token", "workspace_id", "workspace_name", "bot_user_id", "oauth_client_id", "oauth_client_secret", "connected_at", "connected_by"}),
+		DoUpdates: clause.AssignmentColumns([]string{"bot_token", "signing_secret", "workspace_id", "workspace_name", "bot_user_id", "oauth_client_id", "oauth_client_secret", "connected_at", "connected_by"}),
 	}).Create(cfg).Error
 }
 

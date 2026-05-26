@@ -108,26 +108,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		}
 	}
 
-	// Bootstrap Slack HTTP event handler (bidirectional sync) if bot token is configured.
-	// The handler is wired to /api/v1/slack/* routes below; no persistent connection needed.
-	var slackEventHandler *services.SlackEventHandler
-	if slackCfg, err := slackConfigRepo.Get(); err == nil &&
-		slackCfg != nil && slackCfg.BotToken != "" && chatService != nil {
-		h, err := services.NewSlackEventHandler(
-			slackCfg.BotToken,
-			incidentSvc,
-			chatService,
-			userRepo,
-			pmRepo,
-		)
-		if err != nil {
-			slog.Error("failed to initialize slack event handler", "error", err)
-			slog.Warn("bidirectional Slack sync disabled - Slack will be one-way only")
-		} else {
-			h.SetAIService(aiSvc)
-			slackEventHandler = h
-		}
-	}
+	// Slack event handler resolver — lazily initializes from DB config on first use.
+	// Routes are always registered so events work immediately after config is saved via UI,
+	// without requiring a server restart.
+	slackResolver := services.NewSlackHandlerResolver(slackConfigRepo, incidentSvc, chatService, userRepo, pmRepo, aiSvc)
 
 	// Middleware
 	router.Use(middleware.RequestID())       // Must be first for request tracing
@@ -245,18 +229,17 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		v1.GET("/auth/slack/config", handlers.GetSlackOAuthConfig(slackConfigRepo))
 
 		// Slack Events API, interactive components, and slash commands.
-		// Signature verification runs before each handler; the group is open (no JWT)
-		// because Slack can't send auth tokens — it authenticates via HMAC signature.
-		if slackEventHandler != nil {
-			signingSecret := ""
-			if slackCfg, err := slackConfigRepo.Get(); err == nil && slackCfg != nil {
-				signingSecret = slackCfg.SigningSecret
+		// Routes are always registered; the handler and signing secret are resolved from DB
+		// on each request so they activate immediately after config is saved — no restart needed.
+		slackGroup := v1.Group("/slack", middleware.SlackSignatureVerification(func() string {
+			if cfg, err := slackConfigRepo.Get(); err == nil && cfg != nil {
+				return cfg.SigningSecret
 			}
-			slackGroup := v1.Group("/slack", middleware.SlackSignatureVerification(signingSecret))
-			slackGroup.POST("/events", handlers.SlackEvents(slackEventHandler))
-			slackGroup.POST("/interactions", handlers.SlackInteractions(slackEventHandler))
-			slackGroup.POST("/commands", handlers.SlackCommands(slackEventHandler))
-		}
+			return ""
+		}))
+		slackGroup.POST("/events", handlers.SlackEvents(slackResolver))
+		slackGroup.POST("/interactions", handlers.SlackInteractions(slackResolver))
+		slackGroup.POST("/commands", handlers.SlackCommands(slackResolver))
 
 		// Local login/logout endpoints (always open — these ARE the auth actions)
 		if localAuth != nil {
@@ -427,9 +410,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 
 			// Slack integration config (admin only)
 			settingsGroup.GET("/slack", handlers.GetSlackConfig(slackConfigRepo))
-			settingsGroup.POST("/slack", handlers.SaveSlackConfig(slackConfigRepo))
+			settingsGroup.POST("/slack", handlers.SaveSlackConfig(slackConfigRepo, slackResolver))
 			settingsGroup.POST("/slack/test", handlers.TestSlackConfig())
-			settingsGroup.DELETE("/slack", handlers.DeleteSlackConfig(slackConfigRepo))
+			settingsGroup.DELETE("/slack", handlers.DeleteSlackConfig(slackConfigRepo, slackResolver))
 			settingsGroup.GET("/slack/members", handlers.ListSlackMembers(slackConfigRepo, userRepo))
 
 			// Teams integration config (admin only)

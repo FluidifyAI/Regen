@@ -26,33 +26,19 @@ const (
 )
 
 // SlackSignatureVerification returns a middleware that verifies Slack request signatures.
-// signingSecret is read from the DB-stored Slack config and passed in at route registration
-// time. If empty (Slack not yet configured), requests are allowed through with a warning —
-// dev/test only; in production the secret is always set before the routes are registered.
+// getSecret is called on every request so the signing secret is always current — no restart
+// needed after Slack config is saved via the UI.
 //
 // This implements Slack's signature verification algorithm:
 // https://api.slack.com/authentication/verifying-requests-from-slack
-//
-// The middleware:
-// 1. Checks that the request timestamp is within 5 minutes (prevents replay attacks)
-// 2. Computes HMAC-SHA256 signature of "v0:timestamp:body"
-// 3. Compares computed signature with X-Slack-Signature header
-// 4. Rejects requests with invalid or missing signatures
-//
-// Usage:
-//
-//	slackRoutes.Use(middleware.SlackSignatureVerification(cfg.SigningSecret))
-func SlackSignatureVerification(signingSecret string) gin.HandlerFunc {
-	// If no signing secret is configured, allow requests through with a warning
-	// This is for development/testing only
-	if signingSecret == "" {
-		slog.Warn("Slack signing secret not configured - signature verification disabled")
-		return func(c *gin.Context) {
-			c.Next()
-		}
-	}
-
+func SlackSignatureVerification(getSecret func() string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		signingSecret := getSecret()
+		if signingSecret == "" {
+			slog.Warn("Slack signing secret not configured - signature verification disabled")
+			c.Next()
+			return
+		}
 		// Get the timestamp and signature headers
 		timestamp := c.GetHeader("X-Slack-Request-Timestamp")
 		signature := c.GetHeader("X-Slack-Signature")

@@ -194,10 +194,10 @@ func isValidSlackTransition(current, target models.IncidentStatus) bool {
 	return false
 }
 
-// HandleCommand handles /incident slash commands.
+// HandleCommand handles /regen slash commands.
 // Called by the HTTP route handler after signature verification; the HTTP 200
 // response is the implicit ACK.
-// Supported: /incident new [title], /incident list, /incident help
+// Supported: /regen new [title], /regen list, /regen help
 func (h *SlackEventHandler) HandleCommand(cmd slack.SlashCommand) {
 	parts := strings.Fields(cmd.Text)
 	if len(parts) == 0 {
@@ -233,7 +233,7 @@ func (h *SlackEventHandler) HandleCommand(cmd slack.SlashCommand) {
 }
 
 // openCreateIncidentModal opens a Block Kit modal for declaring a new incident.
-// Pre-fills the title from the text after "new" (e.g. /incident new High CPU).
+// Pre-fills the title from the text after "new" (e.g. /regen new High CPU).
 func (h *SlackEventHandler) openCreateIncidentModal(cmd slack.SlashCommand) {
 	prefillTitle := strings.TrimSpace(strings.TrimPrefix(cmd.Text, "new"))
 
@@ -359,15 +359,15 @@ func (h *SlackEventHandler) sendHelpResponse(cmd slack.SlashCommand) {
 	h.postEphemeral(cmd.ChannelID, cmd.UserID,
 		"*Fluidify Regen Slash Commands:*\n\n"+
 			"*Declare & Browse*\n"+
-			"• `/incident new [title]` — Declare a new incident (opens form)\n"+
-			"• `/incident list` — List open incidents\n\n"+
+			"• `/regen new [title]` — Declare a new incident (opens form)\n"+
+			"• `/regen list` — List open incidents\n\n"+
 			"*In an Incident Channel*\n"+
-			"• `/incident ack` — Acknowledge this incident\n"+
-			"• `/incident resolve` — Resolve this incident\n"+
-			"• `/incident status` — Show incident status\n"+
-			"• `/incident note <text>` — Add a timeline note (opens form if no text)\n"+
-			"• `/incident lead [me|@user]` — Assign incident commander\n\n"+
-			"• `/incident help` — Show this message")
+			"• `/regen ack` — Acknowledge this incident\n"+
+			"• `/regen resolve` — Resolve this incident\n"+
+			"• `/regen status` — Show incident status\n"+
+			"• `/regen note <text>` — Add a timeline note (opens form if no text)\n"+
+			"• `/regen lead [me|@user]` — Assign incident commander\n\n"+
+			"• `/regen help` — Show this message")
 }
 
 // HandleEventsAPI dispatches an inbound Events API payload to the appropriate
@@ -572,7 +572,7 @@ func (h *SlackEventHandler) showIncidentStatus(cmd slack.SlashCommand) {
 	h.postEphemeral(cmd.ChannelID, cmd.UserID, msg)
 }
 
-// assignLeadFromSlash assigns an incident commander via /incident lead [me|@user].
+// assignLeadFromSlash assigns an incident commander via /regen lead [me|@user].
 // targetArg="" or "me" → self; "<@UXXXXXX>" or "<@UXXXXXX|name>" → that user.
 func (h *SlackEventHandler) assignLeadFromSlash(cmd slack.SlashCommand, targetArg string) {
 	incident, err := h.getIncidentFromChannel(cmd.ChannelID)
@@ -587,7 +587,7 @@ func (h *SlackEventHandler) assignLeadFromSlash(cmd slack.SlashCommand, targetAr
 		slackUserID = parseSlackMention(targetArg)
 		if slackUserID == "" {
 			h.postEphemeral(cmd.ChannelID, cmd.UserID,
-				"Could not parse user. Usage: `/incident lead` or `/incident lead @username`")
+				"Could not parse user. Usage: `/regen lead` or `/regen lead @username`")
 			return
 		}
 	}
@@ -761,15 +761,15 @@ func (h *SlackEventHandler) handleViewCommands(callback slack.InteractionCallbac
 	h.postEphemeral(callback.Channel.ID, callback.User.ID,
 		"*Fluidify Regen Slash Commands:*\n\n"+
 			"*Declare & Browse*\n"+
-			"• `/incident new [title]` — Declare a new incident (opens form)\n"+
-			"• `/incident list` — List open incidents\n\n"+
+			"• `/regen new [title]` — Declare a new incident (opens form)\n"+
+			"• `/regen list` — List open incidents\n\n"+
 			"*In an Incident Channel*\n"+
-			"• `/incident ack` — Acknowledge this incident\n"+
-			"• `/incident resolve` — Resolve this incident\n"+
-			"• `/incident status` — Show incident status\n"+
-			"• `/incident note <text>` — Add a timeline note (opens form if no text)\n"+
-			"• `/incident lead [me|@user]` — Assign incident commander\n\n"+
-			"• `/incident help` — Show this message")
+			"• `/regen ack` — Acknowledge this incident\n"+
+			"• `/regen resolve` — Resolve this incident\n"+
+			"• `/regen status` — Show incident status\n"+
+			"• `/regen note <text>` — Add a timeline note (opens form if no text)\n"+
+			"• `/regen lead [me|@user]` — Assign incident commander\n\n"+
+			"• `/regen help` — Show this message")
 }
 
 // ── Shared utilities ─────────────────────────────────────────────────────────
@@ -889,7 +889,7 @@ func (h *SlackEventHandler) handleAppMention(ev *slackevents.AppMentionEvent) {
 	incident, err := h.incidentService.GetIncidentBySlackChannelID(ev.Channel)
 	if err != nil || incident == nil {
 		// Not an incident channel — give a generic help response
-		_, _ = h.postToThread(ev.Channel, ev.TimeStamp, "*Fluidify Regen* here! I respond to questions in incident channels. Use `/incident new` to create an incident.")
+		_, _ = h.postToThread(ev.Channel, ev.TimeStamp, "*Fluidify Regen* here! I respond to questions in incident channels. Use `/regen new` to create an incident.")
 		return
 	}
 

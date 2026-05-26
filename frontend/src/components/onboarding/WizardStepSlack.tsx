@@ -13,25 +13,22 @@ interface Props {
 }
 
 function slackManifest(appUrl: string): string {
-  const isLocal =
-    appUrl.startsWith('http://') || appUrl.includes('localhost') || appUrl.includes('127.0.0.1')
-
   const manifest: Record<string, unknown> = {
     _metadata: { major_version: 1, minor_version: 1 },
     display_information: {
       name: 'Fluidify Regen',
-      description: 'Incident management — alert routing, on-call scheduling, and Slack coordination',
-      background_color: '#ffffff',
+      description: 'Incident management for Slack',
+      background_color: '#1800ad',
     },
     features: {
-      app_home: { home_tab_enabled: false, messages_tab_enabled: true, messages_tab_read_only_enabled: false },
-      bot_user: { display_name: 'Fluidify Regen', always_online: true },
+      app_home: { home_tab_enabled: true, messages_tab_enabled: false, messages_tab_read_only_enabled: false },
+      bot_user: { display_name: 'Fluidify Regen' },
       slash_commands: [
         {
-          command: '/incident',
-          ...(isLocal ? {} : { url: `${appUrl}/api/v1/webhooks/slack/commands` }),
-          description: 'Manage incidents from Slack',
-          usage_hint: 'new [title] | ack | resolve | status',
+          command: '/regen',
+          url: `${appUrl}/api/v1/slack/commands`,
+          description: 'Manage incidents — new, ack, resolve, status, note, lead, list',
+          usage_hint: 'new [title] | ack | resolve | status | note <text> | lead [me|@user] | list | help',
           should_escape: false,
         },
       ],
@@ -40,23 +37,32 @@ function slackManifest(appUrl: string): string {
       redirect_urls: [`${appUrl}/api/v1/auth/slack/callback`],
       scopes: {
         bot: [
-          'channels:history', 'channels:manage', 'channels:read', 'channels:write.invites',
-          'chat:write', 'chat:write.customize', 'commands', 'groups:history', 'groups:read',
-          'groups:write', 'im:history', 'im:read', 'im:write', 'users:read', 'users:read.email',
+          'commands',
+          'app_mentions:read',
+          'channels:history',
+          'channels:manage',
+          'channels:read',
+          'channels:write.invites',
+          'chat:write',
+          'chat:write.public',
+          'im:write',
+          'reactions:read',
+          'users:read',
+          'users:read.email',
         ],
-        user: ['openid', 'email', 'profile'],
       },
     },
     settings: {
       event_subscriptions: {
-        ...(isLocal ? {} : { request_url: `${appUrl}/api/v1/webhooks/slack/events` }),
-        bot_events: ['app_mention', 'message.channels', 'message.groups', 'message.im'],
+        request_url: `${appUrl}/api/v1/slack/events`,
+        bot_events: ['app_mention', 'message.channels', 'reaction_added'],
       },
       interactivity: {
         is_enabled: true,
-        ...(isLocal ? {} : { request_url: `${appUrl}/api/v1/webhooks/slack/interactive` }),
+        request_url: `${appUrl}/api/v1/slack/interactions`,
       },
-      socket_mode_enabled: isLocal,
+      org_deploy_enabled: false,
+      socket_mode_enabled: false,
       token_rotation_enabled: false,
     },
   }
@@ -82,8 +88,6 @@ export function WizardStepSlack({ onComplete, onSkip }: Props) {
   const [saveError, setSaveError] = useState('')
 
   const appUrl = window.location.origin
-  const isLocal =
-    appUrl.startsWith('http://') || appUrl.includes('localhost') || appUrl.includes('127.0.0.1')
   const manifest = slackManifest(appUrl)
   const manifestPortalUrl = `https://api.slack.com/apps?new_app=1&manifest_json=${encodeURIComponent(manifest)}`
 
@@ -151,42 +155,24 @@ export function WizardStepSlack({ onComplete, onSkip }: Props) {
             required permissions, slash commands, and event subscriptions.
           </p>
 
-          {isLocal && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">
-              <p className="font-medium">Local environment detected</p>
-              <p>
-                The manifest uses <strong>Socket Mode</strong> (no public URLs needed) — ideal for localhost.
-                For production, deploy to an HTTPS URL and re-run this step.
-              </p>
-            </div>
-          )}
-
           <ol className="text-sm text-text-secondary space-y-2 list-decimal list-inside">
             <li>Click the button below to open Slack's App Portal</li>
             <li>Select your workspace from the dropdown</li>
             <li>Review the pre-filled settings and click <strong className="text-text-primary">"Create"</strong></li>
             <li>Go to <strong className="text-text-primary">Settings → Install App</strong> and install to your workspace</li>
-            {isLocal && (
-              <li>
-                Go to <strong className="text-text-primary">Settings → Basic Information</strong> → App-Level Tokens →
-                generate a token with <code className="bg-surface-secondary px-1 rounded">connections:write</code> scope
-              </li>
-            )}
           </ol>
 
-          {!isLocal && (
-            <div className="rounded-lg border border-border bg-surface-secondary/50 px-3 py-2.5 space-y-1.5">
-              <p className="text-xs font-medium text-text-secondary">OAuth Redirect URL</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs bg-surface-primary border border-border rounded px-2 py-1.5 text-text-primary font-mono truncate">
-                  {appUrl}/api/v1/auth/slack/callback
-                </code>
-                <button onClick={copyRedirectUrl} className="flex-shrink-0 p-1.5 rounded hover:bg-surface-secondary transition-colors" title="Copy redirect URL">
-                  {urlCopied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5 text-text-tertiary" />}
-                </button>
-              </div>
+          <div className="rounded-lg border border-border bg-surface-secondary/50 px-3 py-2.5 space-y-1.5">
+            <p className="text-xs font-medium text-text-secondary">OAuth Redirect URL</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs bg-surface-primary border border-border rounded px-2 py-1.5 text-text-primary font-mono truncate">
+                {appUrl}/api/v1/auth/slack/callback
+              </code>
+              <button onClick={copyRedirectUrl} className="flex-shrink-0 p-1.5 rounded hover:bg-surface-secondary transition-colors" title="Copy redirect URL">
+                {urlCopied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5 text-text-tertiary" />}
+              </button>
             </div>
-          )}
+          </div>
 
           <a
             href={manifestPortalUrl}
@@ -237,7 +223,7 @@ export function WizardStepSlack({ onComplete, onSkip }: Props) {
               Bot Token <span className="text-red-500">*</span>
             </label>
             <p className="text-xs text-text-tertiary mb-1.5">
-              <strong>OAuth &amp; Permissions</strong> → <strong>Bot User OAuth Token</strong> (starts with <code className="bg-surface-secondary px-1 rounded">xoxb-</code>)
+              <strong>OAuth &amp; Permissions</strong> → <strong>Install to Workspace</strong> → copy <strong>Bot User OAuth Token</strong> (starts with <code className="bg-surface-secondary px-1 rounded">xoxb-</code>)
             </p>
             <input type="password" value={botToken} onChange={(e) => setBotToken(e.target.value)} placeholder="xoxb-..." className={inputClass} />
           </div>

@@ -80,6 +80,10 @@ function timeUntil(iso: string): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function toScheduleTz(datetimeLocalValue: string, scheduleTz: string): string {
   const d = new Date(datetimeLocalValue)
   if (isNaN(d.getTime())) return ''
@@ -1147,7 +1151,7 @@ function UnavailabilitiesTable({ scheduleId, unavailabilities, onDeleted, onAdd,
     }
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDateStr(new Date())
 
   const statusPill = (u: ScheduleUnavailability) => {
     if (u.end_date < today) return (
@@ -1389,10 +1393,10 @@ export function ScheduleDetailPage() {
   // Fetch holidays for the visible window whenever the schedule or month changes.
   useEffect(() => {
     if (!id) return
-    const from = windowStart.toISOString().slice(0, 10)
+    const from = localDateStr(windowStart)
     const toDate = new Date(windowStart)
     toDate.setDate(toDate.getDate() + GANTT_DAYS)
-    const to = toDate.toISOString().slice(0, 10)
+    const to = localDateStr(toDate)
     getHolidays(id, from, to)
       .then(r => setHolidays(r.data))
       .catch(() => {})
@@ -1592,7 +1596,7 @@ export function ScheduleDetailPage() {
                   </div>
                 )}
                 {(() => {
-                  const todayStr = new Date().toISOString().slice(0, 10)
+                  const todayStr = localDateStr(new Date())
                   const todayHoliday = holidays.find(h => h.date === todayStr)
                   if (!todayHoliday) return null
                   return (

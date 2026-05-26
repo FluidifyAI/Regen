@@ -39,9 +39,7 @@ func TestParseICS_BasicEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "New Year's Day", entries[0].name)
-	assert.Equal(t, 2026, entries[0].date.Year())
-	assert.Equal(t, 1, int(entries[0].date.Month()))
-	assert.Equal(t, 1, entries[0].date.Day())
+	assert.Equal(t, "2026-01-01", entries[0].date.String())
 }
 
 func TestParseICS_DtStartNoValueType(t *testing.T) {
@@ -51,8 +49,7 @@ func TestParseICS_DtStartNoValueType(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "Independence Day", entries[0].name)
-	assert.Equal(t, 8, int(entries[0].date.Month()))
-	assert.Equal(t, 15, entries[0].date.Day())
+	assert.Equal(t, "2026-08-15", entries[0].date.String())
 }
 
 func TestParseICS_MultipleEvents(t *testing.T) {

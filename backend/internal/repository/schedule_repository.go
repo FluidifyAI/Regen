@@ -430,7 +430,7 @@ func (r *scheduleRepository) UpsertHolidays(holidays []models.ScheduleHoliday) e
 	seen := make(map[string]struct{}, len(holidays))
 	deduped := make([]models.ScheduleHoliday, 0, len(holidays))
 	for _, h := range holidays {
-		key := h.ScheduleID.String() + "|" + h.CountryCode + "|" + h.Date.Format("2006-01-02")
+		key := h.ScheduleID.String() + "|" + h.CountryCode + "|" + h.Date.String()
 		if _, exists := seen[key]; exists {
 			continue
 		}

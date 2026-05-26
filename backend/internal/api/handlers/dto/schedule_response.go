@@ -112,7 +112,7 @@ func ToHolidayResponse(h *models.ScheduleHoliday) HolidayResponse {
 		ID:          h.ID,
 		ScheduleID:  h.ScheduleID,
 		CountryCode: h.CountryCode,
-		Date:        h.Date.Format("2006-01-02"),
+		Date:        h.Date.String(),
 		Name:        h.Name,
 	}
 }

@@ -120,7 +120,7 @@ func (s *HolidayService) fetchHolidays(scheduleID uuid.UUID, code, url string) (
 
 // holidayEntry is a parsed (date, name) pair from an ICS feed.
 type holidayEntry struct {
-	date time.Time
+	date models.DateOnly
 	name string
 }
 
@@ -142,7 +142,7 @@ func parseICS(r io.Reader) ([]holidayEntry, error) {
 			inEvent = true
 			cur = holidayEntry{}
 		case line == "END:VEVENT":
-			if inEvent && !cur.date.IsZero() && cur.name != "" {
+			if inEvent && cur.date != "" && cur.name != "" {
 				entries = append(entries, cur)
 			}
 			inEvent = false
@@ -151,7 +151,7 @@ func parseICS(r io.Reader) ([]holidayEntry, error) {
 			if idx := strings.LastIndex(line, ":"); idx >= 0 {
 				val := strings.TrimSpace(line[idx+1:])
 				if t, err := time.Parse("20060102", val); err == nil {
-					cur.date = t.UTC()
+					cur.date = models.DateOnlyFromTime(t)
 				}
 			}
 		case inEvent && strings.HasPrefix(line, "SUMMARY:"):

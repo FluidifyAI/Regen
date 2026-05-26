@@ -242,7 +242,7 @@ type ScheduleHoliday struct {
 	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	ScheduleID  uuid.UUID `gorm:"type:uuid;not null;index"                      json:"schedule_id"`
 	CountryCode string    `gorm:"type:varchar(10);not null"                     json:"country_code"`
-	Date        time.Time `gorm:"type:date;not null"                            json:"date"`
+	Date        DateOnly  `gorm:"type:date;not null"                            json:"date"`
 	Name        string    `gorm:"type:varchar(255);not null"                    json:"name"`
 	CreatedAt   time.Time `gorm:"not null;default:now()"                        json:"created_at"`
 }

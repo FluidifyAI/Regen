@@ -76,6 +76,7 @@ backend/ui/dist/*
 /docs/ARCHITECTURE.md
 /docs/DECISIONS.md
 /docs/FEATURES.md
+/docs/slack-cloud-setup.md
 
 # Claude Code project instructions — internal dev playbook, not for public repo
 /CLAUDE.md

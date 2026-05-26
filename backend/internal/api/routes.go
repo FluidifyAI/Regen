@@ -108,23 +108,24 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		}
 	}
 
-	// Start Slack Socket Mode event handler (bidirectional sync) if app token is configured.
-	if slackCfgForSocket, err := slackConfigRepo.Get(); err == nil &&
-		slackCfgForSocket != nil && slackCfgForSocket.AppToken != "" && chatService != nil {
-		eventHandler, err := services.NewSlackEventHandler(
-			slackCfgForSocket.AppToken,
-			slackCfgForSocket.BotToken,
+	// Bootstrap Slack HTTP event handler (bidirectional sync) if bot token is configured.
+	// The handler is wired to /api/v1/slack/* routes below; no persistent connection needed.
+	var slackEventHandler *services.SlackEventHandler
+	if slackCfg, err := slackConfigRepo.Get(); err == nil &&
+		slackCfg != nil && slackCfg.BotToken != "" && chatService != nil {
+		h, err := services.NewSlackEventHandler(
+			slackCfg.BotToken,
 			incidentSvc,
 			chatService,
 			userRepo,
 			pmRepo,
 		)
 		if err != nil {
-			slog.Error("failed to initialize slack socket mode", "error", err)
+			slog.Error("failed to initialize slack event handler", "error", err)
 			slog.Warn("bidirectional Slack sync disabled - Slack will be one-way only")
 		} else {
-			eventHandler.SetAIService(aiSvc)
-			eventHandler.Start()
+			h.SetAIService(aiSvc)
+			slackEventHandler = h
 		}
 	}
 
@@ -242,6 +243,20 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		v1.GET("/auth/slack/callback", handlers.SlackOAuthCallback(slackConfigRepo, localAuth))
 		// Public: is Slack OAuth login enabled? (LoginPage uses this to show/hide the button)
 		v1.GET("/auth/slack/config", handlers.GetSlackOAuthConfig(slackConfigRepo))
+
+		// Slack Events API, interactive components, and slash commands.
+		// Signature verification runs before each handler; the group is open (no JWT)
+		// because Slack can't send auth tokens — it authenticates via HMAC signature.
+		if slackEventHandler != nil {
+			signingSecret := ""
+			if slackCfg, err := slackConfigRepo.Get(); err == nil && slackCfg != nil {
+				signingSecret = slackCfg.SigningSecret
+			}
+			slackGroup := v1.Group("/slack", middleware.SlackSignatureVerification(signingSecret))
+			slackGroup.POST("/events", handlers.SlackEvents(slackEventHandler))
+			slackGroup.POST("/interactions", handlers.SlackInteractions(slackEventHandler))
+			slackGroup.POST("/commands", handlers.SlackCommands(slackEventHandler))
+		}
 
 		// Local login/logout endpoints (always open — these ARE the auth actions)
 		if localAuth != nil {

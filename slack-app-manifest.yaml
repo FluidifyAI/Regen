@@ -1,18 +1,15 @@
 # Fluidify Regen — Slack App Manifest
 #
 # How to use:
-#   1. Go to https://api.slack.com/apps
-#   2. Click "Create New App" → "From a manifest"
-#   3. Select your workspace
-#   4. Paste this entire file (YAML tab) and click Next → Create
-#   5. From "Basic Information", copy:
-#        - Signing Secret  → SLACK_SIGNING_SECRET
-#   6. From "OAuth & Permissions" → Install to Workspace, then copy:
-#        - Bot User OAuth Token (xoxb-...)  → SLACK_BOT_TOKEN
-#   7. From "Basic Information" → App-Level Tokens → Generate Token
-#        - Scope: connections:write
-#        - Copy the token (xapp-...)  → SLACK_APP_TOKEN
-#   8. Paste all three values into your .env and restart Fluidify Regen.
+#   1. Replace YOUR-INSTANCE below with your Regen URL (e.g. https://regen.example.com)
+#   2. Go to https://api.slack.com/apps
+#   3. Click "Create New App" → "From a manifest"
+#   4. Select your workspace
+#   5. Paste this entire file (YAML tab) and click Next → Create
+#   6. From "Basic Information", copy:
+#        - Signing Secret  → paste into Regen Settings → Integrations → Slack
+#   7. From "OAuth & Permissions" → Install to Workspace, then copy:
+#        - Bot User OAuth Token (xoxb-...)  → paste into Regen Settings → Integrations → Slack
 #
 # Full setup guide: https://github.com/FluidifyAI/Regen/blob/main/README.md
 
@@ -47,13 +44,14 @@ features:
 
   slash_commands:
     - command: /incident
+      url: https://YOUR-INSTANCE/api/v1/slack/commands
       description: Manage incidents — new, ack, resolve, status, note, lead, list
       usage_hint: "new [title] | ack | resolve | status | note [text] | lead [me|@user] | list | help"
       should_escape: false
 
 oauth_config:
   redirect_urls:
-    - https://your-regen-instance.example.com/api/v1/auth/slack/callback
+    - https://YOUR-INSTANCE/api/v1/auth/slack/callback
   scopes:
     bot:
       - channels:manage       # Create and archive incident channels
@@ -62,7 +60,10 @@ oauth_config:
       - chat:write            # Post messages and status updates
       - chat:write.public     # Post to public channels without joining
       - users:read            # Resolve user display names for timeline
+      - users:read.email      # Email lookup for Slack → Regen account linking
       - im:write              # Send DMs to on-call responders
+      - app_mentions:read     # Required for app_mention events (@regen bot)
+      - reactions:read        # Required for reaction_added events (✅ ack, 🔴 resolve)
     user:
       - openid                # Slack SSO login
       - email                 # Match Slack user to Regen account
@@ -70,12 +71,16 @@ oauth_config:
 
 settings:
   event_subscriptions:
+    request_url: https://YOUR-INSTANCE/api/v1/slack/events
     bot_events:
       - message.channels      # Sync channel messages → incident timeline
+      - app_mention           # @regen bot mentions → AI answer in thread
+      - reaction_added        # ✅ white_check_mark → ack, 🔴 red_circle → resolve
 
   interactivity:
-    is_enabled: true          # Required for buttons and modals
+    is_enabled: true
+    request_url: https://YOUR-INSTANCE/api/v1/slack/interactions
 
   org_deploy_enabled: false
-  socket_mode_enabled: true   # Uses WebSocket — no public inbound URL required
+  socket_mode_enabled: false  # HTTP Events API — no WebSocket connection required
   token_rotation_enabled: false

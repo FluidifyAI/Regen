@@ -116,7 +116,6 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
 
   const [botToken, setBotToken] = useState('')
   const [signingSecret, setSigningSecret] = useState('')
-  const [appToken, setAppToken] = useState('')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<SlackTestResult | null>(null)
   const [testError, setTestError] = useState('')
@@ -157,7 +156,6 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
       const req: SaveSlackConfigRequest = {
         bot_token: botToken,
         signing_secret: signingSecret,
-        app_token: appToken || undefined,
         workspace_id: testResult?.workspace_id,
         workspace_name: testResult?.workspace_name,
         bot_user_id: testResult?.bot_user_id,
@@ -390,30 +388,6 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
                   className={inputClass}
                 />
               </div>
-            </div>
-
-            {/* App-Level Token (Socket Mode) */}
-            <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">
-                App-Level Token{' '}
-                <span className="text-red-500 font-normal">required for interactive buttons</span>
-              </label>
-              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-1.5">
-                ⚠️ Without this token, the <strong>Make me Lead</strong> and <strong>Add Note</strong> buttons in Slack will show an error when clicked.
-              </p>
-              <p className="text-xs text-text-tertiary mb-1.5">
-                In your Slack app: <strong>Basic Information</strong> → <strong>App-Level Tokens</strong> →
-                click <strong>Generate Token and Scopes</strong> → add{' '}
-                <code className="bg-surface-secondary px-1 rounded">connections:write</code> scope
-                → copy the token (starts with <code className="bg-surface-secondary px-1 rounded">xapp-</code>)
-              </p>
-              <input
-                type="password"
-                value={appToken}
-                onChange={(e) => setAppToken(e.target.value)}
-                placeholder="xapp-..."
-                className={inputClass}
-              />
             </div>
 
             <button

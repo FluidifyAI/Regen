@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -26,7 +25,10 @@ const (
 	SlackSignatureVersion = "v0"
 )
 
-// SlackSignatureVerification returns a middleware that verifies Slack request signatures
+// SlackSignatureVerification returns a middleware that verifies Slack request signatures.
+// signingSecret is read from the DB-stored Slack config and passed in at route registration
+// time. If empty (Slack not yet configured), requests are allowed through with a warning —
+// dev/test only; in production the secret is always set before the routes are registered.
 //
 // This implements Slack's signature verification algorithm:
 // https://api.slack.com/authentication/verifying-requests-from-slack
@@ -39,14 +41,12 @@ const (
 //
 // Usage:
 //
-//	slackRoutes.Use(middleware.SlackSignatureVerification())
-func SlackSignatureVerification() gin.HandlerFunc {
-	signingSecret := os.Getenv("SLACK_SIGNING_SECRET")
-
+//	slackRoutes.Use(middleware.SlackSignatureVerification(cfg.SigningSecret))
+func SlackSignatureVerification(signingSecret string) gin.HandlerFunc {
 	// If no signing secret is configured, allow requests through with a warning
 	// This is for development/testing only
 	if signingSecret == "" {
-		slog.Warn("SLACK_SIGNING_SECRET not set - Slack signature verification disabled")
+		slog.Warn("Slack signing secret not configured - signature verification disabled")
 		return func(c *gin.Context) {
 			c.Next()
 		}
@@ -141,6 +141,9 @@ func SlackSignatureVerification() gin.HandlerFunc {
 			return
 		}
 
+		// Store the buffered body so handlers can read it without a second io.ReadAll.
+		c.Set("slack_raw_body", bodyBytes)
+
 		// Signature is valid, proceed
 		c.Next()
 	}
@@ -172,4 +175,15 @@ func computeSlackSignature(signingSecret, timestamp string, body []byte) string 
 
 	// Format as v0=<hex>
 	return fmt.Sprintf("%s=%s", SlackSignatureVersion, hex.EncodeToString(hash))
+}
+
+// SlackBodyFromContext retrieves the raw request body buffered by SlackSignatureVerification.
+// Falls back to reading from c.Request.Body when the key is absent (e.g. in unit tests).
+func SlackBodyFromContext(c *gin.Context) ([]byte, error) {
+	if raw, ok := c.Get("slack_raw_body"); ok {
+		if b, ok := raw.([]byte); ok {
+			return b, nil
+		}
+	}
+	return io.ReadAll(c.Request.Body)
 }

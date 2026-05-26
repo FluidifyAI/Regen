@@ -12,7 +12,6 @@ type SlackConfig struct {
 	ID                int        `gorm:"primaryKey;default:1"`
 	BotToken          string     `gorm:"column:bot_token"`
 	SigningSecret     string     `gorm:"column:signing_secret"`
-	AppToken          string     `gorm:"column:app_token"`
 	WorkspaceID       string     `gorm:"column:workspace_id"`
 	WorkspaceName     string     `gorm:"column:workspace_name"`
 	BotUserID         string     `gorm:"column:bot_user_id"`

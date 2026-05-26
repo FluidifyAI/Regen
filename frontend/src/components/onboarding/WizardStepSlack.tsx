@@ -72,7 +72,6 @@ export function WizardStepSlack({ onComplete, onSkip }: Props) {
 
   const [botToken, setBotToken] = useState('')
   const [signingSecret, setSigningSecret] = useState('')
-  const [appToken, setAppToken] = useState('')
   const [oauthClientId, setOauthClientId] = useState('')
   const [oauthClientSecret, setOauthClientSecret] = useState('')
 
@@ -117,7 +116,6 @@ export function WizardStepSlack({ onComplete, onSkip }: Props) {
       const req: SaveSlackConfigRequest = {
         bot_token: botToken,
         signing_secret: signingSecret,
-        app_token: appToken || undefined,
         workspace_id: testResult?.workspace_id,
         workspace_name: testResult?.workspace_name,
         bot_user_id: testResult?.bot_user_id,
@@ -267,19 +265,6 @@ export function WizardStepSlack({ onComplete, onSkip }: Props) {
               <label className="block text-xs font-medium text-text-secondary mb-1">OAuth Client Secret</label>
               <input type="password" value={oauthClientSecret} onChange={(e) => setOauthClientSecret(e.target.value)} placeholder="••••••••••••••••" className={inputClass} />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1">
-              App-Level Token <span className="text-red-500 font-normal">required for interactive buttons</span>
-            </label>
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-1.5">
-              Without this token, the Make me Lead and Add Note buttons in Slack will error when clicked.
-            </p>
-            <p className="text-xs text-text-tertiary mb-1.5">
-              <strong>Basic Information</strong> → <strong>App-Level Tokens</strong> → generate with <code className="bg-surface-secondary px-1 rounded">connections:write</code> (starts with <code className="bg-surface-secondary px-1 rounded">xapp-</code>)
-            </p>
-            <input type="password" value={appToken} onChange={(e) => setAppToken(e.target.value)} placeholder="xapp-..." className={inputClass} />
           </div>
 
           <div className="space-y-2">

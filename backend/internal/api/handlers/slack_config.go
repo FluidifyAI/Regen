@@ -18,7 +18,6 @@ type slackConfigResponse struct {
 	WorkspaceName  string     `json:"workspace_name,omitempty"`
 	BotUserID      string     `json:"bot_user_id,omitempty"`
 	HasBotToken    bool       `json:"has_bot_token"`
-	HasAppToken    bool       `json:"has_app_token"`
 	HasOAuthConfig bool       `json:"has_oauth_config"`
 	ConnectedAt    *time.Time `json:"connected_at,omitempty"`
 }
@@ -33,7 +32,6 @@ func toSlackConfigResponse(cfg *models.SlackConfig) slackConfigResponse {
 		WorkspaceName:  cfg.WorkspaceName,
 		BotUserID:      cfg.BotUserID,
 		HasBotToken:    cfg.BotToken != "",
-		HasAppToken:    cfg.AppToken != "",
 		HasOAuthConfig: cfg.OAuthClientID != "" && cfg.OAuthClientSecret != "",
 		ConnectedAt:    &cfg.ConnectedAt,
 	}
@@ -57,7 +55,6 @@ func SaveSlackConfig(repo repository.SlackConfigRepository) gin.HandlerFunc {
 		var req struct {
 			BotToken          string `json:"bot_token"`
 			SigningSecret     string `json:"signing_secret"`
-			AppToken          string `json:"app_token"`
 			WorkspaceID       string `json:"workspace_id"`
 			WorkspaceName     string `json:"workspace_name"`
 			BotUserID         string `json:"bot_user_id"`
@@ -83,7 +80,6 @@ func SaveSlackConfig(repo repository.SlackConfigRepository) gin.HandlerFunc {
 		cfg := &models.SlackConfig{
 			BotToken:          req.BotToken,
 			SigningSecret:     req.SigningSecret,
-			AppToken:          req.AppToken,
 			WorkspaceID:       req.WorkspaceID,
 			WorkspaceName:     req.WorkspaceName,
 			BotUserID:         req.BotUserID,

@@ -1,0 +1,1 @@
+ALTER TABLE slack_config ADD COLUMN IF NOT EXISTS app_token TEXT;

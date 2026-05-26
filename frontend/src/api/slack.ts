@@ -6,7 +6,6 @@ export interface SlackConfigStatus {
   workspace_name?: string
   bot_user_id?: string
   has_bot_token: boolean
-  has_app_token: boolean
   has_oauth_config: boolean
   connected_at?: string
 }
@@ -21,7 +20,6 @@ export interface SlackTestResult {
 export interface SaveSlackConfigRequest {
   bot_token: string
   signing_secret: string
-  app_token?: string
   workspace_id?: string
   workspace_name?: string
   bot_user_id?: string

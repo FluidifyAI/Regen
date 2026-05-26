@@ -82,8 +82,8 @@ func ToUnavailabilityResponse(u *models.ScheduleUnavailability) UnavailabilityRe
 		ID:         u.ID,
 		ScheduleID: u.ScheduleID,
 		UserName:   u.UserName,
-		StartDate:  u.StartDate.UTC().Format("2006-01-02"),
-		EndDate:    u.EndDate.UTC().Format("2006-01-02"),
+		StartDate:  u.StartDate.String(),
+		EndDate:    u.EndDate.String(),
 		Reason:     u.Reason,
 		CreatedBy:  u.CreatedBy,
 		CreatedAt:  u.CreatedAt,
@@ -112,7 +112,7 @@ func ToHolidayResponse(h *models.ScheduleHoliday) HolidayResponse {
 		ID:          h.ID,
 		ScheduleID:  h.ScheduleID,
 		CountryCode: h.CountryCode,
-		Date:        h.Date.Format("2006-01-02"),
+		Date:        h.Date.String(),
 		Name:        h.Name,
 	}
 }

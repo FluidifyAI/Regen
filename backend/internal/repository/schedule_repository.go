@@ -430,7 +430,7 @@ func (r *scheduleRepository) UpsertHolidays(holidays []models.ScheduleHoliday) e
 	seen := make(map[string]struct{}, len(holidays))
 	deduped := make([]models.ScheduleHoliday, 0, len(holidays))
 	for _, h := range holidays {
-		key := h.ScheduleID.String() + "|" + h.CountryCode + "|" + h.Date.Format("2006-01-02")
+		key := h.ScheduleID.String() + "|" + h.CountryCode + "|" + h.Date.String()
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -587,9 +587,7 @@ func validateUnavailability(u *models.ScheduleUnavailability) error {
 	if u.UserName == "" {
 		return fmt.Errorf("user_name cannot be empty")
 	}
-	startDate := u.StartDate.UTC().Truncate(24 * time.Hour)
-	endDate := u.EndDate.UTC().Truncate(24 * time.Hour)
-	if endDate.Before(startDate) {
+	if u.EndDate < u.StartDate {
 		return fmt.Errorf("end_date must be on or after start_date")
 	}
 	return nil

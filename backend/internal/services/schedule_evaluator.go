@@ -74,7 +74,8 @@ func (e *scheduleEvaluator) WhoIsOnCall(scheduleID uuid.UUID, at time.Time) (str
 		return "", fmt.Errorf("failed to load unavailabilities: %w", err)
 	}
 
-	unavailableAt := buildUnavailableSet(unavailabilities, at)
+	loc := scheduleLocation(schedule.Timezone)
+	unavailableAt := buildUnavailableSet(unavailabilities, at, loc)
 	return computeOnCallFromLayersSkipping(schedule.Layers, at, unavailableAt), nil
 }
 
@@ -229,7 +230,8 @@ func buildTimeline(
 	unavailabilities []models.ScheduleUnavailability,
 	from, to time.Time,
 ) []TimelineSegment {
-	boundaries := collectBoundaries(schedule.Layers, overrides, unavailabilities, from, to)
+	loc := scheduleLocation(schedule.Timezone)
+	boundaries := collectBoundaries(schedule.Layers, overrides, unavailabilities, from, to, loc)
 
 	var segments []TimelineSegment
 	for i := 0; i < len(boundaries)-1; i++ {
@@ -237,7 +239,7 @@ func buildTimeline(
 		end := boundaries[i+1]
 		mid := start.Add(end.Sub(start) / 2)
 
-		isOverride, user := resolveAtTime(schedule.Layers, overrides, unavailabilities, mid)
+		isOverride, user := resolveAtTime(schedule.Layers, overrides, unavailabilities, mid, loc)
 		if user == "" {
 			user = "(nobody)"
 		}
@@ -266,6 +268,7 @@ func collectBoundaries(
 	overrides []models.ScheduleOverride,
 	unavailabilities []models.ScheduleUnavailability,
 	from, to time.Time,
+	loc *time.Location,
 ) []time.Time {
 	seen := map[time.Time]struct{}{
 		from: {},
@@ -307,11 +310,11 @@ func collectBoundaries(
 		}
 	}
 
-	// Unavailability day boundaries: add midnight UTC at start_date and the
-	// midnight after end_date (the day when availability resumes).
+	// Unavailability day boundaries: midnight in the schedule's timezone at start_date,
+	// and midnight of the day after end_date (when availability resumes).
 	for _, u := range unavailabilities {
-		startMidnight := u.StartDate.UTC().Truncate(24 * time.Hour)
-		resumeMidnight := u.EndDate.UTC().Truncate(24*time.Hour).Add(24 * time.Hour)
+		startMidnight := dateMidnightInLoc(string(u.StartDate), loc)
+		resumeMidnight := dateMidnightInLoc(string(u.EndDate), loc).Add(24 * time.Hour)
 		if startMidnight.After(from) && startMidnight.Before(to) {
 			seen[startMidnight] = struct{}{}
 		}
@@ -337,30 +340,52 @@ func resolveAtTime(
 	overrides []models.ScheduleOverride,
 	unavailabilities []models.ScheduleUnavailability,
 	at time.Time,
+	loc *time.Location,
 ) (bool, string) {
 	for _, ov := range overrides {
 		if !at.Before(ov.StartTime) && at.Before(ov.EndTime) {
 			return true, ov.OverrideUser
 		}
 	}
-	unavailable := buildUnavailableSet(unavailabilities, at)
+	unavailable := buildUnavailableSet(unavailabilities, at, loc)
 	return false, computeOnCallFromLayersSkipping(layers, at, unavailable)
 }
 
 // buildUnavailableSet returns a set of usernames who are unavailable at the given time.
-// Unavailability is date-granular: a user is unavailable for the full UTC day.
-func buildUnavailableSet(unavailabilities []models.ScheduleUnavailability, at time.Time) map[string]struct{} {
+// Unavailability is date-granular: a user is unavailable for the entire calendar day
+// as defined in the schedule's timezone (loc).
+func buildUnavailableSet(unavailabilities []models.ScheduleUnavailability, at time.Time, loc *time.Location) map[string]struct{} {
 	if len(unavailabilities) == 0 {
 		return nil
 	}
-	atDate := at.UTC().Truncate(24 * time.Hour)
+	atDate := at.In(loc).Format("2006-01-02")
 	unavailable := make(map[string]struct{})
 	for _, u := range unavailabilities {
-		startDate := u.StartDate.UTC().Truncate(24 * time.Hour)
-		endDate := u.EndDate.UTC().Truncate(24 * time.Hour)
-		if !atDate.Before(startDate) && !atDate.After(endDate) {
+		if atDate >= string(u.StartDate) && atDate <= string(u.EndDate) {
 			unavailable[strings.ToLower(u.UserName)] = struct{}{}
 		}
 	}
 	return unavailable
+}
+
+// scheduleLocation parses an IANA timezone name, falling back to UTC on error.
+func scheduleLocation(tz string) *time.Location {
+	if tz == "" {
+		return time.UTC
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}
+
+// dateMidnightInLoc returns midnight of the given "YYYY-MM-DD" date in loc, normalized
+// to UTC so it can be used safely as a map key or compared with other UTC times.
+func dateMidnightInLoc(date string, loc *time.Location) time.Time {
+	t, err := time.ParseInLocation("2006-01-02", date, loc)
+	if err != nil {
+		t, _ = time.Parse("2006-01-02", date)
+	}
+	return t.UTC()
 }

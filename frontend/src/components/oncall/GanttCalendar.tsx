@@ -105,7 +105,7 @@ function getSegmentForDay(segments: TimelineSegment[], day: Date): TimelineSegme
   const matches = segments.filter((s) => {
     const segStart = new Date(s.start)
     const segEnd = new Date(s.end)
-    return segStart <= dayEnd && segEnd >= dayStart
+    return segStart < dayEnd && segEnd > dayStart
   })
   // Prefer override segments over regular rotation segments
   return matches.find((s) => s.is_override) ?? matches[0] ?? null

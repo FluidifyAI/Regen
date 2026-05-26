@@ -7,6 +7,29 @@ and panels. Just replace the OnCall part.
 
 ---
 
+## TLDR; Grafana 1 click migtration
+
+Grafana OnCall was archived in March 2026. Fluidify Regen is built to be the drop-in OSS successor — same self-hosted model.
+
+Point your Alertmanager at Regen and you're receiving alerts in minutes:
+
+```yaml
+# alertmanager.yml
+receivers:
+  - name: fluidify-regen
+    webhook_configs:
+      - url: http://your-regen-host:8080/api/v1/webhooks/prometheus
+```
+
+**One-click migration from Grafana OnCall** — import your users, on-call schedules, and escalation policies in under 60 seconds:
+
+1. Go to **Settings → Migrations**
+2. Enter your Grafana OnCall URL and API token
+3. Preview exactly what will be imported, then click **Import everything**
+
+Your new Regen webhook URLs are shown immediately — just update them in Grafana Alertmanager and you're live.
+
+
 ## Why migrate to Regen?
 
 - **Keep Grafana for everything else** — Regen receives webhooks from Grafana

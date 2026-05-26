@@ -173,8 +173,8 @@ func (r *CreateUnavailabilityRequest) ToModel(scheduleID uuid.UUID) *models.Sche
 	return &models.ScheduleUnavailability{
 		ScheduleID: scheduleID,
 		UserName:   r.UserName,
-		StartDate:  r.StartDate.UTC().Truncate(24 * time.Hour),
-		EndDate:    r.EndDate.UTC().Truncate(24 * time.Hour),
+		StartDate:  models.DateOnly(r.StartDate.UTC().Format("2006-01-02")),
+		EndDate:    models.DateOnly(r.EndDate.UTC().Format("2006-01-02")),
 		Reason:     r.Reason,
 		CreatedBy:  createdBy,
 	}

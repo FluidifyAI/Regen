@@ -1522,7 +1522,7 @@ export function ScheduleDetailPage() {
           scheduleId={schedule.id}
           users={allParticipants}
           onClose={() => setUnavailModalOpen(false)}
-          onSaved={() => { toast.success('Unavailability recorded'); refetch() }}
+          onSaved={() => { toast.success('Unavailability recorded'); invalidateAll() }}
         />
       )}
 

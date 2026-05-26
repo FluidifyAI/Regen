@@ -216,10 +216,10 @@ type ScheduleUnavailability struct {
 	UserName string `gorm:"type:varchar(255);not null" json:"user_name"`
 
 	// StartDate is the first day of unavailability (inclusive, stored as DATE).
-	StartDate time.Time `gorm:"type:date;not null" json:"start_date"`
+	StartDate DateOnly `gorm:"type:date;not null" json:"start_date"`
 
 	// EndDate is the last day of unavailability (inclusive, stored as DATE).
-	EndDate time.Time `gorm:"type:date;not null" json:"end_date"`
+	EndDate DateOnly `gorm:"type:date;not null" json:"end_date"`
 
 	// Reason is an optional human-readable explanation (e.g., "PTO", "sick leave").
 	Reason string `gorm:"type:varchar(500)" json:"reason,omitempty"`

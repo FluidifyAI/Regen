@@ -31,13 +31,14 @@ func makeLayer(rotationStart time.Time, shiftDuration time.Duration, participant
 }
 
 // makeUnavailability builds a ScheduleUnavailability for the given user over [start, end] (inclusive dates).
+// start/end are UTC midnight values produced by day(), so DateOnlyFromTime gives the correct YYYY-MM-DD.
 func makeUnavailability(scheduleID uuid.UUID, user string, start, end time.Time) models.ScheduleUnavailability {
 	return models.ScheduleUnavailability{
 		ID:         uuid.New(),
 		ScheduleID: scheduleID,
 		UserName:   user,
-		StartDate:  start,
-		EndDate:    end,
+		StartDate:  models.DateOnlyFromTime(start),
+		EndDate:    models.DateOnlyFromTime(end),
 	}
 }
 
@@ -45,7 +46,7 @@ func makeUnavailability(scheduleID uuid.UUID, user string, start, end time.Time)
 
 func TestBuildUnavailableSet_NoUnavailabilities(t *testing.T) {
 	at := day(2026, 5, 10)
-	result := buildUnavailableSet(nil, at)
+	result := buildUnavailableSet(nil, at, time.UTC)
 	if len(result) != 0 {
 		t.Errorf("expected empty set, got %v", result)
 	}
@@ -55,7 +56,7 @@ func TestBuildUnavailableSet_ActiveOnExactDay(t *testing.T) {
 	schedID := uuid.New()
 	at := day(2026, 5, 10)
 	u := makeUnavailability(schedID, "alice", day(2026, 5, 10), day(2026, 5, 10))
-	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at)
+	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at, time.UTC)
 	if _, ok := result["alice"]; !ok {
 		t.Error("alice should be unavailable on her start=end date")
 	}
@@ -65,7 +66,7 @@ func TestBuildUnavailableSet_ActiveMidRange(t *testing.T) {
 	schedID := uuid.New()
 	at := day(2026, 5, 12)
 	u := makeUnavailability(schedID, "bob", day(2026, 5, 10), day(2026, 5, 14))
-	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at)
+	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at, time.UTC)
 	if _, ok := result["bob"]; !ok {
 		t.Error("bob should be unavailable in the middle of his range")
 	}
@@ -75,7 +76,7 @@ func TestBuildUnavailableSet_ExpiredYesterday(t *testing.T) {
 	schedID := uuid.New()
 	at := day(2026, 5, 10)
 	u := makeUnavailability(schedID, "carol", day(2026, 5, 8), day(2026, 5, 9))
-	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at)
+	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at, time.UTC)
 	if _, ok := result["carol"]; ok {
 		t.Error("carol's unavailability ended yesterday; she should be available today")
 	}
@@ -85,7 +86,7 @@ func TestBuildUnavailableSet_StartsTimorrow(t *testing.T) {
 	schedID := uuid.New()
 	at := day(2026, 5, 10)
 	u := makeUnavailability(schedID, "dave", day(2026, 5, 11), day(2026, 5, 15))
-	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at)
+	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at, time.UTC)
 	if _, ok := result["dave"]; ok {
 		t.Error("dave's unavailability starts tomorrow; he should be available today")
 	}
@@ -99,7 +100,7 @@ func TestBuildUnavailableSet_MultipleUsers(t *testing.T) {
 		makeUnavailability(schedID, "bob", day(2026, 5, 10), day(2026, 5, 10)),
 		makeUnavailability(schedID, "carol", day(2026, 5, 11), day(2026, 5, 13)), // tomorrow
 	}
-	result := buildUnavailableSet(unavails, at)
+	result := buildUnavailableSet(unavails, at, time.UTC)
 	if _, ok := result["alice"]; !ok {
 		t.Error("alice should be unavailable")
 	}
@@ -116,7 +117,7 @@ func TestBuildUnavailableSet_MidnightBoundary_StartOfDay(t *testing.T) {
 	// Check: 00:00:01 UTC on start day → still in range
 	at := day(2026, 5, 10).Add(time.Second)
 	u := makeUnavailability(schedID, "alice", day(2026, 5, 10), day(2026, 5, 10))
-	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at)
+	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at, time.UTC)
 	if _, ok := result["alice"]; !ok {
 		t.Error("alice should be unavailable at 00:00:01 on her start date")
 	}
@@ -127,7 +128,7 @@ func TestBuildUnavailableSet_MidnightBoundary_LastSecondOfEndDay(t *testing.T) {
 	// Check: 23:59:59 UTC on end day → still in range
 	at := day(2026, 5, 10).Add(24*time.Hour - time.Second)
 	u := makeUnavailability(schedID, "alice", day(2026, 5, 10), day(2026, 5, 10))
-	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at)
+	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at, time.UTC)
 	if _, ok := result["alice"]; !ok {
 		t.Error("alice should be unavailable at 23:59:59 on her end date")
 	}
@@ -244,12 +245,74 @@ func TestBuildUnavailableSet_CaseInsensitive_StoresLowercaseKey(t *testing.T) {
 	at := day(2026, 5, 10)
 	// UserName stored with capital — should appear as lowercase key in the returned set.
 	u := makeUnavailability(schedID, "Alice", day(2026, 5, 10), day(2026, 5, 10))
-	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at)
+	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at, time.UTC)
 	if _, ok := result["alice"]; !ok {
 		t.Error("expected lowercase key 'alice' in unavailable set for input UserName 'Alice'")
 	}
 	if _, ok := result["Alice"]; ok {
 		t.Error("should not store mixed-case key 'Alice'; only lowercase keys are expected")
+	}
+}
+
+func TestBuildUnavailableSet_UsesScheduleTimezone_IST(t *testing.T) {
+	// User marks DATE 2026-05-28 as unavailable. Schedule is Asia/Kolkata (UTC+5:30).
+	// Correct behaviour: the leave covers the full IST calendar day May 28,
+	// i.e. from 2026-05-27T18:30Z to 2026-05-28T18:30Z.
+	ist, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		t.Skip("Asia/Kolkata timezone not available")
+	}
+
+	schedID := uuid.New()
+	u := makeUnavailability(schedID, "alice", day(2026, 5, 28), day(2026, 5, 28))
+
+	// 00:01 IST on May 28 = 2026-05-27T18:31Z → alice's leave day in IST → UNAVAILABLE
+	at0001May28IST := time.Date(2026, 5, 28, 0, 1, 0, 0, ist)
+	result := buildUnavailableSet([]models.ScheduleUnavailability{u}, at0001May28IST, ist)
+	if _, ok := result["alice"]; !ok {
+		t.Error("alice should be unavailable at 00:01 IST on her leave date May 28")
+	}
+
+	// 00:01 IST on May 29 = 2026-05-28T18:31Z → next day in IST → AVAILABLE
+	at0001May29IST := time.Date(2026, 5, 29, 0, 1, 0, 0, ist)
+	result = buildUnavailableSet([]models.ScheduleUnavailability{u}, at0001May29IST, ist)
+	if _, ok := result["alice"]; ok {
+		t.Error("alice should NOT be unavailable at 00:01 IST on May 29 (leave was only for May 28)")
+	}
+}
+
+func TestCollectBoundaries_UsesScheduleTimezone_IST(t *testing.T) {
+	// Schedule timezone Asia/Kolkata (UTC+5:30).
+	// Unavailability for DATE 2026-05-28.
+	// Expected boundaries:
+	//   startMidnight  = 2026-05-28T00:00 IST = 2026-05-27T18:30Z
+	//   resumeMidnight = 2026-05-29T00:00 IST = 2026-05-28T18:30Z
+	ist, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		t.Skip("Asia/Kolkata timezone not available")
+	}
+
+	schedID := uuid.New()
+	epoch := day(2026, 5, 1)
+	layer := makeLayer(epoch, 7*24*time.Hour, "alice", "bob")
+	from := time.Date(2026, 5, 27, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)
+
+	unavail := makeUnavailability(schedID, "alice", day(2026, 5, 28), day(2026, 5, 28))
+	bounds := collectBoundaries([]models.ScheduleLayer{layer}, nil, []models.ScheduleUnavailability{unavail}, from, to, ist)
+
+	boundSet := make(map[time.Time]struct{}, len(bounds))
+	for _, b := range bounds {
+		boundSet[b] = struct{}{}
+	}
+
+	wantStart := time.Date(2026, 5, 27, 18, 30, 0, 0, time.UTC)   // midnight IST May 28
+	wantResume := time.Date(2026, 5, 28, 18, 30, 0, 0, time.UTC)  // midnight IST May 29
+	if _, ok := boundSet[wantStart]; !ok {
+		t.Errorf("expected IST-midnight start boundary at %v", wantStart)
+	}
+	if _, ok := boundSet[wantResume]; !ok {
+		t.Errorf("expected IST-midnight resume boundary at %v", wantResume)
 	}
 }
 
@@ -307,7 +370,7 @@ func TestCollectBoundaries_IncludesUnavailabilityDayBoundaries(t *testing.T) {
 	to := day(2026, 5, 15)
 
 	unavail := makeUnavailability(schedID, "alice", day(2026, 5, 8), day(2026, 5, 10))
-	bounds := collectBoundaries([]models.ScheduleLayer{layer}, nil, []models.ScheduleUnavailability{unavail}, from, to)
+	bounds := collectBoundaries([]models.ScheduleLayer{layer}, nil, []models.ScheduleUnavailability{unavail}, from, to, time.UTC)
 
 	boundSet := make(map[time.Time]struct{}, len(bounds))
 	for _, b := range bounds {
@@ -330,8 +393,8 @@ func TestCollectBoundaries_NoUnavailabilities_BoundariesUnchanged(t *testing.T) 
 	from := day(2026, 5, 1)
 	to := day(2026, 5, 15)
 
-	withNone := collectBoundaries([]models.ScheduleLayer{layer}, nil, nil, from, to)
-	withEmpty := collectBoundaries([]models.ScheduleLayer{layer}, nil, []models.ScheduleUnavailability{}, from, to)
+	withNone := collectBoundaries([]models.ScheduleLayer{layer}, nil, nil, from, to, time.UTC)
+	withEmpty := collectBoundaries([]models.ScheduleLayer{layer}, nil, []models.ScheduleUnavailability{}, from, to, time.UTC)
 
 	if len(withNone) != len(withEmpty) {
 		t.Errorf("nil and empty unavailabilities should produce same boundary count: %d vs %d", len(withNone), len(withEmpty))
@@ -347,7 +410,7 @@ func TestCollectBoundaries_UnavailabilityOutsideWindow_NotAdded(t *testing.T) {
 
 	// Unavailability entirely after the window
 	unavail := makeUnavailability(schedID, "alice", day(2026, 5, 20), day(2026, 5, 25))
-	bounds := collectBoundaries([]models.ScheduleLayer{layer}, nil, []models.ScheduleUnavailability{unavail}, from, to)
+	bounds := collectBoundaries([]models.ScheduleLayer{layer}, nil, []models.ScheduleUnavailability{unavail}, from, to, time.UTC)
 
 	for _, b := range bounds {
 		if b.Equal(day(2026, 5, 20)) || b.Equal(day(2026, 5, 26)) {
@@ -482,7 +545,7 @@ func TestResolveAtTime_NoOverrides_NoUnavailabilities(t *testing.T) {
 	epoch := day(2026, 1, 1)
 	layer := makeLayer(epoch, 24*time.Hour, "alice", "bob")
 
-	isOverride, user := resolveAtTime([]models.ScheduleLayer{layer}, nil, nil, epoch)
+	isOverride, user := resolveAtTime([]models.ScheduleLayer{layer}, nil, nil, epoch, time.UTC)
 	if isOverride {
 		t.Error("should not be override")
 	}
@@ -497,7 +560,7 @@ func TestResolveAtTime_UnavailableUser_AdvancesRotation(t *testing.T) {
 	layer := makeLayer(epoch, 24*time.Hour, "alice", "bob")
 
 	unavail := makeUnavailability(schedID, "alice", day(2026, 1, 1), day(2026, 1, 1))
-	isOverride, user := resolveAtTime([]models.ScheduleLayer{layer}, nil, []models.ScheduleUnavailability{unavail}, epoch)
+	isOverride, user := resolveAtTime([]models.ScheduleLayer{layer}, nil, []models.ScheduleUnavailability{unavail}, epoch, time.UTC)
 	if isOverride {
 		t.Error("should not be override")
 	}
@@ -526,6 +589,7 @@ func TestResolveAtTime_OverrideWins_EvenWhenUnavailable(t *testing.T) {
 		[]models.ScheduleOverride{override},
 		[]models.ScheduleUnavailability{unavail},
 		epoch.Add(time.Hour), // 01:00 on Jan 1 — inside override window
+		time.UTC,
 	)
 	if !isOverride {
 		t.Error("should be marked as override")

@@ -587,9 +587,7 @@ func validateUnavailability(u *models.ScheduleUnavailability) error {
 	if u.UserName == "" {
 		return fmt.Errorf("user_name cannot be empty")
 	}
-	startDate := u.StartDate.UTC().Truncate(24 * time.Hour)
-	endDate := u.EndDate.UTC().Truncate(24 * time.Hour)
-	if endDate.Before(startDate) {
+	if u.EndDate < u.StartDate {
 		return fmt.Errorf("end_date must be on or after start_date")
 	}
 	return nil

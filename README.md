@@ -113,45 +113,16 @@
 
 ---
 
-## Install
-
-Three ways to run — pick what fits your stack:
-
-### Docker (fastest)
+## Installation
 
 ```bash
 docker pull ghcr.io/fluidifyai/regen:latest
 ```
 
-Need the full stack? One command:
-
-```bash
-curl -O https://raw.githubusercontent.com/FluidifyAI/Regen/main/docker-compose.yml
-docker-compose up -d
-```
-
-Open **http://localhost:8080** — API and UI are ready. No configuration required to start receiving alerts.
-
-### Docker Compose (recommended for self-hosting)
-
-```bash
-git clone https://github.com/FluidifyAI/Regen.git
-cd Regen
-cp .env.example .env   # edit as needed
-docker-compose up -d
-```
-
-### Kubernetes (Helm)
-
-```bash
-helm repo add fluidify https://charts.fluidify.ai
-helm repo update
-helm install fluidify-regen fluidify/fluidify-regen \
-  --set ingress.host=incidents.your-domain.com \
-  --set postgresql.auth.password=<strong-password>
-```
-
-For production HA (external DB, Redis Sentinel, zero-downtime deploys), see [docs/OPERATIONS.md](docs/OPERATIONS.md).
+For detailed installation guides, see:
+- [Docker](install-docker.md)
+- [Docker Compose](install-docker-compose.md)
+- [Kubernetes](install-kubernetes.md)
 
 ---
 
@@ -220,7 +191,7 @@ Full security architecture: [SECURITY.md](SECURITY.md)
 
 ## Contributing
 
-Issues, PRs, and feature requests are welcome. If you're coming from Grafana OnCall, your experience building on that platform is exactly what we need.
+We love contributions big and small. This is how you join us:
 
 ```bash
 # Start backend + dependencies
@@ -233,11 +204,17 @@ cd backend && go run ./cmd/regen/... serve
 cd frontend && npm install && npm run dev
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [Makefile](Makefile) (`make help`) for all commands. For bigger changes, [open a discussion first](https://github.com/FluidifyAI/Regen/discussions).
+Read for raising a PR:
+- Read the setup & workflow in [CONTRIBUTING.md](CONTRIBUTING.md)
+- Discover all developer commands with `make help`
+- Have a big idea? [Let’s discuss it first](https://github.com/FluidifyAI/Regen/discussions)
 
 ---
 
-> Missing something? [Open an issue](https://github.com/FluidifyAI/Regen/issues/new) — the generic webhook covers most tools today.
+## Support us
+If you find Regen useful, consider supporting us by:
+- Star this repo - It helps others discover Regen
+- [Guide us](https://github.com/FluidifyAI/Regen/issues/new) - Every issue you raise goes into building
 
 ---
 

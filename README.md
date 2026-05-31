@@ -20,33 +20,67 @@
 
 ---
 
-> Unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests.
-
-> The **one-stop alternative to PagerDuty + incident.io**, with **1-click import from Grafana OnCall/PagerDuty**.
-
----
-
-<p align="center">
-  <img src=".github/assets/demo.gif" alt="Fluidify Regen — incident kanban and Slack collaboration" width="960">
-</p>
-
+> Unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests with 1-click Import from Grafana Oncall/Pagerduty
 ---
 
 ## Features
 
-- Incident lifecycle with immutable timeline
-- On-call rotations, layers, overrides
-- Escalation policies with multi-step timeouts
-- Alert ingestion — Prometheus, Grafana, CloudWatch, generic webhook
-- Slack integration — channels, bot commands, timeline sync
-- Microsoft Teams integration — Adaptive Cards, bot commands
-- 1-click migration from Grafana OnCall/PagerDuty
-- AI incident summaries + post-mortem drafts (BYO key — OpenAI/Anthropic/Ollama)
-- AI Postmortems, Handoffs, Summaries sych with Slack/Teams
-- SSO / SAML — Okta, Azure AD, Google Workspace — **free, always**
-- Docker Compose + Kubernetes Helm chart
-- PostgreSQL HA + Redis Sentinel support
-- No limits on incidents/AI features
+### - Incident lifecycle with immutable timeline
+<table>
+  <tr>
+    <td width="50%"><img src=".github/assets/incident-lifecycle.png" alt="Fluidify Regen — Immutable incident lifecycle for auditablity"></td>
+    <td width="50%"><img src=".github/assets/declare-incidents.png" alt="Fluidify Regen — Declare Incidents with AI Summaries"></td>
+  </tr>
+</table>
+
+### - On-call rotations, layers, overrides
+<table>
+  <tr>
+    <td width="50%"><img src=".github/assets/oncall-schedule1.png" alt="Fluidify Regen — helps you make oncall schedules with overlaps and availability markers"></td>
+    <td width="50%"><img src=".github/assets/oncall-schedule2.png" alt="Fluidify Regen — helps your include holidays and leaves in oncall schedules"></td>
+  </tr>
+</table>
+
+### - Escalation policies with multi-step timeouts
+<table>
+  <tr>
+    <td width="50%"><img src=".github/assets/escalation-path1.png" alt="Fluidify Regen — Define Esacalation policies for incidents"></td>
+    <td width="50%"><img src=".github/assets/escalation-path2.png" alt="Fluidify Regen — Define Esacalation policies for incidents"></td>
+  </tr>
+</table>
+
+### - Alert ingestion — Prometheus, Grafana, CloudWatch, generic webhook
+<p align="center">
+  <img src=".github/assets/integrations.png" alt="Fluidify Regen integrates with your Prometheur, Grafan, Cloudwatch and other so many tools" width="960">
+</p>
+
+### - Slack integration — channels, bot commands, timeline sync
+### - Microsoft Teams integration — Adaptive Cards, bot commands
+### - 1-click migration from Grafana OnCall/PagerDuty
+<p align="center">
+  <img src=".github/assets/1click-import.png" alt="Fluidify Regen lets you import your schedules and configurations from Grafana, Pagerduty and Opsgenie in 1 click" width="960">
+</p>
+
+
+### - AI incident summaries, Post-mortem, Handoffs Summaries with Slack/Teams synch (BYO key — OpenAI/Anthropic/Ollama)
+<table>
+  <tr>
+    <td width="50%"><img src=".github/assets/ai-summary-ss.png" alt="Fluidify Regen — AI assisted summaries"></td>
+    <td width="50%"><img src=".github/assets/pm-ss.png" alt="Fluidify Regen — Editable AI Postmortems"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src=".github/assets/pattern-matching-ss.png" alt="Fluidify Regen — Pattern matching and learning with historical incidents"></td>
+  </tr>
+</table>
+
+### - SSO / SAML — Okta, Azure AD, Google Workspace
+<p align="center">
+  <img src=".github/assets/sso.png" alt="Fluidify Regen allows you to sign in with SSO/SAML from Okta, Azure AD, Google Workspace, Slack" width="960">
+</p>
+
+### - Docker Compose + Kubernetes Helm chart
+### - PostgreSQL HA + Redis Sentinel support
+### - No limits on incidents/AI features
 
 ---
 
@@ -60,34 +94,6 @@
 | **Auth** | SAML 2.0 — Okta · Azure AD · Google Workspace · any compliant IdP |
 | **Migration** | Grafana OnCall · PagerDuty |
 | **Deploy** | Docker Compose · Kubernetes Helm · bare metal |
-
----
-
-## Highlights of AI Capabilities
-
-### Incident Summarization
-
-<p align="center">
-  <img src=".github/assets/ai-summary-ss.png" alt="Fluidify Regen — Create AI assisted summaries for efficient context transfer across engineers" width="960">
-</p>
-
-### Historical Pattern Matching
-
-<p align="center">
-  <img src=".github/assets/pattern-matching-ss.png" alt="Fluidify Regen — Pattern matching and learning with historical incidents" width="960">
-</p>
-
-### Post-Mortem Agent
-
-<p align="center">
-  <img src=".github/assets/pm-ss.png" alt="Fluidify Regen — Editable AI Postmortems for Incidents" width="960">
-</p>
-
-### Handoff Digest
-
-<p align="center">
-  <img src=".github/assets/handoff-ss.png" alt="Fluidify Regen — Create AI Assisted Handoff Digests for Incident handovers, briefings, status changes, pending actions, sycnhed with Slack/Teams" width="960">
-</p>
 
 ---
 

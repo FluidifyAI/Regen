@@ -70,6 +70,7 @@
   </tr>
   <tr>
     <td width="50%"><img src=".github/assets/pattern-matching-ss.png" alt="Fluidify Regen — Pattern matching and learning with historical incidents"></td>
+    <td width="50%"><img src=".github/assets/byok.png" alt="Fluidify Regen — integrates with multiple LLM Providers"></td>
   </tr>
 </table>
 

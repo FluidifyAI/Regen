@@ -42,6 +42,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	slackConfigRepo := repository.NewSlackConfigRepository(db)
 	teamsConfigRepo := repository.NewTeamsConfigRepository(db)
 	telegramConfigRepo := repository.NewTelegramConfigRepository(db)
+	attachmentRepo := repository.NewAttachmentRepository(db)
 
 	// Slack is initialized lazily: config is read from the DB on each use and
 	// cached until the bot_token changes. This means Slack can be configured or
@@ -94,6 +95,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	// Post-mortem service (v0.7+)
 	commentRepo := repository.NewPostMortemCommentRepository(db)
 	postMortemSvc := services.NewPostMortemService(pmRepo, postMortemTemplateRepo, commentRepo, incidentSvc, aiSvc)
+
+	attachmentSvc := services.NewAttachmentService(attachmentRepo)
 
 	// Wire Teams service into incident service (v0.8+).
 	// teamsSvc is constructed once in serve.go and injected here.
@@ -321,6 +324,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.GET("/incidents/:id/postmortem/comments", handlers.ListPostMortemComments(incidentSvc, postMortemSvc))
 		protected.POST("/incidents/:id/postmortem/comments", handlers.CreatePostMortemComment(incidentSvc, postMortemSvc))
 		protected.DELETE("/incidents/:id/postmortem/comments/:commentId", handlers.DeletePostMortemComment(incidentSvc, postMortemSvc))
+
+		// Attachments (OPE-175)
+		protected.GET("/incidents/:id/attachments", handlers.ListAttachments(incidentSvc, attachmentSvc))
+		protected.POST("/incidents/:id/attachments", handlers.UploadAttachment(incidentSvc, attachmentSvc))
+		protected.GET("/incidents/:id/attachments/:aid/download", handlers.DownloadAttachment(incidentSvc, attachmentSvc))
+		protected.DELETE("/incidents/:id/attachments/:aid", handlers.DeleteAttachment(incidentSvc, attachmentSvc))
 
 		// Grouping Rules (v0.3)
 		protected.GET("/grouping-rules", handlers.ListGroupingRules(groupingRuleRepo))

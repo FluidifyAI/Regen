@@ -526,8 +526,8 @@ function TemplatePills({
             onClick={() => onSelect(t.id)}
             className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
               isSelected
-                ? 'bg-primary border-primary text-white'
-                : 'border-border text-text-secondary hover:border-primary hover:text-primary'
+                ? 'bg-brand-primary border-brand-primary text-white'
+                : 'border-border text-text-secondary hover:border-brand-primary hover:text-brand-primary'
             }`}
           >
             {t.name}

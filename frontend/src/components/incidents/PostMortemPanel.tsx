@@ -73,7 +73,13 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
     Promise.all([
       fetchPm(),
       getAISettings().then((s) => setAiEnabled(s.enabled)).catch(() => setAiEnabled(false)),
-      listPostMortemTemplates().then(setTemplates).catch(() => setTemplates([])),
+      listPostMortemTemplates()
+        .then((data) => {
+          setTemplates(data)
+          const first = data[0]
+          if (first) setSelectedTemplateId(first.id)
+        })
+        .catch(() => setTemplates([])),
     ]).finally(() => setLoading(false))
   }, [fetchPm])
 
@@ -280,6 +286,16 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
             <p className="text-sm font-medium text-text-primary mb-1">No post-mortem yet</p>
             <p className="text-xs text-text-tertiary">Write it yourself or let AI draft it from the incident timeline.</p>
           </div>
+          {aiEnabled && templates.length > 0 && (
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-[10px] text-text-tertiary font-medium uppercase tracking-wide">Template</span>
+              <TemplatePills
+                templates={templates}
+                selectedId={selectedTemplateId}
+                onSelect={setSelectedTemplateId}
+              />
+            </div>
+          )}
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Button
               variant="primary"
@@ -300,7 +316,9 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
                 disabled={generating || creating}
               >
                 {!generating && <Sparkles className="w-3.5 h-3.5" />}
-                Generate with AI
+                {selectedTemplateId
+                  ? `Generate · ${templates.find((t) => t.id === selectedTemplateId)?.name ?? 'AI'}`
+                  : 'Generate with AI'}
               </Button>
             )}
           </div>
@@ -472,6 +490,50 @@ function AIActionsDropdown({
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+function TemplatePills({
+  templates,
+  selectedId,
+  onSelect,
+}: {
+  templates: PostMortemTemplate[]
+  selectedId: string
+  onSelect: (id: string) => void
+}) {
+  if (templates.length === 0) return null
+  const single = templates.length === 1
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {templates.map((t) => {
+        const isSelected = t.id === selectedId
+        if (single) {
+          return (
+            <span
+              key={t.id}
+              className="px-2.5 py-1 text-xs rounded-full border border-border text-text-tertiary opacity-60 cursor-default"
+            >
+              {t.name}
+            </span>
+          )
+        }
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onSelect(t.id)}
+            className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+              isSelected
+                ? 'bg-brand-primary border-brand-primary text-white'
+                : 'border-border text-text-secondary hover:border-brand-primary hover:text-brand-primary'
+            }`}
+          >
+            {t.name}
+          </button>
+        )
+      })}
     </div>
   )
 }

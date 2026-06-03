@@ -10,6 +10,7 @@ import { AddTimelineEntry } from '../components/incidents/AddTimelineEntry'
 import { GroupedAlerts } from '../components/incidents/GroupedAlerts'
 import { AISummaryPanel } from '../components/incidents/AISummaryPanel'
 import { PostMortemPanel } from '../components/incidents/PostMortemPanel'
+import { AttachmentsPanel } from '../components/incidents/AttachmentsPanel'
 import { ToastContainer, useToast } from '../components/ui/Toast'
 import { GeneralError } from '../components/ui/ErrorState'
 import { Button } from '../components/ui/Button'
@@ -18,7 +19,7 @@ import { listEscalationPolicies } from '../api/escalation'
 import { apiClient } from '../api/client'
 import type { EscalationPolicy } from '../api/types'
 
-type TabType = 'activity' | 'alerts' | 'postmortem'
+type TabType = 'activity' | 'alerts' | 'postmortem' | 'attachments'
 
 const SEVERITY_TINT: Record<string, string> = {
   critical: 'rgba(220,38,38,0.045)',
@@ -46,6 +47,7 @@ export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState<TabType>('activity')
   const [hasPostMortem, setHasPostMortem] = useState(false)
+  const [attachmentCount, setAttachmentCount] = useState(0)
   const { toasts, dismissToast, success, error: showError } = useToast()
   const [showEscalateModal, setShowEscalateModal] = useState(false)
   const [escalatePolicies, setEscalatePolicies] = useState<EscalationPolicy[]>([])
@@ -219,6 +221,7 @@ export function IncidentDetailPage() {
             <TabButton active={activeTab === 'activity'} onClick={() => setActiveTab('activity')} label="Activity" count={incident.timeline.length} />
             <TabButton active={activeTab === 'alerts'} onClick={() => setActiveTab('alerts')} label="Alerts" count={incident.alerts.length} />
             <TabButton active={activeTab === 'postmortem'} onClick={() => setActiveTab('postmortem')} label="Post-Mortem" count={hasPostMortem ? 1 : 0} />
+            <TabButton active={activeTab === 'attachments'} onClick={() => setActiveTab('attachments')} label="Attachments" count={attachmentCount} />
           </div>
         </div>
 
@@ -249,6 +252,9 @@ export function IncidentDetailPage() {
             )}
             {activeTab === 'postmortem' && (
               <PostMortemPanel incidentId={incident.id} onPostMortemLoaded={setHasPostMortem} />
+            )}
+            {activeTab === 'attachments' && (
+              <AttachmentsPanel incidentId={incident.id} onCountChange={setAttachmentCount} />
             )}
           </div>
         </div>

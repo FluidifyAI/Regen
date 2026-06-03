@@ -3,7 +3,9 @@ package webhooks
 import (
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -25,7 +27,7 @@ type AlertmanagerAlert struct {
 	StartsAt     time.Time         `json:"startsAt" binding:"required"`                     // ISO8601 timestamp when alert started
 	EndsAt       time.Time         `json:"endsAt"`                                          // ISO8601 timestamp when alert ended (or zero for firing)
 	GeneratorURL string            `json:"generatorURL" binding:"max=2048"`                 // Link to Prometheus expression browser
-	Fingerprint  string            `json:"fingerprint" binding:"required,max=64"`           // Unique identifier for this alert (used for deduplication)
+	Fingerprint  string            `json:"fingerprint" binding:"omitempty,max=64"`          // Unique identifier for this alert; generated from labels if absent
 }
 
 // PrometheusProvider implements WebhookProvider for Prometheus Alertmanager webhooks.
@@ -127,8 +129,13 @@ func (p *PrometheusProvider) normalizePrometheusAlert(amAlert *AlertmanagerAlert
 		return nil, fmt.Errorf("failed to marshal alert for raw payload: %w", err)
 	}
 
+	fingerprint := amAlert.Fingerprint
+	if fingerprint == "" {
+		fingerprint = fingerprintFromLabels(amAlert.Labels)
+	}
+
 	return &NormalizedAlert{
-		ExternalID:  amAlert.Fingerprint,
+		ExternalID:  fingerprint,
 		Source:      "prometheus",
 		Status:      status,
 		Severity:    severity,
@@ -140,4 +147,24 @@ func (p *PrometheusProvider) normalizePrometheusAlert(amAlert *AlertmanagerAlert
 		StartedAt:   amAlert.StartsAt,
 		EndedAt:     endedAt,
 	}, nil
+}
+
+// fingerprintFromLabels generates a stable deduplication key from sorted label pairs.
+// Mirrors Prometheus Alertmanager's own fingerprint algorithm so manually sent
+// alerts deduplicate correctly against real Alertmanager-originated ones of the same labels.
+func fingerprintFromLabels(labels map[string]string) string {
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	h := fnv.New64a()
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte("="))
+		h.Write([]byte(labels[k]))
+		h.Write([]byte(","))
+	}
+	return fmt.Sprintf("%016x", h.Sum64())
 }

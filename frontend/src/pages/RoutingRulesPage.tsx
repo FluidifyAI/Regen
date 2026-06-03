@@ -151,7 +151,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
       if (rule) {
         await updateRoutingRule(rule.id, { name: name.trim(), enabled, match_criteria, actions })
       } else {
-        const body: CreateRoutingRuleRequest = { name: name.trim(), description: '', priority: 0, enabled, match_criteria, actions }
+        const body: CreateRoutingRuleRequest = { name: name.trim(), description: '', priority: 1, enabled, match_criteria, actions }
         await createRoutingRule(body)
       }
       onSaved(); onClose()
@@ -285,7 +285,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                     <p className="text-sm font-medium text-text-primary">Create incident</p>
                     <p className="text-xs text-text-tertiary">Automatically open an incident for matching alerts</p>
                   </div>
-                  <YesNo value={createIncident} onChange={handleCreateChange} disabled={suppress} />
+                  <YesNo value={createIncident} onChange={handleCreateChange} />
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-4">
@@ -317,7 +317,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                     <p className="text-sm font-medium text-text-primary">Suppress alert</p>
                     <p className="text-xs text-text-tertiary">Drop matching alerts silently — no incident, no page</p>
                   </div>
-                  <YesNo value={suppress} onChange={handleSuppressChange} disabled={createIncident} />
+                  <YesNo value={suppress} onChange={handleSuppressChange} />
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <div>

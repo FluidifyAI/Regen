@@ -73,7 +73,13 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
     Promise.all([
       fetchPm(),
       getAISettings().then((s) => setAiEnabled(s.enabled)).catch(() => setAiEnabled(false)),
-      listPostMortemTemplates().then(setTemplates).catch(() => setTemplates([])),
+      listPostMortemTemplates()
+        .then((data) => {
+          setTemplates(data)
+          const first = data[0]
+          if (first) setSelectedTemplateId(first.id)
+        })
+        .catch(() => setTemplates([])),
     ]).finally(() => setLoading(false))
   }, [fetchPm])
 

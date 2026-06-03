@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // IncidentAttachment holds metadata for a file attached to an incident.
@@ -19,6 +20,15 @@ type IncidentAttachment struct {
 }
 
 func (IncidentAttachment) TableName() string { return "incident_attachments" }
+
+// BeforeCreate ensures the UUID primary key is populated before insertion,
+// which is required for SQLite in tests (no gen_random_uuid() support).
+func (a *IncidentAttachment) BeforeCreate(tx *gorm.DB) error {
+	if a.ID == uuid.Nil {
+		a.ID = uuid.New()
+	}
+	return nil
+}
 
 // IncidentAttachmentData holds the raw bytes for an attachment.
 // Stored separately so SELECT on incident_attachments never reads binary data.

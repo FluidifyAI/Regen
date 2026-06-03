@@ -6,6 +6,7 @@ import {
   deleteAttachment,
   formatFileSize,
   isImageMime,
+  isAllowedMime,
 } from '../../api/attachments'
 import type { Attachment } from '../../api/types'
 
@@ -61,6 +62,11 @@ export function AttachmentsPanel({ incidentId, onCountChange }: AttachmentsPanel
   }, [incidentId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleUpload(file: File) {
+    if (!isAllowedMime(file)) {
+      setUploading((u) => [...u, { name: file.name, progress: 0, error: 'File type not supported' }])
+      setTimeout(() => setUploading((u) => u.filter((f) => f.name !== file.name)), 4000)
+      return
+    }
     const MAX = 10 * 1024 * 1024
     if (file.size > MAX) {
       setUploading((u) => [...u, { name: file.name, progress: 0, error: 'File exceeds 10 MB limit' }])

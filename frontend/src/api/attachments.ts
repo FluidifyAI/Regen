@@ -56,3 +56,14 @@ export function formatFileSize(bytes: number): string {
 export function isImageMime(mimeType: string): boolean {
   return mimeType.startsWith('image/')
 }
+
+const ALLOWED_MIME_PREFIXES = ['image/', 'text/plain', 'text/csv', 'application/pdf', 'application/json', 'application/zip']
+
+export function isAllowedMime(file: File): boolean {
+  const mime = file.type
+  // Empty type (common for .exe, .bin, unknown files) is not allowed
+  if (!mime) return false
+  return ALLOWED_MIME_PREFIXES.some((allowed) =>
+    allowed.endsWith('/') ? mime.startsWith(allowed) : mime === allowed
+  )
+}

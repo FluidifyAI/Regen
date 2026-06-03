@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Plus, Paperclip, X } from 'lucide-react'
 import { addTimelineEntry } from '../../api/timeline'
-import { uploadAttachment } from '../../api/attachments'
+import { uploadAttachment, isAllowedMime } from '../../api/attachments'
 import { Button } from '../ui/Button'
 
 interface AddTimelineEntryProps {
@@ -89,7 +89,18 @@ export function AddTimelineEntry({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return
-    setFiles((prev) => [...prev, ...Array.from(e.target.files!)])
+    const valid = Array.from(e.target.files).filter((f) => {
+      if (!isAllowedMime(f)) {
+        onError(`"${f.name}" is not a supported file type`)
+        return false
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        onError(`"${f.name}" exceeds the 10 MB limit`)
+        return false
+      }
+      return true
+    })
+    setFiles((prev) => [...prev, ...valid])
     e.target.value = ''
   }
 

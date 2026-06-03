@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Plus, Paperclip, X } from 'lucide-react'
 import { addTimelineEntry } from '../../api/timeline'
 import { uploadAttachment } from '../../api/attachments'
@@ -22,6 +22,26 @@ export function AddTimelineEntry({
   const [files, setFiles] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Clipboard paste — attach images when the form is open
+  useEffect(() => {
+    if (!isExpanded) return
+    function handlePaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (!file) continue
+          const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+          const named = new File([file], `screenshot-${ts}.png`, { type: file.type })
+          setFiles((prev) => [...prev, named])
+        }
+      }
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [isExpanded])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

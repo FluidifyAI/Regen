@@ -35,6 +35,13 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("setupTestDB: get sql.DB: %v", err)
 	}
 
+	// Pin to a single connection so PRAGMA foreign_keys = ON stays in effect for
+	// every subsequent statement (SQLite PRAGMAs are per-connection).
+	sqlDB.SetMaxOpenConns(1)
+	if _, err := sqlDB.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		t.Fatalf("setupTestDB: enable FK pragma: %v", err)
+	}
+
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS incidents (
 			id TEXT PRIMARY KEY,
@@ -83,7 +90,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS incident_attachment_data (
-			attachment_id TEXT PRIMARY KEY REFERENCES incident_attachments(id),
+			attachment_id TEXT PRIMARY KEY REFERENCES incident_attachments(id) ON DELETE CASCADE,
 			data BLOB NOT NULL
 		)`,
 	}

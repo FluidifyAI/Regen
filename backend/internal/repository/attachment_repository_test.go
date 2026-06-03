@@ -81,6 +81,12 @@ func TestAttachmentRepository_Delete(t *testing.T) {
 	list, err := repo.ListByIncident(inc.ID)
 	require.NoError(t, err)
 	assert.Empty(t, list)
+
+	// Also verify the data row was cascade-deleted
+	_, _, dataErr := repo.GetWithData(att.ID)
+	require.Error(t, dataErr)
+	_, isNotFound := dataErr.(*repository.NotFoundError)
+	assert.True(t, isNotFound, "expected NotFoundError after cascade delete of data row")
 }
 
 func TestAttachmentRepository_GetWithData_NotFound(t *testing.T) {

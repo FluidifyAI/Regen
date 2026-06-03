@@ -58,6 +58,9 @@ func (r *attachmentRepository) GetWithData(id uuid.UUID) (*models.IncidentAttach
 	}
 	var ad models.IncidentAttachmentData
 	if err := r.db.First(&ad, "attachment_id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, &NotFoundError{Resource: "attachment", ID: id.String()}
+		}
 		return nil, nil, &DatabaseError{Op: "get attachment_data", Err: err}
 	}
 	return &att, ad.Data, nil

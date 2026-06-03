@@ -490,3 +490,14 @@ export function isApiError(error: unknown): error is ApiError {
     'message' in (error as ApiError).error
   )
 }
+
+export interface Attachment {
+  id: string
+  incident_id: string
+  file_name: string
+  file_size: number
+  mime_type: string
+  uploaded_by: string
+  created_at: string
+  download_url: string
+}

@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Plus, Paperclip, X } from 'lucide-react'
 import { addTimelineEntry } from '../../api/timeline'
+import { uploadAttachment, isAllowedMime } from '../../api/attachments'
 import { Button } from '../ui/Button'
 
 interface AddTimelineEntryProps {
@@ -10,10 +11,6 @@ interface AddTimelineEntryProps {
   onEntryAdded: () => void
 }
 
-/**
- * Form for adding timeline entries (notes/messages)
- * Shows input field with submit button
- */
 export function AddTimelineEntry({
   incidentId,
   onSuccess,
@@ -22,25 +19,61 @@ export function AddTimelineEntry({
 }: AddTimelineEntryProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [message, setMessage] = useState('')
+  const [files, setFiles] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Clipboard paste — attach images when the form is open
+  useEffect(() => {
+    if (!isExpanded) return
+    function handlePaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (!file) continue
+          const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+          const named = new File([file], `screenshot-${ts}.png`, { type: file.type })
+          setFiles((prev) => [...prev, named])
+        }
+      }
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [isExpanded])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!message.trim() || isSubmitting) return
+    if ((!message.trim() && files.length === 0) || isSubmitting) return
 
     setIsSubmitting(true)
 
     try {
-      await addTimelineEntry(incidentId, {
-        type: 'message',
-        content: { message: message.trim() },
-      })
+      // Upload files first — if this fails, the note is never posted
+      for (const file of files) {
+        await uploadAttachment(incidentId, file)
+      }
 
-      onSuccess('Note added to timeline')
+      if (message.trim()) {
+        await addTimelineEntry(incidentId, {
+          type: 'message',
+          content: { message: message.trim() },
+        })
+      }
+
+      const successMsg = files.length > 0 && message.trim()
+        ? 'Note and attachment added'
+        : files.length > 0
+          ? `${files.length} file${files.length > 1 ? 's' : ''} attached`
+          : 'Note added to timeline'
+
+      onSuccess(successMsg)
       setMessage('')
+      setFiles([])
       setIsExpanded(false)
-      onEntryAdded() // Trigger refetch
+      onEntryAdded()
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Failed to add note')
     } finally {
@@ -50,7 +83,29 @@ export function AddTimelineEntry({
 
   const handleCancel = () => {
     setMessage('')
+    setFiles([])
     setIsExpanded(false)
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return
+    const valid = Array.from(e.target.files).filter((f) => {
+      if (!isAllowedMime(f)) {
+        onError(`"${f.name}" is not a supported file type`)
+        return false
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        onError(`"${f.name}" exceeds the 10 MB limit`)
+        return false
+      }
+      return true
+    })
+    setFiles((prev) => [...prev, ...valid])
+    e.target.value = ''
+  }
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
   if (!isExpanded) {
@@ -77,23 +132,69 @@ export function AddTimelineEntry({
         className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent resize-none disabled:opacity-50"
       />
 
-      <div className="flex items-center justify-end gap-2 mt-3">
-        <Button
+      {/* Attached file chips */}
+      {files.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {files.map((f, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-surface-secondary border border-border rounded-full text-text-secondary"
+            >
+              <Paperclip className="w-3 h-3" />
+              {f.name}
+              {!isSubmitting && (
+                <button
+                  type="button"
+                  onClick={() => removeFile(i)}
+                  className="ml-0.5 hover:text-red-500 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mt-3">
+        {/* Attach file button */}
+        <button
           type="button"
-          variant="ghost"
-          onClick={handleCancel}
+          onClick={() => fileInputRef.current?.click()}
           disabled={isSubmitting}
+          className="flex items-center gap-1.5 px-2 py-1 text-xs text-text-tertiary hover:text-text-primary hover:bg-surface-secondary rounded transition-colors disabled:opacity-50"
+          title="Attach file"
         >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={!message.trim() || isSubmitting}
-          loading={isSubmitting}
-        >
-          Add note
-        </Button>
+          <Paperclip className="w-3.5 h-3.5" />
+          Attach
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          accept="image/*,application/pdf,text/plain,text/csv,application/json,application/zip"
+          onChange={handleFileChange}
+        />
+
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={(!message.trim() && files.length === 0) || isSubmitting}
+            loading={isSubmitting}
+          >
+            Add note
+          </Button>
+        </div>
       </div>
     </form>
   )

@@ -33,14 +33,6 @@
   </tr>
 </table>
 
-### - On-call rotations, layers, overrides
-<table>
-  <tr>
-    <td width="50%"><img src=".github/assets/oncall-schedule1.png" alt="Fluidify Regen — helps you make oncall schedules with overlaps and availability markers"></td>
-    <td width="50%"><img src=".github/assets/oncall-schedule2.png" alt="Fluidify Regen — helps your include holidays and leaves in oncall schedules"></td>
-  </tr>
-</table>
-
 ### - Escalation policies with multi-step timeouts
 <table>
   <tr>

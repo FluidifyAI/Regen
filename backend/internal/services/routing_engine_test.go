@@ -385,3 +385,177 @@ func TestRoutingDecision_NoMatch_AIEnabledTrue(t *testing.T) {
 		t.Error("expected AIEnabled=true when no rules match")
 	}
 }
+
+func TestRoutingEngine_LabelRegexMatch(t *testing.T) {
+	rules := []models.RoutingRule{
+		makeRoutingRule(10,
+			models.JSONB{"labels": map[string]interface{}{"alertname": "DiskUsage.*"}},
+			models.JSONB{"suppress": true},
+		),
+	}
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: rules})
+
+	alert := makeAlert("prometheus", "critical", models.JSONB{"alertname": "DiskUsageSDA"})
+	decision, err := engine.EvaluateAlert(alert)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Suppress {
+		t.Error("expected DiskUsageSDA to match regex DiskUsage.*")
+	}
+
+	alert2 := makeAlert("prometheus", "critical", models.JSONB{"alertname": "CPUHigh"})
+	decision2, err := engine.EvaluateAlert(alert2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision2.Suppress {
+		t.Error("expected CPUHigh to NOT match regex DiskUsage.*")
+	}
+}
+
+func TestRoutingEngine_LabelExactStringStillWorks_Regex(t *testing.T) {
+	rules := []models.RoutingRule{
+		makeRoutingRule(10,
+			models.JSONB{"labels": map[string]interface{}{"env": "prod"}},
+			models.JSONB{"suppress": true},
+		),
+	}
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: rules})
+
+	alert := makeAlert("prometheus", "critical", models.JSONB{"env": "prod"})
+	decision, err := engine.EvaluateAlert(alert)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Suppress {
+		t.Error("exact string env=prod should still match")
+	}
+
+	alert2 := makeAlert("prometheus", "critical", models.JSONB{"env": "staging"})
+	decision2, err := engine.EvaluateAlert(alert2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision2.Suppress {
+		t.Error("env=staging should not match env=prod rule")
+	}
+}
+
+func TestRoutingEngine_AnnotationMatch(t *testing.T) {
+	rules := []models.RoutingRule{
+		makeRoutingRule(10,
+			models.JSONB{"annotations": map[string]interface{}{"summary": ".*connection refused.*"}},
+			models.JSONB{"suppress": true},
+		),
+	}
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: rules})
+
+	alert := makeAlert("prometheus", "critical", nil)
+	alert.Annotations = models.JSONB{"summary": "dial tcp: connection refused"}
+	decision, err := engine.EvaluateAlert(alert)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Suppress {
+		t.Error("expected annotation summary match to suppress alert")
+	}
+
+	alert2 := makeAlert("prometheus", "critical", nil)
+	alert2.Annotations = models.JSONB{"summary": "high memory usage"}
+	decision2, err := engine.EvaluateAlert(alert2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision2.Suppress {
+		t.Error("unrelated annotation should not match")
+	}
+}
+
+func TestRoutingEngine_TitleMatch(t *testing.T) {
+	rules := []models.RoutingRule{
+		makeRoutingRule(10,
+			models.JSONB{"title": ".*[Dd]isk.*"},
+			models.JSONB{"suppress": true},
+		),
+	}
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: rules})
+
+	alert := makeAlert("prometheus", "critical", nil)
+	alert.Title = "DiskUsage critical on web-01"
+	decision, err := engine.EvaluateAlert(alert)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Suppress {
+		t.Error("expected title regex to match")
+	}
+
+	alert2 := makeAlert("prometheus", "critical", nil)
+	alert2.Title = "High CPU on web-01"
+	decision2, err := engine.EvaluateAlert(alert2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision2.Suppress {
+		t.Error("title without 'disk' should not match")
+	}
+}
+
+func TestRoutingEngine_DescriptionMatch(t *testing.T) {
+	rules := []models.RoutingRule{
+		makeRoutingRule(10,
+			models.JSONB{"description": ".*OOM.*"},
+			models.JSONB{"suppress": true},
+		),
+	}
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: rules})
+
+	alert := makeAlert("prometheus", "critical", nil)
+	alert.Description = "Pod killed due to OOM"
+	decision, err := engine.EvaluateAlert(alert)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Suppress {
+		t.Error("expected description regex to match")
+	}
+}
+
+func TestRoutingEngine_InvalidRegex_NonMatching(t *testing.T) {
+	rules := []models.RoutingRule{
+		makeRoutingRule(10,
+			models.JSONB{"labels": map[string]interface{}{"alertname": "[invalid"}},
+			models.JSONB{"suppress": true},
+		),
+	}
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: rules})
+
+	alert := makeAlert("prometheus", "critical", models.JSONB{"alertname": "[invalid"})
+	decision, err := engine.EvaluateAlert(alert)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Suppress {
+		t.Error("invalid regex should cause rule to be non-matching, not suppress")
+	}
+}
+
+func TestRoutingEngine_WildcardStillWorks_Regex(t *testing.T) {
+	rules := []models.RoutingRule{
+		makeRoutingRule(10,
+			models.JSONB{"labels": map[string]interface{}{"env": "*"}},
+			models.JSONB{"suppress": true},
+		),
+	}
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: rules})
+
+	alert := makeAlert("prometheus", "info", models.JSONB{"env": "anything"})
+	decision, err := engine.EvaluateAlert(alert)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Suppress {
+		t.Error("wildcard * should match any value")
+	}
+}

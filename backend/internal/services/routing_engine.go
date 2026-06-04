@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -44,12 +45,85 @@ type RoutingEngine interface {
 	RefreshRules() error
 }
 
+// compiledRule wraps a RoutingRule with pre-compiled regex patterns.
+// Patterns are compiled once on cache load; nil means invalid or absent.
+type compiledRule struct {
+	rule          models.RoutingRule
+	labelPatterns map[string]*regexp.Regexp // keyed by label name; nil entry = invalid regex
+	annotPatterns map[string]*regexp.Regexp // keyed by annotation name
+	titlePattern  *regexp.Regexp            // nil if not specified or invalid
+	descPattern   *regexp.Regexp            // nil if not specified or invalid
+}
+
+// compileRule pre-compiles all regex patterns from a rule's match_criteria.
+// Invalid patterns are stored as nil and will cause the rule to be non-matching
+// for that criterion, preventing a malformed pattern from crashing the engine.
+func compileRule(rule models.RoutingRule) compiledRule {
+	cr := compiledRule{rule: rule}
+
+	if labelsVal, ok := rule.MatchCriteria["labels"]; ok {
+		if lm, ok := labelsVal.(map[string]interface{}); ok {
+			cr.labelPatterns = make(map[string]*regexp.Regexp, len(lm))
+			for k, v := range lm {
+				if s, ok := v.(string); ok && s != "*" {
+					re, err := regexp.Compile(s)
+					if err != nil {
+						slog.Warn("invalid regex in routing rule label criteria",
+							"rule", rule.Name, "label", k, "pattern", s, "error", err)
+					}
+					cr.labelPatterns[k] = re // nil on error — non-matching
+				}
+			}
+		}
+	}
+
+	if annotVal, ok := rule.MatchCriteria["annotations"]; ok {
+		if am, ok := annotVal.(map[string]interface{}); ok {
+			cr.annotPatterns = make(map[string]*regexp.Regexp, len(am))
+			for k, v := range am {
+				if s, ok := v.(string); ok && s != "*" {
+					re, err := regexp.Compile(s)
+					if err != nil {
+						slog.Warn("invalid regex in routing rule annotation criteria",
+							"rule", rule.Name, "annotation", k, "pattern", s, "error", err)
+					}
+					cr.annotPatterns[k] = re
+				}
+			}
+		}
+	}
+
+	if titleVal, ok := rule.MatchCriteria["title"]; ok {
+		if s, ok := titleVal.(string); ok && s != "" {
+			re, err := regexp.Compile(s)
+			if err != nil {
+				slog.Warn("invalid regex in routing rule title criteria",
+					"rule", rule.Name, "pattern", s, "error", err)
+			}
+			cr.titlePattern = re
+		}
+	}
+
+	if descVal, ok := rule.MatchCriteria["description"]; ok {
+		if s, ok := descVal.(string); ok && s != "" {
+			re, err := regexp.Compile(s)
+			if err != nil {
+				slog.Warn("invalid regex in routing rule description criteria",
+					"rule", rule.Name, "pattern", s, "error", err)
+			}
+			cr.descPattern = re
+		}
+	}
+
+	return cr
+}
+
 // routingEngine implements RoutingEngine
 type routingEngine struct {
 	ruleRepo repository.RoutingRuleRepository
 
 	// Rule cache to avoid database hits on every alert
-	rulesCache       []models.RoutingRule
+	rulesCache       []compiledRule
 	rulesCacheMutex  sync.RWMutex
 	rulesCacheExpiry time.Time
 	ruleCacheTTL     time.Duration
@@ -94,14 +168,14 @@ func (r *routingEngine) EvaluateAlert(alert *models.Alert) (*RoutingDecision, er
 	)
 
 	// Evaluate rules in priority order — first match wins
-	for _, rule := range rules {
-		if r.matchesRule(alert, alertLabels, &rule) {
-			decision := r.buildDecision(&rule)
+	for _, cr := range rules {
+		if r.matchesRule(alert, alertLabels, &cr) {
+			decision := r.buildDecision(&cr.rule)
 
 			slog.Info("routing rule matched",
 				"alert_id", alert.ID,
-				"rule_name", rule.Name,
-				"rule_id", rule.ID,
+				"rule_name", cr.rule.Name,
+				"rule_id", cr.rule.ID,
 				"suppress", decision.Suppress,
 				"severity_override", decision.SeverityOverride,
 				"channel_override", decision.ChannelOverride,
@@ -125,8 +199,13 @@ func (r *routingEngine) RefreshRules() error {
 		return fmt.Errorf("failed to load enabled routing rules: %w", err)
 	}
 
+	compiled := make([]compiledRule, len(rules))
+	for i, rule := range rules {
+		compiled[i] = compileRule(rule)
+	}
+
 	r.rulesCacheMutex.Lock()
-	r.rulesCache = rules
+	r.rulesCache = compiled
 	r.rulesCacheExpiry = time.Now().Add(r.ruleCacheTTL)
 	r.rulesCacheMutex.Unlock()
 
@@ -165,7 +244,11 @@ func (r *routingEngine) ensureRulesCached() error {
 		return fmt.Errorf("failed to load enabled routing rules: %w", err)
 	}
 
-	r.rulesCache = rules
+	compiled := make([]compiledRule, len(rules))
+	for i, rule := range rules {
+		compiled[i] = compileRule(rule)
+	}
+	r.rulesCache = compiled
 	r.rulesCacheExpiry = time.Now().Add(r.ruleCacheTTL)
 
 	slog.Info("routing engine rules refreshed (cache expired)", "rules_count", len(rules))
@@ -184,10 +267,10 @@ func (r *routingEngine) ensureRulesCached() error {
 //	}
 //
 // All specified criteria must match (AND semantics).
-func (r *routingEngine) matchesRule(alert *models.Alert, alertLabels map[string]string, rule *models.RoutingRule) bool {
-	criteria := rule.MatchCriteria
+func (r *routingEngine) matchesRule(alert *models.Alert, alertLabels map[string]string, cr *compiledRule) bool {
+	criteria := cr.rule.MatchCriteria
 
-	// Match source list (if specified)
+	// Source — exact-list matching (unchanged)
 	if sources, ok := criteria["source"]; ok {
 		if sourceList, ok := toStringSlice(sources); ok && len(sourceList) > 0 {
 			if !containsString(sourceList, string(alert.Source)) {
@@ -196,7 +279,7 @@ func (r *routingEngine) matchesRule(alert *models.Alert, alertLabels map[string]
 		}
 	}
 
-	// Match severity list (if specified)
+	// Severity — exact-list matching (unchanged)
 	if severities, ok := criteria["severity"]; ok {
 		if severityList, ok := toStringSlice(severities); ok && len(severityList) > 0 {
 			if !containsString(severityList, strings.ToLower(string(alert.Severity))) {
@@ -205,7 +288,7 @@ func (r *routingEngine) matchesRule(alert *models.Alert, alertLabels map[string]
 		}
 	}
 
-	// Match labels (if specified) — same wildcard logic as grouping engine
+	// Labels — RE2 regex matching; * = key exists, any value
 	if labelsVal, ok := criteria["labels"]; ok {
 		if labelMap, ok := labelsVal.(map[string]interface{}); ok {
 			for key, matchVal := range labelMap {
@@ -213,22 +296,69 @@ func (r *routingEngine) matchesRule(alert *models.Alert, alertLabels map[string]
 				if !ok {
 					continue
 				}
-
 				alertVal, exists := alertLabels[key]
-
-				// Wildcard: label must exist, any value accepted
 				if matchStr == "*" {
 					if !exists {
 						return false
 					}
 					continue
 				}
-
-				// Exact match required
-				if !exists || alertVal != matchStr {
+				if !exists {
+					return false
+				}
+				re := cr.labelPatterns[key]
+				if re == nil || !re.MatchString(alertVal) {
 					return false
 				}
 			}
+		}
+	}
+
+	// Annotations — RE2 regex matching against alert.Annotations
+	if annotVal, ok := criteria["annotations"]; ok {
+		if annotMap, ok := annotVal.(map[string]interface{}); ok {
+			for key, matchVal := range annotMap {
+				matchStr, ok := matchVal.(string)
+				if !ok {
+					continue
+				}
+				var annotStr string
+				exists := false
+				if alert.Annotations != nil {
+					if v, ok := alert.Annotations[key]; ok {
+						if s, ok := v.(string); ok {
+							annotStr, exists = s, true
+						}
+					}
+				}
+				if matchStr == "*" {
+					if !exists {
+						return false
+					}
+					continue
+				}
+				if !exists {
+					return false
+				}
+				re := cr.annotPatterns[key]
+				if re == nil || !re.MatchString(annotStr) {
+					return false
+				}
+			}
+		}
+	}
+
+	// Title — RE2 regex against alert.Title
+	if cr.titlePattern != nil {
+		if !cr.titlePattern.MatchString(alert.Title) {
+			return false
+		}
+	}
+
+	// Description — RE2 regex against alert.Description
+	if cr.descPattern != nil {
+		if !cr.descPattern.MatchString(alert.Description) {
+			return false
 		}
 	}
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, Zap, Filter, Bell, GripVertical } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Zap, Filter, Bell, GripVertical, Tag, FileText, Search, X } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -77,6 +77,10 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
   const [enabled, setEnabled]         = useState(true)
   const [sources, setSources]         = useState<string[]>([])
   const [severities, setSeverities]   = useState<string[]>([])
+  const [labelPairs, setLabelPairs]   = useState<{key: string; value: string}[]>([])
+  const [annotPairs, setAnnotPairs]   = useState<{key: string; value: string}[]>([])
+  const [titlePattern, setTitle]      = useState('')
+  const [descPattern, setDesc]        = useState('')
   const [createIncident, setCreate]   = useState(true)
   const [suppress, setSuppress]       = useState(false)
   const [escalate, setEscalate]       = useState(false)
@@ -100,6 +104,12 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
       const mc = rule.match_criteria as Record<string, unknown>
       setSources(Array.isArray(mc.source) ? (mc.source as string[]) : [])
       setSeverities(Array.isArray(mc.severity) ? (mc.severity as string[]) : [])
+      const lm = mc.labels as Record<string, string> | undefined
+      setLabelPairs(lm ? Object.entries(lm).map(([key, value]) => ({ key, value })) : [])
+      const am = mc.annotations as Record<string, string> | undefined
+      setAnnotPairs(am ? Object.entries(am).map(([key, value]) => ({ key, value })) : [])
+      setTitle(typeof mc.title === 'string' ? mc.title : '')
+      setDesc(typeof mc.description === 'string' ? mc.description : '')
       const ac = rule.actions as Record<string, unknown>
       setCreate(ac.create_incident !== false)
       setSuppress(Boolean(ac.suppress))
@@ -108,6 +118,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
       setSevOvr(typeof ac.severity_override === 'string' ? ac.severity_override : '')
     } else {
       setName(''); setEnabled(true); setSources([]); setSeverities([])
+      setLabelPairs([]); setAnnotPairs([]); setTitle(''); setDesc('')
       setCreate(true); setSuppress(false); setEscalate(false); setEpId(''); setSevOvr('')
     }
     setError(null)
@@ -139,6 +150,14 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
     const match_criteria: Record<string, unknown> = {}
     if (sources.length > 0)    match_criteria.source   = sources
     if (severities.length > 0) match_criteria.severity = severities
+    const validLabels = labelPairs.filter((p) => p.key.trim())
+    if (validLabels.length > 0)
+      match_criteria.labels = Object.fromEntries(validLabels.map((p) => [p.key.trim(), p.value]))
+    const validAnnots = annotPairs.filter((p) => p.key.trim())
+    if (validAnnots.length > 0)
+      match_criteria.annotations = Object.fromEntries(validAnnots.map((p) => [p.key.trim(), p.value]))
+    if (titlePattern.trim())  match_criteria.title       = titlePattern.trim()
+    if (descPattern.trim())   match_criteria.description = descPattern.trim()
 
     const actions: Record<string, unknown> = {}
     if (createIncident)                     actions.create_incident    = true
@@ -268,6 +287,116 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                     {sev}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Labels */}
+            <div className={sectionClass}>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-surface-tertiary flex items-center justify-center flex-shrink-0">
+                  <Tag className="w-3.5 h-3.5 text-text-secondary" />
+                </div>
+                <span className="text-sm font-semibold text-text-primary">Label filters</span>
+                <span className="text-xs text-text-tertiary ml-auto">empty = all labels</span>
+              </div>
+              <div className="space-y-2">
+                {labelPairs.map((pair, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      value={pair.key}
+                      onChange={(e) => setLabelPairs((p) => p.map((x, j) => j === i ? { ...x, key: e.target.value } : x))}
+                      placeholder="key"
+                      className="flex-1 px-2.5 py-1.5 border border-border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    />
+                    <span className="text-text-tertiary text-xs">=</span>
+                    <input
+                      value={pair.value}
+                      onChange={(e) => setLabelPairs((p) => p.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
+                      placeholder="value or regex"
+                      className="flex-1 px-2.5 py-1.5 border border-border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    />
+                    <button type="button" onClick={() => setLabelPairs((p) => p.filter((_, j) => j !== i))}
+                      className="text-text-tertiary hover:text-red-500 transition-colors">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <button type="button"
+                  onClick={() => setLabelPairs((p) => [...p, { key: '', value: '' }])}
+                  className="flex items-center gap-1 text-xs text-brand-primary hover:text-brand-primary/80 transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> Add label filter
+                </button>
+              </div>
+              <p className="text-[10px] text-text-tertiary">Values support RE2 regex (e.g. <code className="font-mono">DiskUsage.*</code>). Use <code className="font-mono">*</code> to match any value.</p>
+            </div>
+
+            {/* Annotations */}
+            <div className={sectionClass}>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-surface-tertiary flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-3.5 h-3.5 text-text-secondary" />
+                </div>
+                <span className="text-sm font-semibold text-text-primary">Annotation filters</span>
+                <span className="text-xs text-text-tertiary ml-auto">empty = all annotations</span>
+              </div>
+              <div className="space-y-2">
+                {annotPairs.map((pair, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      value={pair.key}
+                      onChange={(e) => setAnnotPairs((p) => p.map((x, j) => j === i ? { ...x, key: e.target.value } : x))}
+                      placeholder="key (e.g. summary)"
+                      className="flex-1 px-2.5 py-1.5 border border-border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    />
+                    <span className="text-text-tertiary text-xs">=</span>
+                    <input
+                      value={pair.value}
+                      onChange={(e) => setAnnotPairs((p) => p.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
+                      placeholder="value or regex"
+                      className="flex-1 px-2.5 py-1.5 border border-border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    />
+                    <button type="button" onClick={() => setAnnotPairs((p) => p.filter((_, j) => j !== i))}
+                      className="text-text-tertiary hover:text-red-500 transition-colors">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <button type="button"
+                  onClick={() => setAnnotPairs((p) => [...p, { key: '', value: '' }])}
+                  className="flex items-center gap-1 text-xs text-brand-primary hover:text-brand-primary/80 transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> Add annotation filter
+                </button>
+              </div>
+              <p className="text-[10px] text-text-tertiary">Match on annotation values e.g. <code className="font-mono">summary = .*connection refused.*</code></p>
+            </div>
+
+            {/* Alert content: title + description */}
+            <div className={sectionClass}>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-surface-tertiary flex items-center justify-center flex-shrink-0">
+                  <Search className="w-3.5 h-3.5 text-text-secondary" />
+                </div>
+                <span className="text-sm font-semibold text-text-primary">Alert content</span>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className={`${labelClass} block mb-1`}>Alert title</label>
+                  <input
+                    value={titlePattern}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. .*disk.* (RE2 regex)"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className={`${labelClass} block mb-1`}>Alert description</label>
+                  <input
+                    value={descPattern}
+                    onChange={(e) => setDesc(e.target.value)}
+                    placeholder="e.g. .*OOM.* (RE2 regex)"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                  />
+                </div>
               </div>
             </div>
 

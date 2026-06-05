@@ -34,7 +34,7 @@ func TestOpenAIComplete_success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	got, err := c.Complete(context.Background(), []llm.Message{{Role: "user", Content: "hi"}})
+	got, _, err := c.Complete(context.Background(), []llm.Message{{Role: "user", Content: "hi"}})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestOpenAIComplete_apiError(t *testing.T) {
 	defer srv.Close()
 
 	c, _ := llm.New(llm.Config{Provider: "openai", APIKey: "bad", Model: "gpt-4o-mini", MaxTokens: 10, BaseURL: srv.URL})
-	_, err := c.Complete(context.Background(), []llm.Message{{Role: "user", Content: "hi"}})
+	_, _, err := c.Complete(context.Background(), []llm.Message{{Role: "user", Content: "hi"}})
 	if err == nil || !strings.Contains(err.Error(), "invalid key") {
 		t.Errorf("expected api error, got %v", err)
 	}
@@ -100,7 +100,7 @@ func TestAnthropicComplete_success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	got, err := c.Complete(context.Background(), []llm.Message{
+	got, _, err := c.Complete(context.Background(), []llm.Message{
 		{Role: "system", Content: "you are helpful"},
 		{Role: "user", Content: "hi"},
 	})
@@ -123,7 +123,7 @@ func TestAnthropicComplete_apiError(t *testing.T) {
 	defer srv.Close()
 
 	c, _ := llm.New(llm.Config{Provider: "anthropic", APIKey: "bad", Model: "claude-haiku-4-5-20251001", MaxTokens: 10, BaseURL: srv.URL})
-	_, err := c.Complete(context.Background(), []llm.Message{{Role: "user", Content: "hi"}})
+	_, _, err := c.Complete(context.Background(), []llm.Message{{Role: "user", Content: "hi"}})
 	if err == nil {
 		t.Error("expected error for bad Anthropic key")
 	}
@@ -152,7 +152,7 @@ func TestOllamaComplete_success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	got, err := c.Complete(context.Background(), []llm.Message{{Role: "user", Content: "hi"}})
+	got, _, err := c.Complete(context.Background(), []llm.Message{{Role: "user", Content: "hi"}})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -174,5 +174,88 @@ func TestNew_ollamaRequiresBaseURL(t *testing.T) {
 	_, err := llm.New(llm.Config{Provider: "ollama", Model: "llama3"})
 	if err == nil {
 		t.Error("expected error when Ollama BaseURL is empty")
+	}
+}
+
+// ─── Usage parsing ───────────────────────────────────────────────────────────
+
+func TestOpenAIComplete_returnsUsage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]any{"role": "assistant", "content": "hi"}},
+			},
+			"usage": map[string]any{
+				"prompt_tokens":     12,
+				"completion_tokens": 7,
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c, _ := llm.New(llm.Config{Provider: "openai", APIKey: "sk-test", Model: "gpt-4o", MaxTokens: 100, BaseURL: srv.URL})
+	_, usage, err := c.Complete(context.Background(), []llm.Message{{Role: "user", Content: "hi"}})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if usage.PromptTokens != 12 {
+		t.Errorf("PromptTokens: got %d, want 12", usage.PromptTokens)
+	}
+	if usage.CompletionTokens != 7 {
+		t.Errorf("CompletionTokens: got %d, want 7", usage.CompletionTokens)
+	}
+}
+
+func TestAnthropicComplete_returnsUsage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"content": []map[string]any{
+				{"type": "text", "text": "hi"},
+			},
+			"usage": map[string]any{
+				"input_tokens":  15,
+				"output_tokens": 8,
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c, _ := llm.New(llm.Config{Provider: "anthropic", APIKey: "ant-test", Model: "claude-haiku-4-5-20251001", MaxTokens: 100, BaseURL: srv.URL})
+	_, usage, err := c.Complete(context.Background(), []llm.Message{
+		{Role: "system", Content: "you are helpful"},
+		{Role: "user", Content: "hi"},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if usage.PromptTokens != 15 {
+		t.Errorf("PromptTokens: got %d, want 15", usage.PromptTokens)
+	}
+	if usage.CompletionTokens != 8 {
+		t.Errorf("CompletionTokens: got %d, want 8", usage.CompletionTokens)
+	}
+}
+
+func TestOllamaComplete_zeroUsageWhenAbsent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// No "usage" field — Ollama may omit it
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]any{"role": "assistant", "content": "hello ollama"}},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c, _ := llm.New(llm.Config{Provider: "ollama", Model: "llama3", MaxTokens: 100, BaseURL: srv.URL})
+	_, usage, err := c.Complete(context.Background(), []llm.Message{{Role: "user", Content: "hi"}})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if usage.PromptTokens != 0 || usage.CompletionTokens != 0 {
+		t.Errorf("expected zero Usage when provider omits field, got %+v", usage)
 	}
 }

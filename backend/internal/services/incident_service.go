@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/llm"
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	appredis "github.com/FluidifyAI/Regen/backend/internal/redis"
@@ -80,9 +81,9 @@ type IncidentService interface {
 
 	// AI features (v0.6+)
 	// GenerateAISummary generates an AI summary for an incident and persists it.
-	GenerateAISummary(incident *models.Incident) (string, error)
+	GenerateAISummary(incident *models.Incident) (string, llm.Usage, error)
 	// GenerateHandoffDigest generates a shift handoff digest for an incident (not persisted).
-	GenerateHandoffDigest(incident *models.Incident) (string, error)
+	GenerateHandoffDigest(incident *models.Incident) (string, llm.Usage, error)
 }
 
 // incidentService implements IncidentService
@@ -1426,9 +1427,9 @@ func (s *incidentService) PostStatusUpdateToSlack(
 
 // GenerateAISummary generates an AI-powered summary for the incident, including
 // timeline, alerts, and Slack thread context. Persists the result to the database.
-func (s *incidentService) GenerateAISummary(incident *models.Incident) (string, error) {
+func (s *incidentService) GenerateAISummary(incident *models.Incident) (string, llm.Usage, error) {
 	if !s.aiService.IsEnabled() {
-		return "", fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
+		return "", llm.Usage{}, fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
 	}
 
 	// Gather context: timeline
@@ -1459,9 +1460,9 @@ func (s *incidentService) GenerateAISummary(incident *models.Incident) (string, 
 		}
 	}
 
-	summary, err := s.aiService.GenerateSummary(context.Background(), incident, timeline, alerts, slackMessages)
+	summary, usage, err := s.aiService.GenerateSummary(context.Background(), incident, timeline, alerts, slackMessages)
 	if err != nil {
-		return "", fmt.Errorf("generate AI summary: %w", err)
+		return "", llm.Usage{}, fmt.Errorf("generate AI summary: %w", err)
 	}
 
 	// Persist the summary
@@ -1484,14 +1485,14 @@ func (s *incidentService) GenerateAISummary(incident *models.Incident) (string, 
 		}()
 	}
 
-	return summary, nil
+	return summary, usage, nil
 }
 
 // GenerateHandoffDigest generates a shift handoff digest for the incident.
 // The digest is not persisted — it is returned for display/posting.
-func (s *incidentService) GenerateHandoffDigest(incident *models.Incident) (string, error) {
+func (s *incidentService) GenerateHandoffDigest(incident *models.Incident) (string, llm.Usage, error) {
 	if !s.aiService.IsEnabled() {
-		return "", fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
+		return "", llm.Usage{}, fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
 	}
 
 	timeline, _, err := s.GetIncidentTimeline(incident.ID, repository.Pagination{Page: 1, PageSize: 100})
@@ -1508,11 +1509,11 @@ func (s *incidentService) GenerateHandoffDigest(incident *models.Incident) (stri
 		alerts = []models.Alert{}
 	}
 
-	digest, err := s.aiService.GenerateHandoffDigest(context.Background(), incident, timeline, alerts)
+	digest, usage, err := s.aiService.GenerateHandoffDigest(context.Background(), incident, timeline, alerts)
 	if err != nil {
-		return "", fmt.Errorf("generate handoff digest: %w", err)
+		return "", llm.Usage{}, fmt.Errorf("generate handoff digest: %w", err)
 	}
-	return digest, nil
+	return digest, usage, nil
 }
 
 // ─── Bot command helpers (v0.8+) ──────────────────────────────────────────────

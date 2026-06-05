@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/llm"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/google/uuid"
@@ -21,14 +22,14 @@ type PostMortemService interface {
 
 	// Post-mortems
 	GetPostMortem(incidentID uuid.UUID) (*models.PostMortem, error)
-	GeneratePostMortem(incident *models.Incident, templateID *uuid.UUID, createdByID string) (*models.PostMortem, error)
+	GeneratePostMortem(incident *models.Incident, templateID *uuid.UUID, createdByID string) (*models.PostMortem, llm.Usage, error)
 	UpdatePostMortem(id uuid.UUID, params *UpdatePostMortemParams) (*models.PostMortem, error)
 
 	// Post-mortem manual creation
 	CreatePostMortem(incidentID uuid.UUID, createdByID string) (*models.PostMortem, error)
 
 	// AI enhance
-	EnhancePostMortem(pm *models.PostMortem, content string) (*models.PostMortem, error)
+	EnhancePostMortem(pm *models.PostMortem, content string) (*models.PostMortem, llm.Usage, error)
 
 	// Comments
 	ListComments(postMortemID uuid.UUID) ([]models.PostMortemComment, error)
@@ -175,26 +176,26 @@ func (s *postMortemService) GetPostMortem(incidentID uuid.UUID) (*models.PostMor
 // GeneratePostMortem calls the AI to produce a post-mortem draft, then persists it.
 // If a post-mortem already exists for the incident it is overwritten (regeneration).
 // The incident's timeline entry is written after successful creation/update.
-func (s *postMortemService) GeneratePostMortem(incident *models.Incident, templateID *uuid.UUID, createdByID string) (*models.PostMortem, error) {
+func (s *postMortemService) GeneratePostMortem(incident *models.Incident, templateID *uuid.UUID, createdByID string) (*models.PostMortem, llm.Usage, error) {
 	if !s.aiSvc.IsEnabled() {
-		return nil, fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
+		return nil, llm.Usage{}, fmt.Errorf("AI features are not configured: set OPENAI_API_KEY to enable")
 	}
 
 	// Resolve template — fall back to first available if none specified
 	tmpl, err := s.resolveTemplate(templateID)
 	if err != nil {
-		return nil, err
+		return nil, llm.Usage{}, err
 	}
 
 	// Gather context (timeline capped at 200 entries to stay within token budget)
 	timeline, _, _ := s.incidentSvc.GetIncidentTimeline(incident.ID, repository.Pagination{Page: 1, PageSize: 200})
 	alerts, _ := s.incidentSvc.GetIncidentAlerts(incident.ID)
 
-	content, err := s.aiSvc.GeneratePostMortem(
+	content, usage, err := s.aiSvc.GeneratePostMortem(
 		context.Background(), incident, timeline, alerts, []string(tmpl.Sections),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("generate post-mortem content: %w", err)
+		return nil, llm.Usage{}, fmt.Errorf("generate post-mortem content: %w", err)
 	}
 
 	now := time.Now().UTC()
@@ -212,12 +213,12 @@ func (s *postMortemService) GeneratePostMortem(incident *models.Incident, templa
 		CreatedByID:  createdByID,
 	}
 	if err := s.pmRepo.Upsert(pm); err != nil {
-		return nil, err
+		return nil, llm.Usage{}, err
 	}
 	// Re-fetch to get the canonical row (with correct ID and action items) after upsert.
 	pm, err = s.pmRepo.GetByIncidentID(incident.ID)
 	if err != nil {
-		return nil, err
+		return nil, llm.Usage{}, err
 	}
 
 	// Record timeline entry for both creation and regeneration (non-fatal)
@@ -229,7 +230,7 @@ func (s *postMortemService) GeneratePostMortem(incident *models.Incident, templa
 		Content:    models.JSONB{"template": tmpl.Name},
 	})
 
-	return pm, nil
+	return pm, usage, nil
 }
 
 func (s *postMortemService) UpdatePostMortem(id uuid.UUID, params *UpdatePostMortemParams) (*models.PostMortem, error) {
@@ -317,13 +318,13 @@ func (s *postMortemService) CreatePostMortem(incidentID uuid.UUID, createdByID s
 	return pm, nil
 }
 
-func (s *postMortemService) EnhancePostMortem(pm *models.PostMortem, content string) (*models.PostMortem, error) {
+func (s *postMortemService) EnhancePostMortem(pm *models.PostMortem, content string) (*models.PostMortem, llm.Usage, error) {
 	if !s.aiSvc.IsEnabled() {
-		return nil, fmt.Errorf("AI not configured")
+		return nil, llm.Usage{}, fmt.Errorf("AI not configured")
 	}
-	enhanced, err := s.aiSvc.EnhancePostMortem(context.Background(), content)
+	enhanced, usage, err := s.aiSvc.EnhancePostMortem(context.Background(), content)
 	if err != nil {
-		return nil, fmt.Errorf("AI enhance failed: %w", err)
+		return nil, llm.Usage{}, fmt.Errorf("AI enhance failed: %w", err)
 	}
 	now := time.Now().UTC()
 	pm.Content = enhanced
@@ -331,9 +332,10 @@ func (s *postMortemService) EnhancePostMortem(pm *models.PostMortem, content str
 	pm.GeneratedAt = &now
 	pm.Status = models.PostMortemStatusDraft
 	if err := s.pmRepo.Update(pm); err != nil {
-		return nil, err
+		return nil, llm.Usage{}, err
 	}
-	return s.pmRepo.GetByID(pm.ID)
+	result, err := s.pmRepo.GetByID(pm.ID)
+	return result, usage, err
 }
 
 func (s *postMortemService) ListComments(postMortemID uuid.UUID) ([]models.PostMortemComment, error) {

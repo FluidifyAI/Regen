@@ -928,7 +928,7 @@ func (h *SlackEventHandler) handleAppMention(ev *slackevents.AppMentionEvent) {
 	if h.aiService != nil && h.aiService.IsEnabled() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		answer, err := h.aiService.AnswerQuestion(ctx, question, incident, similar, postMortems)
+		answer, _, err := h.aiService.AnswerQuestion(ctx, question, incident, similar, postMortems)
 		if err != nil {
 			slog.Warn("AI answer question failed", "error", err)
 			reply = fmt.Sprintf(":warning: AI error: %s", err.Error())

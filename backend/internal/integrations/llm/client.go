@@ -11,9 +11,16 @@ type Message struct {
 	Content string
 }
 
+// Usage holds token consumption data returned by an LLM API call.
+// Providers that do not return token counts (e.g. Ollama without native API) leave both fields zero.
+type Usage struct {
+	PromptTokens     int
+	CompletionTokens int
+}
+
 // Client is the common interface all LLM provider adapters implement.
 type Client interface {
-	Complete(ctx context.Context, messages []Message) (string, error)
+	Complete(ctx context.Context, messages []Message) (string, Usage, error)
 }
 
 // Config holds the provider selection and all provider-specific credentials.

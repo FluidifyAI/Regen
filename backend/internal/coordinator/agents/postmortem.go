@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/llm"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
@@ -27,7 +28,7 @@ type PostMortemAgentDeps struct {
 	}
 	PostMortemSvc interface {
 		GetPostMortem(uuid.UUID) (*models.PostMortem, error)
-		GeneratePostMortem(*models.Incident, *uuid.UUID, string) (*models.PostMortem, error)
+		GeneratePostMortem(*models.Incident, *uuid.UUID, string) (*models.PostMortem, llm.Usage, error)
 	}
 	TimelineRepo repository.TimelineRepository // nil in tests
 	SlackSvc     services.ChatService          // nil if not configured
@@ -96,7 +97,7 @@ func (a *PostMortemAgent) Handle(ctx context.Context, incidentID uuid.UUID) {
 	}
 
 	// Step 6: generate
-	pm, err := a.deps.PostMortemSvc.GeneratePostMortem(incident, nil, a.deps.AgentUserID.String())
+	pm, _, err := a.deps.PostMortemSvc.GeneratePostMortem(incident, nil, a.deps.AgentUserID.String())
 	if err != nil {
 		slog.Error("post-mortem agent: generation failed", "incident_id", incidentID, "error", err)
 		return

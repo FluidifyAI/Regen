@@ -14,6 +14,6 @@ func newOllamaClient(cfg Config) *ollamaClient {
 	return &ollamaClient{inner: inner}
 }
 
-func (c *ollamaClient) Complete(ctx context.Context, messages []Message) (string, error) {
+func (c *ollamaClient) Complete(ctx context.Context, messages []Message) (string, Usage, error) {
 	return c.inner.Complete(ctx, messages)
 }

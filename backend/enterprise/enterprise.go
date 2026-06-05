@@ -103,6 +103,40 @@ type CustomFieldsHandler interface {
 	RegisterRoutes(group *gin.RouterGroup, db *gorm.DB)
 }
 
+// ── Cost Tracking ─────────────────────────────────────────────────────────────
+
+// UsageEvent records one AI call for cost accounting.
+type UsageEvent struct {
+	Operation        string    // "summarize" | "postmortem" | "handoff" | "enhance_postmortem" | "enhance_draft" | "answer_question"
+	Model            string    // e.g. "gpt-4o", "claude-3-5-sonnet"
+	PromptTokens     int
+	CompletionTokens int
+	OccurredAt       time.Time // caller must supply time.Now().UTC()
+}
+
+// CostSummary aggregates AI spend across all recorded usage events.
+type CostSummary struct {
+	TotalUSD        float64            `json:"total_usd"`
+	CurrentMonthUSD float64            `json:"current_month_usd"`
+	ByOperation     map[string]float64 `json:"by_operation"`
+}
+
+// CostTracker records AI usage events and surfaces cost summaries.
+// The no-op implementation records nothing and returns zero cost — OSS behaviour is unchanged.
+type CostTracker interface {
+	// RecordUsage stores the event and returns the estimated USD cost.
+	// Returns 0 if the model has no configured pricing. Must never block the caller
+	// on failure — implementations must handle DB errors internally.
+	RecordUsage(ctx context.Context, event UsageEvent) (costUSD float64, err error)
+
+	// GetSummary returns aggregated spend totals.
+	GetSummary(ctx context.Context) (CostSummary, error)
+
+	// RegisterRoutes mounts the cost config and summary API endpoints.
+	// The group is already prefixed with /api/v1/ai/cost by the caller.
+	RegisterRoutes(group *gin.RouterGroup, db *gorm.DB)
+}
+
 // ── Hooks — the single struct threaded through the app ───────────────────────
 
 // Hooks is passed from serve.go to routes.go and worker.StartAll.
@@ -114,6 +148,7 @@ type Hooks struct {
 	Retention    RetentionEnforcer
 	CustomFields CustomFieldsHandler
 	UI           UIProvider
+	CostTracker  CostTracker
 }
 
 // NewNoOp returns Hooks with all no-op stubs — the default for the OSS build.
@@ -125,6 +160,7 @@ func NewNoOp() Hooks {
 		Retention:    noopRetention{},
 		CustomFields: noopCustomFields{},
 		UI:           noopUI{},
+		CostTracker:  noopCostTracker{},
 	}
 }
 
@@ -171,6 +207,26 @@ func (noopCustomFields) RegisterRoutes(group *gin.RouterGroup, _ *gorm.DB) {
 	group.Any("/*path", func(c *gin.Context) {
 		c.JSON(http.StatusPaymentRequired, gin.H{
 			"error": "custom fields require a Fluidify Regen Pro licence",
+		})
+	})
+}
+
+// noopCostTracker records nothing and returns zero cost.
+// OSS handlers always emit cost_usd: 0 — no feature flag needed.
+type noopCostTracker struct{}
+
+func (noopCostTracker) RecordUsage(_ context.Context, _ UsageEvent) (float64, error) {
+	return 0, nil
+}
+
+func (noopCostTracker) GetSummary(_ context.Context) (CostSummary, error) {
+	return CostSummary{}, nil
+}
+
+func (noopCostTracker) RegisterRoutes(group *gin.RouterGroup, _ *gorm.DB) {
+	group.Any("/*path", func(c *gin.Context) {
+		c.JSON(http.StatusPaymentRequired, gin.H{
+			"error": "AI cost tracking requires a Fluidify Regen Pro licence",
 		})
 	})
 }

@@ -7,6 +7,7 @@ package services
 import (
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/llm"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
@@ -93,11 +94,11 @@ func (m *mockIncidentService) CreateTimelineEntry(params *CreateTimelineEntryPar
 func (m *mockIncidentService) PostStatusUpdateToSlack(incident *models.Incident, previousStatus, newStatus models.IncidentStatus) error {
 	return nil
 }
-func (m *mockIncidentService) GenerateAISummary(_ *models.Incident) (string, error) {
-	return "", nil
+func (m *mockIncidentService) GenerateAISummary(_ *models.Incident) (string, llm.Usage, error) {
+	return "", llm.Usage{}, nil
 }
-func (m *mockIncidentService) GenerateHandoffDigest(_ *models.Incident) (string, error) {
-	return "", nil
+func (m *mockIncidentService) GenerateHandoffDigest(_ *models.Incident) (string, llm.Usage, error) {
+	return "", llm.Usage{}, nil
 }
 func (m *mockIncidentService) AcknowledgeIncident(_ uuid.UUID, _, _ string) error { return nil }
 func (m *mockIncidentService) ResolveIncident(_ uuid.UUID, _, _ string) error     { return nil }

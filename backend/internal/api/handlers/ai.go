@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
@@ -12,11 +13,7 @@ import (
 )
 
 // SummarizeIncident handles POST /api/v1/incidents/:id/summarize
-//
-// Generates an AI-powered summary of the incident using timeline, alert, and
-// Slack thread context. The summary is persisted on the incident and returned.
-// Returns 503 if OpenAI is not configured (OPENAI_API_KEY not set).
-func SummarizeIncident(incidentSvc services.IncidentService, aiSvc services.AIService) gin.HandlerFunc {
+func SummarizeIncident(incidentSvc services.IncidentService, aiSvc services.AIService, hooks enterprise.Hooks) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !aiSvc.IsEnabled() {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
@@ -47,7 +44,7 @@ func SummarizeIncident(incidentSvc services.IncidentService, aiSvc services.AISe
 			return
 		}
 
-		summary, err := incidentSvc.GenerateAISummary(incident)
+		summary, usage, err := incidentSvc.GenerateAISummary(incident)
 		if err != nil {
 			slog.Error("failed to generate AI summary",
 				"incident_id", incident.ID,
@@ -58,21 +55,27 @@ func SummarizeIncident(incidentSvc services.IncidentService, aiSvc services.AISe
 			return
 		}
 
+		costUSD, _ := hooks.CostTracker.RecordUsage(c.Request.Context(), enterprise.UsageEvent{
+			Operation:        "summarize",
+			Model:            aiSvc.Model(),
+			PromptTokens:     usage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens,
+			OccurredAt:       time.Now().UTC(),
+		})
+
 		c.JSON(http.StatusOK, dto.AISummaryResponse{
 			IncidentID:     incident.ID,
 			Summary:        summary,
 			GeneratedAt:    time.Now().UTC(),
-			Model:          "openai",
+			Model:          aiSvc.Model(),
 			ContextSources: buildContextSources(incident.SlackChannelID != ""),
+			CostUSD:        costUSD,
 		})
 	}
 }
 
 // GenerateHandoffDigest handles POST /api/v1/incidents/:id/handoff-digest
-//
-// Generates a structured shift handoff document for the incoming on-call engineer.
-// The digest is not persisted — callers can post it to Slack or display in the UI.
-func GenerateHandoffDigest(incidentSvc services.IncidentService, aiSvc services.AIService) gin.HandlerFunc {
+func GenerateHandoffDigest(incidentSvc services.IncidentService, aiSvc services.AIService, hooks enterprise.Hooks) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !aiSvc.IsEnabled() {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
@@ -103,7 +106,7 @@ func GenerateHandoffDigest(incidentSvc services.IncidentService, aiSvc services.
 			return
 		}
 
-		digest, err := incidentSvc.GenerateHandoffDigest(incident)
+		digest, usage, err := incidentSvc.GenerateHandoffDigest(incident)
 		if err != nil {
 			slog.Error("failed to generate handoff digest",
 				"incident_id", incident.ID,
@@ -114,6 +117,14 @@ func GenerateHandoffDigest(incidentSvc services.IncidentService, aiSvc services.
 			return
 		}
 
+		costUSD, _ := hooks.CostTracker.RecordUsage(c.Request.Context(), enterprise.UsageEvent{
+			Operation:        "handoff",
+			Model:            aiSvc.Model(),
+			PromptTokens:     usage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens,
+			OccurredAt:       time.Now().UTC(),
+		})
+
 		c.JSON(http.StatusOK, dto.HandoffDigestResponse{
 			IncidentID:    incident.ID,
 			Digest:        digest,
@@ -121,13 +132,12 @@ func GenerateHandoffDigest(incidentSvc services.IncidentService, aiSvc services.
 			Status:        string(incident.Status),
 			Severity:      string(incident.Severity),
 			GeneratedAt:   time.Now().UTC(),
+			CostUSD:       costUSD,
 		})
 	}
 }
 
 // GetAISettings handles GET /api/v1/settings/ai
-//
-// Returns whether AI features are enabled. Frontend uses this to show/hide AI controls.
 func GetAISettings(aiSvc services.AIService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -137,11 +147,7 @@ func GetAISettings(aiSvc services.AIService) gin.HandlerFunc {
 }
 
 // EnhanceIncidentDraft handles POST /api/v1/ai/enhance-draft
-//
-// Converts a rough user-written brief into a professional incident title + summary.
-// Does not create an incident — purely a pre-creation AI assist.
-// Returns 503 if AI is not configured.
-func EnhanceIncidentDraft(aiSvc services.AIService) gin.HandlerFunc {
+func EnhanceIncidentDraft(aiSvc services.AIService, hooks enterprise.Hooks) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !aiSvc.IsEnabled() {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
@@ -159,7 +165,7 @@ func EnhanceIncidentDraft(aiSvc services.AIService) gin.HandlerFunc {
 			dto.BadRequest(c, "brief is required (5-1000 characters)", nil)
 			return
 		}
-		title, summary, err := aiSvc.EnhanceIncidentDraft(c.Request.Context(), req.Brief)
+		title, summary, usage, err := aiSvc.EnhanceIncidentDraft(c.Request.Context(), req.Brief)
 		if err != nil {
 			slog.Error("failed to enhance incident draft", "error", err, "request_id", c.GetString("request_id"))
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -167,7 +173,16 @@ func EnhanceIncidentDraft(aiSvc services.AIService) gin.HandlerFunc {
 			})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"title": title, "summary": summary})
+
+		costUSD, _ := hooks.CostTracker.RecordUsage(c.Request.Context(), enterprise.UsageEvent{
+			Operation:        "enhance_draft",
+			Model:            aiSvc.Model(),
+			PromptTokens:     usage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens,
+			OccurredAt:       time.Now().UTC(),
+		})
+
+		c.JSON(http.StatusOK, gin.H{"title": title, "summary": summary, "cost_usd": costUSD})
 	}
 }
 

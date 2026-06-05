@@ -18,43 +18,27 @@ type AIService interface {
 	// IsEnabled returns true if the AI service is properly configured.
 	IsEnabled() bool
 
+	// Model returns the name of the currently configured LLM model (e.g. "gpt-4o").
+	// Returns an empty string when the service is disabled.
+	Model() string
+
 	// Reload reinitialises the LLM clients with the given provider and credentials.
 	// Passing an empty apiKey (for cloud providers) or empty ollamaBaseURL disables AI features.
 	Reload(provider, apiKey, model, ollamaBaseURL string)
 
-	// GenerateSummary generates a concise incident summary using all available context.
-	// slackMessages should be the plain-text messages from the incident Slack thread.
-	// Pass an empty slice when Slack is not configured or the channel has no messages.
-	GenerateSummary(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, slackMessages []string) (string, error)
-
-	// GenerateHandoffDigest generates a structured shift handoff document.
-	// Suitable for posting to Slack or displaying in the UI at shift change.
-	GenerateHandoffDigest(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert) (string, error)
-
-	// GeneratePostMortem generates a full post-mortem document in Markdown.
-	// sections is the ordered list of section names from the chosen template.
-	// Uses a higher token budget than summary generation.
-	GeneratePostMortem(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) (string, error)
-
-	// EnhancePostMortem improves an existing post-mortem draft for clarity,
-	// structure, and completeness while preserving all factual details.
-	EnhancePostMortem(ctx context.Context, content string) (string, error)
-
-	// EnhanceIncidentDraft converts a rough user brief into a polished incident
-	// title and summary. Returns structured title + summary strings.
-	EnhanceIncidentDraft(ctx context.Context, brief string) (title, summary string, err error)
-
-	// AnswerQuestion answers a natural-language question asked in a Slack channel.
-	// postMortems maps "INC-NNN" to the full post-mortem markdown for that incident.
-	// Returns a Slack-formatted reply (mrkdwn).
-	AnswerQuestion(ctx context.Context, question string, current *models.Incident, similar []models.Incident, postMortems map[string]string) (string, error)
+	GenerateSummary(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, slackMessages []string) (string, llm.Usage, error)
+	GenerateHandoffDigest(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert) (string, llm.Usage, error)
+	GeneratePostMortem(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) (string, llm.Usage, error)
+	EnhancePostMortem(ctx context.Context, content string) (string, llm.Usage, error)
+	EnhanceIncidentDraft(ctx context.Context, brief string) (title, summary string, usage llm.Usage, err error)
+	AnswerQuestion(ctx context.Context, question string, current *models.Incident, similar []models.Incident, postMortems map[string]string) (string, llm.Usage, error)
 }
 
 // NewAIService creates a reloadable AIService backed by the given provider.
 // If the provider cannot be initialised (e.g. empty key, missing Ollama URL) the
 // service starts disabled; call Reload after credentials are saved in Settings.
 func NewAIService(provider, apiKey, model string, maxTokens, pmMaxTokens int, ollamaBaseURL string) AIService {
-	svc := &aiService{maxTokens: maxTokens, pmMaxTokens: pmMaxTokens}
+	svc := &aiService{maxTokens: maxTokens, pmMaxTokens: pmMaxTokens, model: model}
 	svc.client, _ = llm.New(llm.Config{Provider: provider, APIKey: apiKey, Model: model, MaxTokens: maxTokens, BaseURL: ollamaBaseURL})
 	svc.pmClient, _ = llm.New(llm.Config{Provider: provider, APIKey: apiKey, Model: model, MaxTokens: pmMaxTokens, BaseURL: ollamaBaseURL})
 	// Treat a client with no usable credential as disabled.
@@ -73,12 +57,19 @@ type aiService struct {
 	pmClient    llm.Client
 	maxTokens   int
 	pmMaxTokens int
+	model       string
 }
 
 func (s *aiService) IsEnabled() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.client != nil
+}
+
+func (s *aiService) Model() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.model
 }
 
 // hasCredential returns true when the provider has enough configuration to attempt a call.
@@ -94,6 +85,7 @@ func (s *aiService) hasCredential(provider, apiKey, ollamaBaseURL string) bool {
 func (s *aiService) Reload(provider, apiKey, model, ollamaBaseURL string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.model = model
 	if !s.hasCredential(provider, apiKey, ollamaBaseURL) {
 		s.client = nil
 		s.pmClient = nil
@@ -103,76 +95,80 @@ func (s *aiService) Reload(provider, apiKey, model, ollamaBaseURL string) {
 	s.pmClient, _ = llm.New(llm.Config{Provider: provider, APIKey: apiKey, Model: model, MaxTokens: s.pmMaxTokens, BaseURL: ollamaBaseURL})
 }
 
-func (s *aiService) GenerateSummary(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, slackMessages []string) (string, error) {
+func (s *aiService) GenerateSummary(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, slackMessages []string) (string, llm.Usage, error) {
 	s.mu.RLock()
 	client := s.client
 	s.mu.RUnlock()
 	if client == nil {
-		return "", fmt.Errorf("AI features are not configured")
+		return "", llm.Usage{}, fmt.Errorf("AI features are not configured")
 	}
 	messages := []llm.Message{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: buildSummaryPrompt(incident, timeline, alerts, slackMessages)},
 	}
-	return client.Complete(ctx, messages)
+	text, usage, err := client.Complete(ctx, messages)
+	return text, usage, err
 }
 
-func (s *aiService) GenerateHandoffDigest(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert) (string, error) {
+func (s *aiService) GenerateHandoffDigest(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert) (string, llm.Usage, error) {
 	s.mu.RLock()
 	client := s.client
 	s.mu.RUnlock()
 	if client == nil {
-		return "", fmt.Errorf("AI features are not configured")
+		return "", llm.Usage{}, fmt.Errorf("AI features are not configured")
 	}
 	messages := []llm.Message{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: buildHandoffPrompt(incident, timeline, alerts)},
 	}
-	return client.Complete(ctx, messages)
+	text, usage, err := client.Complete(ctx, messages)
+	return text, usage, err
 }
 
-func (s *aiService) GeneratePostMortem(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) (string, error) {
+func (s *aiService) GeneratePostMortem(ctx context.Context, incident *models.Incident, timeline []models.TimelineEntry, alerts []models.Alert, sections []string) (string, llm.Usage, error) {
 	s.mu.RLock()
 	client := s.pmClient
 	s.mu.RUnlock()
 	if client == nil {
-		return "", fmt.Errorf("AI features are not configured")
+		return "", llm.Usage{}, fmt.Errorf("AI features are not configured")
 	}
 	messages := []llm.Message{
 		{Role: "system", Content: postMortemSystemPrompt},
 		{Role: "user", Content: buildPostMortemPrompt(incident, timeline, alerts, sections)},
 	}
-	return client.Complete(ctx, messages)
+	text, usage, err := client.Complete(ctx, messages)
+	return text, usage, err
 }
 
-func (s *aiService) EnhancePostMortem(ctx context.Context, content string) (string, error) {
+func (s *aiService) EnhancePostMortem(ctx context.Context, content string) (string, llm.Usage, error) {
 	s.mu.RLock()
 	client := s.pmClient
 	s.mu.RUnlock()
 	if client == nil {
-		return "", fmt.Errorf("AI features are not configured")
+		return "", llm.Usage{}, fmt.Errorf("AI features are not configured")
 	}
 	messages := []llm.Message{
 		{Role: "system", Content: postMortemSystemPrompt},
 		{Role: "user", Content: buildEnhancePrompt(content)},
 	}
-	return client.Complete(ctx, messages)
+	text, usage, err := client.Complete(ctx, messages)
+	return text, usage, err
 }
 
-func (s *aiService) EnhanceIncidentDraft(ctx context.Context, brief string) (string, string, error) {
+func (s *aiService) EnhanceIncidentDraft(ctx context.Context, brief string) (string, string, llm.Usage, error) {
 	s.mu.RLock()
 	client := s.client
 	s.mu.RUnlock()
 	if client == nil {
-		return "", "", fmt.Errorf("AI features are not configured")
+		return "", "", llm.Usage{}, fmt.Errorf("AI features are not configured")
 	}
 	messages := []llm.Message{
 		{Role: "system", Content: `You are an expert incident management assistant. Convert rough incident descriptions into professional incident titles and summaries. Always respond with valid JSON only, no markdown, no commentary.`},
 		{Role: "user", Content: buildEnhanceDraftPrompt(brief)},
 	}
-	raw, err := client.Complete(ctx, messages)
+	raw, usage, err := client.Complete(ctx, messages)
 	if err != nil {
-		return "", "", fmt.Errorf("AI enhance draft: %w", err)
+		return "", "", usage, fmt.Errorf("AI enhance draft: %w", err)
 	}
 	// Strip markdown code fences if the model wraps output
 	raw = strings.TrimSpace(raw)
@@ -186,12 +182,12 @@ func (s *aiService) EnhanceIncidentDraft(ctx context.Context, brief string) (str
 		Summary string `json:"summary"`
 	}
 	if err := json.Unmarshal([]byte(raw), &result); err != nil {
-		return "", "", fmt.Errorf("AI returned unexpected format: %w", err)
+		return "", "", usage, fmt.Errorf("AI returned unexpected format: %w", err)
 	}
 	if result.Title == "" {
-		return "", "", fmt.Errorf("AI returned an empty title")
+		return "", "", usage, fmt.Errorf("AI returned an empty title")
 	}
-	return result.Title, result.Summary, nil
+	return result.Title, result.Summary, usage, nil
 }
 
 // ─── Prompts ──────────────────────────────────────────────────────────────────
@@ -375,22 +371,22 @@ func extractTimelineText(e models.TimelineEntry) string {
 	return strings.Join(parts, " ")
 }
 
-func (s *aiService) AnswerQuestion(ctx context.Context, question string, current *models.Incident, similar []models.Incident, postMortems map[string]string) (string, error) {
+func (s *aiService) AnswerQuestion(ctx context.Context, question string, current *models.Incident, similar []models.Incident, postMortems map[string]string) (string, llm.Usage, error) {
 	s.mu.RLock()
 	client := s.client
 	s.mu.RUnlock()
 	if client == nil {
-		return "AI features are not configured. Add an AI provider key in Settings → System.", nil
+		return "AI features are not configured. Add an AI provider key in Settings → System.", llm.Usage{}, nil
 	}
 	messages := []llm.Message{
 		{Role: "system", Content: buildAnswerQuestionSystemPrompt()},
 		{Role: "user", Content: buildAnswerQuestionPrompt(question, current, similar, postMortems)},
 	}
-	reply, err := client.Complete(ctx, messages)
+	reply, usage, err := client.Complete(ctx, messages)
 	if err != nil {
-		return "", fmt.Errorf("AI answer question: %w", err)
+		return "", usage, fmt.Errorf("AI answer question: %w", err)
 	}
-	return strings.TrimSpace(reply), nil
+	return strings.TrimSpace(reply), usage, nil
 }
 
 func buildAnswerQuestionSystemPrompt() string {

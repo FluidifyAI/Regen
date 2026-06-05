@@ -298,9 +298,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 		protected.POST("/alerts/:id/acknowledge", handlers.AcknowledgeAlert(alertRepo, escalationEngine, incidentRepo, timelineRepo))
 
 		// AI (v0.6+)
-		protected.POST("/incidents/:id/summarize", handlers.SummarizeIncident(incidentSvc, aiSvc))
-		protected.POST("/incidents/:id/handoff-digest", handlers.GenerateHandoffDigest(incidentSvc, aiSvc))
-		protected.POST("/ai/enhance-draft", handlers.EnhanceIncidentDraft(aiSvc))
+		protected.POST("/incidents/:id/summarize", handlers.SummarizeIncident(incidentSvc, aiSvc, hooks))
+		protected.POST("/incidents/:id/handoff-digest", handlers.GenerateHandoffDigest(incidentSvc, aiSvc, hooks))
+		protected.POST("/ai/enhance-draft", handlers.EnhanceIncidentDraft(aiSvc, hooks))
+
+		// AI cost tracking — Pro only; no-op stub returns 402 in OSS.
+		costGroup := protected.Group("/ai/cost")
+		hooks.CostTracker.RegisterRoutes(costGroup, db)
 		protected.GET("/settings/ai", handlers.GetAISettings(aiSvc))
 		protected.GET("/settings/teams", handlers.GetTeamsSettings(teamsSvc))
 
@@ -313,14 +317,14 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 
 		// Post-Mortems (v0.7+)
 		protected.GET("/incidents/:id/postmortem", handlers.GetPostMortem(incidentSvc, postMortemSvc))
-		protected.POST("/incidents/:id/postmortem/generate", handlers.GeneratePostMortem(incidentSvc, postMortemSvc, aiSvc))
+		protected.POST("/incidents/:id/postmortem/generate", handlers.GeneratePostMortem(incidentSvc, postMortemSvc, aiSvc, hooks))
 		protected.PATCH("/incidents/:id/postmortem", handlers.UpdatePostMortem(incidentSvc, postMortemSvc))
 		protected.GET("/incidents/:id/postmortem/export", handlers.ExportPostMortem(incidentSvc, postMortemSvc))
 		protected.POST("/incidents/:id/postmortem/action-items", handlers.CreateActionItem(incidentSvc, postMortemSvc))
 		protected.PATCH("/incidents/:id/postmortem/action-items/:itemId", handlers.UpdateActionItem(incidentSvc, postMortemSvc))
 		protected.DELETE("/incidents/:id/postmortem/action-items/:itemId", handlers.DeleteActionItem(incidentSvc, postMortemSvc))
 		protected.POST("/incidents/:id/postmortem", handlers.CreatePostMortem(incidentSvc, postMortemSvc))
-		protected.POST("/incidents/:id/postmortem/enhance", handlers.EnhancePostMortem(incidentSvc, postMortemSvc, aiSvc))
+		protected.POST("/incidents/:id/postmortem/enhance", handlers.EnhancePostMortem(incidentSvc, postMortemSvc, aiSvc, hooks))
 		protected.GET("/incidents/:id/postmortem/comments", handlers.ListPostMortemComments(incidentSvc, postMortemSvc))
 		protected.POST("/incidents/:id/postmortem/comments", handlers.CreatePostMortemComment(incidentSvc, postMortemSvc))
 		protected.DELETE("/incidents/:id/postmortem/comments/:commentId", handlers.DeletePostMortemComment(incidentSvc, postMortemSvc))

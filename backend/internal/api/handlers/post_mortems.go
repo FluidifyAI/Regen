@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
@@ -33,7 +34,7 @@ func GetPostMortem(incidentSvc services.IncidentService, pmSvc services.PostMort
 }
 
 // GeneratePostMortem handles POST /api/v1/incidents/:id/postmortem/generate
-func GeneratePostMortem(incidentSvc services.IncidentService, pmSvc services.PostMortemService, aiSvc services.AIService) gin.HandlerFunc {
+func GeneratePostMortem(incidentSvc services.IncidentService, pmSvc services.PostMortemService, aiSvc services.AIService, hooks enterprise.Hooks) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !aiSvc.IsEnabled() {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
@@ -54,12 +55,24 @@ func GeneratePostMortem(incidentSvc services.IncidentService, pmSvc services.Pos
 		// Body is optional — ignore bind error since template_id is optional
 		_ = c.ShouldBindJSON(&req)
 
-		pm, err := pmSvc.GeneratePostMortem(incident, req.TemplateID, "system")
+		pm, usage, err := pmSvc.GeneratePostMortem(incident, req.TemplateID, "system")
 		if err != nil {
 			dto.InternalError(c, err)
 			return
 		}
-		c.JSON(http.StatusOK, dto.ToPostMortemResponse(pm))
+
+		costUSD, _ := hooks.CostTracker.RecordUsage(c.Request.Context(), enterprise.UsageEvent{
+			Operation:        "postmortem",
+			Model:            aiSvc.Model(),
+			PromptTokens:     usage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens,
+			OccurredAt:       time.Now().UTC(),
+		})
+
+		c.JSON(http.StatusOK, gin.H{
+			"post_mortem": dto.ToPostMortemResponse(pm),
+			"cost_usd":    costUSD,
+		})
 	}
 }
 
@@ -259,7 +272,7 @@ func CreatePostMortem(incidentSvc services.IncidentService, pmSvc services.PostM
 
 // EnhancePostMortem handles POST /api/v1/incidents/:id/postmortem/enhance
 // Takes existing content, runs it through AI to improve structure/clarity, saves as draft.
-func EnhancePostMortem(incidentSvc services.IncidentService, pmSvc services.PostMortemService, aiSvc services.AIService) gin.HandlerFunc {
+func EnhancePostMortem(incidentSvc services.IncidentService, pmSvc services.PostMortemService, aiSvc services.AIService, hooks enterprise.Hooks) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !aiSvc.IsEnabled() {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
@@ -288,12 +301,24 @@ func EnhancePostMortem(incidentSvc services.IncidentService, pmSvc services.Post
 			dto.ValidationError(c, err)
 			return
 		}
-		enhanced, err := pmSvc.EnhancePostMortem(pm, req.Content)
+		enhanced, usage, err := pmSvc.EnhancePostMortem(pm, req.Content)
 		if err != nil {
 			dto.InternalError(c, err)
 			return
 		}
-		c.JSON(http.StatusOK, dto.ToPostMortemResponse(enhanced))
+
+		costUSD, _ := hooks.CostTracker.RecordUsage(c.Request.Context(), enterprise.UsageEvent{
+			Operation:        "enhance_postmortem",
+			Model:            aiSvc.Model(),
+			PromptTokens:     usage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens,
+			OccurredAt:       time.Now().UTC(),
+		})
+
+		c.JSON(http.StatusOK, gin.H{
+			"post_mortem": dto.ToPostMortemResponse(enhanced),
+			"cost_usd":    costUSD,
+		})
 	}
 }
 

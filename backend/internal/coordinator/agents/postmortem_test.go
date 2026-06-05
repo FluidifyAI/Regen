@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/coordinator/agents"
+	"github.com/FluidifyAI/Regen/backend/internal/integrations/llm"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/google/uuid"
@@ -31,9 +32,9 @@ func (f *fakePostMortemSvc) GetPostMortem(incidentID uuid.UUID) (*models.PostMor
 	return nil, &repository.NotFoundError{Resource: "post_mortem", ID: incidentID.String()}
 }
 
-func (f *fakePostMortemSvc) GeneratePostMortem(incident *models.Incident, templateID *uuid.UUID, createdByID string) (*models.PostMortem, error) {
+func (f *fakePostMortemSvc) GeneratePostMortem(incident *models.Incident, templateID *uuid.UUID, createdByID string) (*models.PostMortem, llm.Usage, error) {
 	f.called = true
-	return &models.PostMortem{ID: uuid.New()}, f.returnError
+	return &models.PostMortem{ID: uuid.New()}, llm.Usage{}, f.returnError
 }
 
 type fakeAISvc struct{ enabled bool }

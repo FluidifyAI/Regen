@@ -48,13 +48,17 @@ type openAIChatResponse struct {
 	Choices []struct {
 		Message openAIChatMessage `json:"message"`
 	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"usage"`
 	Error *struct {
 		Message string `json:"message"`
 		Code    string `json:"code"`
 	} `json:"error"`
 }
 
-func (c *openAIClient) Complete(ctx context.Context, messages []Message) (string, error) {
+func (c *openAIClient) Complete(ctx context.Context, messages []Message) (string, Usage, error) {
 	msgs := make([]openAIChatMessage, len(messages))
 	for i, m := range messages {
 		msgs[i] = openAIChatMessage(m)
@@ -63,7 +67,7 @@ func (c *openAIClient) Complete(ctx context.Context, messages []Message) (string
 	body, _ := json.Marshal(openAIChatRequest{Model: c.model, Messages: msgs, MaxTokens: c.maxTokens})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("openai: create request: %w", err)
+		return "", Usage{}, fmt.Errorf("openai: create request: %w", err)
 	}
 	if c.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
@@ -72,19 +76,22 @@ func (c *openAIClient) Complete(ctx context.Context, messages []Message) (string
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("openai: send request: %w", err)
+		return "", Usage{}, fmt.Errorf("openai: send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	var result openAIChatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("openai: decode response (status %d): %w", resp.StatusCode, err)
+		return "", Usage{}, fmt.Errorf("openai: decode response (status %d): %w", resp.StatusCode, err)
 	}
 	if result.Error != nil {
-		return "", fmt.Errorf("openai api error [%s]: %s", result.Error.Code, result.Error.Message)
+		return "", Usage{}, fmt.Errorf("openai api error [%s]: %s", result.Error.Code, result.Error.Message)
 	}
 	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("openai: no choices in response (status %d)", resp.StatusCode)
+		return "", Usage{}, fmt.Errorf("openai: no choices in response (status %d)", resp.StatusCode)
 	}
-	return result.Choices[0].Message.Content, nil
+	return result.Choices[0].Message.Content, Usage{
+		PromptTokens:     result.Usage.PromptTokens,
+		CompletionTokens: result.Usage.CompletionTokens,
+	}, nil
 }

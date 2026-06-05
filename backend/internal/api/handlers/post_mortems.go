@@ -69,10 +69,9 @@ func GeneratePostMortem(incidentSvc services.IncidentService, pmSvc services.Pos
 			OccurredAt:       time.Now().UTC(),
 		})
 
-		c.JSON(http.StatusOK, gin.H{
-			"post_mortem": dto.ToPostMortemResponse(pm),
-			"cost_usd":    costUSD,
-		})
+		resp := dto.ToPostMortemResponse(pm)
+		resp.CostUSD = costUSD
+		c.JSON(http.StatusOK, resp)
 	}
 }
 
@@ -315,10 +314,9 @@ func EnhancePostMortem(incidentSvc services.IncidentService, pmSvc services.Post
 			OccurredAt:       time.Now().UTC(),
 		})
 
-		c.JSON(http.StatusOK, gin.H{
-			"post_mortem": dto.ToPostMortemResponse(enhanced),
-			"cost_usd":    costUSD,
-		})
+		resp := dto.ToPostMortemResponse(enhanced)
+		resp.CostUSD = costUSD
+		c.JSON(http.StatusOK, resp)
 	}
 }
 

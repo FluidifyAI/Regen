@@ -47,6 +47,7 @@ type PostMortemResponse struct {
 	CreatedAt    time.Time            `json:"created_at"`
 	UpdatedAt    time.Time            `json:"updated_at"`
 	ActionItems  []ActionItemResponse `json:"action_items"`
+	CostUSD      float64              `json:"cost_usd"`
 }
 
 // PostMortemCommentResponse is the API representation of a post-mortem comment.

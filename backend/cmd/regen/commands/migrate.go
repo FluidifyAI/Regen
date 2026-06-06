@@ -46,7 +46,7 @@ func runMigrate(_ *cobra.Command, _ []string) error {
 	defer database.Close()
 
 	slog.Info("running database migrations...")
-	if err := database.RunMigrations(database.DB, "./migrations"); err != nil {
+	if err := database.RunMigrationsFS(database.DB, proHooks.Migrations); err != nil {
 		return err
 	}
 	slog.Info("migrations complete")

@@ -3,11 +3,13 @@ package database
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"gorm.io/gorm"
 )
 
@@ -33,6 +35,57 @@ func createMigrateInstance(db *gorm.DB, migrationsPath string) (*migrate.Migrate
 	}
 
 	return m, nil
+}
+
+// RunMigrationsFS runs all pending migrations from an embedded fs.FS.
+func RunMigrationsFS(db *gorm.DB, migrationsFS fs.FS) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying SQL DB: %w", err)
+	}
+
+	driver, err := postgres.WithInstance(sqlDB, &postgres.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to create migration driver: %w", err)
+	}
+
+	src, err := iofs.New(migrationsFS, ".")
+	if err != nil {
+		return fmt.Errorf("failed to create iofs migration source: %w", err)
+	}
+
+	m, err := migrate.NewWithInstance("iofs", src, "postgres", driver)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+
+	version, dirty, err := m.Version()
+	if err != nil && !errors.Is(err, migrate.ErrNilVersion) {
+		return fmt.Errorf("failed to get current migration version: %w", err)
+	}
+	if dirty {
+		return fmt.Errorf("database is in dirty state at version %d: manual intervention required", version)
+	}
+	if errors.Is(err, migrate.ErrNilVersion) {
+		slog.Info("no migrations applied yet")
+	} else {
+		slog.Info("current migration state", "version", version, "dirty", dirty)
+	}
+
+	if err := m.Up(); err != nil {
+		if errors.Is(err, migrate.ErrNoChange) {
+			slog.Info("no new migrations to apply")
+			return nil
+		}
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	version, _, err = m.Version()
+	if err != nil {
+		return fmt.Errorf("failed to get migration version after applying: %w", err)
+	}
+	slog.Info("migrations applied successfully", "version", version)
+	return nil
 }
 
 // RunMigrations runs all pending database migrations

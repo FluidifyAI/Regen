@@ -21,10 +21,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/migrations"
 	"github.com/FluidifyAI/Regen/backend/ui"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+func ossMigrations() fs.FS { return migrations.FS }
 
 // ── RBAC ─────────────────────────────────────────────────────────────────────
 
@@ -149,6 +152,10 @@ type Hooks struct {
 	CustomFields CustomFieldsHandler
 	UI           UIProvider
 	CostTracker  CostTracker
+	// Migrations is the merged fs.FS of SQL migration files to run on startup.
+	// The OSS default uses only the embedded OSS migrations; regen-pro merges
+	// in its own Pro-specific migrations on top before passing to RunMigrationsFS.
+	Migrations fs.FS
 }
 
 // NewNoOp returns Hooks with all no-op stubs — the default for the OSS build.
@@ -161,6 +168,7 @@ func NewNoOp() Hooks {
 		CustomFields: noopCustomFields{},
 		UI:           noopUI{},
 		CostTracker:  noopCostTracker{},
+		Migrations:   ossMigrations(),
 	}
 }
 

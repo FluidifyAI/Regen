@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useVisibilityAwareInterval } from '../hooks/useVisibilityAwareInterval'
 import { CheckCircle, AlertTriangle, Clock, RefreshCw } from 'lucide-react'
 
 interface StatusIncident {
@@ -112,11 +113,8 @@ export function StatusPage() {
     }
   }, [])
 
-  useEffect(() => {
-    fetch()
-    const timer = setInterval(fetch, 30_000)
-    return () => clearInterval(timer)
-  }, [fetch])
+  useEffect(() => { fetch() }, [fetch])
+  useVisibilityAwareInterval(fetch, 30_000)
 
   const isHealthy = !loading && !error && data && data.active_incidents.length === 0
 

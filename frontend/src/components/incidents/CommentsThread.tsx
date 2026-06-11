@@ -3,6 +3,7 @@
  * Polls every 30s. Anyone can add; anyone can delete any comment (no auth enforcement client-side).
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useVisibilityAwareInterval } from '../../hooks/useVisibilityAwareInterval'
 import { Send, Trash2, MessageSquare } from 'lucide-react'
 import {
   listPostMortemComments,
@@ -52,11 +53,8 @@ export function CommentsThread({ incidentId }: CommentsThreadProps) {
     }
   }, [incidentId])
 
-  useEffect(() => {
-    load()
-    const interval = setInterval(load, 30_000)
-    return () => clearInterval(interval)
-  }, [load])
+  useEffect(() => { load() }, [load])
+  useVisibilityAwareInterval(load, 30_000)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { listIncidents } from '../api/incidents'
 import type { Incident, ListIncidentsParams } from '../api/types'
+import { useVisibilityAwareInterval } from './useVisibilityAwareInterval'
 
 interface UseIncidentsResult {
   incidents: Incident[]
@@ -53,32 +54,19 @@ export function useIncidents(params: ListIncidentsParams = {}): UseIncidentsResu
     fetchIncidents()
   }, [fetchIncidents])
 
-  // Background polling — silent, stops when all visible incidents are terminal
-  // or when the filter is already narrowed to a terminal status.
-  useEffect(() => {
-    if (params.status && !ACTIVE_STATUSES.has(params.status)) return
+  const shouldPoll = !params.status || ACTIVE_STATUSES.has(params.status)
 
-    const timer = setInterval(async () => {
-      const current = incidentsRef.current
-      // If every incident on screen is terminal, no need to keep polling
-      if (current.length > 0 && current.every((i) => !ACTIVE_STATUSES.has(i.status))) return
-
-      try {
-        const response = await listIncidents(params)
-        setIncidents(response.data)
-        setTotal(response.total)
-      } catch {
-        // Silently ignore poll failures
-      }
-    }, POLL_INTERVAL_MS)
-
-    return () => clearInterval(timer)
-  }, [
-    params.status,
-    params.severity,
-    params.limit,
-    params.page,
-  ])
+  useVisibilityAwareInterval(async () => {
+    const current = incidentsRef.current
+    if (current.length > 0 && current.every((i) => !ACTIVE_STATUSES.has(i.status))) return
+    try {
+      const response = await listIncidents(params)
+      setIncidents(response.data)
+      setTotal(response.total)
+    } catch {
+      // Silently ignore poll failures
+    }
+  }, POLL_INTERVAL_MS, shouldPoll)
 
   return {
     incidents,

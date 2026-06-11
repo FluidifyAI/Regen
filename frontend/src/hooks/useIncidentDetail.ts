@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getIncident } from '../api/incidents'
 import type { Alert, TimelineEntry } from '../api/types'
+import { useVisibilityAwareInterval } from './useVisibilityAwareInterval'
 
 type StatusType = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
 type SeverityType = 'critical' | 'high' | 'medium' | 'low'
@@ -73,25 +74,16 @@ export function useIncidentDetail(id: string): UseIncidentDetailResult {
     fetchIncident()
   }, [fetchIncident])
 
-  // Background polling — silent (no loading state, no error overlay on failure)
-  // Only runs while the incident is in an active (non-terminal) state.
-  useEffect(() => {
-    if (!id) return
-
-    const timer = setInterval(async () => {
-      const current = incidentRef.current
-      if (current && TERMINAL_STATUSES.includes(current.status)) return
-
-      try {
-        const data = await getIncident(id)
-        setIncident(data)
-      } catch {
-        // Silently ignore poll failures — keep the last known data visible
-      }
-    }, POLL_INTERVAL_MS)
-
-    return () => clearInterval(timer)
-  }, [id])
+  useVisibilityAwareInterval(async () => {
+    const current = incidentRef.current
+    if (current && TERMINAL_STATUSES.includes(current.status)) return
+    try {
+      const data = await getIncident(id)
+      setIncident(data)
+    } catch {
+      // Silently ignore poll failures — keep the last known data visible
+    }
+  }, POLL_INTERVAL_MS, !!id)
 
   return {
     incident,

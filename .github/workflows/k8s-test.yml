@@ -39,6 +39,9 @@ jobs:
           echo "helm:   $(helm version --short)"
           echo "docker: $(docker version --format '{{.Client.Version}}')"
 
+      - name: Prune dangling Docker build cache
+        run: docker builder prune -f
+
       - name: Run k8s test suite
         run: bash scripts/k8s-test/run-all.sh
 

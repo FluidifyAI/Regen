@@ -84,6 +84,10 @@ function localDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function localDateTimeStr(d: Date): string {
+  return `${localDateStr(d)}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 function toScheduleTz(datetimeLocalValue: string, scheduleTz: string): string {
   const d = new Date(datetimeLocalValue)
   if (isNaN(d.getTime())) return ''
@@ -290,10 +294,9 @@ function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, onClose, onSaved }:
     if (isOpen) {
       setName('')
       setRotationType('weekly')
-      // Default rotation_start: midnight UTC today
       const now = new Date()
-      const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-      setRotationStart(midnight.toISOString().slice(0, 16))
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      setRotationStart(localDateTimeStr(midnight))
       setCustomDuration(8)
       setCustomUnit('hours')
       setParticipants([''])
@@ -405,7 +408,7 @@ function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, onClose, onSaved }:
               )}
             </div>
             <div>
-              <label className={labelClass} htmlFor="layer-start">Rotation start (UTC)</label>
+              <label className={labelClass} htmlFor="layer-start">Rotation start</label>
               <input id="layer-start" type="datetime-local" value={rotationStart} onChange={(e) => setRotationStart(e.target.value)} className={inputClass} disabled={isSubmitting} />
               <p className="mt-1 text-xs text-text-tertiary">The point in time when the rotation begins counting from slot 0.</p>
             </div>
@@ -473,7 +476,7 @@ interface EditLayerModalProps {
 function EditLayerModal({ isOpen, scheduleId, layer, onClose, onSaved }: EditLayerModalProps) {
   const rotationStartStr = (() => {
     const d = new Date(layer.rotation_start)
-    return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 16)
+    return isNaN(d.getTime()) ? '' : localDateTimeStr(d)
   })()
 
   const initialParticipants = (layer.participants ?? [])
@@ -505,7 +508,7 @@ function EditLayerModal({ isOpen, scheduleId, layer, onClose, onSaved }: EditLay
       setName(layer.name)
       setRotationType(layer.rotation_type)
       const d = new Date(layer.rotation_start)
-      setRotationStart(isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 16))
+      setRotationStart(isNaN(d.getTime()) ? '' : localDateTimeStr(d))
       const secs = layer.shift_duration_seconds || 3600
       if (secs % 86400 === 0) {
         setCustomDuration(secs / 86400)
@@ -625,7 +628,7 @@ function EditLayerModal({ isOpen, scheduleId, layer, onClose, onSaved }: EditLay
               )}
             </div>
             <div>
-              <label className={labelClass} htmlFor="edit-layer-start">Rotation start (UTC)</label>
+              <label className={labelClass} htmlFor="edit-layer-start">Rotation start</label>
               <input id="edit-layer-start" type="datetime-local" value={rotationStart} onChange={(e) => setRotationStart(e.target.value)} className={inputClass} disabled={isSubmitting} />
               <p className="mt-1 text-xs text-text-tertiary">The point in time when the rotation begins counting from slot 0.</p>
             </div>
@@ -704,15 +707,15 @@ function OverrideModal({ isOpen, scheduleId, scheduleTimezone, prefilledStart, o
     if (isOpen) {
       setOverrideUser('')
       if (prefilledStart) {
-        const end = new Date(new Date(prefilledStart + ':00Z').getTime() + 86_400_000)
+        const end = new Date(new Date(prefilledStart).getTime() + 86_400_000)
         setStartTime(prefilledStart)
-        setEndTime(end.toISOString().slice(0, 16))
+        setEndTime(localDateTimeStr(end))
       } else {
         const n = new Date()
-        const startUTC = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate(), n.getUTCHours()))
-        const endUTC = new Date(startUTC.getTime() + 86_400_000)
-        setStartTime(startUTC.toISOString().slice(0, 16))
-        setEndTime(endUTC.toISOString().slice(0, 16))
+        const startLocal = new Date(n.getFullYear(), n.getMonth(), n.getDate(), n.getHours())
+        const endLocal = new Date(startLocal.getTime() + 86_400_000)
+        setStartTime(localDateTimeStr(startLocal))
+        setEndTime(localDateTimeStr(endLocal))
       }
       setReplacesSegments([])
       setError(null)
@@ -823,14 +826,14 @@ function OverrideModal({ isOpen, scheduleId, scheduleTimezone, prefilledStart, o
             </div>
             <div className="flex gap-4">
               <div className="flex-1">
-                <label className={labelClass} htmlFor="ov-start">Start (UTC)</label>
+                <label className={labelClass} htmlFor="ov-start">Start</label>
                 <input id="ov-start" type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={inputClass} disabled={isSubmitting} required />
                 {startTime && scheduleTimezone && (
                   <p className="mt-1 text-xs text-text-tertiary">{toScheduleTz(startTime, scheduleTimezone)}</p>
                 )}
               </div>
               <div className="flex-1">
-                <label className={labelClass} htmlFor="ov-end">End (UTC)</label>
+                <label className={labelClass} htmlFor="ov-end">End</label>
                 <input id="ov-end" type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputClass} disabled={isSubmitting} required />
                 {endTime && scheduleTimezone && (
                   <p className="mt-1 text-xs text-text-tertiary">{toScheduleTz(endTime, scheduleTimezone)}</p>
@@ -1028,8 +1031,8 @@ function UnavailabilityModal({ isOpen, scheduleId, users, onClose, onSaved }: Un
     try {
       await createUnavailability(scheduleId, {
         user_name: userName,
-        start_date: new Date(startDate).toISOString(),
-        end_date: new Date(endDate).toISOString(),
+        start_date: startDate,
+        end_date: endDate,
         reason: reason || undefined,
       })
       onSaved()
@@ -1460,8 +1463,7 @@ export function ScheduleDetailPage() {
   }
 
   const handleDayClick = (date: Date) => {
-    const utcMidnight = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-    setOverridePrefilledStart(utcMidnight.toISOString().slice(0, 16))
+    setOverridePrefilledStart(localDateStr(date) + 'T00:00')
     setOverrideModalOpen(true)
   }
 

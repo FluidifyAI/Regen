@@ -22,6 +22,7 @@ import { Tooltip } from '../ui/Tooltip'
 import { ProfileModal } from '../ProfileModal'
 import { useAuth } from '../../hooks/useAuth'
 import type { CurrentUser } from '../../api/auth'
+import { getHealth } from '../../api/health'
 
 interface NavItem {
   id: string
@@ -63,6 +64,15 @@ export function Sidebar() {
   const { user: currentUser, signOut } = useAuth()
   const [showProfile, setShowProfile] = useState(false)
   const navigate = useNavigate()
+  const [version, setVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    getHealth()
+      .then((data) => setVersion(data.version))
+      .catch(() => {
+        // silent fallback — version stays null, nothing rendered
+      })
+  }, [])
 
   // Persist collapse state
   useEffect(() => {
@@ -323,6 +333,13 @@ export function Sidebar() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Version label — only when sidebar is expanded */}
+      {!isCollapsed && version !== null && (
+        <div className="px-4 py-1">
+          <span className="text-xs text-text-tertiary">{version}</span>
         </div>
       )}
 

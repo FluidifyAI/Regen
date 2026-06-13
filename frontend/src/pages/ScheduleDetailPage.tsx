@@ -1132,8 +1132,8 @@ function UnavailabilityModal({ isOpen, scheduleId, users, onClose, onSaved }: Un
     try {
       await createUnavailability(scheduleId, {
         user_name: userName,
-        start_date: startDate,
-        end_date: endDate,
+        start_date: startDate + 'T00:00:00Z',
+        end_date: endDate + 'T00:00:00Z',
         reason: reason || undefined,
       })
       onSaved()

@@ -27,6 +27,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "dev"
+
 func newServeCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "serve",
@@ -48,7 +50,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 	setupLogging(cfg.LogLevel)
 
 	slog.Info("starting Fluidify Regen",
-		"version", "0.9.0",
+		"version", version,
 		"environment", cfg.Environment,
 		"port", cfg.Port,
 	)
@@ -189,7 +191,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
-	api.SetupRoutes(router, database.DB, cfg, teamsSvc, samlMiddleware, enterpriseHooks, localAuthSvc, telemetryWorker.GetCachedAnnouncements)
+	api.SetupRoutes(router, database.DB, cfg, version, teamsSvc, samlMiddleware, enterpriseHooks, localAuthSvc, telemetryWorker.GetCachedAnnouncements)
 
 	worker.StartAll(appCtx, database.DB, cfg, teamsSvc, enterpriseHooks)
 

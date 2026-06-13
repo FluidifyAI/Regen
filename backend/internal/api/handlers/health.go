@@ -10,10 +10,11 @@ import (
 )
 
 // Health returns a simple health check
-func Health(db *gorm.DB) gin.HandlerFunc {
+func Health(db *gorm.DB, appVersion string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"status": "ok",
+			"status":  "ok",
+			"version": appVersion,
 		})
 	}
 }

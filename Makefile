@@ -178,8 +178,9 @@ build-frontend:
 # The resulting binary at backend/bin/regen serves UI + API on :8080.
 build: build-frontend
 	@echo "Compiling Go binary with embedded frontend..."
-	@cd backend && CGO_ENABLED=0 GOOS=linux go build \
-		-ldflags="-w -s -extldflags '-static'" \
+	@VERSION=$${VERSION:-dev}; \
+	 cd backend && CGO_ENABLED=0 GOOS=linux go build \
+		-ldflags="-w -s -extldflags '-static' -X github.com/FluidifyAI/Regen/backend/cmd/regen/commands.version=$$VERSION" \
 		-o bin/regen \
 		./cmd/regen
 	@echo ""
@@ -191,7 +192,7 @@ build: build-frontend
 #   docker run -p 8080:8080 -e DATABASE_URL=... -e REDIS_URL=... fluidify-regen
 docker:
 	@echo "Building production Docker image..."
-	@docker build -t fluidify-regen .
+	@docker build --build-arg APP_VERSION=$${VERSION:-dev} -t fluidify-regen .
 	@echo ""
 	@echo "Run: docker run -p 8080:8080 fluidify-regen"
 

@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Globe, Trash2 } from 'lucide-react'
 import type { TimelineSegment } from '../../api/types'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -32,6 +32,8 @@ interface GanttCalendarProps {
   onDayClick?: (date: Date) => void
   /** Public holidays to mark on day headers */
   holidays?: HolidayMarker[]
+  /** IANA timezone of the schedule — shown in the calendar footer */
+  scheduleTimezone?: string
 }
 
 // ─── Exported helpers ─────────────────────────────────────────────────────────
@@ -172,6 +174,7 @@ export function GanttCalendar({
   onRowDelete,
   onDayClick,
   holidays = [],
+  scheduleTimezone,
 }: GanttCalendarProps) {
   const holidayMap = new Map<string, HolidayMarker>()
   for (const h of holidays) {
@@ -450,6 +453,26 @@ export function GanttCalendar({
               </table>
             )
           })}
+        </div>
+      )}
+
+      {/* ── Timezone footer ── */}
+      {scheduleTimezone && (
+        <div className="mt-2 flex items-center gap-1.5 text-xs text-text-tertiary">
+          <Globe className="w-3 h-3 flex-shrink-0" />
+          <span>
+            Schedule timezone: <span className="font-medium text-text-secondary">{scheduleTimezone}</span>
+            {' · '}
+            {new Date().toLocaleString(undefined, {
+              timeZone: scheduleTimezone,
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZoneName: 'short',
+            })}
+          </span>
         </div>
       )}
     </div>

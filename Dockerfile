@@ -41,9 +41,10 @@ COPY backend/ ./
 COPY --from=frontend-builder /app/dist ./ui/dist
 
 # Compile — CGO disabled for a fully static binary
+ARG APP_VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build \
-    -ldflags="-w -s -extldflags '-static'" \
+    -ldflags="-w -s -extldflags '-static' -X github.com/FluidifyAI/Regen/backend/cmd/regen/commands.version=${APP_VERSION}" \
     -a -installsuffix cgo \
     -o /bin/regen \
     ./cmd/regen

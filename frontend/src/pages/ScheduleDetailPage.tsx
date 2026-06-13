@@ -8,6 +8,9 @@ import {
   User,
   AlertCircle,
   Layers,
+  Clock,
+  Globe,
+  Sunrise,
 } from 'lucide-react'
 import { GanttCalendar, GanttRow, getMonthStart, daysInMonth, segmentBg, segmentText } from '../components/oncall/GanttCalendar'
 import { Button } from '../components/ui/Button'
@@ -86,6 +89,65 @@ function localDateStr(d: Date): string {
 
 function localDateTimeStr(d: Date): string {
   return `${localDateStr(d)}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/** Current time formatted in the schedule's timezone, e.g. "Thu, Jun 12, 2:30 PM IST" */
+function nowInScheduleTz(scheduleTz: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: scheduleTz,
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+      timeZoneName: 'short',
+    }).format(new Date())
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Returns the next midnight in the schedule's timezone, expressed as a
+ * local datetime string suitable for a datetime-local input.
+ *
+ * Computed by reading the current hour:minute in the schedule tz (via
+ * formatToParts), subtracting that from now to find the last midnight in
+ * that tz, then adding 24 h. Works across DST boundaries because we
+ * derive the offset from the live formatter, not a fixed constant.
+ */
+function nextScheduleMidnightAsLocal(scheduleTz: string): string {
+  const now = new Date()
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: scheduleTz, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(now)
+    const h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10) % 24
+    const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10)
+    const msSinceSchedMidnight = (h * 60 + m) * 60_000
+    const nextMidnight = new Date(now.getTime() - msSinceSchedMidnight + 86_400_000)
+    return localDateTimeStr(nextMidnight)
+  } catch {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return localDateTimeStr(new Date(d.getTime() + 86_400_000))
+  }
+}
+
+/** Pill shown at the top of every schedule form modal. */
+function TzBadge({ timezone }: { timezone: string }) {
+  if (!timezone) return null
+  const now = nowInScheduleTz(timezone)
+  const label = timezone.replace(/_/g, ' ')
+  return (
+    <div className="flex items-start gap-2 px-3 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
+      <Globe className="w-3.5 h-3.5 text-indigo-500 mt-0.5 flex-shrink-0" />
+      <div>
+        <span className="font-semibold text-indigo-800">Schedule timezone: {label}</span>
+        {now && (
+          <span className="text-indigo-600 ml-2">· Now: {now}</span>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function toScheduleTz(datetimeLocalValue: string, scheduleTz: string): string {
@@ -274,11 +336,12 @@ interface AddLayerModalProps {
   isOpen: boolean
   scheduleId: string
   nextOrderIndex: number
+  scheduleTimezone: string
   onClose: () => void
   onSaved: () => void
 }
 
-function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, onClose, onSaved }: AddLayerModalProps) {
+function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, scheduleTimezone, onClose, onSaved }: AddLayerModalProps) {
   const [name, setName] = useState('')
   const [rotationType, setRotationType] = useState<'daily' | 'weekly' | 'custom'>('weekly')
   const [rotationStart, setRotationStart] = useState('')
@@ -378,6 +441,7 @@ function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, onClose, onSaved }:
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+            <TzBadge timezone={scheduleTimezone} />
             {error && (
               <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
             )}
@@ -408,9 +472,26 @@ function AddLayerModal({ isOpen, scheduleId, nextOrderIndex, onClose, onSaved }:
               )}
             </div>
             <div>
-              <label className={labelClass} htmlFor="layer-start">Rotation start</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className={labelClass} htmlFor="layer-start">Rotation start</label>
+                <button
+                  type="button"
+                  onClick={() => setRotationStart(nextScheduleMidnightAsLocal(scheduleTimezone))}
+                  className="flex items-center gap-1 text-xs text-brand-primary hover:underline"
+                >
+                  <Sunrise className="w-3 h-3" />
+                  Use schedule midnight
+                </button>
+              </div>
               <input id="layer-start" type="datetime-local" value={rotationStart} onChange={(e) => setRotationStart(e.target.value)} className={inputClass} disabled={isSubmitting} />
-              <p className="mt-1 text-xs text-text-tertiary">The point in time when the rotation begins counting from slot 0.</p>
+              {rotationStart && scheduleTimezone ? (
+                <p className="mt-1 text-xs text-text-tertiary flex items-center gap-1">
+                  <Clock className="w-3 h-3 flex-shrink-0" />
+                  In {scheduleTimezone}: {toScheduleTz(rotationStart, scheduleTimezone)}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-text-tertiary">The point in time when the rotation begins counting from slot 0.</p>
+              )}
             </div>
             <div>
               <label className={labelClass}>Participants (in rotation order)</label>
@@ -469,11 +550,12 @@ interface EditLayerModalProps {
   isOpen: boolean
   scheduleId: string
   layer: ScheduleLayer
+  scheduleTimezone: string
   onClose: () => void
   onSaved: () => void
 }
 
-function EditLayerModal({ isOpen, scheduleId, layer, onClose, onSaved }: EditLayerModalProps) {
+function EditLayerModal({ isOpen, scheduleId, layer, scheduleTimezone, onClose, onSaved }: EditLayerModalProps) {
   const rotationStartStr = (() => {
     const d = new Date(layer.rotation_start)
     return isNaN(d.getTime()) ? '' : localDateTimeStr(d)
@@ -601,6 +683,7 @@ function EditLayerModal({ isOpen, scheduleId, layer, onClose, onSaved }: EditLay
             {error && (
               <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
             )}
+            <TzBadge timezone={scheduleTimezone} />
             <div>
               <label className={labelClass} htmlFor="edit-layer-name">Layer name</label>
               <input ref={nameRef} id="edit-layer-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Primary rotation" className={inputClass} disabled={isSubmitting} required />
@@ -628,9 +711,26 @@ function EditLayerModal({ isOpen, scheduleId, layer, onClose, onSaved }: EditLay
               )}
             </div>
             <div>
-              <label className={labelClass} htmlFor="edit-layer-start">Rotation start</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className={labelClass} htmlFor="edit-layer-start">Rotation start</label>
+                <button
+                  type="button"
+                  onClick={() => setRotationStart(nextScheduleMidnightAsLocal(scheduleTimezone))}
+                  className="flex items-center gap-1 text-xs text-brand-primary hover:underline"
+                >
+                  <Sunrise className="w-3 h-3" />
+                  Use schedule midnight
+                </button>
+              </div>
               <input id="edit-layer-start" type="datetime-local" value={rotationStart} onChange={(e) => setRotationStart(e.target.value)} className={inputClass} disabled={isSubmitting} />
-              <p className="mt-1 text-xs text-text-tertiary">The point in time when the rotation begins counting from slot 0.</p>
+              {rotationStart && scheduleTimezone ? (
+                <p className="mt-1 text-xs text-text-tertiary flex items-center gap-1">
+                  <Clock className="w-3 h-3 flex-shrink-0" />
+                  In {scheduleTimezone}: {toScheduleTz(rotationStart, scheduleTimezone)}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-text-tertiary">The point in time when the rotation begins counting from slot 0.</p>
+              )}
             </div>
             <div>
               <label className={labelClass}>Participants (in rotation order)</label>
@@ -795,6 +895,7 @@ function OverrideModal({ isOpen, scheduleId, scheduleTimezone, prefilledStart, o
             {error && (
               <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
             )}
+            <TzBadge timezone={scheduleTimezone} />
             <div>
               <label className={labelClass} htmlFor="ov-user">On-call user during override</label>
               {users.length > 0 ? (
@@ -1448,6 +1549,13 @@ export function ScheduleDetailPage() {
     return names
   }, [schedule?.layers])
 
+  const currentSegment = useMemo(() => {
+    const now = new Date().toISOString()
+    return (layerTimelines?.effective ?? []).find(
+      s => s.start <= now && s.end > now
+    ) ?? null
+  }, [layerTimelines])
+
   const handleEditLayer = (layer: ScheduleLayer) => {
     setEditingLayer(layer)
     setEditLayerOpen(true)
@@ -1492,6 +1600,7 @@ export function ScheduleDetailPage() {
           isOpen={addLayerOpen}
           scheduleId={schedule.id}
           nextOrderIndex={nextOrderIndex}
+          scheduleTimezone={schedule.timezone}
           onClose={() => setAddLayerOpen(false)}
           onSaved={() => { toast.success('Layer added'); invalidateAll() }}
         />
@@ -1502,6 +1611,7 @@ export function ScheduleDetailPage() {
           isOpen={editLayerOpen}
           scheduleId={schedule.id}
           layer={editingLayer}
+          scheduleTimezone={schedule.timezone}
           onClose={() => { setEditLayerOpen(false); setEditingLayer(null) }}
           onSaved={() => { toast.success('Layer updated'); invalidateAll() }}
         />
@@ -1581,6 +1691,19 @@ export function ScheduleDetailPage() {
             {currentUser ? (
               <>
                 <div className="text-xl font-bold text-text-primary">{currentUser}</div>
+                {currentSegment && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-text-secondary">
+                    <Clock className="w-3 h-3 flex-shrink-0" />
+                    <span>
+                      Shift ends {timeUntil(currentSegment.end)}
+                      {schedule.timezone !== Intl.DateTimeFormat().resolvedOptions().timeZone && (
+                        <span className="text-text-tertiary ml-1">
+                          ({new Date(currentSegment.end).toLocaleString(undefined, { timeZone: schedule.timezone, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} {schedule.timezone})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
                 {onCall?.is_override && (
                   <div className="flex items-center gap-1 mt-1">
                     <AlertCircle className="w-3.5 h-3.5 text-orange-600" />
@@ -1631,6 +1754,7 @@ export function ScheduleDetailPage() {
           onNavigate={setWindowStart}
           onDayClick={handleDayClick}
           holidays={holidays.map(h => ({ date: h.date, name: h.name, countryCode: h.country_code }))}
+          scheduleTimezone={schedule.timezone}
         />
 
         {/* Overrides */}

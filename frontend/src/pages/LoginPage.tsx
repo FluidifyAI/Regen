@@ -597,14 +597,14 @@ export function LoginPage() {
           </div>
 
           <p className="text-center mt-5 text-[#94A3B8] text-xs">
-            Self-hosting?{' '}
+            Self-hosted · Licensed under{' '}
             <a
-              href="https://github.com/fluidify/regen"
+              href="https://github.com/FluidifyAI/Regen/blob/main/LICENSE"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[#64748B] hover:text-[#374151] transition-colors underline underline-offset-2"
             >
-              View documentation
+              AGPLv3
             </a>
           </p>
         </motion.div>

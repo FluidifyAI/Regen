@@ -175,6 +175,18 @@ export function LogoutPage() {
                 <span className="relative z-10">Sign in again</span>
               </Link>
             </motion.div>
+
+            <p className="text-xs text-[#94A3B8]">
+              Self-hosted · Licensed under{' '}
+              <a
+                href="https://github.com/FluidifyAI/Regen/blob/main/LICENSE"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#64748B] hover:text-[#374151] transition-colors underline underline-offset-2"
+              >
+                AGPLv3
+              </a>
+            </p>
           </div>
         </motion.div>
       </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle, AlertCircle, Eye, EyeOff, Loader2, Save, ExternalLink } from 'lucide-react'
+import { CheckCircle, AlertCircle, Eye, EyeOff, Loader2, Save, ExternalLink, Tag } from 'lucide-react'
+import { getHealth } from '../api/health'
 import { useAuth } from '../hooks/useAuth'
 import { Button } from '../components/ui/Button'
 import {
@@ -43,6 +44,7 @@ export function SystemSettingsPage() {
   const { user: currentUser } = useAuth()
   const navigate = useNavigate()
 
+  const [appVersion, setAppVersion] = useState<string | null>(null)
   const [settings, setSettings] = useState<SystemSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -76,6 +78,7 @@ export function SystemSettingsPage() {
 
   useEffect(() => {
     load()
+    getHealth().then((d) => setAppVersion(d.version)).catch(() => {})
   }, [])
 
   async function load() {
@@ -468,6 +471,41 @@ export function SystemSettingsPage() {
             </div>
           </label>
         )}
+      </section>
+
+      <section className="bg-surface-primary border border-border-primary rounded-xl p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Tag className="w-4 h-4 text-text-secondary" />
+          <h2 className="text-base font-semibold text-text-primary">About</h2>
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between py-2 border-b border-border-primary">
+            <span className="text-sm text-text-secondary">Version</span>
+            <span className="text-sm font-mono font-medium text-text-primary">{appVersion ?? '—'}</span>
+          </div>
+          <div className="flex items-center justify-between py-2 border-b border-border-primary">
+            <span className="text-sm text-text-secondary">License</span>
+            <a
+              href="https://github.com/FluidifyAI/Regen/blob/main/LICENSE"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-brand-primary hover:underline flex items-center gap-1"
+            >
+              AGPLv3 <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+          <div className="flex items-center justify-between py-2">
+            <span className="text-sm text-text-secondary">Source</span>
+            <a
+              href="https://github.com/FluidifyAI/Regen"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-brand-primary hover:underline flex items-center gap-1"
+            >
+              github.com/FluidifyAI/Regen <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
       </section>
     </div>
   )

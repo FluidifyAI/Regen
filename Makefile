@@ -192,7 +192,7 @@ build: build-frontend
 #   docker run -p 8080:8080 -e DATABASE_URL=... -e REDIS_URL=... fluidify-regen
 docker:
 	@echo "Building production Docker image..."
-	@docker build -t fluidify-regen .
+	@docker build --build-arg APP_VERSION=$${VERSION:-dev} -t fluidify-regen .
 	@echo ""
 	@echo "Run: docker run -p 8080:8080 fluidify-regen"
 

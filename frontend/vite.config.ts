@@ -18,6 +18,10 @@ export default defineConfig({
           })
         },
       },
+      '/health': {
+        target: process.env.VITE_API_URL || 'http://localhost:8080',
+        changeOrigin: true,
+      },
       // SAML SSO routes must hit the backend directly (not the Vite SPA).
       '/saml': {
         target: process.env.VITE_API_URL || 'http://localhost:8080',

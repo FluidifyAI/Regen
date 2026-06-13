@@ -178,8 +178,9 @@ build-frontend:
 # The resulting binary at backend/bin/regen serves UI + API on :8080.
 build: build-frontend
 	@echo "Compiling Go binary with embedded frontend..."
-	@cd backend && CGO_ENABLED=0 GOOS=linux go build \
-		-ldflags="-w -s -extldflags '-static'" \
+	@VERSION=$${VERSION:-dev}; \
+	 cd backend && CGO_ENABLED=0 GOOS=linux go build \
+		-ldflags="-w -s -extldflags '-static' -X github.com/FluidifyAI/Regen/backend/cmd/regen/commands.version=$$VERSION" \
 		-o bin/regen \
 		./cmd/regen
 	@echo ""

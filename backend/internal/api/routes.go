@@ -29,7 +29,7 @@ import (
 // localAuth may be nil when local auth is not configured.
 // hooks contains enterprise extension points; OSS callers pass enterprise.NewNoOp().
 // announcementsGetter returns the cached announcement JSON from the telemetry worker.
-func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks, localAuth services.LocalAuthService, announcementsGetter func() []byte) {
+func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion string, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks, localAuth services.LocalAuthService, announcementsGetter func() []byte) {
 	// Initialize repositories
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
@@ -126,7 +126,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, teamsSvc *
 	router.Use(middleware.AuditLog(hooks.Audit)) // Enterprise audit trail (no-op in OSS)
 
 	// Health check endpoints (always open — liveness/readiness probes)
-	router.GET("/health", handlers.Health(db))
+	router.GET("/health", handlers.Health(db, appVersion))
 	router.GET("/ready", handlers.Ready(db))
 
 	// Metrics endpoint (always open — scraped by Prometheus via network policy)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
+	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/gin-gonic/gin"
@@ -61,12 +62,18 @@ func GeneratePostMortem(incidentSvc services.IncidentService, pmSvc services.Pos
 			return
 		}
 
+		var userID *uuid.UUID
+		if u := middleware.GetLocalUser(c); u != nil {
+			uid := u.ID
+			userID = &uid
+		}
 		costUSD, _ := hooks.CostTracker.RecordUsage(c.Request.Context(), enterprise.UsageEvent{
 			Operation:        "postmortem",
 			Model:            aiSvc.Model(),
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			OccurredAt:       time.Now().UTC(),
+			UserID:           userID,
 		})
 
 		resp := dto.ToPostMortemResponse(pm)
@@ -306,12 +313,18 @@ func EnhancePostMortem(incidentSvc services.IncidentService, pmSvc services.Post
 			return
 		}
 
+		var userID *uuid.UUID
+		if u := middleware.GetLocalUser(c); u != nil {
+			uid := u.ID
+			userID = &uid
+		}
 		costUSD, _ := hooks.CostTracker.RecordUsage(c.Request.Context(), enterprise.UsageEvent{
 			Operation:        "enhance_postmortem",
 			Model:            aiSvc.Model(),
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			OccurredAt:       time.Now().UTC(),
+			UserID:           userID,
 		})
 
 		resp := dto.ToPostMortemResponse(enhanced)

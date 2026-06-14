@@ -7,9 +7,11 @@ import (
 
 	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
+	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // SummarizeIncident handles POST /api/v1/incidents/:id/summarize
@@ -55,12 +57,18 @@ func SummarizeIncident(incidentSvc services.IncidentService, aiSvc services.AISe
 			return
 		}
 
+		var userID *uuid.UUID
+		if u := middleware.GetLocalUser(c); u != nil {
+			uid := u.ID
+			userID = &uid
+		}
 		costUSD, _ := hooks.CostTracker.RecordUsage(c.Request.Context(), enterprise.UsageEvent{
 			Operation:        "summarize",
 			Model:            aiSvc.Model(),
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			OccurredAt:       time.Now().UTC(),
+			UserID:           userID,
 		})
 
 		c.JSON(http.StatusOK, dto.AISummaryResponse{
@@ -117,12 +125,18 @@ func GenerateHandoffDigest(incidentSvc services.IncidentService, aiSvc services.
 			return
 		}
 
+		var userID *uuid.UUID
+		if u := middleware.GetLocalUser(c); u != nil {
+			uid := u.ID
+			userID = &uid
+		}
 		costUSD, _ := hooks.CostTracker.RecordUsage(c.Request.Context(), enterprise.UsageEvent{
 			Operation:        "handoff",
 			Model:            aiSvc.Model(),
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			OccurredAt:       time.Now().UTC(),
+			UserID:           userID,
 		})
 
 		c.JSON(http.StatusOK, dto.HandoffDigestResponse{
@@ -174,12 +188,18 @@ func EnhanceIncidentDraft(aiSvc services.AIService, hooks enterprise.Hooks) gin.
 			return
 		}
 
+		var userID *uuid.UUID
+		if u := middleware.GetLocalUser(c); u != nil {
+			uid := u.ID
+			userID = &uid
+		}
 		costUSD, _ := hooks.CostTracker.RecordUsage(c.Request.Context(), enterprise.UsageEvent{
 			Operation:        "enhance_draft",
 			Model:            aiSvc.Model(),
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			OccurredAt:       time.Now().UTC(),
+			UserID:           userID,
 		})
 
 		c.JSON(http.StatusOK, gin.H{"title": title, "summary": summary, "cost_usd": costUSD})

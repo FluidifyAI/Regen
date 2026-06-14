@@ -454,6 +454,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 		cfGroup := protected.Group("/custom-fields", middleware.RequireAdmin())
 		hooks.CustomFields.RegisterRoutes(cfGroup, db)
 
+		// Analytics — Pro tier; no-op returns 402 in OSS build.
+		analyticsGroup := protected.Group("/analytics")
+		hooks.Analytics.RegisterRoutes(analyticsGroup, db)
+
 		// Migrations — admin only (OPE-67)
 		migrationsGroup := protected.Group("/migrations", middleware.RequireAdmin())
 		{

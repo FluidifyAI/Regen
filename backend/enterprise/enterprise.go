@@ -24,6 +24,7 @@ import (
 	"github.com/FluidifyAI/Regen/backend/migrations"
 	"github.com/FluidifyAI/Regen/backend/ui"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -108,13 +109,22 @@ type CustomFieldsHandler interface {
 
 // ── Cost Tracking ─────────────────────────────────────────────────────────────
 
+// UserCostRow is one row in the per-user AI cost breakdown.
+type UserCostRow struct {
+	UserID      uuid.UUID `json:"user_id"`
+	Email       string    `json:"email"`
+	DisplayName string    `json:"display_name"`
+	TotalUSD    float64   `json:"total_usd"`
+}
+
 // UsageEvent records one AI call for cost accounting.
 type UsageEvent struct {
-	Operation        string    // "summarize" | "postmortem" | "handoff" | "enhance_postmortem" | "enhance_draft" | "answer_question"
-	Model            string    // e.g. "gpt-4o", "claude-3-5-sonnet"
+	Operation        string     // "summarize" | "postmortem" | "handoff" | "enhance_postmortem" | "enhance_draft" | "answer_question"
+	Model            string     // e.g. "gpt-4o", "claude-3-5-sonnet"
 	PromptTokens     int
 	CompletionTokens int
-	OccurredAt       time.Time // caller must supply time.Now().UTC()
+	OccurredAt       time.Time  // caller must supply time.Now().UTC()
+	UserID           *uuid.UUID // authenticated user; nil for system/background operations
 }
 
 // CostSummary aggregates AI spend across all recorded usage events.
@@ -122,6 +132,7 @@ type CostSummary struct {
 	TotalUSD        float64            `json:"total_usd"`
 	CurrentMonthUSD float64            `json:"current_month_usd"`
 	ByOperation     map[string]float64 `json:"by_operation"`
+	ByUser          []UserCostRow      `json:"by_user,omitempty"`
 }
 
 // CostTracker records AI usage events and surfaces cost summaries.
@@ -140,6 +151,14 @@ type CostTracker interface {
 	RegisterRoutes(group *gin.RouterGroup, db *gorm.DB)
 }
 
+// ── Analytics ────────────────────────────────────────────────────────────────
+
+// AnalyticsProvider mounts analytics API endpoints.
+// The no-op stub returns 402 on all routes — analytics require a Pro licence.
+type AnalyticsProvider interface {
+	RegisterRoutes(group *gin.RouterGroup, db *gorm.DB)
+}
+
 // ── Hooks — the single struct threaded through the app ───────────────────────
 
 // Hooks is passed from serve.go to routes.go and worker.StartAll.
@@ -152,6 +171,7 @@ type Hooks struct {
 	CustomFields CustomFieldsHandler
 	UI           UIProvider
 	CostTracker  CostTracker
+	Analytics    AnalyticsProvider
 	// Migrations is the merged fs.FS of SQL migration files to run on startup.
 	// The OSS default uses only the embedded OSS migrations; regen-pro merges
 	// in its own Pro-specific migrations on top before passing to RunMigrationsFS.
@@ -168,6 +188,7 @@ func NewNoOp() Hooks {
 		CustomFields: noopCustomFields{},
 		UI:           noopUI{},
 		CostTracker:  noopCostTracker{},
+		Analytics:    noopAnalytics{},
 		Migrations:   ossMigrations(),
 	}
 }
@@ -235,6 +256,17 @@ func (noopCostTracker) RegisterRoutes(group *gin.RouterGroup, _ *gorm.DB) {
 	group.Any("/*path", func(c *gin.Context) {
 		c.JSON(http.StatusPaymentRequired, gin.H{
 			"error": "AI cost tracking requires a Fluidify Regen Pro licence",
+		})
+	})
+}
+
+// noopAnalytics returns 402 on all routes — analytics require a Pro licence.
+type noopAnalytics struct{}
+
+func (noopAnalytics) RegisterRoutes(group *gin.RouterGroup, _ *gorm.DB) {
+	group.Any("/*path", func(c *gin.Context) {
+		c.JSON(http.StatusPaymentRequired, gin.H{
+			"error": "incident analytics require a Fluidify Regen Pro licence",
 		})
 	})
 }

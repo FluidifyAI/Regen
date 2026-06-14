@@ -57,7 +57,7 @@ export function AnalyticsPage() {
               daily trend charts, and AI cost tracking per user.
             </p>
             <a
-              href="https://regen.fluidify.io"
+              href="https://github.com/FluidifyAI/Regen"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 rounded-lg bg-brand-primary text-white text-sm font-medium hover:bg-brand-primary/90 transition-colors"

@@ -3,7 +3,7 @@ entries:
   fluidify-regen:
   - apiVersion: v2
     appVersion: 0.11.0
-    created: "2026-06-14T05:22:43.200603439Z"
+    created: "2026-06-15T14:36:30.457196059Z"
     dependencies:
     - condition: postgresql.enabled
       name: postgresql
@@ -14,7 +14,7 @@ entries:
       repository: https://charts.bitnami.com/bitnami
       version: '>=21.0.0 <27.0.0'
     description: Fluidify Regen — open-source incident management platform
-    digest: 99466fbc805322e7f862d6fa55157178cb45a848264cb4a5770c41175ab051a6
+    digest: b2f3cb6b1f5a1b5c31279f669a48033bd3f82e198315ad95d91e1967a439ac11
     home: https://github.com/FluidifyAI/Regen
     keywords:
     - incident-management
@@ -31,7 +31,7 @@ entries:
     version: 0.11.0
   - apiVersion: v2
     appVersion: 0.10.0
-    created: "2026-06-14T05:22:43.18792299Z"
+    created: "2026-06-15T14:36:30.445245318Z"
     dependencies:
     - condition: postgresql.enabled
       name: postgresql
@@ -57,4 +57,4 @@ entries:
     urls:
     - https://charts.fluidify.ai/fluidify-regen-0.1.0.tgz
     version: 0.1.0
-generated: "2026-06-14T05:22:43.176571693Z"
+generated: "2026-06-15T14:36:30.425646579Z"

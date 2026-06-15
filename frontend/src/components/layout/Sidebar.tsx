@@ -58,7 +58,7 @@ export function Sidebar() {
     organization: true,
   })
   const [adminExpanded, setAdminExpanded] = useState(() => {
-    try { return localStorage.getItem(ADMIN_EXPANDED_KEY) !== 'false' } catch { return true }
+    try { return localStorage.getItem(ADMIN_EXPANDED_KEY) === 'true' } catch { return false }
   })
   const { user: currentUser, signOut } = useAuth()
   const [showProfile, setShowProfile] = useState(false)
@@ -264,7 +264,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto py-4 px-2">
+      <div className="flex-1 overflow-y-hidden py-4 px-2">
         {/* Top nav items */}
         <div className="space-y-1 mb-4">{topNavItems.map(renderNavItem)}</div>
 

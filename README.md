@@ -123,6 +123,8 @@ For detailed installation guides, see:
 - [Docker Compose](install-docker-compose.md)
 - [Kubernetes](install-kubernetes.md)
 
+
+> Don't wanna host and manage yourself? [Get in touch](https://fluidify.ai/contact) and we'd do it for you.
 ---
 
 ## Built for production
@@ -185,6 +187,8 @@ An incident is created automatically. If Slack is configured, a dedicated channe
 Review the **[Production Security Checklist](SECURITY.md#11-production-security-checklist)** — TLS, PostgreSQL password, Redis auth, and CORS origins for prerequisiste checklist.
 
 Full security architecture: [SECURITY.md](SECURITY.md)
+
+> Don't wanna manage uptime and security? [Get in touch](https://fluidify.ai/contact) and we'd do it for you.
 
 ---
 

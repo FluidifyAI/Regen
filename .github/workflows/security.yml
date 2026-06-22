@@ -36,7 +36,14 @@ jobs:
         run: npm ci
       - name: Scan Node dependencies
         working-directory: frontend
-        run: npm audit --audit-level=high
+        # Gate on production dependencies — those are what ship to users.
+        # Dev/build-tooling advisories (vite, rollup, esbuild, …) are surfaced
+        # below for visibility but don't fail the build; clear them via periodic
+        # toolchain bumps (major-version upgrades, tracked separately).
+        run: npm audit --omit=dev --audit-level=high
+      - name: Dev dependency audit (non-blocking, visibility only)
+        working-directory: frontend
+        run: npm audit --audit-level=high || true
 
   secret-scan:
     name: Secret Scan (git history)

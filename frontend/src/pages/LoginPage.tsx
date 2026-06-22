@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { login, bootstrap, exchangeSetupToken, forgotPassword } from '../api/auth'
 import { useAuth } from '../hooks/useAuth'
 import { getSlackOAuthStatus } from '../api/slack'
+import { LOGO_ICON_DATA_URI } from '../assets/logoIcon'
 
 // ── Story panel data ──────────────────────────────────────────────────────────
 
@@ -97,7 +98,7 @@ function StoryPanel() {
       {/* Top bar */}
       <div className="flex items-center h-16 px-6 flex-shrink-0 border-b border-white/[0.06]">
         <img
-          src="/logo-icon.png"
+          src={LOGO_ICON_DATA_URI}
           alt=""
           width={32}
           height={32}
@@ -361,7 +362,7 @@ export function LoginPage() {
             {/* Logo */}
             <div className="flex flex-col items-center mb-10">
               <img
-                src="/logo-icon.png"
+                src={LOGO_ICON_DATA_URI}
                 alt="Fluidify Regen"
                 style={{ width: '72px', height: '72px', objectFit: 'contain' }}
                 draggable={false}

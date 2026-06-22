@@ -6,6 +6,7 @@
 import { Link } from 'react-router-dom'
 import { LogIn } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { LOGO_ICON_DATA_URI } from '../assets/logoIcon'
 
 // ── Left panel ────────────────────────────────────────────────────────────────
 
@@ -15,7 +16,7 @@ function AllClearPanel() {
       {/* Top bar */}
       <div className="flex items-center h-16 px-6 flex-shrink-0 border-b border-white/[0.06]">
         <img
-          src="/logo-icon.png"
+          src={LOGO_ICON_DATA_URI}
           alt=""
           width={32}
           height={32}
@@ -139,7 +140,7 @@ export function LogoutPage() {
             }}
           >
             <img
-              src="/logo-icon.png"
+              src={LOGO_ICON_DATA_URI}
               alt="Fluidify Regen"
               style={{ width: '72px', height: '72px', objectFit: 'contain' }}
               draggable={false}

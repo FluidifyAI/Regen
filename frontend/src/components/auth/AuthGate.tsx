@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { LoginPage } from '../../pages/LoginPage'
 import { getSetupStatus } from '../../api/setup'
+import { LOGO_ICON_DATA_URI } from '../../assets/logoIcon'
 
 // Routes that are always accessible regardless of auth state.
 const PUBLIC_PATHS = ['/login', '/logout', '/status']
@@ -73,7 +74,7 @@ function AuthLoadingScreen() {
       <div className="flex flex-col items-center gap-4">
         <div className="relative flex items-center justify-center">
           <div className="absolute inset-0 rounded-full opacity-20 animate-ping scale-125" style={{ backgroundColor: '#f55609' }} />
-          <img src="/logo-icon.png" alt="Regen" className="relative w-10 h-10" />
+          <img src={LOGO_ICON_DATA_URI} alt="Regen" className="relative w-10 h-10" />
         </div>
         <div className="text-sm font-bold tracking-tight text-[#1E293B]">
           Regen

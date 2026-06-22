@@ -277,7 +277,7 @@ export function AlertDetailPage() {
         <div className="border border-border rounded-xl bg-white p-4">
           <h2 className="text-sm font-semibold text-text-primary mb-3">Labels</h2>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(alert.labels).map(([k, v]) => (
+            {Object.entries(alert.labels ?? {}).map(([k, v]) => (
               <span
                 key={k}
                 className="px-2 py-0.5 rounded bg-surface-secondary text-xs text-text-secondary font-mono"

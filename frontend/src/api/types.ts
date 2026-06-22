@@ -64,8 +64,10 @@ export interface Alert {
   severity: 'critical' | 'warning' | 'info'
   title: string
   description: string
-  labels: Record<string, string>
-  annotations: Record<string, string>
+  // labels/annotations are JSONB columns that the API returns as null when empty.
+  // Typed nullable so every access site must guard (e.g. `alert.labels ?? {}`).
+  labels: Record<string, string> | null
+  annotations: Record<string, string> | null
   started_at: string
   ended_at?: string
   received_at: string

@@ -22,6 +22,7 @@ import { Tooltip } from '../ui/Tooltip'
 import { ProfileModal } from '../ProfileModal'
 import { useAuth } from '../../hooks/useAuth'
 import type { CurrentUser } from '../../api/auth'
+import { LOGO_ICON_DATA_URI } from '../../assets/logoIcon'
 
 interface NavItem {
   id: string
@@ -232,7 +233,7 @@ export function Sidebar() {
         {!isCollapsed && (
           <>
             <img
-              src="/logo-icon.png"
+              src={LOGO_ICON_DATA_URI}
               alt="Fluidify Regen logo"
               width={32}
               height={32}
@@ -246,7 +247,7 @@ export function Sidebar() {
         )}
         {isCollapsed && (
           <img
-            src="/logo-icon.png"
+            src={LOGO_ICON_DATA_URI}
             alt="Fluidify Regen"
             width={30}
             height={30}

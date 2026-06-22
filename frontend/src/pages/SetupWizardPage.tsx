@@ -6,6 +6,7 @@ import { WizardStepInvite } from '../components/onboarding/WizardStepInvite'
 import { WizardStepTestAlert } from '../components/onboarding/WizardStepTestAlert'
 import { WizardStepDone } from '../components/onboarding/WizardStepDone'
 import { getSetupStatus } from '../api/setup'
+import { LOGO_ICON_DATA_URI } from '../assets/logoIcon'
 
 const WIZARD_STORAGE_KEY = 'regen_setup_wizard_v1'
 const TOTAL_STEPS = 5
@@ -68,7 +69,7 @@ export function SetupWizardPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-6">
-            <img src="/logo-icon.png" alt="Regen" className="w-7 h-7" />
+            <img src={LOGO_ICON_DATA_URI} alt="Regen" className="w-7 h-7" />
             <span className="text-base font-bold text-text-primary tracking-tight">Regen</span>
           </div>
           <h1 className="text-2xl font-bold text-text-primary">Let's get you set up</h1>

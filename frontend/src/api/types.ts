@@ -64,8 +64,10 @@ export interface Alert {
   severity: 'critical' | 'warning' | 'info'
   title: string
   description: string
-  labels: Record<string, string>
-  annotations: Record<string, string>
+  // labels/annotations are JSONB columns that the API returns as null when empty.
+  // Typed nullable so every access site must guard (e.g. `alert.labels ?? {}`).
+  labels: Record<string, string> | null
+  annotations: Record<string, string> | null
   started_at: string
   ended_at?: string
   received_at: string
@@ -85,7 +87,8 @@ export interface TimelineEntry {
   actor_type: string
   actor_id?: string
   actor_name?: string
-  content: Record<string, unknown>
+  // JSONB column; the API returns null when empty.
+  content: Record<string, unknown> | null
 }
 
 // API response types
@@ -172,8 +175,9 @@ export interface RoutingRule {
   description: string
   enabled: boolean
   priority: number
-  match_criteria: Record<string, unknown>
-  actions: Record<string, unknown>
+  // JSONB columns; the API returns null when empty.
+  match_criteria: Record<string, unknown> | null
+  actions: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -444,7 +448,8 @@ export interface PostMortem {
   created_by_id: string
   created_at: string
   updated_at: string
-  action_items: ActionItem[]
+  // Serialized with omitempty; absent (undefined) when there are none.
+  action_items?: ActionItem[]
 }
 
 export interface PostMortemComment {

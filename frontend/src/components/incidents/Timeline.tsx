@@ -118,7 +118,7 @@ function cleanChatText(text: string): string {
  * Renders entry content based on type. No raw JSON is ever shown.
  */
 function EntryContent({ entry }: { entry: TimelineEntry }) {
-  const content = entry.content as Record<string, string>
+  const content = (entry.content ?? {}) as Record<string, string>
 
   switch (entry.type) {
     case 'incident_created':
@@ -299,7 +299,7 @@ function getEntryMetadata(entry: TimelineEntry): {
   color: string
   label: string
 } {
-  const content = entry.content as Record<string, string>
+  const content = (entry.content ?? {}) as Record<string, string>
 
   switch (entry.type) {
     case 'incident_created':
@@ -371,7 +371,7 @@ function getActorName(entry: TimelineEntry): string {
   if (entry.actor_type === 'slack_bot') return 'Slack Bot'
   if (entry.actor_type === 'teams_bot') return 'Teams Bot'
   if (entry.actor_type === 'slack_user') {
-    const content = entry.content as Record<string, string>
+    const content = (entry.content ?? {}) as Record<string, string>
     return content.author_name || entry.actor_id || 'Slack User'
   }
   // actor_name is resolved server-side for user entries; fall back to actor_id

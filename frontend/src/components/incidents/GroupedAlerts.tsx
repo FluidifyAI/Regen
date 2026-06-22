@@ -69,7 +69,10 @@ export function GroupedAlerts({ alerts, incident }: GroupedAlertsProps) {
 
       {/* Alerts List */}
       <div className="space-y-4">
-        {alerts.map((alert, index) => (
+        {alerts.map((alert, index) => {
+          // labels is a JSONB column the API returns as null when empty.
+          const labels = alert.labels ?? {}
+          return (
           <div key={alert.id} className="relative">
             {/* Connector line for grouped alerts */}
             {isGrouped && index > 0 && (
@@ -141,23 +144,23 @@ export function GroupedAlerts({ alerts, incident }: GroupedAlertsProps) {
                   </div>
 
                   {/* Show alert labels if present */}
-                  {Object.keys(alert.labels).length > 0 && (
+                  {Object.keys(labels).length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border/50">
                       <details className="group">
                         <summary className="text-xs text-text-tertiary cursor-pointer hover:text-text-primary select-none">
-                          <span className="group-open:hidden">Show labels ({Object.keys(alert.labels).length})</span>
+                          <span className="group-open:hidden">Show labels ({Object.keys(labels).length})</span>
                           <span className="hidden group-open:inline">Hide labels</span>
                         </summary>
                         <div className="mt-2 grid grid-cols-2 gap-2">
-                          {Object.entries(alert.labels).slice(0, 10).map(([key, value]) => (
+                          {Object.entries(labels).slice(0, 10).map(([key, value]) => (
                             <div key={key} className="text-xs">
                               <span className="text-text-tertiary font-mono">{key}:</span>{' '}
                               <span className="text-text-secondary font-mono">{value}</span>
                             </div>
                           ))}
-                          {Object.keys(alert.labels).length > 10 && (
+                          {Object.keys(labels).length > 10 && (
                             <div className="text-xs text-text-tertiary col-span-2">
-                              + {Object.keys(alert.labels).length - 10} more labels
+                              + {Object.keys(labels).length - 10} more labels
                             </div>
                           )}
                         </div>
@@ -168,7 +171,8 @@ export function GroupedAlerts({ alerts, incident }: GroupedAlertsProps) {
               </div>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Group Key Display (for debugging/advanced users) */}

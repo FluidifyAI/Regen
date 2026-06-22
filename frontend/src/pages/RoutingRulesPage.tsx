@@ -506,8 +506,8 @@ function RuleRow({
   onDrop: (index: number) => void
   isDragOver: boolean
 }) {
-  const mc = rule.match_criteria as Record<string, unknown>
-  const ac = rule.actions as Record<string, unknown>
+  const mc = (rule.match_criteria ?? {}) as Record<string, unknown>
+  const ac = (rule.actions ?? {}) as Record<string, unknown>
 
   const matchSummary = (): string => {
     if (Object.keys(mc).length === 0) return 'All alerts'

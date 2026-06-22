@@ -391,7 +391,7 @@ export function PostMortemPanel({ incidentId, onPostMortemLoaded }: PostMortemPa
 
       {/* Action items */}
       {pm && (
-        <ActionItems incidentId={incidentId} initialItems={pm.action_items} />
+        <ActionItems incidentId={incidentId} initialItems={pm.action_items ?? []} />
       )}
 
       {/* Discussion thread */}

@@ -87,7 +87,8 @@ export interface TimelineEntry {
   actor_type: string
   actor_id?: string
   actor_name?: string
-  content: Record<string, unknown>
+  // JSONB column; the API returns null when empty.
+  content: Record<string, unknown> | null
 }
 
 // API response types
@@ -174,8 +175,9 @@ export interface RoutingRule {
   description: string
   enabled: boolean
   priority: number
-  match_criteria: Record<string, unknown>
-  actions: Record<string, unknown>
+  // JSONB columns; the API returns null when empty.
+  match_criteria: Record<string, unknown> | null
+  actions: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -446,7 +448,8 @@ export interface PostMortem {
   created_by_id: string
   created_at: string
   updated_at: string
-  action_items: ActionItem[]
+  // Serialized with omitempty; absent (undefined) when there are none.
+  action_items?: ActionItem[]
 }
 
 export interface PostMortemComment {

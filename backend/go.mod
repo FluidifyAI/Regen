@@ -2,7 +2,7 @@ module github.com/FluidifyAI/Regen/backend
 
 go 1.24.0
 
-toolchain go1.25.11
+toolchain go1.24.5
 
 require (
 	github.com/alicebob/miniredis/v2 v2.36.1

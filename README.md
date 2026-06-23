@@ -172,6 +172,8 @@ curl -X POST http://localhost:8080/api/v1/webhooks/prometheus \
 
 An incident is created automatically. If Slack is configured, a dedicated channel appears within seconds.
 
+> **Connecting Slack:** Regen uses Slack's HTTP Events API (signed `POST` to `/api/v1/slack/{events,interactions,commands}`) — not Socket Mode. Local dev needs a public tunnel (ngrok). Full setup, including the three Request URLs and troubleshooting, is in [docs/getting-started/connecting-slack.md](docs/getting-started/connecting-slack.md).
+
 ---
 
 ## Security

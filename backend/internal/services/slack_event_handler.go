@@ -345,11 +345,11 @@ func (h *SlackEventHandler) listOpenIncidents(cmd slack.SlashCommand) {
 	var sb strings.Builder
 	sb.WriteString("*Open Incidents:*\n")
 	for _, inc := range incidents {
-		sb.WriteString(fmt.Sprintf("• %s *INC-%d:* %s (%s)\n",
+		fmt.Fprintf(&sb, "• %s *INC-%d:* %s (%s)\n",
 			getSeverityEmoji(inc.Severity),
 			inc.IncidentNumber,
 			inc.Title,
-			inc.Severity))
+			inc.Severity)
 	}
 	h.postEphemeral(cmd.ChannelID, cmd.UserID, sb.String())
 }

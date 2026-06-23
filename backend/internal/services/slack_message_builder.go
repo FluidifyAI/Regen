@@ -354,11 +354,12 @@ func (b *SlackMessageBuilder) BuildStatusUpdateMessage(
 	}
 
 	// Add specific messaging for terminal states
-	if newStatus == models.IncidentStatusResolved {
+	switch newStatus {
+	case models.IncidentStatusResolved:
 		blocks = append(blocks,
 			slack.NewContextBlock("", slack.NewTextBlockObject(slack.MarkdownType, "✅ This incident has been resolved. Great work team!", false, false)),
 		)
-	} else if newStatus == models.IncidentStatusCanceled {
+	case models.IncidentStatusCanceled:
 		blocks = append(blocks,
 			slack.NewContextBlock("", slack.NewTextBlockObject(slack.MarkdownType, "⚠️ This incident has been canceled.", false, false)),
 		)

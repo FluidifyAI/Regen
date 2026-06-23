@@ -152,7 +152,7 @@ func (c *Client) getRaw(path string, params map[string]string) (*http.Response, 
 		}
 		return resp, nil
 	}
-	return nil, fmt.Errorf("Opsgenie API %s: exceeded %d retries", path, maxRetries)
+	return nil, fmt.Errorf("opsgenie API %s: exceeded %d retries", path, maxRetries)
 }
 
 // get executes a GET and returns the response, failing on 4xx/5xx.
@@ -185,11 +185,11 @@ func (c *Client) get(path string, params map[string]string) (*http.Response, err
 		if resp.StatusCode >= 400 {
 			body, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
-			return nil, fmt.Errorf("Opsgenie API %s returned HTTP %d: %s", path, resp.StatusCode, string(body))
+			return nil, fmt.Errorf("opsgenie API %s returned HTTP %d: %s", path, resp.StatusCode, string(body))
 		}
 		return resp, nil
 	}
-	return nil, fmt.Errorf("Opsgenie API %s: exceeded %d retries", path, maxRetries)
+	return nil, fmt.Errorf("opsgenie API %s: exceeded %d retries", path, maxRetries)
 }
 
 func decodeJSON(resp *http.Response, dst any) error {

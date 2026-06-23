@@ -60,7 +60,7 @@ func runImportOpsgenie(apiKey, region string, force bool, reportFile string, dry
 	ogClient := opsgenie.NewClient(apiKey, region)
 	slog.Info("validating Opsgenie API key…")
 	if err := ogClient.ValidateAPIKey(); err != nil {
-		return fmt.Errorf("Opsgenie API key validation failed: %w", err)
+		return fmt.Errorf("opsgenie API key validation failed: %w", err)
 	}
 	slog.Info("API key valid")
 

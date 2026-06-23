@@ -405,14 +405,14 @@ Keep responses under 200 words. Never fabricate details. If unsure, say so. When
 
 func buildAnswerQuestionPrompt(question string, current *models.Incident, similar []models.Incident, postMortems map[string]string) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("Current incident: *INC-%d* \u2014 %s\nStatus: %s | Severity: %s\n",
-		current.IncidentNumber, current.Title, current.Status, current.Severity))
+	fmt.Fprintf(&b, "Current incident: *INC-%d* \u2014 %s\nStatus: %s | Severity: %s\n",
+		current.IncidentNumber, current.Title, current.Status, current.Severity)
 	if current.Summary != "" {
-		b.WriteString(fmt.Sprintf("Summary: %s\n", current.Summary))
+		fmt.Fprintf(&b, "Summary: %s\n", current.Summary)
 	}
 	b.WriteString("\n")
 	if len(similar) > 0 {
-		b.WriteString(fmt.Sprintf("Recent incidents (%d in past 90 days):\n", len(similar)))
+		fmt.Fprintf(&b, "Recent incidents (%d in past 90 days):\n", len(similar))
 		for _, inc := range similar {
 			duration := "ongoing"
 			if inc.ResolvedAt != nil {
@@ -422,7 +422,7 @@ func buildAnswerQuestionPrompt(question string, current *models.Incident, simila
 			if _, ok := postMortems[fmt.Sprintf("INC-%d", inc.IncidentNumber)]; ok {
 				hasPM = " [has post-mortem]"
 			}
-			b.WriteString(fmt.Sprintf("\u2022 INC-%d: %s (%s, %s)%s\n", inc.IncidentNumber, inc.Title, inc.Severity, duration, hasPM))
+			fmt.Fprintf(&b, "\u2022 INC-%d: %s (%s, %s)%s\n", inc.IncidentNumber, inc.Title, inc.Severity, duration, hasPM)
 		}
 		b.WriteString("\n")
 	} else {
@@ -437,11 +437,11 @@ func buildAnswerQuestionPrompt(question string, current *models.Incident, simila
 			if len(truncated) > 2000 {
 				truncated = truncated[:2000] + "... [truncated]"
 			}
-			b.WriteString(fmt.Sprintf("\nPost-mortem for %s:\n%s\n", incRef, truncated))
+			fmt.Fprintf(&b, "\nPost-mortem for %s:\n%s\n", incRef, truncated)
 		}
 		b.WriteString("\n")
 	}
-	b.WriteString(fmt.Sprintf("Question from engineer: %s", question))
+	fmt.Fprintf(&b, "Question from engineer: %s", question)
 	return b.String()
 }
 

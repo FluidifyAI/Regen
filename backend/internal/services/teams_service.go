@@ -360,7 +360,7 @@ func TestTeamsCredentials(ctx context.Context, appID, appPassword, tenantID, tea
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, apiResponseSizeLimit))
 	if resp.StatusCode >= 300 {
-		return "", fmt.Errorf("Graph API %d: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("graph API %d: %s", resp.StatusCode, string(body))
 	}
 
 	var result struct {
@@ -407,7 +407,7 @@ func ListTeamMembers(ctx context.Context, appID, appPassword, tenantID, teamID s
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, apiResponseSizeLimit))
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("Graph API %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("graph API %d: %s", resp.StatusCode, string(body))
 	}
 
 	var result struct {

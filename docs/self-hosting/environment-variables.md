@@ -36,7 +36,6 @@ Migrations run automatically on startup. No manual migration step required.
 |----------|---------|----------|-------------|
 | `SLACK_BOT_TOKEN` | — | Yes (Slack) | Bot token starting with `xoxb-` |
 | `SLACK_SIGNING_SECRET` | — | Yes (Slack) | Signing secret from your Slack app |
-| `SLACK_APP_TOKEN` | — | Yes (Slack) | App-level token starting with `xapp-` — required for interactive buttons (Make me Lead, Add Note) |
 
 See [Connecting Slack](../getting-started/connecting-slack.md) for how to obtain these values.
 
@@ -95,7 +94,6 @@ REDIS_URL=redis://redis:6379
 # Slack
 SLACK_BOT_TOKEN=xoxb-...
 SLACK_SIGNING_SECRET=...
-SLACK_APP_TOKEN=xapp-...
 
 # AI (optional)
 OPENAI_API_KEY=sk-...

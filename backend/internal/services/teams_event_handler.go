@@ -217,7 +217,7 @@ func (h *TeamsEventHandler) handleStatus(_ context.Context, activity BotActivity
 
 // syncMessageToTimeline saves a non-command Teams message as a timeline entry
 // for the incident associated with the channel. This gives inbound parity with
-// Slack Socket Mode: messages posted in the Teams channel appear in the UI timeline.
+// Slack: messages posted in the Teams channel appear in the UI timeline.
 func (h *TeamsEventHandler) syncMessageToTimeline(_ context.Context, activity BotActivity, text string) {
 	if text == "" {
 		return

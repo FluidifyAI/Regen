@@ -82,8 +82,7 @@ kubectl create secret generic fluidify-regen-secrets \
   --from-literal=DATABASE_URL="postgresql://..." \
   --from-literal=REDIS_URL="redis://..." \
   --from-literal=SLACK_BOT_TOKEN="xoxb-..." \
-  --from-literal=SLACK_SIGNING_SECRET="..." \
-  --from-literal=SLACK_APP_TOKEN="xapp-..."
+  --from-literal=SLACK_SIGNING_SECRET="..."
 ```
 
 ## Migrations

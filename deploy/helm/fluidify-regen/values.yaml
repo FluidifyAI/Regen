@@ -85,7 +85,6 @@ secrets:
   redisURL: ""
   slackBotToken: ""
   slackSigningSecret: ""
-  slackAppToken: ""
   openaiAPIKey: ""
   teamsAppID: ""
   teamsAppPassword: ""

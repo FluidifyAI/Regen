@@ -180,9 +180,10 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
               <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">
                 <p className="font-medium">Local / development environment detected</p>
                 <p>
-                  The manifest uses <strong>Socket Mode</strong> (no public URLs needed). Slack
-                  will connect to your server over a persistent WebSocket — ideal for localhost.
-                  For production, deploy to an HTTPS URL and re-run this wizard.
+                  Slack can't reach <code>localhost</code>. Start a public tunnel to your backend
+                  (<code>ngrok http 8080</code>) and use that HTTPS URL when creating the app — every
+                  Request URL must point at the tunnel, not localhost. ngrok's free URL changes on
+                  restart, so you'll re-paste it in the Slack app then.
                 </p>
               </div>
             )}
@@ -200,11 +201,10 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
               </li>
               {isLocal && (
                 <li>
-                  Go to{' '}
-                  <strong className="text-text-primary">Settings → Basic Information</strong> →
-                  App-Level Tokens → generate a token with{' '}
-                  <code className="bg-surface-secondary px-1 rounded">connections:write</code> scope
-                  (needed for Socket Mode)
+                  Make sure the manifest's Request URLs use your{' '}
+                  <strong className="text-text-primary">tunnel URL</strong> (e.g.{' '}
+                  <code className="bg-surface-secondary px-1 rounded">https://abc123.ngrok-free.app</code>
+                  ), not localhost
                 </li>
               )}
             </ol>
@@ -215,8 +215,8 @@ export function SlackSetupModal({ onClose, onConnected }: Props) {
                 <li>Bot scopes: channel management, messaging, user lookup</li>
                 <li>User scopes: OpenID Connect (enables "Sign in with Slack")</li>
                 <li>Slash command: /incident new | ack | resolve | status</li>
-                {!isLocal && <li>Event subscriptions: message sync, mentions</li>}
-                {isLocal && <li>Socket Mode: bidirectional real-time sync</li>}
+                <li>Event subscriptions: message sync, mentions</li>
+                <li>Interactivity: buttons (Make me Lead, Add Note)</li>
               </ul>
             </div>
 

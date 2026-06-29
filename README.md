@@ -105,23 +105,31 @@
 
 ---
 
-> ## Migrate in 1 click from
->
-> - [PagerDuty](docs/migrations/pagerduty.md)
-> - [Grafana Oncall](docs/migrations/grafana-oncall.md)
+## Migrate in 1 click from
+
+- [PagerDuty](docs/migrations/pagerduty.md) — schedules, escalation policies, EU region supported
+- [Grafana OnCall](docs/migrations/grafana-oncall.md) — drop-in replacement for the archived OSS project
 
 ---
 
 ## Installation
 
+**Quickest start — Docker Compose:**
+
 ```bash
-docker pull ghcr.io/fluidifyai/regen:latest
+git clone https://github.com/FluidifyAI/Regen.git
+cd Regen
+cp .env.example .env   # add your Slack token, AI key, etc.
+make start
 ```
 
-For detailed installation guides, see:
-- [Docker](install-docker.md)
-- [Docker Compose](install-docker-compose.md)
-- [Kubernetes](install-kubernetes.md)
+Open **http://localhost:8080** — create your admin account on first load.
+
+For detailed guides, see:
+- [Full installation guide](docs/getting-started/installation.md) — prerequisites, env vars, health checks
+- [Docker Compose self-hosting](docs/self-hosting/docker-compose.md) — production setup
+- [Kubernetes / Helm](docs/self-hosting/kubernetes.md) — HA deploy with Helm chart
+- [Environment variables](docs/self-hosting/environment-variables.md) — all config options
 
 
 > Don't wanna host and manage yourself? [Get in touch](https://fluidify.ai/contact) and we'd do it for you.

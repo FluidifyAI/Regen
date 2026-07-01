@@ -1,8 +1,12 @@
 import { apiClient } from './client'
-import type { NeuriSettingsResponse, NeuriResultListResponse, NeuriTriggerResponse } from './types'
+import type { NeuriSettingsResponse, NeuriSettingsRequest, NeuriResultListResponse, NeuriTriggerResponse } from './types'
 
 export async function getNeuriSettings(): Promise<NeuriSettingsResponse> {
   return apiClient.get<NeuriSettingsResponse>('/api/v1/settings/neuri')
+}
+
+export async function updateNeuriSettings(req: NeuriSettingsRequest): Promise<void> {
+  return apiClient.patch('/api/v1/settings/neuri', req)
 }
 
 export async function triggerNeuriInvestigation(incidentId: string): Promise<NeuriTriggerResponse> {

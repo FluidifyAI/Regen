@@ -60,6 +60,12 @@ export interface NeuriSettingsResponse {
   webhook_secret_hint?: string
 }
 
+export interface NeuriSettingsRequest {
+  webhook_url?: string
+  regen_base_url?: string
+  webhook_secret?: string
+}
+
 export interface RankedHypothesis {
   type: string
   confidence: number

@@ -64,6 +64,40 @@ func (j *JSONB) Scan(value interface{}) error {
 	return nil
 }
 
+// RawJSON is a PostgreSQL JSONB field that stores arbitrary JSON (objects or arrays)
+// without imposing a Go structure. Serialises/deserialises as-is.
+type RawJSON json.RawMessage
+
+func (r RawJSON) Value() (driver.Value, error) {
+	if r == nil {
+		return []byte("null"), nil
+	}
+	return []byte(r), nil
+}
+
+func (r *RawJSON) Scan(value interface{}) error {
+	if value == nil {
+		*r = RawJSON("null")
+		return nil
+	}
+	switch v := value.(type) {
+	case []byte:
+		*r = append(RawJSON(nil), v...)
+	case string:
+		*r = RawJSON(v)
+	default:
+		return errors.New("failed to scan RawJSON: unsupported type")
+	}
+	return nil
+}
+
+func (r RawJSON) MarshalJSON() ([]byte, error) {
+	if r == nil {
+		return []byte("null"), nil
+	}
+	return []byte(r), nil
+}
+
 // JSONBArray is a custom type for PostgreSQL JSONB array fields
 type JSONBArray []string
 

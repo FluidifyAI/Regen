@@ -43,6 +43,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 	teamsConfigRepo := repository.NewTeamsConfigRepository(db)
 	telegramConfigRepo := repository.NewTelegramConfigRepository(db)
 	attachmentRepo := repository.NewAttachmentRepository(db)
+	neuriResultRepo := repository.NewNeuriResultRepository(db)
 
 	// Slack is initialized lazily: config is read from the DB on each use and
 	// cached until the bot_token changes. This means Slack can be configured or
@@ -261,6 +262,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 		// Status page — public, no auth required (OPE-111)
 		v1.GET("/status", handlers.GetStatusPage(incidentRepo, systemSettingsRepo))
 
+		// Neuri result callback — no auth, called by Neuri from inside the cluster (NER-40)
+		v1.POST("/neuri/result", handlers.ReceiveNeuriResult(incidentRepo, neuriResultRepo))
+
 		// Auth identity endpoint — no RequireAuth so unauthenticated callers can
 		// read ssoEnabled to show the SSO button. InjectSAMLSession populates the
 		// SAML session in context without aborting, so authenticated SAML users
@@ -307,6 +311,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 		hooks.CostTracker.RegisterRoutes(costGroup, db)
 		protected.GET("/settings/ai", handlers.GetAISettings(aiSvc))
 		protected.GET("/settings/teams", handlers.GetTeamsSettings(teamsSvc))
+		protected.GET("/settings/neuri", handlers.GetNeuriSettings(systemSettingsRepo))
+		protected.PATCH("/settings/neuri", handlers.UpdateNeuriSettings(systemSettingsRepo))
+
+		// Neuri investigation trigger (proxy — keeps secret server-side) and result polling (NER-40)
+		protected.POST("/neuri/investigate", handlers.TriggerNeuriInvestigation(incidentRepo, systemSettingsRepo))
+		protected.GET("/neuri/result", handlers.ListNeuriResults(neuriResultRepo))
 
 		// Post-Mortem Templates (v0.7+)
 		protected.GET("/post-mortem-templates", handlers.ListPostMortemTemplates(postMortemSvc))

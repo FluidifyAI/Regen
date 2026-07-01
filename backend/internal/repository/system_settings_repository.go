@@ -20,6 +20,11 @@ const (
 	KeyAnthropicAPIKey = "ai.anthropic_api_key"
 	KeyOllamaBaseURL   = "ai.ollama_base_url"
 	KeyOllamaModel     = "ai.ollama_model"
+
+	// Neuri AI analysis integration (NER-40)
+	KeyNeuriWebhookURL    = "neuri.webhook_url"
+	KeyNeuriWebhookSecret = "neuri.webhook_secret"
+	KeyNeuriRegenBaseURL  = "neuri.regen_base_url"
 )
 
 // SystemSettingsRepository manages system-wide configuration stored in the

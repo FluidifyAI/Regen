@@ -52,6 +52,44 @@ export interface AISettingsResponse {
   enabled: boolean
 }
 
+// Neuri AI analysis types (NER-41)
+export interface NeuriSettingsResponse {
+  webhook_url: string
+  regen_base_url: string
+  webhook_secret_set: boolean
+  webhook_secret_hint?: string
+}
+
+export interface NeuriSettingsRequest {
+  webhook_url?: string
+  regen_base_url?: string
+  webhook_secret?: string
+}
+
+export interface RankedHypothesis {
+  type: string
+  confidence: number
+}
+
+export interface NeuriResult {
+  id: string
+  incident_id: string
+  investigation_run_id: string
+  top_hypothesis: string
+  confidence: number
+  summary: string
+  ranked_hypotheses: RankedHypothesis[]
+  created_at: string
+}
+
+export interface NeuriResultListResponse {
+  results: NeuriResult[]
+}
+
+export interface NeuriTriggerResponse {
+  status: string
+}
+
 export interface TeamsSettingsResponse {
   enabled: boolean
 }

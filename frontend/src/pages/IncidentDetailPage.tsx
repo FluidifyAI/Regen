@@ -9,6 +9,7 @@ import { SeverityDropdown } from '../components/incidents/SeverityDropdown'
 import { AddTimelineEntry } from '../components/incidents/AddTimelineEntry'
 import { GroupedAlerts } from '../components/incidents/GroupedAlerts'
 import { AISummaryPanel } from '../components/incidents/AISummaryPanel'
+import { NeuriPanel } from '../components/incidents/NeuriPanel'
 import { PostMortemPanel } from '../components/incidents/PostMortemPanel'
 import { AttachmentsPanel } from '../components/incidents/AttachmentsPanel'
 import { ToastContainer, useToast } from '../components/ui/Toast'
@@ -238,6 +239,7 @@ export function IncidentDetailPage() {
                   lastActivityAt={lastActivityAt}
                   onSummaryGenerated={refetch}
                 />
+                <NeuriPanel incidentId={incident.id} />
                 <AddTimelineEntry
                   incidentId={incident.id}
                   onSuccess={success}

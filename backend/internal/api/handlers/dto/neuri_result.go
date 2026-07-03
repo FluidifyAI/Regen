@@ -5,8 +5,8 @@ import "encoding/json"
 type NeuriResultRequest struct {
 	IncidentID         string          `json:"incident_id"          binding:"required"`
 	InvestigationRunID string          `json:"investigation_run_id" binding:"required"`
-	TopHypothesis      string          `json:"top_hypothesis"       binding:"required"`
-	Confidence         float64         `json:"confidence"           binding:"required,min=0,max=1"`
+	TopHypothesis      string          `json:"top_hypothesis"`
+	Confidence         float64         `json:"confidence"           binding:"min=0,max=1"`
 	Summary            string          `json:"summary"              binding:"required"`
 	RankedHypotheses   json.RawMessage `json:"ranked_hypotheses"`
 }

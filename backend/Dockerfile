@@ -3,6 +3,8 @@
 # ============================================================================
 FROM golang:1.25-alpine AS development
 
+ENV GOTOOLCHAIN=local
+
 # Install air for hot reload (using new module path)
 RUN go install github.com/air-verse/air@v1.52.3
 
@@ -27,6 +29,8 @@ CMD ["air", "-c", ".air.toml"]
 # Builder Stage - compile the binary
 # ============================================================================
 FROM golang:1.25-alpine AS builder
+
+ENV GOTOOLCHAIN=local
 
 WORKDIR /app
 

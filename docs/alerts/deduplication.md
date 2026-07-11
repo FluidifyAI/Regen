@@ -54,28 +54,6 @@ If `payments-api` fires three different alerts within 5 minutes, Regen creates o
 
 Routing rules control what happens after deduplication and grouping. Configure under **Settings → Routing Rules**.
 
-### Actions
+Rules are evaluated in priority order. The first matching rule wins. Match criteria support exact matching, RE2 regex on label/annotation values, and `*` wildcards.
 
-| Action | Description |
-|--------|-------------|
-| Create incident | Automatically create an incident for matching alerts |
-| Notify only | Record the alert but do not create an incident |
-| Suppress | Silently drop the alert (useful for maintenance windows) |
-
-### Example rules
-
-**Create incidents for critical and warning alerts:**
-
-```
-Match: severity IN [critical, warning]
-Action: Create incident
-```
-
-**Suppress info alerts during business hours:**
-
-```
-Match: severity = info
-Action: Suppress
-```
-
-Rules are evaluated in priority order. The first matching rule wins.
+→ **Full reference:** [Alert Routing Rules](routing.md)

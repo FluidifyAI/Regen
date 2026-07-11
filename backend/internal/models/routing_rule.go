@@ -16,16 +16,38 @@ import (
 //	{
 //	  "source":   ["prometheus", "grafana"],   // optional; empty = all sources
 //	  "severity": ["critical", "warning"],     // optional; empty = all severities
-//	  "labels":   {"env": "prod", "svc": "*"} // optional; * matches any value
+//	  "labels": {                              // optional; alert label matching
+//	    "env":       "prod",                   // exact string match
+//	    "alertname": "DiskUsage.*",            // RE2 regex
+//	    "svc":       "*"                       // * = key present, any value
+//	  },
+//	  "annotations": {                         // optional; alert annotation matching
+//	    "summary": ".*connection refused.*"    // RE2 regex
+//	  },
+//	  "title":       ".*disk.*",               // optional; RE2 regex on alert title
+//	  "description": ".*OOM.*"                // optional; RE2 regex on alert description
 //	}
+//
+// All criteria are ANDed — every specified field must match.
+// source and severity use exact list matching. labels, annotations, title, and
+// description values use RE2 regex (no lookaheads; Go regexp package).
+// Use * as a label/annotation value to match any non-empty value (key-exists check).
+//
+// How title and description are derived per source:
+//
+//	Source      title                    description
+//	----------  -----------------------  -----------------------
+//	Prometheus  labels.alertname         annotations.summary
+//	Grafana     rule name                annotations.summary
+//	Generic     title field              description field
 //
 // actions JSONB schema:
 //
 //	{
-//	  "create_incident":  true,       // default action
-//	  "suppress":         true,       // alert stored, no incident created
-//	  "severity_override": "critical", // override alert severity
-//	  "channel_override":  "db-oncall" // override Slack channel name suffix
+//	  "create_incident":   true,        // default action
+//	  "suppress":          true,        // alert stored, no incident created
+//	  "severity_override": "critical",  // override alert severity
+//	  "channel_override":  "db-oncall"  // override Slack channel name suffix
 //	}
 type RoutingRule struct {
 	// ID is the unique identifier for this routing rule

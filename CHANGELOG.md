@@ -2,6 +2,12 @@
 
 All notable changes to Fluidify Regen are documented here.
 
+## [1.0.1] — 2026-07-12
+
+### Security
+
+- **Go 1.25.12 toolchain** — resolves GO-2026-5856 (Encrypted Client Hello privacy leak in `crypto/tls`). Upgrade from v1.0.0: `docker pull ghcr.io/fluidifyai/regen:1.0.1` or `helm upgrade ... --version 1.0.1`.
+
 ## [1.0.0] — 2026-07-12
 
 First stable release. Everything you need to run production on-call and incident management, self-hosted, for free.

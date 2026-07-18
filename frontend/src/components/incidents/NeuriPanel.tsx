@@ -152,7 +152,17 @@ export function NeuriPanel({ incidentId, onResultLoaded }: NeuriPanelProps) {
       {!configured && (
         <div className="flex items-start gap-1.5 text-xs text-text-tertiary">
           <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-500" />
-          <span>Neuri not configured. Set the webhook URL in <strong>Settings → System → Neuri</strong>.</span>
+          <span>
+            Neuri not configured. Set the webhook URL in <strong>Settings → System → Neuri</strong>, or{' '}
+            <a
+              href="https://fluidify.ai/neuri"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand-primary hover:underline"
+            >
+              learn more about the Neuri Pilot
+            </a>.
+          </span>
         </div>
       )}
 

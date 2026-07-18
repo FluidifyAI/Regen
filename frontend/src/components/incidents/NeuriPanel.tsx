@@ -28,9 +28,10 @@ function hypothesisBadge(type: string): string {
 
 interface NeuriPanelProps {
   incidentId: string
+  onResultLoaded?: (result: NeuriResult | null) => void
 }
 
-export function NeuriPanel({ incidentId }: NeuriPanelProps) {
+export function NeuriPanel({ incidentId, onResultLoaded }: NeuriPanelProps) {
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [result, setResult] = useState<NeuriResult | null>(null)
   const [triggering, setTriggering] = useState(false)
@@ -49,7 +50,11 @@ export function NeuriPanel({ incidentId }: NeuriPanelProps) {
       .catch(() => setConfigured(false))
 
     getNeuriResults(incidentId)
-      .then((r) => { if (r.results.length > 0) setResult(r.results[0] ?? null) })
+      .then((r) => {
+        const latest = r.results[0] ?? null
+        setResult(latest)
+        onResultLoaded?.(latest)
+      })
       .catch(() => {})
   }, [incidentId])
 
@@ -67,7 +72,9 @@ export function NeuriPanel({ incidentId }: NeuriPanelProps) {
       try {
         const r = await getNeuriResults(incidentId)
         if (r.results.length > 0) {
-          setResult(r.results[0] ?? null)
+          const latest = r.results[0] ?? null
+          setResult(latest)
+          onResultLoaded?.(latest)
           stopPolling()
         }
       } catch {
@@ -101,7 +108,7 @@ export function NeuriPanel({ incidentId }: NeuriPanelProps) {
   if (configured === null) return null
 
   return (
-    <div className="mt-4 pt-4 border-t border-border">
+    <div>
       {/* Header row */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
@@ -131,9 +138,12 @@ export function NeuriPanel({ incidentId }: NeuriPanelProps) {
           <button
             onClick={handleTrigger}
             disabled={triggering}
-            className="text-xs text-text-tertiary hover:text-text-primary transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {triggering ? 'Starting…' : 'Re-run'}
+            {triggering
+              ? <><Loader2 className="w-3 h-3 animate-spin" /> Starting…</>
+              : <><Microscope className="w-3 h-3" /> Re-run</>
+            }
           </button>
         )}
       </div>
@@ -220,10 +230,10 @@ function ResultCard({
               <div className="w-24 h-1.5 bg-surface-tertiary rounded-full overflow-hidden">
                 <div
                   className="h-full bg-brand-primary rounded-full"
-                  style={{ width: `${Math.round(h.confidence * 100)}%` }}
+                  style={{ width: `${Math.round(h.score * 100)}%` }}
                 />
               </div>
-              <span className="text-xs text-text-secondary w-8 text-right">{Math.round(h.confidence * 100)}%</span>
+              <span className="text-xs text-text-secondary w-8 text-right">{Math.round(h.score * 100)}%</span>
               <span className={`text-xs px-1.5 py-0.5 rounded ${hypothesisBadge(h.type)}`}>
                 {hypothesisLabel(h.type)}
               </span>

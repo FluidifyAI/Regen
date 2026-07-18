@@ -154,13 +154,20 @@ func TriggerNeuriInvestigation(
 
 		callbackURL := regenBaseURL + "/api/v1/neuri/result"
 
+		affectedServices := []string{}
+		if svc, ok := incident.Labels["service"]; ok {
+			if svcStr, ok := svc.(string); ok && svcStr != "" {
+				affectedServices = []string{svcStr}
+			}
+		}
+
 		payload := map[string]interface{}{
-			"incident_id":   incident.ID.String(),
-			"title":         incident.Title,
-			"started_at":    incident.TriggeredAt.UTC().Format(time.RFC3339),
-			"severity":      incident.Severity,
-			"affected_services": []string{},
-			"callback_url":  callbackURL,
+			"id":                incident.ID.String(),
+			"title":             incident.Title,
+			"started_at":        incident.TriggeredAt.UTC().Format(time.RFC3339),
+			"severity":          incident.Severity,
+			"affected_services": affectedServices,
+			"callback_url":      callbackURL,
 		}
 		body, _ := json.Marshal(payload)
 

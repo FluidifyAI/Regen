@@ -68,7 +68,7 @@ export interface NeuriSettingsRequest {
 
 export interface RankedHypothesis {
   type: string
-  confidence: number
+  score: number
 }
 
 export interface NeuriResult {

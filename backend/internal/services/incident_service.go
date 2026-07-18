@@ -271,6 +271,11 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 	slug := generateSlug(alert.Title)
 
 	// Create incident object
+	incidentLabels := make(models.JSONB)
+	for k, v := range alert.Labels {
+		incidentLabels[k] = v
+	}
+
 	incident := &models.Incident{
 		ID:            uuid.New(),
 		Title:         alert.Title,
@@ -281,7 +286,7 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 		CreatedByType: "system",
 		CreatedByID:   "alertmanager",
 		TriggeredAt:   time.Now(),
-		Labels:        make(models.JSONB),
+		Labels:        incidentLabels,
 		CustomFields:  make(models.JSONB),
 		AIEnabled:     aiEnabled,
 	}

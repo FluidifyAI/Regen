@@ -12,6 +12,7 @@ import {
   AIProvider,
   SystemSettings,
 } from '../api/settings'
+import { getNeuriSettings, updateNeuriSettings } from '../api/neuri'
 
 const COMMON_TIMEZONES = [
   'UTC',
@@ -67,6 +68,16 @@ export function SystemSettingsPage() {
   const [savingAI, setSavingAI] = useState(false)
   const [aiSaved, setAISaved] = useState(false)
 
+  // Neuri
+  const [neuriConfigured, setNeuriConfigured] = useState(false)
+  const [neuriHint, setNeuriHint] = useState('')
+  const [neuriWebhookURL, setNeuriWebhookURL] = useState('')
+  const [neuriRegenBaseURL, setNeuriRegenBaseURL] = useState('')
+  const [neuriSecret, setNeuriSecret] = useState('')
+  const [showNeuriSecret, setShowNeuriSecret] = useState(false)
+  const [savingNeuri, setSavingNeuri] = useState(false)
+  const [neuriSaved, setNeuriSaved] = useState(false)
+
   // Telemetry
   const [savingTelemetry, setSavingTelemetry] = useState(false)
 
@@ -84,13 +95,17 @@ export function SystemSettingsPage() {
   async function load() {
     setLoading(true)
     try {
-      const data = await getSystemSettings()
+      const [data, neuri] = await Promise.all([getSystemSettings(), getNeuriSettings()])
       setSettings(data)
       setInstanceName(data.instance_name || '')
       setTimezone(data.timezone || 'UTC')
       setAIProvider((data.ai_provider as AIProvider) || 'openai')
       setOllamaURL(data.ollama_base_url || '')
       setOllamaModel(data.ollama_model || '')
+      setNeuriConfigured(neuri.webhook_secret_set)
+      setNeuriHint(neuri.webhook_secret_hint ?? '')
+      setNeuriWebhookURL(neuri.webhook_url || '')
+      setNeuriRegenBaseURL(neuri.regen_base_url || '')
       setError('')
     } catch {
       setError('Failed to load system settings')
@@ -177,6 +192,39 @@ export function SystemSettingsPage() {
       setError('Failed to remove AI configuration')
     } finally {
       setSavingAI(false)
+    }
+  }
+
+  async function handleSaveNeuri() {
+    setSavingNeuri(true)
+    setNeuriSaved(false)
+    try {
+      await updateNeuriSettings({
+        webhook_url: neuriWebhookURL.trim(),
+        regen_base_url: neuriRegenBaseURL.trim(),
+        ...(neuriSecret.trim() ? { webhook_secret: neuriSecret.trim() } : {}),
+      })
+      setNeuriSecret('')
+      setNeuriSaved(true)
+      await load()
+      setTimeout(() => setNeuriSaved(false), 3000)
+    } catch {
+      setError('Failed to save Neuri settings')
+    } finally {
+      setSavingNeuri(false)
+    }
+  }
+
+  async function handleClearNeuri() {
+    setSavingNeuri(true)
+    try {
+      await updateNeuriSettings({ webhook_url: '', regen_base_url: '', webhook_secret: '' })
+      setNeuriSecret('')
+      await load()
+    } catch {
+      setError('Failed to remove Neuri configuration')
+    } finally {
+      setSavingNeuri(false)
     }
   }
 
@@ -419,6 +467,98 @@ export function SystemSettingsPage() {
             Save
           </Button>
           {aiSaved && (
+            <span className="flex items-center gap-1 text-sm text-green-600">
+              <CheckCircle className="w-4 h-4" /> Saved
+            </span>
+          )}
+        </div>
+      </section>
+
+      {/* ── Neuri ────────────────────────────────────────────────────────── */}
+      <section className="bg-surface-primary border border-border-primary rounded-xl p-6 space-y-5">
+        <div>
+          <h2 className="text-base font-semibold text-text-primary">Neuri (AI Root Cause Analysis)</h2>
+          <p className="text-sm text-text-secondary mt-0.5">
+            Connect to a Neuri instance to run automated root-cause investigations on incidents.
+          </p>
+        </div>
+
+        {neuriConfigured ? (
+          <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-200">
+            <div className="flex items-center gap-2 text-sm text-green-700">
+              <CheckCircle className="w-4 h-4" />
+              Neuri configured — secret ends in <code className="font-mono font-semibold">{neuriHint.slice(-4)}</code>
+            </div>
+            <button onClick={handleClearNeuri} disabled={savingNeuri} className="text-xs text-red-600 hover:text-red-800 font-medium">
+              Remove
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            Neuri not configured — root-cause investigation is disabled.
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1">Neuri webhook URL</label>
+            <input
+              type="text"
+              value={neuriWebhookURL}
+              onChange={(e) => setNeuriWebhookURL(e.target.value)}
+              placeholder="http://neuri:8001/investigate"
+              className="w-full px-3 py-2 rounded-lg border border-border-primary bg-surface-secondary text-text-primary text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-primary"
+            />
+            <p className="mt-1 text-xs text-text-tertiary">URL of your Neuri service's investigation endpoint.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1">Regen base URL</label>
+            <input
+              type="text"
+              value={neuriRegenBaseURL}
+              onChange={(e) => setNeuriRegenBaseURL(e.target.value)}
+              placeholder="https://regen.example.com"
+              className="w-full px-3 py-2 rounded-lg border border-border-primary bg-surface-secondary text-text-primary text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-primary"
+            />
+            <p className="mt-1 text-xs text-text-tertiary">
+              The URL Neuri uses to POST results back to Regen. Must be reachable from the Neuri service.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1">
+              {neuriConfigured ? 'Replace webhook secret' : 'Webhook secret'}
+            </label>
+            <div className="relative">
+              <input
+                type={showNeuriSecret ? 'text' : 'password'}
+                value={neuriSecret}
+                onChange={(e) => setNeuriSecret(e.target.value)}
+                placeholder={neuriConfigured ? `Current: ${neuriHint}` : 'Shared secret for signing requests'}
+                className="w-full px-3 py-2 pr-10 rounded-lg border border-border-primary bg-surface-secondary text-text-primary text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              />
+              <button type="button" onClick={() => setShowNeuriSecret(!showNeuriSecret)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary">
+                {showNeuriSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-text-tertiary">
+              {neuriConfigured ? 'Leave blank to keep the current secret.' : 'Set the same value in your Neuri config.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            onClick={handleSaveNeuri}
+            disabled={savingNeuri || (!neuriWebhookURL.trim() && !neuriRegenBaseURL.trim())}
+          >
+            {savingNeuri ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+            Save
+          </Button>
+          {neuriSaved && (
             <span className="flex items-center gap-1 text-sm text-green-600">
               <CheckCircle className="w-4 h-4" /> Saved
             </span>

@@ -9,6 +9,7 @@ import { SeverityDropdown } from '../components/incidents/SeverityDropdown'
 import { AddTimelineEntry } from '../components/incidents/AddTimelineEntry'
 import { GroupedAlerts } from '../components/incidents/GroupedAlerts'
 import { AISummaryPanel } from '../components/incidents/AISummaryPanel'
+import { NeuriPanel } from '../components/incidents/NeuriPanel'
 import { PostMortemPanel } from '../components/incidents/PostMortemPanel'
 import { AttachmentsPanel } from '../components/incidents/AttachmentsPanel'
 import { ToastContainer, useToast } from '../components/ui/Toast'
@@ -16,10 +17,12 @@ import { GeneralError } from '../components/ui/ErrorState'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { listEscalationPolicies } from '../api/escalation'
+import { getPostMortem } from '../api/postmortems'
+import { getNeuriResults } from '../api/neuri'
 import { apiClient } from '../api/client'
-import type { EscalationPolicy } from '../api/types'
+import type { EscalationPolicy, NeuriResult } from '../api/types'
 
-type TabType = 'activity' | 'alerts' | 'postmortem' | 'attachments'
+type TabType = 'activity' | 'alerts' | 'investigation' | 'postmortem' | 'attachments'
 
 const SEVERITY_TINT: Record<string, string> = {
   critical: 'rgba(220,38,38,0.045)',
@@ -47,6 +50,7 @@ export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState<TabType>('activity')
   const [hasPostMortem, setHasPostMortem] = useState(false)
+  const [neuriResult, setNeuriResult] = useState<NeuriResult | null>(null)
   const [attachmentCount, setAttachmentCount] = useState(0)
   const { toasts, dismissToast, success, error: showError } = useToast()
   const [showEscalateModal, setShowEscalateModal] = useState(false)
@@ -72,6 +76,12 @@ export function IncidentDetailPage() {
   useEffect(() => {
     listEscalationPolicies().then(r => setEscalatePolicies(r.data)).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!id) return
+    getPostMortem(id).then(pm => setHasPostMortem(!!pm)).catch(() => {})
+    getNeuriResults(id).then(r => setNeuriResult(r.results[0] ?? null)).catch(() => {})
+  }, [id])
 
   async function handleEscalate() {
     if (!selectedPolicyId || !id) return
@@ -220,6 +230,7 @@ export function IncidentDetailPage() {
           <div className="flex gap-6">
             <TabButton active={activeTab === 'activity'} onClick={() => setActiveTab('activity')} label="Activity" count={incident.timeline.length} />
             <TabButton active={activeTab === 'alerts'} onClick={() => setActiveTab('alerts')} label="Alerts" count={incident.alerts.length} />
+            <TabButton active={activeTab === 'investigation'} onClick={() => setActiveTab('investigation')} label="Neuri" count={neuriResult ? 1 : 0} />
             <TabButton active={activeTab === 'postmortem'} onClick={() => setActiveTab('postmortem')} label="Post-Mortem" count={hasPostMortem ? 1 : 0} />
             <TabButton active={activeTab === 'attachments'} onClick={() => setActiveTab('attachments')} label="Attachments" count={attachmentCount} />
           </div>
@@ -230,7 +241,6 @@ export function IncidentDetailPage() {
           <div className="max-w-5xl mx-auto px-6 py-6">
             {activeTab === 'activity' && (
               <div className="space-y-6">
-                {/* AI Summary at the top of the activity feed */}
                 <AISummaryPanel
                   incidentId={incident.id}
                   existingSummary={incident.ai_summary}
@@ -238,6 +248,7 @@ export function IncidentDetailPage() {
                   lastActivityAt={lastActivityAt}
                   onSummaryGenerated={refetch}
                 />
+                {neuriResult && <NeuriActivityCard result={neuriResult} onViewFull={() => setActiveTab('investigation')} />}
                 <AddTimelineEntry
                   incidentId={incident.id}
                   onSuccess={success}
@@ -246,6 +257,9 @@ export function IncidentDetailPage() {
                 />
                 <Timeline entries={incident.timeline} />
               </div>
+            )}
+            {activeTab === 'investigation' && (
+              <NeuriPanel incidentId={incident.id} onResultLoaded={setNeuriResult} />
             )}
             {activeTab === 'alerts' && (
               <GroupedAlerts alerts={incident.alerts} incident={incident} />
@@ -304,6 +318,36 @@ export function IncidentDetailPage() {
 }
 
 // ── Subcomponents ─────────────────────────────────────────────────────────────
+
+const HYPOTHESIS_COLORS: Record<string, string> = {
+  CODE_CHANGE:            'bg-blue-100 text-blue-800',
+  CONFIG_CHANGE:          'bg-orange-100 text-orange-800',
+  DEPENDENCY_FAILURE:     'bg-red-100 text-red-800',
+  RESOURCE_EXHAUSTION:    'bg-amber-100 text-amber-800',
+  TRAFFIC_ANOMALY:        'bg-purple-100 text-purple-800',
+  INFRASTRUCTURE_FAILURE: 'bg-red-100 text-red-800',
+  DATA_ISSUE:             'bg-teal-100 text-teal-800',
+  CAPACITY_LIMIT:         'bg-orange-100 text-orange-800',
+  UNKNOWN:                'bg-gray-100 text-gray-600',
+}
+
+function NeuriActivityCard({ result, onViewFull }: { result: NeuriResult; onViewFull: () => void }) {
+  const label = result.top_hypothesis.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const badge = HYPOTHESIS_COLORS[result.top_hypothesis] ?? 'bg-gray-100 text-gray-600'
+  return (
+    <div className="rounded-lg border border-border bg-surface-secondary p-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">Neuri Investigation</span>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${badge}`}>{label}</span>
+          <span className="text-xs font-semibold text-text-primary">{Math.round(result.confidence * 100)}% confidence</span>
+        </div>
+        <button onClick={onViewFull} className="text-xs text-brand-primary hover:underline">View full →</button>
+      </div>
+      <p className="text-sm text-text-secondary leading-relaxed">{result.summary}</p>
+    </div>
+  )
+}
 
 function TabButton({ active, onClick, label, count }: {
   active: boolean; onClick: () => void; label: string; count: number

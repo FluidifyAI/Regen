@@ -1,0 +1,100 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Regen",
+  "logo": {
+    "dark": "https://fluidify.ai/full-logo.png",
+    "light": "https://fluidify.ai/full-logo.png"
+  },
+  "favicon": "https://fluidify.ai/favicon.ico",
+  "colors": {
+    "primary": "#f06292",
+    "light": "#f48fb1",
+    "dark": "#e91e63"
+  },
+  "topbarCtaButton": {
+    "name": "Get started free",
+    "url": "https://github.com/FluidifyAI/Regen"
+  },
+  "topbarLinks": [
+    { "name": "fluidify.ai", "url": "https://fluidify.ai" }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "docs/getting-started/installation",
+        "docs/getting-started/connecting-slack",
+        "docs/getting-started/connecting-teams",
+        "docs/getting-started/connecting-telegram"
+      ]
+    },
+    {
+      "group": "Incidents",
+      "pages": [
+        "docs/incidents/lifecycle",
+        "docs/incidents/post-mortems"
+      ]
+    },
+    {
+      "group": "Alerts",
+      "pages": [
+        "docs/alerts/deduplication",
+        "docs/alerts/routing"
+      ]
+    },
+    {
+      "group": "Alert Sources",
+      "pages": [
+        "docs/alerts/sources/prometheus",
+        "docs/alerts/sources/grafana",
+        "docs/alerts/sources/cloudwatch",
+        "docs/alerts/sources/generic"
+      ]
+    },
+    {
+      "group": "On-Call",
+      "pages": [
+        "docs/on-call/schedules",
+        "docs/on-call/escalation-paths",
+        "docs/on-call/being-on-call"
+      ]
+    },
+    {
+      "group": "Migrations",
+      "pages": [
+        "docs/migrations/pagerduty",
+        "docs/migrations/grafana-oncall",
+        "docs/migrations/opsgenie",
+        "docs/migrations/oncall-mapping"
+      ]
+    },
+    {
+      "group": "Self-Hosting",
+      "pages": [
+        "docs/self-hosting/docker-compose",
+        "docs/self-hosting/kubernetes",
+        "docs/self-hosting/environment-variables",
+        "docs/self-hosting/saml-sso"
+      ]
+    },
+    {
+      "group": "Runbooks",
+      "pages": [
+        "docs/runbooks/alert-flood",
+        "docs/runbooks/database-connection-lost",
+        "docs/runbooks/helm-rollback",
+        "docs/runbooks/high-memory-oom",
+        "docs/runbooks/migration-failed",
+        "docs/runbooks/missed-escalation",
+        "docs/runbooks/redis-unavailable",
+        "docs/runbooks/saml-misconfigured",
+        "docs/runbooks/schedule-no-members",
+        "docs/runbooks/slack-webhook-down"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/FluidifyAI/Regen",
+    "website": "https://fluidify.ai"
+  }
+}

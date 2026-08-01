@@ -2,6 +2,13 @@
 
 All notable changes to Fluidify Regen are documented here.
 
+## [1.0.2] — 2026-08-01
+
+### Bug fixes
+
+- **Login broken on plain-HTTP self-hosted installs** — session cookie was set with `Secure=true` unconditionally, causing browsers to silently drop it over HTTP. Now detected per-request via `r.TLS` / `X-Forwarded-Proto`. (#151)
+- **Timezone picker missing most of the world** — hardcoded 30-entry list replaced with a searchable combobox backed by `Intl.supportedValuesOf('timeZone')` (~600 IANA zones). Brisbane, Perth, Adelaide, Darwin and every other missing zone now appear. (#152)
+
 ## [1.0.1] — 2026-07-12
 
 ### Security

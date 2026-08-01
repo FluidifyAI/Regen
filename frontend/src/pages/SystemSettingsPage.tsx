@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { TimezoneSelect } from '../components/ui/TimezoneSelect'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle, AlertCircle, Eye, EyeOff, Loader2, Save, ExternalLink, Tag } from 'lucide-react'
 import { getHealth } from '../api/health'
@@ -13,33 +14,6 @@ import {
   SystemSettings,
 } from '../api/settings'
 import { getNeuriSettings, updateNeuriSettings } from '../api/neuri'
-
-const COMMON_TIMEZONES = [
-  'UTC',
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Los_Angeles',
-  'America/Toronto',
-  'America/Vancouver',
-  'America/Sao_Paulo',
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Berlin',
-  'Europe/Amsterdam',
-  'Europe/Stockholm',
-  'Europe/Madrid',
-  'Europe/Rome',
-  'Asia/Kolkata',
-  'Asia/Dubai',
-  'Asia/Singapore',
-  'Asia/Tokyo',
-  'Asia/Seoul',
-  'Asia/Shanghai',
-  'Australia/Sydney',
-  'Australia/Melbourne',
-  'Pacific/Auckland',
-]
 
 export function SystemSettingsPage() {
   const { user: currentUser } = useAuth()
@@ -284,15 +258,11 @@ export function SystemSettingsPage() {
 
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1">Default timezone</label>
-            <select
+            <TimezoneSelect
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
+              onChange={setTimezone}
               className="w-full px-3 py-2 rounded-lg border border-border-primary bg-surface-secondary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
-            >
-              {COMMON_TIMEZONES.map((tz) => (
-                <option key={tz} value={tz}>{tz}</option>
-              ))}
-            </select>
+            />
             <p className="mt-1 text-xs text-text-tertiary">Used for on-call schedule display and report generation.</p>
           </div>
         </div>

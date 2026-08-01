@@ -7,7 +7,8 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { GeneralError } from '../components/ui/ErrorState'
 import { useSchedules } from '../hooks/useSchedules'
 import { useEscalationPolicies } from '../hooks/useEscalationPolicies'
-import { createSchedule, createLayer, getTimeline, deleteSchedule, COMMON_TIMEZONES } from '../api/schedules'
+import { createSchedule, createLayer, getTimeline, deleteSchedule } from '../api/schedules'
+import { TimezoneSelect } from '../components/ui/TimezoneSelect'
 import type { CreateScheduleRequest, TimelineSegment } from '../api/types'
 import { listUsers, type UserSummary } from '../api/users'
 import { GanttCalendar, GanttRow, getMondayOf } from '../components/oncall/GanttCalendar'
@@ -281,17 +282,13 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
                   </div>
                   <div>
                     <label className={labelClass} htmlFor="sched-tz">Timezone</label>
-                    <select
+                    <TimezoneSelect
                       id="sched-tz"
                       value={timezone}
-                      onChange={(e) => setTimezone(e.target.value)}
+                      onChange={setTimezone}
                       className={inputClass}
                       disabled={isSubmitting}
-                    >
-                      {COMMON_TIMEZONES.map((tz) => (
-                        <option key={tz} value={tz}>{tz}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 </div>
               </div>

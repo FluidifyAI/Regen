@@ -30,9 +30,9 @@ import {
   deleteUnavailability,
   getLayerTimelines,
   getHolidays,
-  COMMON_TIMEZONES,
   SUPPORTED_HOLIDAY_COUNTRIES,
 } from '../api/schedules'
+import { TimezoneSelect } from '../components/ui/TimezoneSelect'
 import { listUsers } from '../api/users'
 import type { UserSummary } from '../api/users'
 import { listEscalationPolicies } from '../api/escalation'
@@ -270,9 +270,7 @@ function EditScheduleModal({ isOpen, schedule, onClose, onSaved }: EditScheduleM
             </div>
             <div>
               <label className={labelClass} htmlFor="edit-tz">Timezone</label>
-              <select id="edit-tz" value={timezone} onChange={(e) => setTimezone(e.target.value)} className={inputClass} disabled={isSubmitting}>
-                {COMMON_TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-              </select>
+              <TimezoneSelect id="edit-tz" value={timezone} onChange={setTimezone} className={inputClass} disabled={isSubmitting} />
             </div>
             <div>
               <label className={labelClass} htmlFor="edit-default-policy">Default escalation policy</label>

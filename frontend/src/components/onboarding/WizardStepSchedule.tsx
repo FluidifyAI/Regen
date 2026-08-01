@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Loader2, AlertCircle, CheckCircle } from 'lucide-react'
 import { importOnCallMigration } from '../../api/migrations'
-import { createSchedule, createLayer, COMMON_TIMEZONES } from '../../api/schedules'
+import { createSchedule, createLayer } from '../../api/schedules'
+import { TimezoneSelect } from '../ui/TimezoneSelect'
 import { PagerDutyImportPanel } from '../migrations/PagerDutyImportPanel'
 import { OpsgenieImportPanel } from '../migrations/OpsgenieImportPanel'
 
@@ -253,9 +254,7 @@ function ManualSchedule({ onComplete, onBack }: { onComplete: () => void; onBack
 
       <div>
         <label className="block text-xs font-medium text-text-secondary mb-1">Timezone</label>
-        <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className={inputClass}>
-          {COMMON_TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-        </select>
+        <TimezoneSelect value={timezone} onChange={setTimezone} className={inputClass} />
       </div>
 
       <div>

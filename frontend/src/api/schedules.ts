@@ -16,39 +16,6 @@ import type {
   CreateUnavailabilityRequest,
 } from './types'
 
-// Top 30 most-used IANA timezone names + UTC, alphabetical
-export const COMMON_TIMEZONES = [
-  'Africa/Cairo',
-  'America/Chicago',
-  'America/Denver',
-  'America/Los_Angeles',
-  'America/New_York',
-  'America/Sao_Paulo',
-  'Asia/Bangkok',
-  'Asia/Dubai',
-  'Asia/Hong_Kong',
-  'Asia/Jakarta',
-  'Asia/Karachi',
-  'Asia/Kolkata',
-  'Asia/Seoul',
-  'Asia/Shanghai',
-  'Asia/Singapore',
-  'Asia/Tokyo',
-  'Australia/Melbourne',
-  'Australia/Sydney',
-  'Europe/Amsterdam',
-  'Europe/Berlin',
-  'Europe/Istanbul',
-  'Europe/London',
-  'Europe/Madrid',
-  'Europe/Moscow',
-  'Europe/Paris',
-  'Europe/Rome',
-  'Pacific/Auckland',
-  'Pacific/Honolulu',
-  'US/Eastern',
-  'UTC',
-]
 
 export async function listSchedules(): Promise<{ data: Schedule[]; total: number }> {
   return apiClient.get<{ data: Schedule[]; total: number }>('/api/v1/schedules')

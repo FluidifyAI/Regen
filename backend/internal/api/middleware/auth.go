@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"net/http"
-	"os"
+	"strings"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
@@ -10,11 +10,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// IsSecure returns true if the Secure flag should be set on cookies.
-// Always secure except in local development to allow plain HTTP.
-// Single definition used by both middleware and handler packages.
-func IsSecure() bool {
-	return os.Getenv("APP_ENV") != "development"
+// IsSecureRequest returns true if the Secure flag should be set on the session
+// cookie for this request. It checks whether the connection is HTTPS, either
+// via native TLS (r.TLS != nil) or an upstream reverse proxy
+// (X-Forwarded-Proto: https). Plain-HTTP self-hosted installs must NOT get
+// Secure=true — browsers silently drop such cookies, breaking login entirely.
+func IsSecureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
 const (
@@ -163,7 +168,7 @@ func clearSessionCookie(c *gin.Context) {
 		MaxAge:   -1,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   IsSecure(),
+		Secure:   IsSecureRequest(c.Request),
 		SameSite: http.SameSiteStrictMode,
 	})
 }

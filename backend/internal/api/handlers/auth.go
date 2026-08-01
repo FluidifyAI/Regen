@@ -32,7 +32,7 @@ func setSessionCookie(c *gin.Context, token string, maxAge int) {
 		MaxAge:   maxAge,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   middleware.IsSecure(),
+		Secure:   middleware.IsSecureRequest(c.Request),
 		SameSite: http.SameSiteStrictMode,
 	})
 }

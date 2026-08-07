@@ -77,6 +77,9 @@ type Config struct {
 	SAMLCertFile          string // SAML_CERT_FILE — path to SP certificate PEM (self-signed generated if empty)
 	SAMLKeyFile           string // SAML_KEY_FILE — path to SP private key PEM
 	SAMLAllowIDPInitiated bool   // SAML_ALLOW_IDP_INITIATED — allow IdP-initiated flows (Okta tile click)
+
+	// Firebase / Push Notifications (optional — push disabled when empty)
+	GoogleApplicationCredentials string // GOOGLE_APPLICATION_CREDENTIALS — path to Firebase service account JSON
 }
 
 // Load reads configuration from environment variables
@@ -145,6 +148,9 @@ func Load() (*Config, error) {
 		SAMLCertFile:          getEnv("SAML_CERT_FILE", ""),
 		SAMLKeyFile:           getEnv("SAML_KEY_FILE", ""),
 		SAMLAllowIDPInitiated: getEnvAsBool("SAML_ALLOW_IDP_INITIATED", false),
+
+		// Firebase / Push Notifications
+		GoogleApplicationCredentials: getEnv("GOOGLE_APPLICATION_CREDENTIALS", ""),
 	}
 
 	// Validate required configuration

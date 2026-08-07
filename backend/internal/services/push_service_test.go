@@ -211,7 +211,6 @@ func TestPushService_SendToUser_TransientError_LoggedAndContinues(t *testing.T) 
 
 	type callCountSender struct {
 		mu   sync.Mutex
-		n    int
 		errs []error
 	}
 	ccs := &callCountSender{errs: []error{transientErr, nil}}

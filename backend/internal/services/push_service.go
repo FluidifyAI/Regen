@@ -47,7 +47,7 @@ type PushService struct {
 	sender             FCMSender
 	repo               repository.DeviceTokenRepository
 	// checkNotRegistered determines whether an FCM error means the token is permanently stale.
-	// Defaults to messaging.IsRegistrationTokenNotRegistered. Injectable for unit tests.
+	// Defaults to messaging.IsUnregistered. Injectable for unit tests.
 	checkNotRegistered func(error) bool
 }
 
@@ -70,7 +70,7 @@ func NewPushService(credPath string, repo repository.DeviceTokenRepository) (*Pu
 		return nil, fmt.Errorf("push: credential file is not valid JSON: %w", err)
 	}
 
-	opt := option.WithCredentialsFile(credPath)
+	opt := option.WithAuthCredentialsJSON(option.ServiceAccount, data)
 	app, err := firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
 		return nil, fmt.Errorf("push: failed to init Firebase app: %w", err)
@@ -83,7 +83,7 @@ func NewPushService(credPath string, repo repository.DeviceTokenRepository) (*Pu
 	return &PushService{
 		sender:             client,
 		repo:               repo,
-		checkNotRegistered: messaging.IsRegistrationTokenNotRegistered,
+		checkNotRegistered: messaging.IsUnregistered,
 	}, nil
 }
 
@@ -105,7 +105,7 @@ func (s *PushService) SendToUser(ctx context.Context, userID uuid.UUID, n PushNo
 
 	checkStale := s.checkNotRegistered
 	if checkStale == nil {
-		checkStale = messaging.IsRegistrationTokenNotRegistered
+		checkStale = messaging.IsUnregistered
 	}
 
 	for _, dt := range tokens {

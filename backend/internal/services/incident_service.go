@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -340,14 +341,19 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 		return incident, nil
 	}
 
-	// Auto-assign on-call engineer as commander (best-effort)
+	// Auto-assign on-call engineer as commander (best-effort); capture onCallID for push.
+	var onCallID *uuid.UUID
 	if reloadedIncident.CommanderID == nil {
-		if onCallID := s.findOnCallUserID(); onCallID != nil {
+		onCallID = s.findOnCallUserID()
+		if onCallID != nil {
 			reloadedIncident.CommanderID = onCallID
 			if err := s.incidentRepo.Update(reloadedIncident); err != nil {
 				slog.Warn("failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
 			}
 		}
+	} else {
+		// Commander was already set — use it for the push notification.
+		onCallID = reloadedIncident.CommanderID
 	}
 	reloadedIncident.CommanderName = s.resolveCommanderName(reloadedIncident.CommanderID)
 
@@ -361,6 +367,27 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 			if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
 				slog.Error("telegram: failed to send incident created notification",
 					"incident_id", reloadedIncident.ID, "error", err)
+			}
+		}()
+	}
+
+	// Push notification to on-call engineer (or commander) asynchronously
+	if s.pushSvc != nil && s.pushSvc.IsEnabled() && onCallID != nil {
+		inc := reloadedIncident
+		go func() {
+			defer recoverAsyncPanic("sendPushIncidentCreated", "incident_id", inc.ID)
+			n := PushNotification{
+				Title: fmt.Sprintf("INC-%d: %s", inc.IncidentNumber, inc.Title),
+				Body:  fmt.Sprintf("%s severity incident triggered", strings.ToUpper(string(inc.Severity))),
+				Data: map[string]string{
+					"event":           "incident_created",
+					"incident_id":     inc.ID.String(),
+					"incident_number": strconv.Itoa(inc.IncidentNumber),
+				},
+			}
+			if err := s.pushSvc.SendToUser(context.Background(), *onCallID, n); err != nil {
+				slog.Error("push: failed to send incident created notification",
+					"incident_id", inc.ID, "err", err)
 			}
 		}()
 	}
@@ -485,14 +512,18 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 			return incident, nil
 		}
 
-		// Auto-assign on-call engineer as commander (best-effort)
+		// Auto-assign on-call engineer as commander (best-effort); capture onCallID for push.
+		var onCallIDGrouped *uuid.UUID
 		if reloadedIncident.CommanderID == nil {
-			if onCallID := s.findOnCallUserID(); onCallID != nil {
-				reloadedIncident.CommanderID = onCallID
+			onCallIDGrouped = s.findOnCallUserID()
+			if onCallIDGrouped != nil {
+				reloadedIncident.CommanderID = onCallIDGrouped
 				if err := s.incidentRepo.Update(reloadedIncident); err != nil {
 					slog.Warn("failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
 				}
 			}
+		} else {
+			onCallIDGrouped = reloadedIncident.CommanderID
 		}
 		reloadedIncident.CommanderName = s.resolveCommanderName(reloadedIncident.CommanderID)
 
@@ -507,6 +538,28 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 				}
 			}()
 		}
+
+		// Push notification to on-call engineer (or commander) asynchronously
+		if s.pushSvc != nil && s.pushSvc.IsEnabled() && onCallIDGrouped != nil {
+			inc := reloadedIncident
+			go func() {
+				defer recoverAsyncPanic("sendPushIncidentCreated", "incident_id", inc.ID)
+				n := PushNotification{
+					Title: fmt.Sprintf("INC-%d: %s", inc.IncidentNumber, inc.Title),
+					Body:  fmt.Sprintf("%s severity incident triggered", strings.ToUpper(string(inc.Severity))),
+					Data: map[string]string{
+						"event":           "incident_created",
+						"incident_id":     inc.ID.String(),
+						"incident_number": strconv.Itoa(inc.IncidentNumber),
+					},
+				}
+				if err := s.pushSvc.SendToUser(context.Background(), *onCallIDGrouped, n); err != nil {
+					slog.Error("push: failed to send incident created notification",
+						"incident_id", inc.ID, "err", err)
+				}
+			}()
+		}
+
 		metrics.IncidentsCreatedTotal.WithLabelValues(string(reloadedIncident.Severity), "alert").Inc()
 		return reloadedIncident, nil
 	}
@@ -1214,6 +1267,28 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 		go publishResolved(incident.ID, incident.AIEnabled)
 	}
 
+	// Push notification to commander when incident is resolved via UpdateIncident
+	if statusChanged && params.Status == models.IncidentStatusResolved &&
+		s.pushSvc != nil && s.pushSvc.IsEnabled() && incident.CommanderID != nil {
+		inc := *incident // capture a copy before goroutine
+		go func() {
+			defer recoverAsyncPanic("sendPushIncidentResolved(update)", "incident_id", inc.ID)
+			n := PushNotification{
+				Title: fmt.Sprintf("INC-%d resolved", inc.IncidentNumber),
+				Body:  inc.Title,
+				Data: map[string]string{
+					"event":           "incident_resolved",
+					"incident_id":     inc.ID.String(),
+					"incident_number": strconv.Itoa(inc.IncidentNumber),
+				},
+			}
+			if err := s.pushSvc.SendToUser(context.Background(), *inc.CommanderID, n); err != nil {
+				slog.Warn("push: failed to send resolved notification (update)",
+					"incident_id", inc.ID, "err", err)
+			}
+		}()
+	}
+
 	// DM the new incident commander when the assignment changes.
 	// Uses email as fallback when slack_user_id is not set, matching the auto-invite behaviour.
 	commanderChanged := params.CommanderID != nil &&
@@ -1567,6 +1642,28 @@ func (s *incidentService) ResolveIncident(id uuid.UUID, actorType, actorID strin
 			s.postStatusUpdateToTeams(updatedIncident, incident.Status, models.IncidentStatusResolved, actorID)
 		}()
 	}
+
+	// Push notification to the incident commander on resolution
+	if s.pushSvc != nil && s.pushSvc.IsEnabled() && incident.CommanderID != nil {
+		inc := *incident // capture a copy
+		go func() {
+			defer recoverAsyncPanic("sendPushIncidentResolved", "incident_id", inc.ID)
+			n := PushNotification{
+				Title: fmt.Sprintf("INC-%d resolved", inc.IncidentNumber),
+				Body:  inc.Title,
+				Data: map[string]string{
+					"event":           "incident_resolved",
+					"incident_id":     inc.ID.String(),
+					"incident_number": strconv.Itoa(inc.IncidentNumber),
+				},
+			}
+			if err := s.pushSvc.SendToUser(context.Background(), *inc.CommanderID, n); err != nil {
+				slog.Warn("push: failed to send resolved notification",
+					"incident_id", inc.ID, "err", err)
+			}
+		}()
+	}
+
 	return nil
 }
 

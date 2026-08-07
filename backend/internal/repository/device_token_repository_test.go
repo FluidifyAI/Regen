@@ -271,8 +271,9 @@ func TestDeviceTokenRepo_DeleteStale(t *testing.T) {
 	if len(tokens) != 1 {
 		t.Fatalf("expected 1 token remaining, got %d", len(tokens))
 	}
-	if tokens[0].Token != "" {
-		// Token field is json:"-" but still readable from DB scan in repo
+	// Verify the remaining token was scanned correctly (Token field is readable from DB even though json:"-")
+	if tokens[0].Token == "" {
+		t.Error("expected non-empty token after DeleteStale, got empty string")
 	}
 	// Verify it's the recent one (by checking that old one is gone)
 	// We can use CountByUserID as a proxy

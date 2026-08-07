@@ -100,6 +100,7 @@ type incidentService struct {
 	userRepo       repository.UserRepository     // Optional — for commander name resolution
 	scheduleRepo   repository.ScheduleRepository // Optional — for on-call auto-assign
 	evaluator      ScheduleEvaluator             // Optional — for on-call auto-assign
+	pushSvc        PushNotifier                  // Optional — nil when push notifications disabled
 }
 
 // NewIncidentService creates a new incident service

@@ -2,6 +2,16 @@
 
 All notable changes to Fluidify Regen are documented here.
 
+## [1.1.0] — 2026-08-08
+
+### Mobile
+
+- **Push notification infrastructure** — on-call engineers receive push alerts on Android and iOS (via Firebase Cloud Messaging). Set `GOOGLE_APPLICATION_CREDENTIALS` to a Firebase service account JSON to enable; omit it and nothing changes. (#155)
+  - Device token registration: `POST /api/v1/push/register` and `POST /api/v1/push/unregister`
+  - Triggers: incident created (on-call responder), escalation tier fired, incident resolved (commander)
+  - 20-token-per-user cap with automatic stale-token cleanup (90-day inactivity sweep)
+  - Foundation for OPE-235 (PWA) and OPE-236 (React Native app)
+
 ## [1.0.2] — 2026-08-01
 
 ### Bug fixes

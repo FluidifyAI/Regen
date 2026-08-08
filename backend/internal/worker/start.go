@@ -15,7 +15,8 @@ import (
 // teamsSvc is constructed once in serve.go and shared with the API router.
 // hooks.Retention is a no-op in the OSS build; the enterprise build provides
 // a real enforcer that purges data according to configured retention policies.
-func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, hooks enterprise.Hooks) {
+// pushSvc and deviceTokenRepo may be nil when push notifications are not configured.
+func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *services.TeamsService, hooks enterprise.Hooks, pushSvc services.PushNotifier, deviceTokenRepo repository.DeviceTokenRepository) {
 	// Initialize dependencies for the shift notifier
 	scheduleRepo := repository.NewScheduleRepository(db)
 	scheduleEvaluator := services.NewScheduleEvaluator(scheduleRepo)
@@ -59,6 +60,9 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *se
 	escalationWorker := NewEscalationWorker(workerChatService)
 	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, escalationWorker)
 	escalationWorker.SetEngine(escalationEngine)
+	if pushSvc != nil {
+		escalationWorker.SetPushService(pushSvc, repository.NewUserRepository(db))
+	}
 	go escalationWorker.Run(ctx)
 
 	// Retention enforcer — no-op in OSS, real implementation in enterprise build.
@@ -68,6 +72,13 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *se
 	holidaySvc := services.NewHolidayService(scheduleRepo)
 	holidayWorker := NewHolidayWorker(holidaySvc)
 	go holidayWorker.Run(ctx)
+
+	// Push cleanup worker — removes stale device tokens every 24 h.
+	if pushSvc != nil {
+		pushCleanup := NewPushCleanupWorker(deviceTokenRepo)
+		go pushCleanup.Run(ctx)
+		slog.Info("push cleanup worker started")
+	}
 
 	slog.Info("background workers started")
 }

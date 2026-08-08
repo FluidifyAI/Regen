@@ -29,7 +29,8 @@ import (
 // localAuth may be nil when local auth is not configured.
 // hooks contains enterprise extension points; OSS callers pass enterprise.NewNoOp().
 // announcementsGetter returns the cached announcement JSON from the telemetry worker.
-func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion string, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks, localAuth services.LocalAuthService, announcementsGetter func() []byte) {
+// deviceTokenRepo and pushSvc may be nil when push notifications are disabled.
+func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion string, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks, localAuth services.LocalAuthService, announcementsGetter func() []byte, deviceTokenRepo repository.DeviceTokenRepository, pushSvc services.PushNotifier) {
 	// Initialize repositories
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
@@ -110,6 +111,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 		if tgSvc := services.NewTelegramServiceFromConfig(tgCfg, cfg.FrontendURL); tgSvc != nil {
 			services.SetTelegramService(incidentSvc, tgSvc)
 		}
+	}
+
+	// Wire push notification service into incident service (optional — nil when Firebase not configured)
+	if pushSvc != nil {
+		services.SetPushService(incidentSvc, pushSvc)
+		slog.Info("push service wired into incident service")
 	}
 
 	// Slack event handler resolver — lazily initializes from DB config on first use.
@@ -458,6 +465,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 			settingsGroup.PATCH("/system", handlers.UpdateSystemSettings(systemSettingsRepo, aiSvc))
 			settingsGroup.POST("/system/ai/test", handlers.TestAIKey(systemSettingsRepo))
 			settingsGroup.PATCH("/system/telemetry", handlers.PatchTelemetrySettings(systemSettingsRepo))
+		}
+
+		// Push notification device token registration (OPE-234)
+		if deviceTokenRepo != nil {
+			protected.POST("/push/register",   handlers.RegisterDeviceToken(deviceTokenRepo))
+			protected.POST("/push/unregister", handlers.UnregisterDeviceToken(deviceTokenRepo))
 		}
 
 		// Custom fields — Pro tier; no-op returns 402 in OSS build.

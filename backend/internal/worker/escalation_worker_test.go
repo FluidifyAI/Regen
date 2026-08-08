@@ -2,10 +2,13 @@ package worker
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/google/uuid"
 )
@@ -181,4 +184,118 @@ func TestEscalationWorker_SendEscalationDM_IncludesTierInMessage(t *testing.T) {
 func TestEscalationWorker_ImplementsEscalationNotifier(t *testing.T) {
 	// Compile-time check: EscalationWorker must implement EscalationNotifier
 	var _ services.EscalationNotifier = &EscalationWorker{}
+}
+
+// ── Push trigger helpers and mocks ────────────────────────────────────────────
+
+type pushServiceCall struct {
+	UserID uuid.UUID
+	Notif  services.PushNotification
+}
+
+type mockPushService struct {
+	calls []pushServiceCall
+	mu    sync.Mutex
+}
+
+func (m *mockPushService) IsEnabled() bool { return true }
+func (m *mockPushService) SendToUser(_ context.Context, uid uuid.UUID, n services.PushNotification) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, pushServiceCall{uid, n})
+	return nil
+}
+
+var _ services.PushNotifier = &mockPushService{}
+
+// fakeUserRepo implements repository.UserRepository; only GetByEmail does real work.
+type fakeUserRepo struct {
+	user *models.User
+	err  error
+}
+
+func (f *fakeUserRepo) GetByEmail(_ string) (*models.User, error)          { return f.user, f.err }
+func (f *fakeUserRepo) GetBySubject(_ string) (*models.User, error)        { return nil, nil }
+func (f *fakeUserRepo) Upsert(_ context.Context, _ *models.User) error     { return nil }
+func (f *fakeUserRepo) UpdateLastLogin(_ uuid.UUID, _ time.Time) error     { return nil }
+func (f *fakeUserRepo) CreateLocal(_ *models.User) error                   { return nil }
+func (f *fakeUserRepo) ListAll() ([]models.User, error)                    { return nil, nil }
+func (f *fakeUserRepo) GetByID(_ uuid.UUID) (*models.User, error)          { return nil, nil }
+func (f *fakeUserRepo) Update(_ *models.User) error                        { return nil }
+func (f *fakeUserRepo) Count() (int64, error)                              { return 0, nil }
+func (f *fakeUserRepo) CountByRole(_ models.UserRole) (int64, error)       { return 0, nil }
+func (f *fakeUserRepo) Deactivate(_ uuid.UUID) error                       { return nil }
+func (f *fakeUserRepo) CreateAgent(_ *models.User) error                   { return nil }
+func (f *fakeUserRepo) SetActive(_ uuid.UUID, _ bool) error                { return nil }
+func (f *fakeUserRepo) ListAgents() ([]models.User, error)                 { return nil, nil }
+func (f *fakeUserRepo) GetBySlackUserID(_ string) (*models.User, error)    { return nil, nil }
+func (f *fakeUserRepo) GetByTeamsUserID(_ string) (*models.User, error)    { return nil, nil }
+func (f *fakeUserRepo) RestoreAgent(_ uuid.UUID) error                     { return nil }
+
+var _ repository.UserRepository = &fakeUserRepo{}
+
+// ── Push trigger tests ────────────────────────────────────────────────────────
+
+func TestEscalationWorker_SendEscalationDM_PushSentWhenConfigured(t *testing.T) {
+	chat := &mockChatForWorker{}
+	worker := newWorkerWithEngine(&mockEscalationEngineForWorker{}, chat)
+
+	userID := uuid.New()
+	push := &mockPushService{}
+	userRepo := &fakeUserRepo{user: &models.User{ID: userID, Email: "alice@example.com"}}
+
+	worker.SetPushService(push, userRepo) // RED: method does not exist yet
+
+	alert := &models.Alert{ID: uuid.New(), Title: "High CPU", Severity: models.AlertSeverityCritical}
+	if err := worker.SendEscalationDM("alice@example.com", alert, 0); err != nil {
+		t.Fatalf("SendEscalationDM failed: %v", err)
+	}
+
+	push.mu.Lock()
+	defer push.mu.Unlock()
+	if len(push.calls) != 1 {
+		t.Fatalf("expected 1 push call, got %d", len(push.calls))
+	}
+	if push.calls[0].UserID != userID {
+		t.Errorf("push sent to %s, want %s", push.calls[0].UserID, userID)
+	}
+	if push.calls[0].Notif.Data["event"] != "escalation_paged" {
+		t.Errorf("expected event=escalation_paged, got %q", push.calls[0].Notif.Data["event"])
+	}
+}
+
+func TestEscalationWorker_SendEscalationDM_NoPushWhenPushSvcNil(t *testing.T) {
+	chat := &mockChatForWorker{}
+	worker := newWorkerWithEngine(&mockEscalationEngineForWorker{}, chat)
+	// No SetPushService call — pushSvc is nil
+
+	alert := &models.Alert{ID: uuid.New(), Title: "Disk full", Severity: models.AlertSeverityWarning}
+	if err := worker.SendEscalationDM("bob@example.com", alert, 1); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Slack DM should still be sent
+	if len(chat.dms) != 1 {
+		t.Errorf("expected 1 Slack DM, got %d", len(chat.dms))
+	}
+}
+
+func TestEscalationWorker_SendEscalationDM_PushSkippedWhenUserNotFound(t *testing.T) {
+	chat := &mockChatForWorker{}
+	worker := newWorkerWithEngine(&mockEscalationEngineForWorker{}, chat)
+
+	push := &mockPushService{}
+	userRepo := &fakeUserRepo{user: nil, err: errors.New("user not found")}
+
+	worker.SetPushService(push, userRepo)
+
+	alert := &models.Alert{ID: uuid.New(), Title: "OOM", Severity: models.AlertSeverityCritical}
+	if err := worker.SendEscalationDM("unknown@example.com", alert, 0); err != nil {
+		t.Fatalf("SendEscalationDM should not return error when user not found: %v", err)
+	}
+
+	push.mu.Lock()
+	defer push.mu.Unlock()
+	if len(push.calls) != 0 {
+		t.Errorf("expected 0 push calls when user not found, got %d", len(push.calls))
+	}
 }

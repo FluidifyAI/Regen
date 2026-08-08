@@ -35,6 +35,12 @@ type unregisterTokenRequest struct {
 // Returns 204 on success, 422 on validation failure, 429 when the token cap is reached.
 func RegisterDeviceToken(repo repository.DeviceTokenRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		user := middleware.GetLocalUser(c)
+		if user == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
 		var req registerTokenRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "invalid request body"})
@@ -65,12 +71,6 @@ func RegisterDeviceToken(repo repository.DeviceTokenRepository) gin.HandlerFunc 
 			return
 		}
 
-		user := middleware.GetLocalUser(c)
-		if user == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-			return
-		}
-
 		if err := repo.Upsert(user.ID, req.Token, req.Platform, req.AppVersion); err != nil {
 			if errors.Is(err, repository.ErrTokenLimitExceeded) {
 				c.JSON(http.StatusTooManyRequests, gin.H{"error": "token_limit_exceeded"})
@@ -92,6 +92,12 @@ func RegisterDeviceToken(repo repository.DeviceTokenRepository) gin.HandlerFunc 
 // token was not registered.
 func UnregisterDeviceToken(repo repository.DeviceTokenRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		user := middleware.GetLocalUser(c)
+		if user == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
 		var req unregisterTokenRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "invalid request body"})
@@ -100,12 +106,6 @@ func UnregisterDeviceToken(repo repository.DeviceTokenRepository) gin.HandlerFun
 
 		if req.Token == "" {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "token is required"})
-			return
-		}
-
-		user := middleware.GetLocalUser(c)
-		if user == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
 

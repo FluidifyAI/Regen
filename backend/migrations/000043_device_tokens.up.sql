@@ -11,3 +11,4 @@ CREATE TABLE device_tokens (
 
 CREATE INDEX idx_device_tokens_user_id   ON device_tokens (user_id);
 CREATE INDEX idx_device_tokens_last_seen ON device_tokens (last_seen_at);
+CREATE INDEX idx_device_tokens_token     ON device_tokens (token);

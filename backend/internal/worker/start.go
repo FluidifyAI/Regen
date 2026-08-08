@@ -77,7 +77,6 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *se
 	if pushSvc != nil {
 		pushCleanup := NewPushCleanupWorker(deviceTokenRepo)
 		go pushCleanup.Run(ctx)
-		slog.Info("push cleanup worker started")
 	}
 
 	slog.Info("background workers started")

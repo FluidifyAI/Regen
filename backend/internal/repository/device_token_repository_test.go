@@ -1,6 +1,7 @@
 package repository_test
 
 import (
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"testing"
@@ -177,9 +178,8 @@ func TestDeviceTokenRepo_UpsertLimitExceeded(t *testing.T) {
 	}
 }
 
-// isErrTokenLimitExceeded uses errors.Is semantics via the exported sentinel.
 func isErrTokenLimitExceeded(err error) bool {
-	return err != nil && err.Error() == repository.ErrTokenLimitExceeded.Error()
+	return errors.Is(err, repository.ErrTokenLimitExceeded)
 }
 
 func TestDeviceTokenRepo_DeleteByUserAndToken(t *testing.T) {

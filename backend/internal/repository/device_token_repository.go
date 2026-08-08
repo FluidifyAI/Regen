@@ -56,6 +56,16 @@ func NewDeviceTokenRepository(db *gorm.DB) DeviceTokenRepository {
 
 func (r *deviceTokenRepository) Upsert(userID uuid.UUID, token, platform, appVersion string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Lock the user row for the duration of the transaction to serialize concurrent
+		// Upsert calls for the same user. Without this, two goroutines can both pass
+		// the 20-token count check before either inserts, bypassing the cap.
+		// FOR UPDATE is PostgreSQL-only; SQLite (used in tests) does not support it.
+		if tx.Dialector.Name() == "postgres" {
+			if err := tx.Exec("SELECT id FROM users WHERE id = ? FOR UPDATE", userID).Error; err != nil {
+				return &DatabaseError{Op: "upsert device_token: lock user row", Err: err}
+			}
+		}
+
 		// Check whether this exact (user_id, token) pair already exists.
 		var existing int64
 		if err := tx.Model(&models.DeviceToken{}).

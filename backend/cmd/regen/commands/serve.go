@@ -139,6 +139,17 @@ func runServe(_ *cobra.Command, _ []string) error {
 		}
 	}
 
+	// Initialize push notification infrastructure (Firebase — optional).
+	// deviceTokenRepo is always constructed so push routes can be registered regardless.
+	deviceTokenRepo := repository.NewDeviceTokenRepository(database.DB)
+	var pushSvc services.PushNotifier
+	if rawPushSvc, initErr := services.NewPushService(cfg.GoogleApplicationCredentials, deviceTokenRepo); initErr != nil {
+		slog.Error("push: failed to init Firebase; push notifications disabled", "err", initErr)
+	} else if rawPushSvc != nil {
+		pushSvc = rawPushSvc
+		slog.Info("push notifications enabled (Firebase)")
+	}
+
 	// Initialize user and session repositories for local auth and SAML JIT provisioning.
 	userRepo := repository.NewUserRepository(database.DB)
 	sessionRepo := repository.NewLocalSessionRepository(database.DB)
@@ -191,9 +202,9 @@ func runServe(_ *cobra.Command, _ []string) error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
-	api.SetupRoutes(router, database.DB, cfg, version, teamsSvc, samlMiddleware, enterpriseHooks, localAuthSvc, telemetryWorker.GetCachedAnnouncements)
+	api.SetupRoutes(router, database.DB, cfg, version, teamsSvc, samlMiddleware, enterpriseHooks, localAuthSvc, telemetryWorker.GetCachedAnnouncements, deviceTokenRepo, pushSvc)
 
-	worker.StartAll(appCtx, database.DB, cfg, teamsSvc, enterpriseHooks)
+	worker.StartAll(appCtx, database.DB, cfg, teamsSvc, enterpriseHooks, pushSvc, deviceTokenRepo)
 
 	// Start the AI coordinator.
 	pmAgentUser, pmAgentErr := userRepo.GetByEmail(coordinator.PostMortemAgentEmail)

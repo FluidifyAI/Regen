@@ -2,11 +2,14 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
 
@@ -25,8 +28,10 @@ const (
 // into NewEscalationEngine as the notification sink.
 type EscalationWorker struct {
 	engine      services.EscalationEngine
-	chatService services.ChatService // nil → DM sends are graceful no-ops
+	chatService services.ChatService     // nil → DM sends are graceful no-ops
 	msgBuilder  *services.SlackMessageBuilder
+	pushSvc     services.PushNotifier   // nil → push disabled
+	userRepo    repository.UserRepository // nil → push disabled (can't resolve UUID)
 }
 
 // NewEscalationWorker creates a new EscalationWorker.
@@ -45,6 +50,13 @@ func NewEscalationWorker(chatService services.ChatService) *EscalationWorker {
 // the worker needs an EscalationEngine.
 func (w *EscalationWorker) SetEngine(engine services.EscalationEngine) {
 	w.engine = engine
+}
+
+// SetPushService wires an optional push notification service into the worker.
+// When set, SendEscalationDM will also send a push notification to the paged user.
+func (w *EscalationWorker) SetPushService(pushSvc services.PushNotifier, userRepo repository.UserRepository) {
+	w.pushSvc = pushSvc
+	w.userRepo = userRepo
 }
 
 // Run starts the evaluation loop and blocks until ctx is cancelled.
@@ -103,5 +115,31 @@ func (w *EscalationWorker) SendEscalationDM(userID string, alert *models.Alert, 
 
 	slog.Info("escalation DM sent",
 		"user_id", userID, "alert_id", alertIDStr, "tier", tierIndex)
+
+	// Push notification — resolve the on-call identifier to a UUID via user repo
+	if w.pushSvc != nil && w.pushSvc.IsEnabled() && w.userRepo != nil {
+		userRecord, lookupErr := w.userRepo.GetByEmail(userID)
+		if lookupErr != nil {
+			slog.Debug("push: could not resolve escalation target by email, skipping push",
+				"err", lookupErr)
+		} else {
+			var alertTitle string
+			if alert != nil {
+				alertTitle = alert.Title
+			}
+			n := services.PushNotification{
+				Title: fmt.Sprintf("You are being paged (tier %d)", tierIndex+1),
+				Body:  alertTitle,
+				Data: map[string]string{
+					"event":      "escalation_paged",
+					"tier_index": strconv.Itoa(tierIndex),
+				},
+			}
+			if pushErr := w.pushSvc.SendToUser(context.Background(), userRecord.ID, n); pushErr != nil {
+				slog.Warn("push: escalation push failed", "user_id", userRecord.ID, "err", pushErr)
+			}
+		}
+	}
+
 	return nil
 }

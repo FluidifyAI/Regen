@@ -47,6 +47,12 @@ func GetVAPIDPublicKey(vapidPublicKey string) gin.HandlerFunc {
 // 503 when Web Push is not configured.
 func RegisterWebPushSubscription(repo repository.WebPushSubscriptionRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		user := middleware.GetLocalUser(c)
+		if user == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
 		var req registerWebPushRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "invalid request body"})
@@ -87,12 +93,6 @@ func RegisterWebPushSubscription(repo repository.WebPushSubscriptionRepository) 
 			return
 		}
 
-		user := middleware.GetLocalUser(c)
-		if user == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-			return
-		}
-
 		if err := repo.Upsert(user.ID, req.Endpoint, req.Keys.P256DH, req.Keys.Auth); err != nil {
 			if errors.Is(err, repository.ErrTokenLimitExceeded) {
 				c.JSON(http.StatusTooManyRequests, gin.H{"error": "token_limit_exceeded"})
@@ -114,6 +114,12 @@ func RegisterWebPushSubscription(repo repository.WebPushSubscriptionRepository) 
 // even if the subscription was not registered.
 func UnregisterWebPushSubscription(repo repository.WebPushSubscriptionRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		user := middleware.GetLocalUser(c)
+		if user == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
 		var req unregisterWebPushRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "invalid request body"})
@@ -122,12 +128,6 @@ func UnregisterWebPushSubscription(repo repository.WebPushSubscriptionRepository
 
 		if req.Endpoint == "" {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "endpoint is required"})
-			return
-		}
-
-		user := middleware.GetLocalUser(c)
-		if user == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
 

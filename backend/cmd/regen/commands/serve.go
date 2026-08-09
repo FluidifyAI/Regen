@@ -142,13 +142,27 @@ func runServe(_ *cobra.Command, _ []string) error {
 	// Initialize push notification infrastructure (Firebase — optional).
 	// deviceTokenRepo is always constructed so push routes can be registered regardless.
 	deviceTokenRepo := repository.NewDeviceTokenRepository(database.DB)
-	var pushSvc services.PushNotifier
+	var fcmPushSvc services.PushNotifier
 	if rawPushSvc, initErr := services.NewPushService(cfg.GoogleApplicationCredentials, deviceTokenRepo); initErr != nil {
-		slog.Error("push: failed to init Firebase; push notifications disabled", "err", initErr)
+		slog.Error("push: failed to init Firebase; FCM push notifications disabled", "err", initErr)
 	} else if rawPushSvc != nil {
-		pushSvc = rawPushSvc
+		fcmPushSvc = rawPushSvc
 		slog.Info("push notifications enabled (Firebase)")
 	}
+
+	// Initialize Web Push (VAPID) infrastructure (optional).
+	// webPushRepo is always constructed so push routes can be registered regardless.
+	webPushRepo := repository.NewWebPushSubscriptionRepository(database.DB)
+	webPushSvc, webPushInitErr := services.NewWebPushService(cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubscriber, webPushRepo)
+	if webPushInitErr != nil {
+		return fmt.Errorf("web push: %w", webPushInitErr)
+	}
+	if webPushSvc != nil {
+		slog.Info("web push notifications enabled (VAPID)")
+	}
+
+	// Combine FCM and Web Push into a single fanout notifier.
+	pushSvc := services.NewFanoutPushNotifier(fcmPushSvc, webPushSvc)
 
 	// Initialize user and session repositories for local auth and SAML JIT provisioning.
 	userRepo := repository.NewUserRepository(database.DB)
@@ -202,7 +216,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
-	api.SetupRoutes(router, database.DB, cfg, version, teamsSvc, samlMiddleware, enterpriseHooks, localAuthSvc, telemetryWorker.GetCachedAnnouncements, deviceTokenRepo, pushSvc)
+	api.SetupRoutes(router, database.DB, cfg, version, teamsSvc, samlMiddleware, enterpriseHooks, localAuthSvc, telemetryWorker.GetCachedAnnouncements, deviceTokenRepo, pushSvc, webPushRepo, cfg.VAPIDPublicKey)
 
 	worker.StartAll(appCtx, database.DB, cfg, teamsSvc, enterpriseHooks, pushSvc, deviceTokenRepo)
 

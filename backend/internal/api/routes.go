@@ -30,7 +30,7 @@ import (
 // hooks contains enterprise extension points; OSS callers pass enterprise.NewNoOp().
 // announcementsGetter returns the cached announcement JSON from the telemetry worker.
 // deviceTokenRepo and pushSvc may be nil when push notifications are disabled.
-func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion string, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks, localAuth services.LocalAuthService, announcementsGetter func() []byte, deviceTokenRepo repository.DeviceTokenRepository, pushSvc services.PushNotifier) {
+func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion string, teamsSvc *services.TeamsService, samlMiddleware *samlsp.Middleware, hooks enterprise.Hooks, localAuth services.LocalAuthService, announcementsGetter func() []byte, deviceTokenRepo repository.DeviceTokenRepository, pushSvc services.PushNotifier, webPushRepo repository.WebPushSubscriptionRepository, vapidPublicKey string) {
 	// Initialize repositories
 	alertRepo := repository.NewAlertRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
@@ -471,6 +471,14 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 		if deviceTokenRepo != nil {
 			protected.POST("/push/register",   handlers.RegisterDeviceToken(deviceTokenRepo))
 			protected.POST("/push/unregister", handlers.UnregisterDeviceToken(deviceTokenRepo))
+		}
+
+		// Web Push (VAPID) subscription management (OPE-235)
+		// vapidPublicKey is empty when Web Push is not configured — GetVAPIDPublicKey returns 503.
+		protected.GET("/push/vapid-public-key", handlers.GetVAPIDPublicKey(vapidPublicKey))
+		if webPushRepo != nil {
+			protected.POST("/push/web/register",   handlers.RegisterWebPushSubscription(webPushRepo))
+			protected.POST("/push/web/unregister", handlers.UnregisterWebPushSubscription(webPushRepo))
 		}
 
 		// Custom fields — Pro tier; no-op returns 402 in OSS build.

@@ -80,6 +80,13 @@ type Config struct {
 
 	// Firebase / Push Notifications (optional — push disabled when empty)
 	GoogleApplicationCredentials string // GOOGLE_APPLICATION_CREDENTIALS — path to Firebase service account JSON
+
+	// Web Push / VAPID (optional — web push disabled when both keys are empty)
+	// Both keys must be set together or not at all; exactly one set is a startup error.
+	// Generate with: npx web-push generate-vapid-keys
+	VAPIDPublicKey  string // VAPID_PUBLIC_KEY  — base64url-encoded; safe to expose to the frontend
+	VAPIDPrivateKey string // VAPID_PRIVATE_KEY — base64url-encoded; never log or return in any response
+	VAPIDSubscriber string // VAPID_SUBSCRIBER  — mailto: or https: contact URI for VAPID JWT
 }
 
 // Load reads configuration from environment variables
@@ -151,6 +158,11 @@ func Load() (*Config, error) {
 
 		// Firebase / Push Notifications
 		GoogleApplicationCredentials: getEnv("GOOGLE_APPLICATION_CREDENTIALS", ""),
+
+		// Web Push / VAPID
+		VAPIDPublicKey:  getEnv("VAPID_PUBLIC_KEY", ""),
+		VAPIDPrivateKey: getEnv("VAPID_PRIVATE_KEY", ""),
+		VAPIDSubscriber: getEnv("VAPID_SUBSCRIBER", "mailto:admin@regen.local"),
 	}
 
 	// Validate required configuration

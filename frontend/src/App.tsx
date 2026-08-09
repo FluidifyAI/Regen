@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { GlobalSearch } from './components/GlobalSearch'
 import { AuthGate } from './components/auth/AuthGate'
 import { AppLayout } from './components/layout/AppLayout'
+import { InstallPrompt } from './components/InstallPrompt'
 import { LoginPage } from './pages/LoginPage'
 import { HomePage } from './pages/HomePage'
 import { IncidentsListPage } from './pages/IncidentsListPage'
@@ -47,10 +48,28 @@ function App() {
     }
   }, [])
 
+  // Register the service worker on first load (production only).
+  useEffect(() => {
+    if ('serviceWorker' in navigator && import.meta.env.PROD) {
+      navigator.serviceWorker
+        .register('/sw.js', { scope: '/' })
+        .then((reg) => {
+          if (import.meta.env.DEV) {
+            console.log('[sw] registered', reg.scope)
+          }
+        })
+        .catch((err) => {
+          console.error('[sw] registration failed', err)
+        })
+    }
+  }, [])
+
   return (
     <BrowserRouter>
       <AuthProvider>
         <GlobalSearch isOpen={showSearch} onClose={() => setShowSearch(false)} />
+        {/* PWA install banner — only rendered on mobile when browser supports it */}
+        <InstallPrompt />
         <AuthGate>
           <Routes>
             <Route path="/login" element={<LoginPage />} />

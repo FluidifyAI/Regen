@@ -44,12 +44,13 @@ export function OnCallPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Tab bar header */}
-      <div className="flex-shrink-0 border-b border-border bg-surface-primary px-6 pt-4">
-        <h1 className="text-2xl font-semibold text-text-primary">On-call</h1>
-        <p className="text-sm text-text-tertiary mt-0.5">
+      <div className="flex-shrink-0 border-b border-border bg-surface-primary px-4 sm:px-6 pt-4">
+        <h1 className="text-xl sm:text-2xl font-semibold text-text-primary">On-call</h1>
+        <p className="hidden sm:block text-sm text-text-tertiary mt-0.5">
           Manage schedules, escalation paths{isAdmin ? ', and alert routing' : ''} for your team.
         </p>
-        <nav className="flex gap-0 mt-3 -mb-px" aria-label="On-call sections">
+        {/* Tabs — overflow-x-auto allows horizontal scrolling on narrow viewports */}
+        <nav className="flex gap-0 mt-3 -mb-px overflow-x-auto" aria-label="On-call sections">
           {tabs.map((tab) => {
             const Icon = tab.icon
             return (
@@ -57,7 +58,7 @@ export function OnCallPage() {
                 key={tab.id}
                 to={tab.href}
                 className={`
-                  flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
+                  flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
                   ${
                     activeTab === tab.id
                       ? 'border-brand-primary text-brand-primary'

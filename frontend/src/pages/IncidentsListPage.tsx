@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { IncidentTable } from '../components/incidents/IncidentTable'
+import { IncidentCard } from '../components/incidents/IncidentCard'
 import { CreateIncidentModal } from '../components/incidents/CreateIncidentModal'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import { EmptyIncidentsList } from '../components/ui/EmptyState'
@@ -60,20 +61,23 @@ export function IncidentsListPage() {
         onClose={() => setShowCreateModal(false)}
         onCreated={handleIncidentCreated}
       />
+
       {/* Page Header */}
-      <div className="border-b border-border bg-surface-primary px-6 py-4">
+      <div className="border-b border-border bg-surface-primary px-4 sm:px-6 py-4">
+        {/* Title row — stacks on mobile */}
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-semibold text-text-primary">Incidents</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-text-primary">Incidents</h1>
           <Button variant="primary" onClick={handleDeclareIncident}>
             <Plus className="w-4 h-4" />
-            Declare incident
+            <span className="hidden sm:inline">Declare incident</span>
+            <span className="sm:hidden">Declare</span>
           </Button>
         </div>
 
-        {/* Filters and Search */}
-        <div className="flex items-center gap-3">
-          {/* Search */}
-          <div className="relative flex-1 max-w-md">
+        {/* Filters and Search — stack on mobile, row on sm+ */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          {/* Search — full width on mobile, capped on desktop */}
+          <div className="relative flex-1 sm:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
             <input
               type="text"
@@ -84,34 +88,35 @@ export function IncidentsListPage() {
             />
           </div>
 
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
-          >
-            <option value="">All statuses</option>
-            <option value="triggered">Triggered</option>
-            <option value="acknowledged">Acknowledged</option>
-            <option value="resolved">Resolved</option>
-            <option value="canceled">Canceled</option>
-          </select>
+          {/* Status + Severity filters side-by-side on mobile */}
+          <div className="flex items-center gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="flex-1 sm:flex-none px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+            >
+              <option value="">All statuses</option>
+              <option value="triggered">Triggered</option>
+              <option value="acknowledged">Acknowledged</option>
+              <option value="resolved">Resolved</option>
+              <option value="canceled">Canceled</option>
+            </select>
 
-          {/* Severity Filter */}
-          <select
-            value={severityFilter}
-            onChange={(e) => setSeverityFilter(e.target.value)}
-            className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
-          >
-            <option value="">All severities</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
+            <select
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value)}
+              className="flex-1 sm:flex-none px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+            >
+              <option value="">All severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
 
-          {/* Results Count */}
-          <div className="text-sm text-text-secondary">
+          {/* Results Count — hidden on small screens to save space */}
+          <div className="hidden sm:block text-sm text-text-secondary">
             {loading ? '...' : searchQuery
               ? `${filteredIncidents.length} result${filteredIncidents.length !== 1 ? 's' : ''}`
               : `${pageStart}–${pageEnd} of ${total}`
@@ -121,7 +126,7 @@ export function IncidentsListPage() {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {loading && <SkeletonTable rows={10} />}
 
         {!loading && error && (
@@ -137,15 +142,25 @@ export function IncidentsListPage() {
 
         {!loading && !error && filteredIncidents.length > 0 && (
           <>
-            <IncidentTable incidents={filteredIncidents} />
+            {/* Mobile: card list */}
+            <div className="flex flex-col gap-3 sm:hidden">
+              {filteredIncidents.map((incident) => (
+                <IncidentCard key={incident.id} incident={incident} />
+              ))}
+            </div>
+
+            {/* Desktop: full table */}
+            <div className="hidden sm:block">
+              <IncidentTable incidents={filteredIncidents} />
+            </div>
 
             {/* Pagination — only shown when not in search mode and there are multiple pages */}
             {!searchQuery && totalPages > 1 && (
               <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
-                <span className="text-sm text-text-secondary">
+                <span className="hidden sm:block text-sm text-text-secondary">
                   Showing {pageStart}–{pageEnd} of {total} incidents
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
                   <button
                     onClick={() => setCurrentPage((p) => p - 1)}
                     disabled={currentPage === 1}

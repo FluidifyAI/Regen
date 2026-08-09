@@ -1028,6 +1028,7 @@ function OverridesTable({ scheduleId, overrides, onDeleted, onAdd, toast }: Over
       {overrides.length === 0 ? (
         <p className="text-sm text-text-tertiary italic">No overrides.</p>
       ) : (
+        <div className="overflow-x-auto">
         <div className="bg-white border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -1087,6 +1088,7 @@ function OverridesTable({ scheduleId, overrides, onDeleted, onAdd, toast }: Over
               })}
             </tbody>
           </table>
+        </div>
         </div>
       )}
     </div>
@@ -1286,6 +1288,7 @@ function UnavailabilitiesTable({ scheduleId, unavailabilities, onDeleted, onAdd,
       {unavailabilities.length === 0 ? (
         <p className="text-sm text-text-tertiary italic">No unavailabilities.</p>
       ) : (
+        <div className="overflow-x-auto">
         <div className="bg-white border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -1343,6 +1346,7 @@ function UnavailabilitiesTable({ scheduleId, unavailabilities, onDeleted, onAdd,
               })}
             </tbody>
           </table>
+        </div>
         </div>
       )}
     </div>
@@ -1447,6 +1451,79 @@ function LayerCard({ scheduleId, layer, currentOnCallUser, onDeleted, onEdit, to
       ) : (
         <p className="text-xs text-text-tertiary italic">No participants configured.</p>
       )}
+    </div>
+  )
+}
+
+// ─── 7-day mobile list ───────────────────────────────────────────────────────
+
+interface SevenDayListProps {
+  effectiveSegments: TimelineSegment[]
+  holidays: ScheduleHoliday[]
+  onDayClick: (date: Date) => void
+}
+
+function SevenDayList({ effectiveSegments, holidays, onDayClick }: SevenDayListProps) {
+  const days: Date[] = []
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today)
+    d.setDate(today.getDate() + i)
+    days.push(d)
+  }
+
+  const dayLabel = (d: Date) =>
+    d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+
+  const onCallAt = (d: Date): string | null => {
+    const mid = new Date(d)
+    mid.setHours(12, 0, 0, 0)
+    const iso = mid.toISOString()
+    const seg = effectiveSegments.find(s => s.start <= iso && s.end > iso)
+    return seg?.user_name ?? null
+  }
+
+  const holidayOn = (d: Date): string | null => {
+    const ds = localDateStr(d)
+    return holidays.find(h => h.date === ds)?.name ?? null
+  }
+
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-semibold text-text-primary">Next 7 days</h2>
+      {days.map((d, i) => {
+        const user = onCallAt(d)
+        const holiday = holidayOn(d)
+        const isToday = i === 0
+        return (
+          <button
+            key={d.toISOString()}
+            onClick={() => onDayClick(d)}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${
+              isToday ? 'border-brand-primary bg-brand-primary-light' : 'border-border bg-white hover:bg-surface-secondary'
+            }`}
+          >
+            <span className={`text-sm font-medium w-28 flex-shrink-0 ${isToday ? 'text-brand-primary' : 'text-text-secondary'}`}>
+              {dayLabel(d)}
+            </span>
+            {user ? (
+              <span className="flex items-center gap-1.5 flex-1 min-w-0">
+                <span
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: segmentBg(user), border: `1px solid ${segmentText(user)}` }}
+                />
+                <span className="text-sm text-text-primary truncate">{user}</span>
+              </span>
+            ) : (
+              <span className="text-sm text-text-tertiary italic flex-1">No one</span>
+            )}
+            {holiday && (
+              <span className="text-xs text-amber-700 truncate max-w-[120px] flex-shrink-0">{holiday}</span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -1637,7 +1714,7 @@ export function ScheduleDetailPage() {
       )}
 
       {/* Page Header */}
-      <div className="border-b border-border bg-surface-primary px-6 py-4">
+      <div className="border-b border-border bg-surface-primary px-4 sm:px-6 py-4">
         <div className="flex items-center gap-2 text-sm text-text-secondary mb-2">
           <Link to="/on-call/schedules" className="hover:text-text-primary transition-colors">On-call</Link>
           <ChevronRight className="w-3.5 h-3.5" />
@@ -1645,7 +1722,7 @@ export function ScheduleDetailPage() {
         </div>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-text-primary">{schedule.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-text-primary">{schedule.name}</h1>
             <div className="flex items-center gap-3 mt-1">
               <span className="text-sm text-text-secondary font-mono">{schedule.timezone}</span>
               {schedule.description && (
@@ -1667,7 +1744,7 @@ export function ScheduleDetailPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-8">
 
         {/* Current on-call card */}
         <div className={`rounded-xl border-2 p-5 flex items-center gap-4 ${
@@ -1744,16 +1821,25 @@ export function ScheduleDetailPage() {
           </div>
         </div>
 
-        {/* Shift calendar */}
-        <GanttCalendar
-          rows={ganttRows}
-          windowStart={windowStart}
-          days={GANTT_DAYS}
-          onNavigate={setWindowStart}
-          onDayClick={handleDayClick}
-          holidays={holidays.map(h => ({ date: h.date, name: h.name, countryCode: h.country_code }))}
-          scheduleTimezone={schedule.timezone}
-        />
+        {/* Shift calendar — full Gantt on desktop, 7-day list on mobile */}
+        <div className="hidden sm:block">
+          <GanttCalendar
+            rows={ganttRows}
+            windowStart={windowStart}
+            days={GANTT_DAYS}
+            onNavigate={setWindowStart}
+            onDayClick={handleDayClick}
+            holidays={holidays.map(h => ({ date: h.date, name: h.name, countryCode: h.country_code }))}
+            scheduleTimezone={schedule.timezone}
+          />
+        </div>
+        <div className="sm:hidden">
+          <SevenDayList
+            effectiveSegments={layerTimelines?.effective ?? []}
+            holidays={holidays}
+            onDayClick={handleDayClick}
+          />
+        </div>
 
         {/* Overrides */}
         <OverridesTable

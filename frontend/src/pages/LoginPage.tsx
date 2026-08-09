@@ -345,7 +345,7 @@ export function LoginPage() {
       </div>
 
       {/* ── Right: login form ── */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto bg-[#f8fafc]">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 overflow-y-auto bg-[#f8fafc]">
         <motion.div
           className="w-full max-w-sm"
           initial={{ opacity: 0, y: 24 }}
@@ -354,13 +354,13 @@ export function LoginPage() {
         >
           {/* Card */}
           <div
-            className="rounded-2xl border border-[#f0d0dc] bg-white p-10"
+            className="rounded-2xl border border-[#f0d0dc] bg-white p-6 sm:p-10"
             style={{
               boxShadow: '0 1px 3px rgba(240,98,146,0.06), 0 20px 40px rgba(176,43,82,0.10)',
             }}
           >
             {/* Logo */}
-            <div className="flex flex-col items-center mb-10">
+            <div className="flex flex-col items-center mb-6 sm:mb-10">
               <img
                 src={LOGO_ICON_DATA_URI}
                 alt="Fluidify Regen"

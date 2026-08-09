@@ -53,7 +53,7 @@ func (r *webPushSubscriptionRepository) Upsert(userID uuid.UUID, endpoint, p256d
 		// Upsert calls for the same user. Without this, two goroutines can both pass
 		// the 20-subscription count check before either inserts, bypassing the cap.
 		// FOR UPDATE is PostgreSQL-only; SQLite (used in tests) does not support it.
-		if tx.Dialector.Name() == "postgres" {
+		if tx.Name() == "postgres" {
 			if err := tx.Exec("SELECT id FROM users WHERE id = ? FOR UPDATE", userID).Error; err != nil {
 				return &DatabaseError{Op: "upsert web_push_subscription: lock user row", Err: err}
 			}

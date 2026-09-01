@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from './ui/Button'
+import { reportError } from '../lib/telemetry'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -27,6 +28,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo)
+    void reportError(error, errorInfo.componentStack ?? undefined)
   }
 
   handleReload = () => {

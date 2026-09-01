@@ -144,6 +144,9 @@ test:
 	@echo "Running backend tests..."
 	@cd backend && go test -race -coverprofile=coverage.out ./...
 	@echo ""
+	@echo "Running frontend tests..."
+	@cd frontend && npm test
+	@echo ""
 	@echo "Running frontend build (tsc + vite)..."
 	@cd frontend && npm run build
 	@echo ""

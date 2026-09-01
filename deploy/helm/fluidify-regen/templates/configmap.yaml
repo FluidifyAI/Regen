@@ -19,3 +19,12 @@ data:
   {{- if .Values.config.slackAutoInviteUserIDs }}
   SLACK_AUTO_INVITE_USER_IDS: {{ .Values.config.slackAutoInviteUserIDs | quote }}
   {{- end }}
+  {{- if .Values.tracing.otlpExporterEndpoint }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.tracing.otlpExporterEndpoint | quote }}
+  {{- end }}
+  {{- if .Values.tracing.tracesSampler }}
+  OTEL_TRACES_SAMPLER: {{ .Values.tracing.tracesSampler | quote }}
+  {{- end }}
+  {{- if .Values.tracing.tracesSamplerArg }}
+  OTEL_TRACES_SAMPLER_ARG: {{ .Values.tracing.tracesSamplerArg | quote }}
+  {{- end }}

@@ -12,6 +12,8 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -33,6 +35,15 @@ type EscalationWorker struct {
 	msgBuilder  *services.SlackMessageBuilder
 	pushSvc     services.PushNotifier     // nil → push disabled
 	userRepo    repository.UserRepository // nil → push disabled (can't resolve UUID)
+
+	// tracer defaults to observability.Tracer() (the shared "regen" tracer).
+	// SendEscalationDM has no ctx to thread a span through — it implements
+	// services.EscalationNotifier, called deep inside EscalationEngine, which
+	// has no ctx parameter on its public interface (see REG-13) — so it
+	// starts its own root span here, same shape as StartWorkerTick. A field
+	// rather than always reading the global lets tests inject an isolated
+	// TracerProvider instead of mutating global otel state (see REG-7).
+	tracer trace.Tracer
 }
 
 // NewEscalationWorker creates a new EscalationWorker.
@@ -42,6 +53,7 @@ func NewEscalationWorker(chatService services.ChatService) *EscalationWorker {
 	return &EscalationWorker{
 		chatService: chatService,
 		msgBuilder:  services.NewSlackMessageBuilder(),
+		tracer:      observability.Tracer(),
 	}
 }
 
@@ -111,6 +123,17 @@ func (w *EscalationWorker) tick() {
 // If chatService is nil, the call is a no-op (Slack not configured).
 // alert may be nil for incident-sourced escalations.
 func (w *EscalationWorker) SendEscalationDM(userID string, alert *models.Alert, tierIndex int) error {
+	// No ctx to thread a span through here (see the tracer field's doc
+	// comment) — a fresh root span, tagged with whether a page actually went
+	// out, is what the collector's tail-sampling policy (REG-15) matches on
+	// to keep 100% of traces that send a page.
+	_, span := w.tracer.Start(context.Background(), "escalation.send_dm")
+	paged := false
+	defer func() {
+		span.SetAttributes(attribute.Bool("notification.paged", paged))
+		span.End()
+	}()
+
 	var alertIDStr string
 	if alert != nil {
 		alertIDStr = alert.ID.String()
@@ -133,6 +156,7 @@ func (w *EscalationWorker) SendEscalationDM(userID string, alert *models.Alert, 
 		return err
 	}
 	metrics.NotificationsSentTotal.WithLabelValues("chat", "success").Inc()
+	paged = true
 
 	slog.Info("escalation DM sent",
 		"user_id", userID, "alert_id", alertIDStr, "tier", tierIndex)

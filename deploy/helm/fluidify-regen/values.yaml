@@ -102,6 +102,45 @@ secrets:
 migrations:
   enabled: true
 
+# Tracing (REG-15) — off by default, matching InitTracer's own
+# "self-hosted friendly, off unless explicitly configured" design.
+tracing:
+  # otlpExporterEndpoint sets OTEL_EXPORTER_OTLP_ENDPOINT on the app.
+  # Leave empty to keep tracing disabled entirely. When collector.enabled is
+  # true, point this at the bundled collector's in-cluster Service, e.g.
+  # "http://<release-name>-otel-collector:4317".
+  otlpExporterEndpoint: ""
+  # tracesSampler / tracesSamplerArg set OTEL_TRACES_SAMPLER /
+  # OTEL_TRACES_SAMPLER_ARG — the app's own head-sampling escape hatch for
+  # environments with no collector doing tail-based sampling. Leave empty
+  # for the SDK default (ParentBased(AlwaysSample) — sample everything,
+  # matching pre-REG-15 behavior; safe when a collector is doing tail-based
+  # sampling downstream, since the collector — not this — is what actually
+  # bounds trace volume in that case).
+  tracesSampler: ""
+  tracesSamplerArg: ""
+
+  # Optional bundled OTel Collector deployment. Applies PII-scrubbing and
+  # tail-based sampling (keep errors + incident-creating + paging traces at
+  # 100%, thin the rest) before forwarding to otlpExporterEndpointDownstream.
+  # This is a plain Deployment/Service/ConfigMap in this chart (see
+  # templates/otel-collector.yaml), not the full upstream
+  # open-telemetry-collector Helm chart — self-hosters wanting DaemonSet
+  # mode, host metrics, or multi-tenant collection should use that chart
+  # directly instead of enabling this.
+  collector:
+    enabled: false
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: "0.114.0"
+    # Where the collector forwards traces after sampling/scrubbing — your
+    # Tempo/SigNoz endpoint. Required when collector.enabled is true.
+    otlpExporterEndpointDownstream: "tempo:4317"
+    # Tail-sampling probability (percent, 1-5 recommended) applied to traces
+    # with no error, no incident.created, and no notification.paged.
+    samplingPercentage: 2
+    resources: {}
+
 # Bitnami PostgreSQL subchart
 postgresql:
   enabled: true

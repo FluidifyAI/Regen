@@ -27,12 +27,24 @@ func clearOTelEnv(t *testing.T) {
 		"OTEL_EXPORTER_OTLP_ENDPOINT",
 		"OTEL_EXPORTER_OTLP_HEADERS",
 		"OTEL_SERVICE_NAME",
+		"OTEL_TRACES_SAMPLER",
+		"OTEL_TRACES_SAMPLER_ARG",
 	} {
 		old, had := os.LookupEnv(key)
 		os.Unsetenv(key)
 		t.Cleanup(func() {
 			if had {
 				os.Setenv(key, old)
+			} else {
+				// The var wasn't set before the test — it must not be set
+				// after either, even if the test itself (e.g. a sampler
+				// test) called os.Setenv on it. Without this, a value like
+				// OTEL_TRACES_SAMPLER=traceidratio set here leaks into every
+				// later test in the binary, silently changing sampling
+				// decisions in unrelated packages (this is exactly what
+				// broke internal/observability/worker_test.go before this
+				// fix — REG-15).
+				os.Unsetenv(key)
 			}
 		})
 	}
@@ -329,5 +341,101 @@ func TestInitTracer_ConnectsToBareHostPortEndpoint(t *testing.T) {
 		// correctly resolved to a non-empty target.
 	case <-time.After(1 * time.Second):
 		t.Fatal("no connection was ever attempted at the bare host:port endpoint — normalization did not fix the empty-target bug")
+	}
+}
+
+// The following three tests verify REG-15's sampling acceptance criterion —
+// OTEL_TRACES_SAMPLER / OTEL_TRACES_SAMPLER_ARG are configurable per
+// environment. No InitTracer code change was needed for this: reading
+// go.opentelemetry.io/otel/sdk/trace's own source (provider.go) shows
+// NewTracerProvider always applies env-based sampler config first via
+// applyTracerProviderEnvConfigs, before any explicit options — and InitTracer
+// never passes sdktrace.WithSampler, so the env var already wins whenever
+// it's set. These tests exist to prove that behavior explicitly rather than
+// take the SDK's internals on faith, and to catch a regression if a future
+// change ever adds an explicit WithSampler call that would silently
+// override it.
+
+func TestInitTracer_OTELTracesSamplerAlwaysOff_ProducesUnsampledSpans(t *testing.T) {
+	clearOTelEnv(t)
+	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:0") // never dialed in this test
+	os.Setenv("OTEL_TRACES_SAMPLER", "always_off")
+
+	shutdown, err := InitTracer(context.Background(), Config{ServiceVersion: "test", Environment: "development"})
+	if err != nil {
+		t.Fatalf("InitTracer returned error: %v", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		_ = shutdown(ctx)
+	}()
+
+	tp, ok := otel.GetTracerProvider().(*sdktrace.TracerProvider)
+	if !ok {
+		t.Fatalf("expected *sdktrace.TracerProvider to be installed, got %T", otel.GetTracerProvider())
+	}
+	_, span := tp.Tracer("test").Start(context.Background(), "op")
+	defer span.End()
+
+	if span.SpanContext().IsSampled() {
+		t.Error("expected OTEL_TRACES_SAMPLER=always_off to produce an unsampled span, but it was sampled")
+	}
+}
+
+func TestInitTracer_DefaultSampler_ProducesSampledSpans(t *testing.T) {
+	clearOTelEnv(t)
+	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:0")
+	// OTEL_TRACES_SAMPLER intentionally left unset — proves the default
+	// (ParentBased(AlwaysSample), matching pre-REG-15 behavior) still holds
+	// when an operator hasn't opted into a different sampling policy.
+
+	shutdown, err := InitTracer(context.Background(), Config{ServiceVersion: "test", Environment: "development"})
+	if err != nil {
+		t.Fatalf("InitTracer returned error: %v", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		_ = shutdown(ctx)
+	}()
+
+	tp, ok := otel.GetTracerProvider().(*sdktrace.TracerProvider)
+	if !ok {
+		t.Fatalf("expected *sdktrace.TracerProvider to be installed, got %T", otel.GetTracerProvider())
+	}
+	_, span := tp.Tracer("test").Start(context.Background(), "op")
+	defer span.End()
+
+	if !span.SpanContext().IsSampled() {
+		t.Error("expected the default sampler to produce a sampled span")
+	}
+}
+
+func TestInitTracer_OTELTracesSamplerTraceIDRatio_RespectsSamplerArg(t *testing.T) {
+	clearOTelEnv(t)
+	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:0")
+	os.Setenv("OTEL_TRACES_SAMPLER", "traceidratio")
+	os.Setenv("OTEL_TRACES_SAMPLER_ARG", "0")
+
+	shutdown, err := InitTracer(context.Background(), Config{ServiceVersion: "test", Environment: "development"})
+	if err != nil {
+		t.Fatalf("InitTracer returned error: %v", err)
+	}
+	defer shutdown(context.Background())
+
+	tp, ok := otel.GetTracerProvider().(*sdktrace.TracerProvider)
+	if !ok {
+		t.Fatalf("expected *sdktrace.TracerProvider to be installed, got %T", otel.GetTracerProvider())
+	}
+	// ratio 0 -> deterministically never sampled, proving OTEL_TRACES_SAMPLER_ARG
+	// (not just OTEL_TRACES_SAMPLER) is actually read.
+	for i := 0; i < 20; i++ {
+		_, span := tp.Tracer("test").Start(context.Background(), "op")
+		sampled := span.SpanContext().IsSampled()
+		span.End()
+		if sampled {
+			t.Fatal("expected OTEL_TRACES_SAMPLER_ARG=0 (traceidratio) to never sample, but a span was sampled")
+		}
 	}
 }

@@ -413,6 +413,8 @@ func (s *incidentService) CreateIncidentFromAlert(ctx context.Context, alert *mo
 	}
 
 	metrics.IncidentsCreatedTotal.WithLabelValues(string(reloadedIncident.Severity), "alert").Inc()
+	observability.SetIncidentID(ctx, reloadedIncident.ID)
+	observability.MarkIncidentCreated(ctx)
 
 	return reloadedIncident, nil
 }
@@ -586,6 +588,8 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(ctx context.Contex
 		}
 
 		metrics.IncidentsCreatedTotal.WithLabelValues(string(reloadedIncident.Severity), "alert").Inc()
+		observability.SetIncidentID(ctx, reloadedIncident.ID)
+		observability.MarkIncidentCreated(ctx)
 		return reloadedIncident, nil
 	}
 

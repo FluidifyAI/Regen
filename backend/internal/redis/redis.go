@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 )
 
 // Client is the global Redis client instance.
@@ -28,10 +30,23 @@ type Config struct {
 // When cfg.SentinelAddrs is set it connects via Sentinel for HA failover.
 // Otherwise it falls back to the single-instance URL.
 func Connect(cfg Config) error {
+	var err error
 	if cfg.SentinelAddrs != "" {
-		return connectSentinel(cfg)
+		err = connectSentinel(cfg)
+	} else {
+		err = connectSingle(cfg)
 	}
-	return connectSingle(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Every command becomes a child span of whatever request/job issued it —
+	// disabled-tracing default is a no-op TracerProvider (REG-6), so this
+	// costs nothing when self-hosters don't configure a collector.
+	if err := observability.InstrumentRedis(Client); err != nil {
+		return fmt.Errorf("failed to instrument redis tracing: %w", err)
+	}
+	return nil
 }
 
 func connectSingle(cfg Config) error {

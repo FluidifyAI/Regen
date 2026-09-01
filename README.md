@@ -74,6 +74,7 @@
 ### - Docker Compose + Kubernetes Helm chart
 ### - PostgreSQL HA + Redis Sentinel support
 ### - No limits on incidents/AI features
+### - Push Notifications at Mobile phones with Encrypted PWA
 
 ---
 

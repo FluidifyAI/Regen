@@ -238,7 +238,15 @@ func (e *escalationEngine) notifyTier(
 	state *models.EscalationState,
 	policy *models.EscalationPolicy,
 	alert *models.Alert,
-) error {
+) (err error) {
+	start := time.Now()
+	defer func() {
+		metrics.EscalationDispatchDurationSeconds.Observe(time.Since(start).Seconds())
+		if err != nil {
+			metrics.EscalationDispatchFailedTotal.Inc()
+		}
+	}()
+
 	for {
 		tier := e.findTier(policy.Tiers, state.CurrentTierIndex)
 		if tier == nil {

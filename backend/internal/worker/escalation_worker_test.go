@@ -38,7 +38,8 @@ var _ services.EscalationEngine = &mockEscalationEngineForWorker{}
 // ── Mock chat service ─────────────────────────────────────────────────────────
 
 type mockChatForWorker struct {
-	dms []sentDM
+	dms     []sentDM
+	sendErr error // returned by SendDirectMessage when set; nil = success
 }
 
 type sentDM struct {
@@ -58,6 +59,9 @@ func (m *mockChatForWorker) UpdateMessage(channelID, ts string, msg services.Mes
 func (m *mockChatForWorker) ArchiveChannel(channelID string) error                { return nil }
 func (m *mockChatForWorker) InviteUsers(channelID string, userIDs []string) error { return nil }
 func (m *mockChatForWorker) SendDirectMessage(username string, msg services.Message) error {
+	if m.sendErr != nil {
+		return m.sendErr
+	}
 	m.dms = append(m.dms, sentDM{username: username, message: msg})
 	return nil
 }
@@ -214,23 +218,23 @@ type fakeUserRepo struct {
 	err  error
 }
 
-func (f *fakeUserRepo) GetByEmail(_ string) (*models.User, error)          { return f.user, f.err }
-func (f *fakeUserRepo) GetBySubject(_ string) (*models.User, error)        { return nil, nil }
-func (f *fakeUserRepo) Upsert(_ context.Context, _ *models.User) error     { return nil }
-func (f *fakeUserRepo) UpdateLastLogin(_ uuid.UUID, _ time.Time) error     { return nil }
-func (f *fakeUserRepo) CreateLocal(_ *models.User) error                   { return nil }
-func (f *fakeUserRepo) ListAll() ([]models.User, error)                    { return nil, nil }
-func (f *fakeUserRepo) GetByID(_ uuid.UUID) (*models.User, error)          { return nil, nil }
-func (f *fakeUserRepo) Update(_ *models.User) error                        { return nil }
-func (f *fakeUserRepo) Count() (int64, error)                              { return 0, nil }
-func (f *fakeUserRepo) CountByRole(_ models.UserRole) (int64, error)       { return 0, nil }
-func (f *fakeUserRepo) Deactivate(_ uuid.UUID) error                       { return nil }
-func (f *fakeUserRepo) CreateAgent(_ *models.User) error                   { return nil }
-func (f *fakeUserRepo) SetActive(_ uuid.UUID, _ bool) error                { return nil }
-func (f *fakeUserRepo) ListAgents() ([]models.User, error)                 { return nil, nil }
-func (f *fakeUserRepo) GetBySlackUserID(_ string) (*models.User, error)    { return nil, nil }
-func (f *fakeUserRepo) GetByTeamsUserID(_ string) (*models.User, error)    { return nil, nil }
-func (f *fakeUserRepo) RestoreAgent(_ uuid.UUID) error                     { return nil }
+func (f *fakeUserRepo) GetByEmail(_ string) (*models.User, error)       { return f.user, f.err }
+func (f *fakeUserRepo) GetBySubject(_ string) (*models.User, error)     { return nil, nil }
+func (f *fakeUserRepo) Upsert(_ context.Context, _ *models.User) error  { return nil }
+func (f *fakeUserRepo) UpdateLastLogin(_ uuid.UUID, _ time.Time) error  { return nil }
+func (f *fakeUserRepo) CreateLocal(_ *models.User) error                { return nil }
+func (f *fakeUserRepo) ListAll() ([]models.User, error)                 { return nil, nil }
+func (f *fakeUserRepo) GetByID(_ uuid.UUID) (*models.User, error)       { return nil, nil }
+func (f *fakeUserRepo) Update(_ *models.User) error                     { return nil }
+func (f *fakeUserRepo) Count() (int64, error)                           { return 0, nil }
+func (f *fakeUserRepo) CountByRole(_ models.UserRole) (int64, error)    { return 0, nil }
+func (f *fakeUserRepo) Deactivate(_ uuid.UUID) error                    { return nil }
+func (f *fakeUserRepo) CreateAgent(_ *models.User) error                { return nil }
+func (f *fakeUserRepo) SetActive(_ uuid.UUID, _ bool) error             { return nil }
+func (f *fakeUserRepo) ListAgents() ([]models.User, error)              { return nil, nil }
+func (f *fakeUserRepo) GetBySlackUserID(_ string) (*models.User, error) { return nil, nil }
+func (f *fakeUserRepo) GetByTeamsUserID(_ string) (*models.User, error) { return nil, nil }
+func (f *fakeUserRepo) RestoreAgent(_ uuid.UUID) error                  { return nil }
 
 var _ repository.UserRepository = &fakeUserRepo{}
 

@@ -135,6 +135,45 @@ Run this checklist on every fresh deployment before going live. Each item links 
 - [ ] **14.2** Application logs structured as JSON (`APP_ENV=production` enables this)
 - [ ] **14.3** Log aggregation configured (Loki, CloudWatch, Datadog, etc.) — logs not lost on container restart
 - [ ] **14.4** Alert on `/ready` returning non-200 for > 1 minute
+- [ ] **14.5** Prometheus scraping `/metrics` with `--enable-feature=exemplar-storage` set (see below) — without it, exemplars are silently dropped even though Regen emits them
+- [ ] **14.6** `OTEL_EXPORTER_OTLP_ENDPOINT` set and a trace backend (Jaeger, Tempo, etc.) reachable, if you want the exemplars in 14.5 to actually resolve to a trace when clicked
+
+### Exemplars: linking a metric spike to an example trace
+
+`http_request_duration_seconds` and every `regen_worker_job_duration_seconds`
+observation carry a Prometheus exemplar with a `trace_id` label whenever
+tracing is enabled (`OTEL_EXPORTER_OTLP_ENDPOINT` set) and the request or
+worker tick has a valid span. Exemplars are part of the OpenMetrics
+exposition format, not classic Prometheus text format, and Prometheus itself
+only stores them when the feature flag below is set — both sides of the
+scrape need to agree, or exemplars go missing without any error on either
+end.
+
+**Prometheus server**, started with the exemplar storage feature flag:
+
+```
+prometheus --config.file=prometheus.yml --enable-feature=exemplar-storage
+```
+
+**`prometheus.yml` scrape config** — nothing Regen-specific is required
+beyond a normal scrape job; Prometheus negotiates OpenMetrics automatically
+when exemplar storage is enabled:
+
+```yaml
+scrape_configs:
+  - job_name: regen
+    static_configs:
+      - targets: ["regen:8080"]
+    metrics_path: /metrics
+```
+
+**Grafana**: the exemplar data source setting is on the Prometheus data
+source itself (Data Sources → Prometheus → Exemplars → enable, with the
+label set to `trace_id` and linked to your trace data source). Panels using
+`http_request_duration_seconds` or `regen_worker_job_duration_seconds` then
+show exemplar dots that jump straight to the matching trace — see
+`deploy/grafana/fluidify-regen-dashboard.json`, whose latency panels already
+have `"exemplar": true` set on their targets.
 
 ---
 

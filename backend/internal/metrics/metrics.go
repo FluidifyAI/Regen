@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -57,6 +58,76 @@ var (
 			Help: "Total background jobs failed by type",
 		},
 		[]string{"job_type"},
+	)
+
+	// WorkerJobDurationSeconds is the Duration leg of RED for every
+	// background worker job (WorkerJobsProcessedTotal/FailedTotal are
+	// Rate/Errors). Each worker tick already opens its own root span via
+	// observability.StartWorkerTick, so callers can attach a trace exemplar
+	// via observability.ObserveWithTraceExemplar for free.
+	WorkerJobDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "regen_worker_job_duration_seconds",
+			Help:    "Duration of one background worker job execution by job type.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"job_type"},
+	)
+
+	// EscalationDispatchFailedTotal and EscalationDispatchDurationSeconds
+	// are the Errors/Duration legs of RED for the "escalation dispatch"
+	// critical path — resolving a tier's on-call targets and sending their
+	// notifications (EscalationsTriggeredTotal above is Rate, but only ever
+	// counted on success; before REG-13 a failed dispatch was logged and
+	// silently swallowed by the caller with zero metric visibility).
+	//
+	// No trace exemplar on this histogram: dispatch happens deep inside
+	// EscalationEngine, which has no ctx parameter on its public interface
+	// today — threading one through would cascade across every method and
+	// every test double, the same interface-fan-out cost documented for
+	// REG-157/REG-160. Out of scope here; Duration is still fully present
+	// without it.
+	EscalationDispatchFailedTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "regen_escalation_dispatch_failed_total",
+			Help: "Total escalation tier dispatch attempts that failed (target resolution or state persistence).",
+		},
+	)
+
+	EscalationDispatchDurationSeconds = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "regen_escalation_dispatch_duration_seconds",
+			Help:    "Duration of one escalation tier dispatch: resolving on-call targets through sending their notifications.",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+
+	// NotificationsSentTotal and NotificationSendDurationSeconds are the
+	// Rate+Errors / Duration legs of RED for the "notification send" critical
+	// path, which had no metrics at all before REG-13. Every delivery
+	// channel shares these same two metrics, keyed by the "channel" label —
+	// W5's new channels (email, sms, voice) reuse them with a new channel
+	// value rather than needing metrics of their own.
+	//
+	// No trace exemplar here either, for the same reason as
+	// EscalationDispatchDurationSeconds: the send call sites this wires into
+	// (EscalationWorker.SendEscalationDM) have no ctx/span available without
+	// the same interface-fan-out threading deferred above.
+	NotificationsSentTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "regen_notifications_sent_total",
+			Help: "Total notification send attempts by channel and status (success/error/skipped).",
+		},
+		[]string{"channel", "status"},
+	)
+
+	NotificationSendDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "regen_notification_send_duration_seconds",
+			Help:    "Duration of one notification send attempt by channel.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"channel"},
 	)
 
 	// HTTP request metrics
@@ -125,6 +196,15 @@ var (
 	)
 )
 
+// unmatchedRouteLabel stands in for c.FullPath() on requests gin never
+// matched to a registered route (404s, and any other path that reaches this
+// middleware without a route template). Using the raw incoming URL as a
+// label value instead — as this code did before REG-13 — is unbounded
+// cardinality: every distinct 404'd path, including ones an unauthenticated
+// caller controls, mints a brand new Prometheus time series that is never
+// cleaned up.
+const unmatchedRouteLabel = "unmatched"
+
 // Middleware returns a Gin middleware that instruments HTTP requests
 func Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -138,11 +218,15 @@ func Middleware() gin.HandlerFunc {
 		status := strconv.Itoa(c.Writer.Status())
 		path := c.FullPath()
 		if path == "" {
-			path = c.Request.URL.Path
+			path = unmatchedRouteLabel
 		}
 
 		httpRequestsTotal.WithLabelValues(c.Request.Method, path, status).Inc()
-		httpRequestDuration.WithLabelValues(c.Request.Method, path, status).Observe(duration)
+		observability.ObserveWithTraceExemplar(
+			c.Request.Context(),
+			httpRequestDuration.WithLabelValues(c.Request.Method, path, status),
+			duration,
+		)
 	}
 }
 

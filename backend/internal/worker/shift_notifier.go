@@ -83,9 +83,15 @@ func (n *ShiftNotifier) Run(ctx context.Context) {
 // Opens its own root span per REG-10: this worker has no originating HTTP
 // request, so each tick starts a fresh trace.
 func (n *ShiftNotifier) tick() {
-	_, span := observability.StartWorkerTick(observability.Tracer(), "shift_notifier.tick")
+	ctx, span := observability.StartWorkerTick(observability.Tracer(), "shift_notifier.tick")
+	start := time.Now()
 	var err error
-	defer func() { observability.EndWorkerTick(span, err) }()
+	defer func() {
+		observability.EndWorkerTick(span, err)
+		observability.ObserveWithTraceExemplar(ctx,
+			metrics.WorkerJobDurationSeconds.WithLabelValues("shift_notify"),
+			time.Since(start).Seconds())
+	}()
 
 	now := time.Now().UTC()
 

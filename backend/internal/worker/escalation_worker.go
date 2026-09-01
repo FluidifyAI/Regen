@@ -88,9 +88,15 @@ func (w *EscalationWorker) Run(ctx context.Context) {
 // request, so each tick starts a fresh trace rather than inheriting Run's
 // long-lived lifecycle context.
 func (w *EscalationWorker) tick() {
-	_, span := observability.StartWorkerTick(observability.Tracer(), "escalation_worker.tick")
+	ctx, span := observability.StartWorkerTick(observability.Tracer(), "escalation_worker.tick")
+	start := time.Now()
 	var err error
-	defer func() { observability.EndWorkerTick(span, err) }()
+	defer func() {
+		observability.EndWorkerTick(span, err)
+		observability.ObserveWithTraceExemplar(ctx,
+			metrics.WorkerJobDurationSeconds.WithLabelValues("escalation_evaluate"),
+			time.Since(start).Seconds())
+	}()
 
 	if err = w.engine.EvaluateEscalations(); err != nil {
 		slog.Error("escalation worker: EvaluateEscalations failed", "err", err)
@@ -112,15 +118,21 @@ func (w *EscalationWorker) SendEscalationDM(userID string, alert *models.Alert, 
 	if w.chatService == nil {
 		slog.Warn("escalation worker: no chat service; skipping DM",
 			"user_id", userID, "alert_id", alertIDStr, "tier", tierIndex)
+		metrics.NotificationsSentTotal.WithLabelValues("chat", "skipped").Inc()
 		return nil
 	}
 
+	chatStart := time.Now()
 	msg := w.msgBuilder.BuildEscalationDMMessage(alert, tierIndex)
-	if err := w.chatService.SendDirectMessage(userID, msg); err != nil {
+	err := w.chatService.SendDirectMessage(userID, msg)
+	metrics.NotificationSendDurationSeconds.WithLabelValues("chat").Observe(time.Since(chatStart).Seconds())
+	if err != nil {
 		slog.Error("escalation worker: failed to send DM",
 			"user_id", userID, "alert_id", alertIDStr, "tier", tierIndex, "err", err)
+		metrics.NotificationsSentTotal.WithLabelValues("chat", "error").Inc()
 		return err
 	}
+	metrics.NotificationsSentTotal.WithLabelValues("chat", "success").Inc()
 
 	slog.Info("escalation DM sent",
 		"user_id", userID, "alert_id", alertIDStr, "tier", tierIndex)
@@ -144,8 +156,14 @@ func (w *EscalationWorker) SendEscalationDM(userID string, alert *models.Alert, 
 					"tier_index": strconv.Itoa(tierIndex),
 				},
 			}
-			if pushErr := w.pushSvc.SendToUser(context.Background(), userRecord.ID, n); pushErr != nil {
+			pushStart := time.Now()
+			pushErr := w.pushSvc.SendToUser(context.Background(), userRecord.ID, n)
+			metrics.NotificationSendDurationSeconds.WithLabelValues("push").Observe(time.Since(pushStart).Seconds())
+			if pushErr != nil {
 				slog.Warn("push: escalation push failed", "user_id", userRecord.ID, "err", pushErr)
+				metrics.NotificationsSentTotal.WithLabelValues("push", "error").Inc()
+			} else {
+				metrics.NotificationsSentTotal.WithLabelValues("push", "success").Inc()
 			}
 		}
 	}

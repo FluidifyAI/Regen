@@ -20,9 +20,23 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gorm.io/gorm"
 )
+
+// metricsHandler builds the /metrics endpoint's handler with OpenMetrics
+// negotiation enabled (REG-13). This is the only exposition format that
+// carries exemplars — client_golang only negotiates it when EnableOpenMetrics
+// is set, regardless of what Accept header a scraper sends — so without this,
+// every trace_id exemplar metrics.Middleware and the worker histograms attach
+// would be silently unservable no matter how carefully the Observe side
+// works. Prometheus itself must additionally be started with
+// --enable-feature=exemplar-storage (documented in docs/OPERATIONS.md); both
+// sides have to agree, or exemplars go missing without an error on either end.
+func metricsHandler() http.Handler {
+	return promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{EnableOpenMetrics: true})
+}
 
 // SetupRoutes configures all application routes.
 // teamsSvc may be nil when Teams integration is disabled.
@@ -140,7 +154,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 	router.GET("/ready", handlers.Ready(db))
 
 	// Metrics endpoint (always open — scraped by Prometheus via network policy)
-	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	router.GET("/metrics", gin.WrapH(metricsHandler()))
 
 	// Auth endpoints (always open — these ARE the login flow)
 	if samlMiddleware != nil {

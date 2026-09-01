@@ -18,6 +18,7 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/database"
 	"github.com/FluidifyAI/Regen/backend/internal/licence"
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/redis"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
@@ -54,6 +55,17 @@ func runServe(_ *cobra.Command, _ []string) error {
 		"environment", cfg.Environment,
 		"port", cfg.Port,
 	)
+
+	// Tracing: no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set — self-hosters
+	// are never forced into running a collector. Started early so every
+	// service initialized below can eventually be instrumented against it.
+	tracerShutdown, err := observability.InitTracer(context.Background(), observability.Config{
+		ServiceVersion: version,
+		Environment:    cfg.Environment,
+	})
+	if err != nil {
+		return fmt.Errorf("observability: %w", err)
+	}
 
 	dbLogLevel := "info"
 	if cfg.Environment == "production" {
@@ -322,7 +334,16 @@ func runServe(_ *cobra.Command, _ []string) error {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+	shutdownErr := srv.Shutdown(shutdownCtx)
+
+	// Flush and close the tracer after the server stops accepting new work, so
+	// in-flight spans are captured. A flush failure (e.g. collector down) is
+	// logged, never fatal — self-hosted tracing must degrade, not block exit.
+	if err := tracerShutdown(shutdownCtx); err != nil {
+		slog.Error("observability: tracer shutdown failed", "error", err)
+	}
+
+	return shutdownErr
 }
 
 func setupLogging(level string) {

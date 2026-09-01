@@ -110,7 +110,10 @@ func (s *PushService) SendToUser(ctx context.Context, userID uuid.UUID, n PushNo
 
 	for _, dt := range tokens {
 		msg := &messaging.Message{
-			Token: dt.Token,
+			// Fid (Firebase Installation ID) is a different identifier than an FCM
+			// registration token — dt.Token isn't a drop-in replacement value, so
+			// this isn't a one-line migration. Tracked in REG-156.
+			Token: dt.Token, //nolint:staticcheck // SA1019: see REG-156
 			Notification: &messaging.Notification{
 				Title: n.Title,
 				Body:  n.Body,

@@ -9,8 +9,8 @@ type ollamaClient struct {
 }
 
 func newOllamaClient(cfg Config) *ollamaClient {
-	inner := newOpenAIClient(cfg) // base URL already set from cfg.BaseURL
-	inner.apiKey = ""             // no auth for Ollama
+	inner := newOpenAIClient(cfg, "ollama") // base URL already set from cfg.BaseURL
+	inner.apiKey = ""                       // no auth for Ollama
 	return &ollamaClient{inner: inner}
 }
 

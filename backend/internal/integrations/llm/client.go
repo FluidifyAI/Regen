@@ -36,7 +36,7 @@ type Config struct {
 func New(cfg Config) (Client, error) {
 	switch cfg.Provider {
 	case "openai", "":
-		return newOpenAIClient(cfg), nil
+		return newOpenAIClient(cfg, "openai"), nil
 	case "anthropic":
 		return newAnthropicClient(cfg), nil
 	case "ollama":

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 )
 
 // TelegramService sends incident notification messages to a Telegram group/channel.
@@ -34,7 +35,7 @@ func NewTelegramService(botToken, chatID, appURL string) *TelegramService {
 		botToken: botToken,
 		chatID:   chatID,
 		appURL:   appURL,
-		client:   &http.Client{Timeout: 10 * time.Second},
+		client:   observability.InstrumentedHTTPClient(&http.Client{Timeout: 10 * time.Second}, "telegram"),
 	}
 }
 
@@ -79,10 +80,15 @@ func (s *TelegramService) SendStatusUpdate(incident *models.Incident, newStatus 
 
 // TestTelegramConnection verifies the bot token by calling getMe and sends a test message.
 func TestTelegramConnection(ctx context.Context, botToken, chatID string) (string, error) {
-	c := &http.Client{Timeout: 10 * time.Second}
+	c := observability.InstrumentedHTTPClient(&http.Client{Timeout: 10 * time.Second}, "telegram")
 
 	// 1. Validate token via getMe
-	resp, err := c.Get(fmt.Sprintf("https://api.telegram.org/bot%s/getMe", botToken))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("https://api.telegram.org/bot%s/getMe", botToken), nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to build getMe request: %w", err)
+	}
+	resp, err := c.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("could not reach Telegram API: %w", err)
 	}
@@ -113,9 +119,13 @@ func TestTelegramConnection(ctx context.Context, botToken, chatID string) (strin
 // FetchTelegramChatID calls getUpdates to find the most recent group chat ID the bot has seen.
 // Returns chat_id and chat title of the most recent group/supergroup.
 func FetchTelegramChatID(ctx context.Context, botToken string) (string, string, error) {
-	c := &http.Client{Timeout: 10 * time.Second}
+	c := observability.InstrumentedHTTPClient(&http.Client{Timeout: 10 * time.Second}, "telegram")
 	url := fmt.Sprintf(`https://api.telegram.org/bot%s/getUpdates?limit=20&allowed_updates=["message"]`, botToken)
-	resp, err := c.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to build getUpdates request: %w", err)
+	}
+	resp, err := c.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("could not reach Telegram API: %w", err)
 	}

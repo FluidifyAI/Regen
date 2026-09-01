@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 )
 
 const openAIDefaultBase = "https://api.openai.com"
@@ -19,7 +21,12 @@ type openAIClient struct {
 	httpClient *http.Client
 }
 
-func newOpenAIClient(cfg Config) *openAIClient {
+// newOpenAIClient builds a client speaking the OpenAI chat-completions API.
+// peerService tags the outbound HTTP spans — callers pass "openai" for the
+// real OpenAI API, or "ollama" when wrapping this client for Ollama's
+// OpenAI-compatible endpoint (see newOllamaClient), so the two are never
+// conflated in a trace.
+func newOpenAIClient(cfg Config, peerService string) *openAIClient {
 	base := cfg.BaseURL
 	if base == "" {
 		base = openAIDefaultBase
@@ -29,7 +36,7 @@ func newOpenAIClient(cfg Config) *openAIClient {
 		model:      cfg.Model,
 		maxTokens:  cfg.MaxTokens,
 		baseURL:    base,
-		httpClient: &http.Client{Timeout: 60 * time.Second},
+		httpClient: observability.InstrumentedHTTPClient(&http.Client{Timeout: 60 * time.Second}, peerService),
 	}
 }
 

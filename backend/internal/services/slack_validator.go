@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/slack-go/slack"
 )
 
@@ -16,7 +17,7 @@ type SlackValidator struct {
 // NewSlackValidator creates a new Slack validator.
 func NewSlackValidator(token string) *SlackValidator {
 	return &SlackValidator{
-		client: slack.New(token),
+		client: slack.New(token, slack.OptionHTTPClient(observability.InstrumentedHTTPClient(nil, "slack"))),
 	}
 }
 

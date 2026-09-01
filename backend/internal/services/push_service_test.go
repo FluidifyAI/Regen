@@ -2,6 +2,11 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"os"
 	"sync"
@@ -83,9 +88,9 @@ var _ repository.DeviceTokenRepository = (*fakeDeviceTokenRepo)(nil)
 // a custom checkNotRegistered function (so tests don't depend on Firebase internals).
 func newTestPushService(sender FCMSender, repo repository.DeviceTokenRepository, checkFn func(error) bool) *PushService {
 	return &PushService{
-		sender:              sender,
-		repo:                repo,
-		checkNotRegistered:  checkFn,
+		sender:             sender,
+		repo:               repo,
+		checkNotRegistered: checkFn,
 	}
 }
 
@@ -106,6 +111,71 @@ func TestNewPushService_EmptyCredPath_ReturnsNilNil(t *testing.T) {
 	if svc != nil {
 		t.Fatalf("expected nil service for empty cred path, got non-nil")
 	}
+}
+
+// TestNewPushService_ValidServiceAccountShape_BuildsClientWithoutError proves
+// REG-11's fix: NewPushService switched from option.WithHTTPClient (which,
+// combined with an auth option, silently bypasses the SDK's own
+// auth-transport construction — confirmed against the library source) to
+// observability.InstrumentedGoogleAPIClient, which layers instrumentation
+// under real OAuth. This test exercises that composition with a
+// syntactically valid (freshly generated, throwaway, never used against real
+// Google infrastructure) service-account key — the two other tests in this
+// file only cover the empty-path and invalid-JSON early returns, neither of
+// which reaches the client-construction code this test targets.
+func TestNewPushService_ValidServiceAccountShape_BuildsClientWithoutError(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate throwaway RSA key: %v", err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: mustMarshalPKCS8(t, key),
+	})
+
+	sa := map[string]string{
+		"type":                        "service_account",
+		"project_id":                  "regen-test",
+		"private_key_id":              "test-key-id",
+		"private_key":                 string(keyPEM),
+		"client_email":                "test@regen-test.iam.gserviceaccount.com",
+		"client_id":                   "000000000000000000000",
+		"auth_uri":                    "https://accounts.google.com/o/oauth2/auth",
+		"token_uri":                   "https://oauth2.googleapis.com/token",
+		"auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+		"client_x509_cert_url":        "https://www.googleapis.com/robot/v1/metadata/x509/test%40regen-test.iam.gserviceaccount.com",
+	}
+	data, err := json.Marshal(sa)
+	if err != nil {
+		t.Fatalf("marshal fake service account: %v", err)
+	}
+
+	f, err := os.CreateTemp("", "fake-sa-*.json")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(data); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	f.Close()
+
+	svc, err := NewPushService(f.Name(), &fakeDeviceTokenRepo{})
+	if err != nil {
+		t.Fatalf("expected client construction to succeed with a valid-shaped service account, got: %v", err)
+	}
+	if svc == nil {
+		t.Fatal("expected a non-nil PushService")
+	}
+}
+
+func mustMarshalPKCS8(t *testing.T, key *rsa.PrivateKey) []byte {
+	t.Helper()
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatalf("marshal PKCS8 key: %v", err)
+	}
+	return der
 }
 
 func TestNewPushService_InvalidCredFile_ReturnsError(t *testing.T) {

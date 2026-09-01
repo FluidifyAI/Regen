@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"golang.org/x/oauth2/clientcredentials"
 )
 
@@ -57,7 +58,7 @@ func NewTeamsService(ctx context.Context, appID, appPassword, tenantID, teamID, 
 		TokenURL:     tokenURL,
 		Scopes:       []string{"https://graph.microsoft.com/.default"},
 	}
-	graphClient := graphCfg.Client(context.Background())
+	graphClient := observability.InstrumentedHTTPClient(graphCfg.Client(context.Background()), "msgraph")
 	graphClient.Timeout = 30 * time.Second
 
 	// Bot Framework client — used for posting messages to channels
@@ -69,7 +70,7 @@ func NewTeamsService(ctx context.Context, appID, appPassword, tenantID, teamID, 
 		TokenURL:     tokenURL,
 		Scopes:       []string{"https://api.botframework.com/.default"},
 	}
-	botfwClient := botfwCfg.Client(context.Background())
+	botfwClient := observability.InstrumentedHTTPClient(botfwCfg.Client(context.Background()), "botframework")
 	botfwClient.Timeout = 30 * time.Second
 
 	if serviceURL == "" {
@@ -342,7 +343,7 @@ func TestTeamsCredentials(ctx context.Context, appID, appPassword, tenantID, tea
 		TokenURL:     tokenURL,
 		Scopes:       []string{"https://graph.microsoft.com/.default"},
 	}
-	client := graphCfg.Client(context.Background())
+	client := observability.InstrumentedHTTPClient(graphCfg.Client(context.Background()), "msgraph")
 	client.Timeout = 15 * time.Second
 
 	url := fmt.Sprintf("%s/teams/%s", graphBaseURL, teamID)
@@ -389,7 +390,7 @@ func ListTeamMembers(ctx context.Context, appID, appPassword, tenantID, teamID s
 		TokenURL:     tokenURL,
 		Scopes:       []string{"https://graph.microsoft.com/.default"},
 	}
-	client := graphCfg.Client(context.Background())
+	client := observability.InstrumentedHTTPClient(graphCfg.Client(context.Background()), "msgraph")
 	client.Timeout = 15 * time.Second
 
 	url := fmt.Sprintf("%s/teams/%s/members", graphBaseURL, teamID)

@@ -1,0 +1,31 @@
+# Grafana Tempo config for local/self-hosted trace storage (REG-15).
+# Single-binary mode — fine for self-hosted scale; see docs/OBSERVABILITY.md
+# for when to split into microservices mode.
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+        http:
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal
+
+compactor:
+  compaction:
+    # Retention default (REG-15): 7 days. Traces are a subprocessor data
+    # flow for W13's DSAR/GDPR work — a DSAR erasure request cannot reach
+    # into a trace store, so keeping this window short by default matters.
+    # Raise it per environment if you need longer trace history, but
+    # remember every extra day is extra subject data sitting outside the
+    # primary database's own retention/erasure controls.
+    block_retention: 168h

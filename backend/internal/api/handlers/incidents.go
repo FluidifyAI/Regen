@@ -8,6 +8,7 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
 	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/gin-gonic/gin"
@@ -93,6 +94,7 @@ func GetIncident(incidentSvc services.IncidentService, userRepo repository.UserR
 			dto.InternalError(c, err)
 			return
 		}
+		observability.SetIncidentID(c.Request.Context(), incident.ID)
 
 		// Fetch linked alerts
 		alerts, err := incidentSvc.GetIncidentAlerts(incident.ID)
@@ -212,6 +214,8 @@ func CreateIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 			dto.InternalError(c, err)
 			return
 		}
+		observability.SetIncidentID(c.Request.Context(), incident.ID)
+		observability.MarkIncidentCreated(c.Request.Context())
 
 		// Return created incident
 		c.JSON(201, dto.ToIncidentResponse(incident))
@@ -249,6 +253,7 @@ func UpdateIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 			dto.InternalError(c, err)
 			return
 		}
+		observability.SetIncidentID(c.Request.Context(), incident.ID)
 
 		// Validate status transition if status is being changed
 		if req.Status != "" && req.Status != string(incident.Status) {

@@ -137,6 +137,8 @@ Run this checklist on every fresh deployment before going live. Each item links 
 - [ ] **14.4** Alert on `/ready` returning non-200 for > 1 minute
 - [ ] **14.5** Prometheus scraping `/metrics` with `--enable-feature=exemplar-storage` set (see below) — without it, exemplars are silently dropped even though Regen emits them
 - [ ] **14.6** `OTEL_EXPORTER_OTLP_ENDPOINT` set and a trace backend (Jaeger, Tempo, etc.) reachable, if you want the exemplars in 14.5 to actually resolve to a trace when clicked
+- [ ] **14.7** OTel Collector deployed in front of the trace backend, with tail-based sampling and PII scrubbing configured (see [OBSERVABILITY.md](./OBSERVABILITY.md)) — running without one means no sampling cost control and no defense-in-depth PII scrubbing
+- [ ] **14.8** Trace retention set deliberately (default 7 days) — see [OBSERVABILITY.md](./OBSERVABILITY.md#retention) for why short retention matters for W13/GDPR
 
 ### Exemplars: linking a metric spike to an example trace
 

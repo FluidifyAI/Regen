@@ -73,6 +73,14 @@ services:
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBSCRIBER=${VAPID_SUBSCRIBER:-mailto:admin@regen.local}
+      # Tracing (REG-15): off by default (empty endpoint), matching InitTracer's
+      # own "self-hosted friendly, off unless explicitly configured" design.
+      # To enable, start the "observability" profile AND set this to the
+      # collector: OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      # docker compose --profile observability up
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_TRACES_SAMPLER=${OTEL_TRACES_SAMPLER:-}
+      - OTEL_TRACES_SAMPLER_ARG=${OTEL_TRACES_SAMPLER_ARG:-}
     volumes:
       - ./backend:/app
     depends_on:
@@ -80,6 +88,40 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - fluidify-regen-dev
+
+  # ── Observability stack (REG-15) — opt-in via --profile observability ──
+  # Collects traces from `api`, applies PII-scrubbing and tail-based sampling
+  # (keep errors + incident-creating + paging traces at 100%, thin the rest
+  # to ~2%), and stores them in Tempo. See docs/OBSERVABILITY.md.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    container_name: fluidify-regen-otel-collector-dev
+    restart: unless-stopped
+    profiles: ["observability"]
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./deploy/otel-collector/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC — point OTEL_EXPORTER_OTLP_ENDPOINT here
+      - "4318:4318" # OTLP HTTP
+    depends_on:
+      - tempo
+    networks:
+      - fluidify-regen-dev
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: fluidify-regen-tempo-dev
+    restart: unless-stopped
+    profiles: ["observability"]
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./deploy/otel-collector/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo_data_dev:/var/tempo
+    ports:
+      - "3200:3200" # Tempo query API
     networks:
       - fluidify-regen-dev
 
@@ -100,6 +142,8 @@ volumes:
   postgres_data_dev:
     driver: local
   redis_data_dev:
+    driver: local
+  tempo_data_dev:
     driver: local
 
 networks:

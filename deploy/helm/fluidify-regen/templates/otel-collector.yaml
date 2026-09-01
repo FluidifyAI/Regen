@@ -1,0 +1,172 @@
+{{- if .Values.tracing.collector.enabled }}
+# Optional OTel Collector (REG-15) — applies PII-scrubbing and tail-based
+# sampling before forwarding traces to tracing.collector.otlpExporterEndpointDownstream.
+# Plain Deployment/Service/ConfigMap, not the upstream open-telemetry-collector
+# chart — see values.yaml's tracing.collector comment for when to use that
+# chart instead.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "fluidify-regen.fullname" . }}-otel-collector
+  labels:
+    {{- include "fluidify-regen.labels" . | nindent 4 }}
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      redaction/pii:
+        allow_all_keys: false
+        allowed_keys:
+          - http.request.method
+          - http.response.status_code
+          - server.address
+          - server.port
+          - network.protocol.version
+          - url.full
+          - peer.service
+          - span.kind
+          - service.name
+          - service.version
+          - deployment.environment
+          - gen_ai.system
+          - gen_ai.request.model
+          - gen_ai.operation.name
+          - gen_ai.usage.input_tokens
+          - gen_ai.usage.output_tokens
+          - gen_ai.agent.name
+          - regen.llm.prompt_hash
+          - regen.llm.cost_usd
+          - incident.id
+          - incident.created
+          - notification.paged
+          - notification.channel
+          - db.system.name
+          - db.operation.name
+          - db.collection.name
+          - db.query.summary
+          - db.query.text
+          - db.rows_affected
+          - db.redis.num_cmd
+          - code.function
+          - code.filepath
+          - code.line.number
+          - exception.type
+          - exception.message
+          - exception.stacktrace
+        blocked_values:
+          - '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+
+      tail_sampling:
+        decision_wait: 10s
+        num_traces: 100000
+        expected_new_traces_per_sec: 100
+        policies:
+          # incident.created / notification.paged are real OTel bool
+          # attributes — use boolean_attribute, not string_attribute (which
+          # only matches the OTLP string_value field and silently never
+          # fires for a bool-typed attribute; confirmed live — REG-15).
+          - name: keep-errors
+            type: status_code
+            status_code:
+              status_codes: [ERROR]
+          - name: keep-incident-created
+            type: boolean_attribute
+            boolean_attribute:
+              key: incident.created
+              value: true
+          - name: keep-paged
+            type: boolean_attribute
+            boolean_attribute:
+              key: notification.paged
+              value: true
+          - name: sample-the-rest
+            type: probabilistic
+            probabilistic:
+              sampling_percentage: {{ .Values.tracing.collector.samplingPercentage }}
+
+      batch:
+        timeout: 5s
+
+    exporters:
+      otlp/downstream:
+        endpoint: {{ .Values.tracing.collector.otlpExporterEndpointDownstream | quote }}
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [redaction/pii, tail_sampling, batch]
+          exporters: [otlp/downstream]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fluidify-regen.fullname" . }}-otel-collector
+  labels:
+    {{- include "fluidify-regen.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "fluidify-regen.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: otel-collector
+  template:
+    metadata:
+      annotations:
+        # Hashes the values that feed the ConfigMap above (not this template
+        # file itself — self-including a template from within recurses
+        # infinitely) so the pod restarts when the collector config changes.
+        checksum/otel-collector-config: {{ .Values.tracing.collector | toYaml | sha256sum }}
+      labels:
+        {{- include "fluidify-regen.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: "{{ .Values.tracing.collector.image.repository }}:{{ .Values.tracing.collector.image.tag }}"
+          args: ["--config=/etc/otel-collector-config.yaml"]
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.tracing.collector.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel-collector-config.yaml
+              subPath: otel-collector-config.yaml
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "fluidify-regen.fullname" . }}-otel-collector
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "fluidify-regen.fullname" . }}-otel-collector
+  labels:
+    {{- include "fluidify-regen.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "fluidify-regen.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+{{- end }}

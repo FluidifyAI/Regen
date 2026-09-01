@@ -1,0 +1,138 @@
+# OpenTelemetry Collector config for Fluidify Regen (REG-15).
+#
+# Pipeline: receive OTLP from the app -> redact PII (defense in depth,
+# second line after the app's own no-PII-on-spans discipline) -> tail-sample
+# (keep everything interesting, thin the boring 95%) -> batch -> export to
+# the trace backend (Tempo by default; see docs/OBSERVABILITY.md for the
+# Tempo-vs-SigNoz recommendation).
+#
+# This file is a starting point, not a closed list: attribute names depend
+# on library versions (gorm.io/plugin/opentelemetry, redisotel, otelhttp,
+# ...), which drift over time. Before relying on the redaction processor in
+# a real deployment, run the collector with a `debug` exporter alongside
+# `otlp/tempo` for a while and check the allowed_keys list below against
+# what actually shows up — an attribute that isn't in allowed_keys is
+# dropped entirely, not just redacted.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # ── PII defense in depth (second line — the app itself never attaches
+  # incident titles, alert payloads, or email addresses to spans; see REG-5's
+  # observability Definition of Done, and REG-11/12/14's own no-PII tests) ──
+  redaction/pii:
+    allow_all_keys: false
+    allowed_keys:
+      # HTTP (REG-11, REG-13)
+      - http.request.method
+      - http.response.status_code
+      - server.address
+      - server.port
+      - network.protocol.version
+      - url.full
+      - peer.service
+      - span.kind
+      # Resource / service identity
+      - service.name
+      - service.version
+      - deployment.environment
+      # GenAI / LLM (REG-12) — prompt/completion text is never attached in
+      # the first place (sha256 hash only); this just allow-lists the
+      # metadata that is.
+      - gen_ai.system
+      - gen_ai.request.model
+      - gen_ai.operation.name
+      - gen_ai.usage.input_tokens
+      - gen_ai.usage.output_tokens
+      - gen_ai.agent.name
+      - regen.llm.prompt_hash
+      - regen.llm.cost_usd
+      # Incidents / notifications (REG-15) — incident.id is a UUID, not PII;
+      # no incident title/description ever reaches a span.
+      - incident.id
+      - incident.created
+      - notification.paged
+      - notification.channel
+      # Database (gorm.io/plugin/opentelemetry) — db.query.text/db.statement
+      # are already off by default at the app level
+      # (OTEL_SQL_STATEMENT_ENABLED) and, if an operator explicitly enables
+      # them for debugging, blocked_values below still catches obvious PII
+      # patterns inside the text.
+      - db.system.name
+      - db.operation.name
+      - db.collection.name
+      - db.query.summary
+      - db.query.text
+      - db.rows_affected
+      - db.redis.num_cmd
+      # Code location (redisotel)
+      - code.function
+      - code.filepath
+      - code.line.number
+      # Errors
+      - exception.type
+      - exception.message
+      - exception.stacktrace
+    blocked_values:
+      # Email address — defense in depth even on allowed keys (e.g. if
+      # db.query.text is ever explicitly enabled and a query string happens
+      # to interpolate one, or an exception message quotes user input).
+      - '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+
+  # ── Tail-based sampling (REG-15) ──
+  # Multiple top-level policies are OR'd: a trace is kept if ANY policy
+  # decides to sample it. Order matters only for the (deliberately unused
+  # here) composite/rate-limiting policy types.
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 100000
+    expected_new_traces_per_sec: 100
+    policies:
+      # incident.created / notification.paged are real OTel bool attributes
+      # (attribute.Bool(...) in the Go code) — use boolean_attribute, not
+      # string_attribute, or the policy silently never matches (confirmed
+      # live: string_attribute checks the OTLP string_value field, which a
+      # bool-typed attribute never populates).
+      - name: keep-errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: keep-incident-created
+        type: boolean_attribute
+        boolean_attribute:
+          key: incident.created
+          value: true
+      - name: keep-paged
+        type: boolean_attribute
+        boolean_attribute:
+          key: notification.paged
+          value: true
+      - name: sample-the-rest
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 2 # 1-5% per REG-15; tune via values.yaml / compose env
+
+  batch:
+    timeout: 5s
+
+exporters:
+  # Default backend: Grafana Tempo (see docs/OBSERVABILITY.md for why Tempo
+  # over SigNoz as the docker-compose default). Point this at a different
+  # OTLP-native backend (SigNoz, etc.) by changing the endpoint.
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [redaction/pii, tail_sampling, batch]
+      exporters: [otlp/tempo]

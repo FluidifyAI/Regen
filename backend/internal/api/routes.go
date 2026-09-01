@@ -9,12 +9,13 @@ import (
 	"path"
 	"strings"
 
+	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers"
 	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	"github.com/FluidifyAI/Regen/backend/internal/config"
-	"github.com/FluidifyAI/Regen/backend/enterprise"
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/crewjam/saml/samlsp"
@@ -125,8 +126,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 	slackResolver := services.NewSlackHandlerResolver(slackConfigRepo, incidentSvc, chatService, userRepo, pmRepo, aiSvc)
 
 	// Middleware
-	router.Use(middleware.RequestID())       // Must be first for request tracing
-	router.Use(middleware.SecurityHeaders()) // Security headers on all responses
+	router.Use(observability.GinMiddleware()) // Opens the root span; must run before RequestID so it can read the trace
+	router.Use(middleware.RequestID())        // Reconciles request_id with trace_id when a trace exists
+	router.Use(middleware.SecurityHeaders())  // Security headers on all responses
 	router.Use(middleware.CORS())
 	router.Use(middleware.Recovery())
 	router.Use(middleware.Logger())
@@ -469,7 +471,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 
 		// Push notification device token registration (OPE-234)
 		if deviceTokenRepo != nil {
-			protected.POST("/push/register",   handlers.RegisterDeviceToken(deviceTokenRepo))
+			protected.POST("/push/register", handlers.RegisterDeviceToken(deviceTokenRepo))
 			protected.POST("/push/unregister", handlers.UnregisterDeviceToken(deviceTokenRepo))
 		}
 
@@ -477,7 +479,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 		// vapidPublicKey is empty when Web Push is not configured — GetVAPIDPublicKey returns 503.
 		protected.GET("/push/vapid-public-key", handlers.GetVAPIDPublicKey(vapidPublicKey))
 		if webPushRepo != nil {
-			protected.POST("/push/web/register",   handlers.RegisterWebPushSubscription(webPushRepo))
+			protected.POST("/push/web/register", handlers.RegisterWebPushSubscription(webPushRepo))
 			protected.POST("/push/web/unregister", handlers.UnregisterWebPushSubscription(webPushRepo))
 		}
 

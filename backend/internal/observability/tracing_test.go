@@ -11,8 +11,10 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // clearOTelEnv resets the OTel env vars this package reads and restores them
@@ -180,5 +182,40 @@ func TestOTelErrorHandlerLogsInsteadOfCrashing(t *testing.T) {
 
 	if !bytes.Contains(buf.Bytes(), []byte("simulated exporter failure")) {
 		t.Fatalf("expected the OTel error handler to log the error via slog, got: %q", buf.String())
+	}
+}
+
+func TestInitTracer_InstallsW3CPropagatorGlobally(t *testing.T) {
+	clearOTelEnv(t)
+
+	// Deliberately not saved/restored: otel's global propagator is a shared,
+	// order-dependent singleton (Get returns the live delegating wrapper, not
+	// a snapshot), so Set-it-back-in-cleanup is unreliable — and also not how
+	// production works. InitTracer sets this once, for the life of the
+	// process; this test only asserts the forward behavior after that call.
+	shutdown, err := InitTracer(context.Background(), Config{
+		ServiceVersion: "test",
+		Environment:    "development",
+	})
+	if err != nil {
+		t.Fatalf("InitTracer returned error: %v", err)
+	}
+	defer shutdown(context.Background())
+
+	// Real behavior, not a type assertion on the propagator's internals:
+	// extract a W3C traceparent header and confirm the trace actually
+	// continues with the embedded trace ID.
+	const wantTraceID = "4bf92f3577b34da6a3ce929d0e0e4736"
+	carrier := propagation.MapCarrier{
+		"traceparent": "00-" + wantTraceID + "-00f067aa0ba902b7-01",
+	}
+	ctx := otel.GetTextMapPropagator().Extract(context.Background(), carrier)
+
+	sc := oteltrace.SpanContextFromContext(ctx)
+	if !sc.IsValid() {
+		t.Fatal("expected a valid SpanContext extracted from the traceparent header — propagator not installed?")
+	}
+	if got := sc.TraceID().String(); got != wantTraceID {
+		t.Errorf("extracted TraceID = %q, want %q", got, wantTraceID)
 	}
 }

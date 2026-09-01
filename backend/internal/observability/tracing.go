@@ -39,6 +39,12 @@ func InitTracer(ctx context.Context, cfg Config) (shutdown func(context.Context)
 		slog.Error("observability: opentelemetry error", "error", err)
 	}))
 
+	// Set globally regardless of enabled/disabled state below: outbound HTTP
+	// client instrumentation (W0.6) relies on this ambient default so Regen's
+	// own calls carry trace context onward, independent of whether tracing
+	// itself is exporting anywhere.
+	otel.SetTextMapPropagator(newPropagator())
+
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" {
 		otel.SetTracerProvider(noop.NewTracerProvider())
 		return func(context.Context) error { return nil }, nil

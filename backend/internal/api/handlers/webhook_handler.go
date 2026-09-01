@@ -128,7 +128,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 
 	// Step 4: Process normalized alerts through service layer
 	// This is where deduplication, grouping, routing, and incident creation happen
-	result, err := h.alertService.ProcessNormalizedAlerts(alerts)
+	result, err := h.alertService.ProcessNormalizedAlerts(c.Request.Context(), alerts)
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "webhook processing failed",
 			"error", err,

@@ -35,7 +35,7 @@ func PrometheusWebhook(alertSvc services.AlertService) gin.HandlerFunc {
 		}
 
 		// Step 3: Process alerts through service layer
-		result, err := alertSvc.ProcessAlertmanagerPayload(&payload)
+		result, err := alertSvc.ProcessAlertmanagerPayload(c.Request.Context(), &payload)
 		if err != nil {
 			slog.ErrorContext(c.Request.Context(), "webhook processing failed",
 				"error", err,

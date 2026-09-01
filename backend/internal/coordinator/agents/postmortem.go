@@ -24,7 +24,7 @@ type PostMortemAgentDeps struct {
 	AgentUserID  uuid.UUID
 	AISvc        interface{ IsEnabled() bool }
 	IncidentRepo interface {
-		GetByID(uuid.UUID) (*models.Incident, error)
+		GetByID(ctx context.Context, id uuid.UUID) (*models.Incident, error)
 	}
 	PostMortemSvc interface {
 		GetPostMortem(uuid.UUID) (*models.PostMortem, error)
@@ -71,9 +71,9 @@ func (a *PostMortemAgent) Handle(ctx context.Context, incidentID uuid.UUID) {
 	}
 
 	// Step 3: fetch incident
-	incident, err := a.deps.IncidentRepo.GetByID(incidentID)
+	incident, err := a.deps.IncidentRepo.GetByID(ctx, incidentID)
 	if err != nil {
-		slog.Error("post-mortem agent: failed to fetch incident", "incident_id", incidentID, "error", err)
+		slog.ErrorContext(ctx, "post-mortem agent: failed to fetch incident", "incident_id", incidentID, "error", err)
 		return
 	}
 
@@ -105,13 +105,13 @@ func (a *PostMortemAgent) Handle(ctx context.Context, incidentID uuid.UUID) {
 	slog.Info("post-mortem agent: draft created", "incident_id", incidentID, "postmortem_id", pm.ID)
 
 	// Step 7: write timeline entry
-	a.writeTimelineEntry(incident, pm)
+	a.writeTimelineEntry(ctx, incident, pm)
 
 	// Step 8: notify
 	a.notify(incident, pm)
 }
 
-func (a *PostMortemAgent) writeTimelineEntry(incident *models.Incident, pm *models.PostMortem) {
+func (a *PostMortemAgent) writeTimelineEntry(ctx context.Context, incident *models.Incident, pm *models.PostMortem) {
 	if a.deps.TimelineRepo == nil {
 		return
 	}
@@ -126,8 +126,8 @@ func (a *PostMortemAgent) writeTimelineEntry(incident *models.Incident, pm *mode
 			"agent":         "postmortem",
 		},
 	}
-	if err := a.deps.TimelineRepo.Create(entry); err != nil {
-		slog.Warn("post-mortem agent: failed to write timeline entry", "error", err)
+	if err := a.deps.TimelineRepo.Create(ctx, entry); err != nil {
+		slog.WarnContext(ctx, "post-mortem agent: failed to write timeline entry", "error", err)
 	}
 }
 

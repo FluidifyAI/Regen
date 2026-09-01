@@ -1,14 +1,20 @@
 package repository
 
 import (
+	"context"
+
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-// TimelineRepository defines the interface for timeline entry data access
+// TimelineRepository defines the interface for timeline entry data access.
+//
+// Create takes ctx (REG-157): it sits on the alert-webhook -> incident-create
+// path, so threading ctx into db.WithContext lets the gorm tracing plugin
+// (REG-9) attach a real child span. CreateBulk and GetByIncidentID do not yet.
 type TimelineRepository interface {
-	Create(entry *models.TimelineEntry) error
+	Create(ctx context.Context, entry *models.TimelineEntry) error
 	CreateBulk(entries []models.TimelineEntry) error
 	GetByIncidentID(incidentID uuid.UUID, pagination Pagination) ([]models.TimelineEntry, int64, error)
 }
@@ -24,8 +30,8 @@ func NewTimelineRepository(db *gorm.DB) TimelineRepository {
 }
 
 // Create inserts a new timeline entry (append-only)
-func (r *timelineRepository) Create(entry *models.TimelineEntry) error {
-	if err := r.db.Create(entry).Error; err != nil {
+func (r *timelineRepository) Create(ctx context.Context, entry *models.TimelineEntry) error {
+	if err := r.db.WithContext(ctx).Create(entry).Error; err != nil {
 		return &DatabaseError{Op: "create timeline entry", Err: err}
 	}
 	return nil

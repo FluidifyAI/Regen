@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -9,13 +10,19 @@ import (
 	"gorm.io/gorm"
 )
 
-// AlertRepository defines the interface for alert data access
+// AlertRepository defines the interface for alert data access.
+//
+// Create, GetByExternalID, and Update take ctx (REG-157): they sit on the
+// alert-webhook -> incident-create path, so threading ctx into db.WithContext
+// lets the gorm tracing plugin (REG-9) attach a real child span. GetByID and
+// List do not yet — same mixed pattern already established by
+// user_repository.go's Upsert, not a uniform migration of every method.
 type AlertRepository interface {
-	Create(alert *models.Alert) error
+	Create(ctx context.Context, alert *models.Alert) error
 	GetByID(id uuid.UUID) (*models.Alert, error)
-	GetByExternalID(source, externalID string) (*models.Alert, error)
+	GetByExternalID(ctx context.Context, source, externalID string) (*models.Alert, error)
 	List(filters AlertFilters, pagination Pagination) ([]models.Alert, int64, error)
-	Update(alert *models.Alert) error
+	Update(ctx context.Context, alert *models.Alert) error
 }
 
 // AlertFilters holds filter options for listing alerts
@@ -42,8 +49,8 @@ func NewAlertRepository(db *gorm.DB) AlertRepository {
 }
 
 // Create inserts a new alert
-func (r *alertRepository) Create(alert *models.Alert) error {
-	if err := r.db.Create(alert).Error; err != nil {
+func (r *alertRepository) Create(ctx context.Context, alert *models.Alert) error {
+	if err := r.db.WithContext(ctx).Create(alert).Error; err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return &AlreadyExistsError{
 				Resource: "alert",
@@ -69,9 +76,9 @@ func (r *alertRepository) GetByID(id uuid.UUID) (*models.Alert, error) {
 }
 
 // GetByExternalID retrieves an alert by source and external ID
-func (r *alertRepository) GetByExternalID(source, externalID string) (*models.Alert, error) {
+func (r *alertRepository) GetByExternalID(ctx context.Context, source, externalID string) (*models.Alert, error) {
 	var alert models.Alert
-	if err := r.db.Where("source = ? AND external_id = ?", source, externalID).First(&alert).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("source = ? AND external_id = ?", source, externalID).First(&alert).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &NotFoundError{
 				Resource: "alert",
@@ -121,7 +128,7 @@ func (r *alertRepository) List(filters AlertFilters, pagination Pagination) ([]m
 }
 
 // Update updates mutable fields of an alert
-func (r *alertRepository) Update(alert *models.Alert) error {
+func (r *alertRepository) Update(ctx context.Context, alert *models.Alert) error {
 	// Only allow updating specific mutable fields
 	updates := map[string]interface{}{
 		"status":               alert.Status,
@@ -131,7 +138,7 @@ func (r *alertRepository) Update(alert *models.Alert) error {
 		"escalation_policy_id": alert.EscalationPolicyID,
 	}
 
-	if err := r.db.Model(alert).Updates(updates).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(alert).Updates(updates).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &NotFoundError{Resource: "alert", ID: alert.ID}
 		}

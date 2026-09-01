@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,9 +19,9 @@ import (
 // ── stubs ─────────────────────────────────────────────────────────────────────
 
 type stubNeuriRepo struct {
-	created  []*models.NeuriResult
-	listResp []models.NeuriResult
-	listErr  error
+	created   []*models.NeuriResult
+	listResp  []models.NeuriResult
+	listErr   error
 	createErr error
 }
 
@@ -42,7 +43,7 @@ type stubIncidentRepoForNeuri struct {
 	err      error
 }
 
-func (s *stubIncidentRepoForNeuri) GetByID(_ uuid.UUID) (*models.Incident, error) {
+func (s *stubIncidentRepoForNeuri) GetByID(_ context.Context, _ uuid.UUID) (*models.Incident, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -59,8 +60,8 @@ type fullIncidentRepoForNeuri struct {
 	stub *stubIncidentRepoForNeuri
 }
 
-func (f *fullIncidentRepoForNeuri) GetByID(id uuid.UUID) (*models.Incident, error) {
-	return f.stub.GetByID(id)
+func (f *fullIncidentRepoForNeuri) GetByID(ctx context.Context, id uuid.UUID) (*models.Incident, error) {
+	return f.stub.GetByID(ctx, id)
 }
 
 func neuriRouter(incRepo repository.IncidentRepository, neuriRepo repository.NeuriResultRepository) *gin.Engine {
@@ -156,11 +157,11 @@ func TestListNeuriResults_HappyPath(t *testing.T) {
 	neuriRepo := &stubNeuriRepo{
 		listResp: []models.NeuriResult{
 			{
-				ID:            uuid.New(),
-				IncidentID:    incidentID,
-				TopHypothesis: "CODE_CHANGE",
-				Confidence:    0.85,
-				Summary:       "Deploy correlates.",
+				ID:               uuid.New(),
+				IncidentID:       incidentID,
+				TopHypothesis:    "CODE_CHANGE",
+				Confidence:       0.85,
+				Summary:          "Deploy correlates.",
 				RankedHypotheses: models.RawJSON("[]"),
 			},
 		},

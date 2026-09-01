@@ -4,6 +4,7 @@ package services
 // and alert processing pipeline.
 
 import (
+	"context"
 	"testing"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
@@ -135,7 +136,7 @@ func TestAlertService_EscalationTriggered_WhenPolicyInRoutingDecision(t *testing
 	svc := buildAlertServiceWithEscalation(rules, escalation)
 
 	normalized := makeNormalizedAlert("prometheus", "critical")
-	_, err := svc.ProcessNormalizedAlerts([]webhooks.NormalizedAlert{normalized})
+	_, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{normalized})
 	if err != nil {
 		t.Fatalf("ProcessNormalizedAlerts failed: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestAlertService_EscalationNotTriggered_WhenSuppressed(t *testing.T) {
 	svc := buildAlertServiceWithEscalation(rules, escalation)
 
 	normalized := makeNormalizedAlert("prometheus", "critical")
-	_, err := svc.ProcessNormalizedAlerts([]webhooks.NormalizedAlert{normalized})
+	_, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{normalized})
 	if err != nil {
 		t.Fatalf("ProcessNormalizedAlerts failed: %v", err)
 	}
@@ -176,7 +177,7 @@ func TestAlertService_EscalationNotTriggered_WhenNoPolicyInDecision(t *testing.T
 	svc := buildAlertServiceWithEscalation(rules, escalation)
 
 	normalized := makeNormalizedAlert("prometheus", "critical")
-	_, err := svc.ProcessNormalizedAlerts([]webhooks.NormalizedAlert{normalized})
+	_, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{normalized})
 	if err != nil {
 		t.Fatalf("ProcessNormalizedAlerts failed: %v", err)
 	}
@@ -209,7 +210,7 @@ func TestAlertService_EscalationNotTriggered_WhenAlertUpdated(t *testing.T) {
 
 	normalized := makeNormalizedAlert("prometheus", "critical")
 	normalized.ExternalID = "ext-001" // matches existing alert → update path
-	_, err := svc.ProcessNormalizedAlerts([]webhooks.NormalizedAlert{normalized})
+	_, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{normalized})
 	if err != nil {
 		t.Fatalf("ProcessNormalizedAlerts failed: %v", err)
 	}
@@ -235,7 +236,7 @@ func TestAlertService_EscalationEngineNil_DoesNotPanic(t *testing.T) {
 	// Intentionally do NOT set escalation engine
 
 	normalized := makeNormalizedAlert("prometheus", "critical")
-	if _, err := svc.ProcessNormalizedAlerts([]webhooks.NormalizedAlert{normalized}); err != nil {
+	if _, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{normalized}); err != nil {
 		t.Fatalf("should not error when escalation engine is nil: %v", err)
 	}
 }

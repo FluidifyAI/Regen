@@ -17,7 +17,9 @@ import (
 
 type fakeIncidentRepo struct{ incident *models.Incident }
 
-func (f *fakeIncidentRepo) GetByID(id uuid.UUID) (*models.Incident, error) { return f.incident, nil }
+func (f *fakeIncidentRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Incident, error) {
+	return f.incident, nil
+}
 
 type fakePostMortemSvc struct {
 	called      bool

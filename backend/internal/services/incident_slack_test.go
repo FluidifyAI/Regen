@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -280,7 +281,7 @@ func TestUpdateIncident_ArchivesChannelOnResolve(t *testing.T) {
 		TriggeredAt:      time.Now(),
 	}
 	repo := repository.NewIncidentRepository(db)
-	require.NoError(t, repo.Create(incident))
+	require.NoError(t, repo.Create(context.Background(), incident))
 
 	_, err := svc.UpdateIncident(incident.ID, &UpdateIncidentParams{
 		Status:    models.IncidentStatusResolved,
@@ -325,7 +326,7 @@ func TestUpdateIncident_ArchivesChannelOnCanceled(t *testing.T) {
 		TriggeredAt:      time.Now(),
 	}
 	repo := repository.NewIncidentRepository(db)
-	require.NoError(t, repo.Create(incident))
+	require.NoError(t, repo.Create(context.Background(), incident))
 
 	_, err := svc.UpdateIncident(incident.ID, &UpdateIncidentParams{
 		Status:    models.IncidentStatusCanceled,
@@ -373,7 +374,7 @@ func TestUpdateIncident_DoesNotArchiveOnAcknowledge(t *testing.T) {
 		TriggeredAt:      time.Now(),
 	}
 	repo := repository.NewIncidentRepository(db)
-	require.NoError(t, repo.Create(incident))
+	require.NoError(t, repo.Create(context.Background(), incident))
 
 	_, err := svc.UpdateIncident(incident.ID, &UpdateIncidentParams{
 		Status:    models.IncidentStatusAcknowledged,
@@ -410,7 +411,7 @@ func TestCreateSlackChannelForIncident_NoInviteWhenNoOnCallConfigured(t *testing
 		TriggeredAt:    time.Now(),
 	}
 	repo := repository.NewIncidentRepository(db)
-	require.NoError(t, repo.Create(incident))
+	require.NoError(t, repo.Create(context.Background(), incident))
 
 	err := svc.CreateSlackChannelForIncident(incident, nil)
 	require.NoError(t, err)

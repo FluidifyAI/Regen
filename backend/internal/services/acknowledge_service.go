@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -17,6 +18,7 @@ import (
 // This is the canonical acknowledgment call used by the REST handler and Slack
 // button callback — both paths converge here so timeline entries are always written.
 func AcknowledgeAlertWithTimeline(
+	ctx context.Context,
 	alertID uuid.UUID,
 	userName string,
 	via models.AcknowledgmentVia,
@@ -40,7 +42,7 @@ func AcknowledgeAlertWithTimeline(
 		if errors.As(err, &nfe) {
 			return nil // alert not linked to an incident — that's fine
 		}
-		slog.Warn("failed to look up incident for acknowledgment timeline entry",
+		slog.WarnContext(ctx, "failed to look up incident for acknowledgment timeline entry",
 			"alert_id", alertID,
 			"error", err,
 		)
@@ -60,8 +62,8 @@ func AcknowledgeAlertWithTimeline(
 		},
 	}
 
-	if err := timelineRepo.Create(entry); err != nil {
-		slog.Warn("failed to create acknowledgment timeline entry",
+	if err := timelineRepo.Create(ctx, entry); err != nil {
+		slog.WarnContext(ctx, "failed to create acknowledgment timeline entry",
 			"alert_id", alertID,
 			"incident_id", incident.ID,
 			"error", err,

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -234,7 +235,7 @@ func intgMakeAlert(t *testing.T, repo repository.AlertRepository, policyID *uuid
 		ReceivedAt:         time.Now(),
 		EscalationPolicyID: policyID,
 	}
-	require.NoError(t, repo.Create(alert))
+	require.NoError(t, repo.Create(context.Background(), alert))
 	return alert
 }
 
@@ -464,8 +465,8 @@ func TestIntegration_AcknowledgeHandler_CreatesTimelineEntry(t *testing.T) {
 		CreatedByID:   "test",
 		TriggeredAt:   time.Now(),
 	}
-	require.NoError(t, incidentRepo.Create(incident))
-	require.NoError(t, incidentRepo.LinkAlert(incident.ID, alert.ID, "system", "test"))
+	require.NoError(t, incidentRepo.Create(context.Background(), incident))
+	require.NoError(t, incidentRepo.LinkAlert(context.Background(), incident.ID, alert.ID, "system", "test"))
 
 	engine := NewEscalationEngine(escalationRepo, &intgNoScheduleEvaluator{}, &intgMockNotifier{
 		SendFn: func(string, *models.Alert, int) error { return nil },
@@ -473,7 +474,7 @@ func TestIntegration_AcknowledgeHandler_CreatesTimelineEntry(t *testing.T) {
 	require.NoError(t, engine.TriggerEscalation(alert))
 
 	// AcknowledgeAlertWithTimeline is the service-layer function we are about to create
-	err := AcknowledgeAlertWithTimeline(alert.ID, "alice", models.AcknowledgmentViaAPI, engine, incidentRepo, timelineRepo)
+	err := AcknowledgeAlertWithTimeline(context.Background(), alert.ID, "alice", models.AcknowledgmentViaAPI, engine, incidentRepo, timelineRepo)
 	require.NoError(t, err)
 
 	entries, total, err := timelineRepo.GetByIncidentID(incident.ID, repository.Pagination{Page: 1, PageSize: 10})

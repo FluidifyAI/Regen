@@ -9,6 +9,9 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	gormtracing "gorm.io/plugin/opentelemetry/tracing"
+
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 )
 
 // DB is the global database instance
@@ -71,6 +74,13 @@ func connectOnce(cfg Config) (*gorm.DB, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Every query becomes a child span of whatever request/job called it —
+	// disabled-tracing default is a no-op TracerProvider (REG-6), so this
+	// plugin costs nothing when self-hosters don't configure a collector.
+	if err := db.Use(gormtracing.NewPlugin(observability.GORMTracingOptions()...)); err != nil {
+		return nil, fmt.Errorf("failed to register gorm tracing plugin: %w", err)
 	}
 
 	// Get underlying *sql.DB

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/google/uuid"
 	"github.com/slack-go/slack"
@@ -62,7 +63,7 @@ func NewSlackEventHandler(
 		return nil, fmt.Errorf("SLACK_BOT_TOKEN is required")
 	}
 
-	client := slack.New(botToken)
+	client := slack.New(botToken, slack.OptionHTTPClient(observability.InstrumentedHTTPClient(nil, "slack")))
 
 	// Identify the bot's own user ID so we can filter out its messages
 	// (prevents echo loops when the bot posts status updates)

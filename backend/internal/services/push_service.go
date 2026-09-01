@@ -9,6 +9,7 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/google/uuid"
 	"google.golang.org/api/option"
@@ -44,8 +45,8 @@ type PushNotifier interface {
 // PushService sends Firebase Cloud Messaging push notifications.
 // A nil *PushService is a valid no-op (push disabled).
 type PushService struct {
-	sender             FCMSender
-	repo               repository.DeviceTokenRepository
+	sender FCMSender
+	repo   repository.DeviceTokenRepository
 	// checkNotRegistered determines whether an FCM error means the token is permanently stale.
 	// Defaults to messaging.IsUnregistered. Injectable for unit tests.
 	checkNotRegistered func(error) bool
@@ -70,8 +71,23 @@ func NewPushService(credPath string, repo repository.DeviceTokenRepository) (*Pu
 		return nil, fmt.Errorf("push: credential file is not valid JSON: %w", err)
 	}
 
-	opt := option.WithAuthCredentialsJSON(option.ServiceAccount, data)
-	app, err := firebase.NewApp(context.Background(), nil, opt)
+	// Build an auth-wrapped, instrumented HTTP client ourselves rather than
+	// via option.WithHTTPClient: that option, combined with an auth option,
+	// silently bypasses the SDK's own auth-transport construction entirely
+	// (verified against the library source — see
+	// observability.InstrumentedGoogleAPIClient's doc comment). Passing the
+	// finished client back in via WithHTTPClient here is safe, since it
+	// already carries both auth and instrumentation.
+	authOpt := option.WithAuthCredentialsJSON(option.ServiceAccount, data)
+	authedClient, err := observability.InstrumentedGoogleAPIClient(context.Background(), "fcm", []option.ClientOption{authOpt})
+	if err != nil {
+		return nil, fmt.Errorf("push: failed to build authenticated HTTP client: %w", err)
+	}
+	// authOpt is passed again here (alongside the pre-built client) because
+	// firebase.NewApp's own project-ID discovery reads credentials directly
+	// from opts, independent of the HTTP transport — dropping it here would
+	// silently lose project-ID auto-discovery even though auth itself works.
+	app, err := firebase.NewApp(context.Background(), nil, authOpt, option.WithHTTPClient(authedClient))
 	if err != nil {
 		return nil, fmt.Errorf("push: failed to init Firebase app: %w", err)
 	}
@@ -118,7 +134,7 @@ func (s *PushService) SendToUser(ctx context.Context, userID uuid.UUID, n PushNo
 				Title: n.Title,
 				Body:  n.Body,
 			},
-			Data: n.Data,
+			Data:    n.Data,
 			Android: &messaging.AndroidConfig{Priority: "high"},
 			APNS: &messaging.APNSConfig{
 				Payload: &messaging.APNSPayload{

@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/gin-gonic/gin"
 	slack "github.com/slack-go/slack"
@@ -20,7 +21,7 @@ func ListSlackMembers(slackRepo repository.SlackConfigRepository, userRepo repos
 			return
 		}
 
-		client := slack.New(cfg.BotToken)
+		client := slack.New(cfg.BotToken, slack.OptionHTTPClient(observability.InstrumentedHTTPClient(nil, "slack")))
 		slackUsers, err := client.GetUsers()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch Slack members: " + err.Error()})

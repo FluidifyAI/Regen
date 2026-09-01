@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/slack-go/slack"
 )
 
@@ -30,7 +31,7 @@ func NewSlackService(token string) (ChatService, error) {
 		return nil, fmt.Errorf("slack bot token is required")
 	}
 
-	client := slack.New(token)
+	client := slack.New(token, slack.OptionHTTPClient(observability.InstrumentedHTTPClient(nil, "slack")))
 
 	// Validate token on startup
 	auth, err := client.AuthTest()

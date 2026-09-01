@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -117,7 +118,7 @@ func TestSlackConfig() gin.HandlerFunc {
 			return
 		}
 
-		client := slack.New(req.BotToken)
+		client := slack.New(req.BotToken, slack.OptionHTTPClient(observability.InstrumentedHTTPClient(nil, "slack")))
 		resp, err := client.AuthTest()
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "slack auth failed: " + err.Error()})

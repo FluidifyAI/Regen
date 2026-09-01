@@ -7,8 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
+	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/google/uuid"
 )
 
@@ -57,7 +58,7 @@ func NewWebPushService(vapidPublicKey, vapidPrivateKey, subscriber string, repo 
 		vapidPrivateKey: vapidPrivateKey,
 		vapidSubscriber: sub,
 		repo:            repo,
-		httpClient:      &http.Client{},
+		httpClient:      observability.InstrumentedHTTPClient(nil, "web-push"),
 	}, nil
 }
 

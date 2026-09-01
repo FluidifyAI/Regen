@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 )
 
 const (
-	anthropicDefaultBase    = "https://api.anthropic.com"
-	anthropicVersionHeader  = "2023-06-01"
+	anthropicDefaultBase   = "https://api.anthropic.com"
+	anthropicVersionHeader = "2023-06-01"
 )
 
 type anthropicClient struct {
@@ -32,7 +34,7 @@ func newAnthropicClient(cfg Config) *anthropicClient {
 		model:      cfg.Model,
 		maxTokens:  cfg.MaxTokens,
 		baseURL:    base,
-		httpClient: &http.Client{Timeout: 60 * time.Second},
+		httpClient: observability.InstrumentedHTTPClient(&http.Client{Timeout: 60 * time.Second}, "anthropic"),
 	}
 }
 

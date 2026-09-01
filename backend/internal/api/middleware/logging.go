@@ -47,13 +47,13 @@ func Logger() gin.HandlerFunc {
 		if len(c.Errors) > 0 {
 			// Log errors
 			attrs = append(attrs, slog.String("error", c.Errors.String()))
-			slog.Error("request completed with errors", attrs...)
+			slog.ErrorContext(c.Request.Context(), "request completed with errors", attrs...)
 		} else if status >= 500 {
-			slog.Error("request failed", attrs...)
+			slog.ErrorContext(c.Request.Context(), "request failed", attrs...)
 		} else if status >= 400 {
-			slog.Warn("request rejected", attrs...)
+			slog.WarnContext(c.Request.Context(), "request rejected", attrs...)
 		} else {
-			slog.Info("request completed", attrs...)
+			slog.InfoContext(c.Request.Context(), "request completed", attrs...)
 		}
 	}
 }

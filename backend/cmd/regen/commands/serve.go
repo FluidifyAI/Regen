@@ -358,6 +358,9 @@ func setupLogging(level string) {
 	default:
 		logLevel = slog.LevelInfo
 	}
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})
-	slog.SetDefault(slog.New(handler))
+	jsonHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})
+	// Wrapping is always safe regardless of migration progress: unmigrated
+	// slog.Info(...)-style calls pass context.Background() internally, which
+	// carries no span, so ContextHandler is a transparent no-op for them.
+	slog.SetDefault(slog.New(observability.NewContextHandler(jsonHandler)))
 }

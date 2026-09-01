@@ -48,7 +48,7 @@ func SummarizeIncident(incidentSvc services.IncidentService, aiSvc services.AISe
 
 		summary, usage, err := incidentSvc.GenerateAISummary(incident)
 		if err != nil {
-			slog.Error("failed to generate AI summary",
+			slog.ErrorContext(c.Request.Context(), "failed to generate AI summary",
 				"incident_id", incident.ID,
 				"error", err,
 				"request_id", c.GetString("request_id"),
@@ -116,7 +116,7 @@ func GenerateHandoffDigest(incidentSvc services.IncidentService, aiSvc services.
 
 		digest, usage, err := incidentSvc.GenerateHandoffDigest(incident)
 		if err != nil {
-			slog.Error("failed to generate handoff digest",
+			slog.ErrorContext(c.Request.Context(), "failed to generate handoff digest",
 				"incident_id", incident.ID,
 				"error", err,
 				"request_id", c.GetString("request_id"),
@@ -181,7 +181,7 @@ func EnhanceIncidentDraft(aiSvc services.AIService, hooks enterprise.Hooks) gin.
 		}
 		title, summary, usage, err := aiSvc.EnhanceIncidentDraft(c.Request.Context(), req.Brief)
 		if err != nil {
-			slog.Error("failed to enhance incident draft", "error", err, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to enhance incident draft", "error", err, "request_id", c.GetString("request_id"))
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": gin.H{"code": "ai_error", "message": err.Error()},
 			})

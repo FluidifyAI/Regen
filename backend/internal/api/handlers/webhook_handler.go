@@ -58,7 +58,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 	// Note: The middleware.BodySizeLimit already restricts this to 1MB for webhooks
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		slog.Error("failed to read request body",
+		slog.ErrorContext(c.Request.Context(), "failed to read request body",
 			"error", err,
 			"source", source,
 		)
@@ -76,7 +76,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 	//   - CloudWatch: SNS signature verification
 	//   - Generic: HMAC-SHA256 signature (if configured)
 	if err := h.provider.ValidatePayload(body, c.Request.Header); err != nil {
-		slog.Warn("webhook authentication failed",
+		slog.WarnContext(c.Request.Context(), "webhook authentication failed",
 			"error", err,
 			"source", source,
 			"remote_addr", c.ClientIP(),
@@ -94,7 +94,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 	// Provider converts source-specific format to []NormalizedAlert
 	alerts, err := h.provider.ParsePayload(body)
 	if err != nil {
-		slog.Error("webhook payload parsing failed",
+		slog.ErrorContext(c.Request.Context(), "webhook payload parsing failed",
 			"error", err,
 			"source", source,
 		)
@@ -111,7 +111,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 	// This is not an error - we confirmed the subscription and should return 200 OK
 	if len(alerts) == 0 {
 		duration := time.Since(startTime)
-		slog.Info("webhook processed (no alerts)",
+		slog.InfoContext(c.Request.Context(), "webhook processed (no alerts)",
 			"source", source,
 			"duration_ms", duration.Milliseconds(),
 			"note", "SNS subscription confirmation or empty batch",
@@ -130,7 +130,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 	// This is where deduplication, grouping, routing, and incident creation happen
 	result, err := h.alertService.ProcessNormalizedAlerts(alerts)
 	if err != nil {
-		slog.Error("webhook processing failed",
+		slog.ErrorContext(c.Request.Context(), "webhook processing failed",
 			"error", err,
 			"source", source,
 			"received", len(alerts),
@@ -149,7 +149,7 @@ func (h *WebhookHandler) Handle(c *gin.Context) {
 
 	// Step 6: Log success with structured logging
 	duration := time.Since(startTime)
-	slog.Info("webhook processed",
+	slog.InfoContext(c.Request.Context(), "webhook processed",
 		"source", source,
 		"received", result.Received,
 		"created", result.Created,

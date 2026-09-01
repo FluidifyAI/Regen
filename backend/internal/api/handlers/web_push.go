@@ -98,13 +98,13 @@ func RegisterWebPushSubscription(repo repository.WebPushSubscriptionRepository) 
 				c.JSON(http.StatusTooManyRequests, gin.H{"error": "token_limit_exceeded"})
 				return
 			}
-			slog.Error("web push: failed to register subscription",
+			slog.ErrorContext(c.Request.Context(), "web push: failed to register subscription",
 				"user_id", user.ID, "err", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 			return
 		}
 
-		slog.Info("web push: subscription registered", "user_id", user.ID)
+		slog.InfoContext(c.Request.Context(), "web push: subscription registered", "user_id", user.ID)
 		c.Status(http.StatusNoContent)
 	}
 }
@@ -133,13 +133,13 @@ func UnregisterWebPushSubscription(repo repository.WebPushSubscriptionRepository
 
 		_, err := repo.DeleteByUserAndEndpoint(user.ID, req.Endpoint)
 		if err != nil {
-			slog.Error("web push: failed to unregister subscription",
+			slog.ErrorContext(c.Request.Context(), "web push: failed to unregister subscription",
 				"user_id", user.ID, "err", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 			return
 		}
 
-		slog.Info("web push: subscription unregistered", "user_id", user.ID)
+		slog.InfoContext(c.Request.Context(), "web push: subscription unregistered", "user_id", user.ID)
 		c.Status(http.StatusNoContent)
 	}
 }

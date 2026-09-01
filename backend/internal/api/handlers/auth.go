@@ -40,7 +40,7 @@ func setSessionCookie(c *gin.Context, token string, maxAge int) {
 // Logout handles GET /auth/logout — browser redirect flow (kept for backwards compatibility).
 func Logout(samlMiddleware *samlsp.Middleware, localAuth services.LocalAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		slog.Info("auth: logout", "ip", c.ClientIP())
+		slog.InfoContext(c.Request.Context(), "auth: logout", "ip", c.ClientIP())
 		clearSession(c, samlMiddleware, localAuth)
 		c.Redirect(http.StatusFound, "/login")
 	}
@@ -51,7 +51,7 @@ func Logout(samlMiddleware *samlsp.Middleware, localAuth services.LocalAuthServi
 func APILogout(samlMiddleware *samlsp.Middleware, localAuth services.LocalAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store")
-		slog.Info("auth: logout", "ip", c.ClientIP())
+		slog.InfoContext(c.Request.Context(), "auth: logout", "ip", c.ClientIP())
 		clearSession(c, samlMiddleware, localAuth)
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
@@ -86,7 +86,7 @@ func Login(localAuth services.LocalAuthService) gin.HandlerFunc {
 
 		// Per-account lockout check — keyed on a hash of the email to avoid PII in Redis.
 		if isAccountLocked(req.Email) {
-			slog.Warn("auth: login rejected — account locked out", "ip", c.ClientIP())
+			slog.WarnContext(c.Request.Context(), "auth: login rejected — account locked out", "ip", c.ClientIP())
 			c.Header("Retry-After", fmt.Sprintf("%d", loginLockoutSec))
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": gin.H{
 				"code":    "account_locked",
@@ -98,13 +98,13 @@ func Login(localAuth services.LocalAuthService) gin.HandlerFunc {
 		session, err := localAuth.Login(req.Email, req.Password)
 		if err != nil {
 			recordLoginFailure(req.Email)
-			slog.Warn("auth: login failed", "ip", c.ClientIP())
+			slog.WarnContext(c.Request.Context(), "auth: login failed", "ip", c.ClientIP())
 			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "unauthorized", "message": err.Error()}})
 			return
 		}
 
 		clearLoginFailures(req.Email)
-		slog.Info("auth: login success", "ip", c.ClientIP())
+		slog.InfoContext(c.Request.Context(), "auth: login success", "ip", c.ClientIP())
 
 		// Set session cookie: 7-day, HttpOnly, SameSite=Strict
 		setSessionCookie(c, session.Token, 7*24*3600)
@@ -132,7 +132,7 @@ func SetupTokenLogin(localAuth services.LocalAuthService) gin.HandlerFunc {
 			return
 		}
 		setSessionCookie(c, req.Token, 7*24*3600)
-		slog.Info("auth: setup-token login", "ip", c.ClientIP())
+		slog.InfoContext(c.Request.Context(), "auth: setup-token login", "ip", c.ClientIP())
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }
@@ -255,7 +255,7 @@ func UpdateMe(localAuth services.LocalAuthService) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to update profile"}})
 			return
 		}
-		slog.Info("auth: user updated own profile", "user_id", user.ID)
+		slog.InfoContext(c.Request.Context(), "auth: user updated own profile", "user_id", user.ID)
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }
@@ -288,7 +288,7 @@ func ForgotPassword(localAuth services.LocalAuthService) gin.HandlerFunc {
 			return
 		}
 
-		slog.Info("auth: password reset requested", "ip", c.ClientIP())
+		slog.InfoContext(c.Request.Context(), "auth: password reset requested", "ip", c.ClientIP())
 		c.JSON(http.StatusOK, gin.H{"ok": true, "setup_token": token})
 	}
 }

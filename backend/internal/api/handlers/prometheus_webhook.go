@@ -17,7 +17,7 @@ func PrometheusWebhook(alertSvc services.AlertService) gin.HandlerFunc {
 		// Step 1: Parse JSON payload
 		var payload webhooks.AlertmanagerPayload
 		if err := c.ShouldBindJSON(&payload); err != nil {
-			slog.Error("invalid webhook payload", "error", err, "source", "prometheus")
+			slog.ErrorContext(c.Request.Context(), "invalid webhook payload", "error", err, "source", "prometheus")
 			c.JSON(400, gin.H{
 				"error":   "invalid payload",
 				"details": err.Error(),
@@ -27,7 +27,7 @@ func PrometheusWebhook(alertSvc services.AlertService) gin.HandlerFunc {
 
 		// Step 2: Validate basic requirements
 		if len(payload.Alerts) == 0 {
-			slog.Warn("webhook received with no alerts", "source", "prometheus")
+			slog.WarnContext(c.Request.Context(), "webhook received with no alerts", "source", "prometheus")
 			c.JSON(400, gin.H{
 				"error": "no alerts in payload",
 			})
@@ -37,7 +37,7 @@ func PrometheusWebhook(alertSvc services.AlertService) gin.HandlerFunc {
 		// Step 3: Process alerts through service layer
 		result, err := alertSvc.ProcessAlertmanagerPayload(&payload)
 		if err != nil {
-			slog.Error("webhook processing failed",
+			slog.ErrorContext(c.Request.Context(), "webhook processing failed",
 				"error", err,
 				"source", "prometheus",
 				"payload_status", payload.Status,
@@ -50,7 +50,7 @@ func PrometheusWebhook(alertSvc services.AlertService) gin.HandlerFunc {
 
 		// Step 4: Log metrics with structured logging
 		duration := time.Since(startTime)
-		slog.Info("webhook processed",
+		slog.InfoContext(c.Request.Context(), "webhook processed",
 			"source", "prometheus",
 			"received", result.Received,
 			"created", result.Created,

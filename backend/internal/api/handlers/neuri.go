@@ -66,7 +66,7 @@ func ReceiveNeuriResult(
 		}
 
 		if err := neuriRepo.Create(result); err != nil {
-			slog.Error("failed to store neuri result",
+			slog.ErrorContext(c.Request.Context(), "failed to store neuri result",
 				"error", err,
 				"incident_id", req.IncidentID,
 				"request_id", c.GetString("request_id"),
@@ -188,7 +188,7 @@ func TriggerNeuriInvestigation(
 
 		resp, err := client.Do(outReq)
 		if err != nil {
-			slog.Error("neuri webhook call failed",
+			slog.ErrorContext(c.Request.Context(), "neuri webhook call failed",
 				"error", err,
 				"incident_id", incident.ID,
 				"request_id", c.GetString("request_id"),
@@ -205,7 +205,7 @@ func TriggerNeuriInvestigation(
 		io.Copy(io.Discard, resp.Body) //nolint:errcheck
 
 		if resp.StatusCode >= 500 {
-			slog.Error("neuri webhook returned server error",
+			slog.ErrorContext(c.Request.Context(), "neuri webhook returned server error",
 				"status", resp.StatusCode,
 				"incident_id", incident.ID,
 				"request_id", c.GetString("request_id"),

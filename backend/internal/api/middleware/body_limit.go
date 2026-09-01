@@ -30,7 +30,7 @@ func BodySizeLimit(maxBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check Content-Length header if present
 		if c.Request.ContentLength > maxBytes {
-			slog.Warn("request body too large",
+			slog.WarnContext(c.Request.Context(), "request body too large",
 				"content_length", c.Request.ContentLength,
 				"max_bytes", maxBytes,
 				"path", c.Request.URL.Path,

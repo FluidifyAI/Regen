@@ -45,7 +45,7 @@ func ListIncidents(incidentSvc services.IncidentService) gin.HandlerFunc {
 			pagination.ToRepository(),
 		)
 		if err != nil {
-			slog.Error("failed to list incidents",
+			slog.ErrorContext(c.Request.Context(), "failed to list incidents",
 				"error", err,
 				"request_id", c.GetString("request_id"),
 			)
@@ -97,7 +97,7 @@ func GetIncident(incidentSvc services.IncidentService, userRepo repository.UserR
 		// Fetch linked alerts
 		alerts, err := incidentSvc.GetIncidentAlerts(incident.ID)
 		if err != nil {
-			slog.Error("failed to fetch incident alerts",
+			slog.ErrorContext(c.Request.Context(), "failed to fetch incident alerts",
 				"error", err,
 				"incident_id", incident.ID,
 			)
@@ -110,7 +110,7 @@ func GetIncident(incidentSvc services.IncidentService, userRepo repository.UserR
 			PageSize: 50,
 		})
 		if err != nil {
-			slog.Error("failed to fetch incident timeline",
+			slog.ErrorContext(c.Request.Context(), "failed to fetch incident timeline",
 				"error", err,
 				"incident_id", incident.ID,
 			)
@@ -205,7 +205,7 @@ func CreateIncident(incidentSvc services.IncidentService) gin.HandlerFunc {
 
 		incident, err := incidentSvc.CreateIncident(&params)
 		if err != nil {
-			slog.Error("failed to create incident",
+			slog.ErrorContext(c.Request.Context(), "failed to create incident",
 				"error", err,
 				"request_id", c.GetString("request_id"),
 			)

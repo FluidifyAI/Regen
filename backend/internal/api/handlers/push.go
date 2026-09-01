@@ -76,13 +76,13 @@ func RegisterDeviceToken(repo repository.DeviceTokenRepository) gin.HandlerFunc 
 				c.JSON(http.StatusTooManyRequests, gin.H{"error": "token_limit_exceeded"})
 				return
 			}
-			slog.Error("push: failed to register device token",
+			slog.ErrorContext(c.Request.Context(), "push: failed to register device token",
 				"user_id", user.ID, "platform", req.Platform, "err", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 			return
 		}
 
-		slog.Info("push: device token registered", "user_id", user.ID, "platform", req.Platform)
+		slog.InfoContext(c.Request.Context(), "push: device token registered", "user_id", user.ID, "platform", req.Platform)
 		c.Status(http.StatusNoContent)
 	}
 }
@@ -111,13 +111,13 @@ func UnregisterDeviceToken(repo repository.DeviceTokenRepository) gin.HandlerFun
 
 		_, err := repo.DeleteByUserAndToken(user.ID, req.Token)
 		if err != nil {
-			slog.Error("push: failed to unregister device token",
+			slog.ErrorContext(c.Request.Context(), "push: failed to unregister device token",
 				"user_id", user.ID, "err", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 			return
 		}
 
-		slog.Info("push: device token unregistered", "user_id", user.ID)
+		slog.InfoContext(c.Request.Context(), "push: device token unregistered", "user_id", user.ID)
 		c.Status(http.StatusNoContent)
 	}
 }

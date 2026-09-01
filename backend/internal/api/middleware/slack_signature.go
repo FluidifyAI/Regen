@@ -35,7 +35,7 @@ func SlackSignatureVerification(getSecret func() string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		signingSecret := getSecret()
 		if signingSecret == "" {
-			slog.Warn("Slack signing secret not configured - signature verification disabled")
+			slog.WarnContext(c.Request.Context(), "Slack signing secret not configured - signature verification disabled")
 			c.Next()
 			return
 		}
@@ -45,7 +45,7 @@ func SlackSignatureVerification(getSecret func() string) gin.HandlerFunc {
 
 		// Both headers are required
 		if timestamp == "" || signature == "" {
-			slog.Warn("slack request missing signature headers",
+			slog.WarnContext(c.Request.Context(), "slack request missing signature headers",
 				"path", c.Request.URL.Path,
 				"has_timestamp", timestamp != "",
 				"has_signature", signature != "",
@@ -59,7 +59,7 @@ func SlackSignatureVerification(getSecret func() string) gin.HandlerFunc {
 		// Parse and validate timestamp
 		requestTime, err := parseSlackTimestamp(timestamp)
 		if err != nil {
-			slog.Warn("invalid slack timestamp",
+			slog.WarnContext(c.Request.Context(), "invalid slack timestamp",
 				"timestamp", timestamp,
 				"error", err,
 			)
@@ -72,7 +72,7 @@ func SlackSignatureVerification(getSecret func() string) gin.HandlerFunc {
 		// Check timestamp age (prevent replay attacks)
 		age := time.Since(requestTime)
 		if age > SlackMaxTimestampAge {
-			slog.Warn("slack request timestamp too old",
+			slog.WarnContext(c.Request.Context(), "slack request timestamp too old",
 				"timestamp", timestamp,
 				"age_seconds", age.Seconds(),
 				"max_age_seconds", SlackMaxTimestampAge.Seconds(),
@@ -86,7 +86,7 @@ func SlackSignatureVerification(getSecret func() string) gin.HandlerFunc {
 
 		// Future timestamps are also invalid
 		if age < 0 {
-			slog.Warn("slack request timestamp in the future",
+			slog.WarnContext(c.Request.Context(), "slack request timestamp in the future",
 				"timestamp", timestamp,
 				"offset_seconds", math.Abs(age.Seconds()),
 			)
@@ -100,7 +100,7 @@ func SlackSignatureVerification(getSecret func() string) gin.HandlerFunc {
 		// We need to read it to compute the signature, then restore it for handlers
 		bodyBytes, err := io.ReadAll(c.Request.Body)
 		if err != nil {
-			slog.Error("failed to read request body for signature verification",
+			slog.ErrorContext(c.Request.Context(), "failed to read request body for signature verification",
 				"error", err,
 			)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
@@ -117,7 +117,7 @@ func SlackSignatureVerification(getSecret func() string) gin.HandlerFunc {
 
 		// Compare signatures using constant-time comparison
 		if !hmac.Equal([]byte(signature), []byte(expectedSig)) {
-			slog.Warn("slack signature verification failed",
+			slog.WarnContext(c.Request.Context(), "slack signature verification failed",
 				"path", c.Request.URL.Path,
 				"client_ip", c.ClientIP(),
 			)

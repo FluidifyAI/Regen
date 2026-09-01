@@ -54,31 +54,31 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 
 	// Initialize grouping engine (for alert deduplication and grouping)
 	groupingEngine := services.NewGroupingEngine(groupingRuleRepo, incidentRepo, db)
-	slog.Info("grouping engine initialized")
+	slog.Info("grouping engine initialized") //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 
 	// Initialize routing engine (for alert routing decisions)
 	routingEngine := services.NewRoutingEngine(routingRuleRepo)
-	slog.Info("routing engine initialized")
+	slog.Info("routing engine initialized") //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 
 	// Initialize schedule evaluator (for on-call schedule evaluation)
 	scheduleRepo := repository.NewScheduleRepository(db)
 	scheduleEvaluator := services.NewScheduleEvaluator(scheduleRepo)
-	slog.Info("schedule evaluator initialized")
+	slog.Info("schedule evaluator initialized") //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 
 	// Initialize holiday service (fetches public holidays from ICS feeds)
 	holidaySvc := services.NewHolidayService(scheduleRepo)
 
 	// Initialize escalation engine (v0.5+)
 	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, nil)
-	slog.Info("escalation engine initialized")
+	slog.Info("escalation engine initialized") //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 
 	// Initialize AI service (v0.6+) — noop if no provider is configured
 	aiProvider, aiKey, aiModel, ollamaURL := resolveAIConfig(cfg, systemSettingsRepo)
 	aiSvc := services.NewAIService(aiProvider, aiKey, aiModel, cfg.OpenAIMaxTokens, cfg.OpenAIPostMortemMaxTokens, ollamaURL)
 	if aiSvc.IsEnabled() {
-		slog.Info("AI service enabled", "provider", aiProvider, "model", aiModel)
+		slog.Info("AI service enabled", "provider", aiProvider, "model", aiModel) //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 	} else {
-		slog.Warn("AI service disabled — configure a provider via Settings → System or env vars")
+		slog.Warn("AI service disabled — configure a provider via Settings → System or env vars") //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 	}
 
 	// Post-mortem repositories (v0.7+)
@@ -117,7 +117,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 	// Wire push notification service into incident service (optional — nil when Firebase not configured)
 	if pushSvc != nil {
 		services.SetPushService(incidentSvc, pushSvc)
-		slog.Info("push service wired into incident service")
+		slog.Info("push service wired into incident service") //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 	}
 
 	// Slack event handler resolver — lazily initializes from DB config on first use.
@@ -176,9 +176,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 		})
 		samlGroup := router.Group("/saml", middleware.RateLimitAuth())
 		samlGroup.Any("/*action", gin.WrapH(samlHandler))
-		slog.Info("SAML SSO routes registered", "login", "/saml/login", "metadata", "/saml/metadata")
+		slog.Info("SAML SSO routes registered", "login", "/saml/login", "metadata", "/saml/metadata") //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 	} else {
-		slog.Warn("SAML SSO disabled — set SAML_IDP_METADATA_URL to enable authentication")
+		slog.Warn("SAML SSO disabled — set SAML_IDP_METADATA_URL to enable authentication") //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 	}
 	router.GET("/auth/logout", handlers.Logout(samlMiddleware, localAuth))
 
@@ -359,7 +359,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 		protected.GET("/grouping-rules/:id", handlers.GetGroupingRule(groupingRuleRepo))
 		onGroupingRuleMutate := func() {
 			if err := groupingEngine.RefreshRules(); err != nil {
-				slog.Warn("grouping engine refresh failed", "error", err)
+				slog.Warn("grouping engine refresh failed", "error", err) //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 			}
 		}
 		protected.POST("/grouping-rules", handlers.CreateGroupingRule(groupingRuleRepo, onGroupingRuleMutate))
@@ -375,7 +375,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 		protected.GET("/routing-rules/:id", handlers.GetRoutingRule(routingRuleRepo))
 		onRoutingRuleMutate := func() {
 			if err := routingEngine.RefreshRules(); err != nil {
-				slog.Warn("routing engine refresh failed", "error", err)
+				slog.Warn("routing engine refresh failed", "error", err) //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 			}
 		}
 		// Mutations are admin-only — members can view but not configure alert routing.
@@ -511,13 +511,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 	// development using `npm run dev`), in which case we skip static serving
 	// so the API remains fully functional on its own.
 	if distFS := hooks.UI.FS(); distFS != nil {
-		slog.Info("serving embedded frontend")
+		slog.Info("serving embedded frontend") //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 
 		// Read index.html once at startup. All SPA routes serve this same file;
 		// reading it into memory avoids repeated FS lookups on every page load.
 		indexHTML, err := fs.ReadFile(distFS, "index.html")
 		if err != nil {
-			slog.Error("embedded frontend is missing index.html", "err", err)
+			slog.Error("embedded frontend is missing index.html", "err", err) //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 		}
 
 		// http.FileServer handles Content-Type detection, ETag, Last-Modified,
@@ -574,7 +574,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 			fileServer.ServeHTTP(c.Writer, c.Request)
 		})
 	} else {
-		slog.Info("no embedded frontend — API-only mode (run `npm run dev` for the UI)")
+		slog.Info("no embedded frontend — API-only mode (run `npm run dev` for the UI)") //nolint:sloglint // no per-request context here (startup init or a plain func() callback)
 	}
 }
 

@@ -95,7 +95,7 @@ func SaveSlackConfig(repo repository.SlackConfigRepository, invalidator ...Handl
 			ConnectedBy:       connectedBy,
 		}
 		if err := repo.Save(cfg); err != nil {
-			slog.Error("failed to save slack config", "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to save slack config", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save slack config"})
 			return
 		}

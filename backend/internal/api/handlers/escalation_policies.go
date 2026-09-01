@@ -18,7 +18,7 @@ func ListEscalationPolicies(repo repository.EscalationPolicyRepository) gin.Hand
 		// for all tiers) to avoid an N+1 pattern.
 		policies, err := repo.GetAllPoliciesWithTiers()
 		if err != nil {
-			slog.Error("failed to list escalation policies", "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to list escalation policies", "error", err)
 			dto.InternalError(c, err)
 			return
 		}
@@ -50,7 +50,7 @@ func GetEscalationPolicy(repo repository.EscalationPolicyRepository) gin.Handler
 				dto.NotFound(c, "escalation_policy", id.String())
 				return
 			}
-			slog.Error("failed to get escalation policy", "id", id, "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to get escalation policy", "id", id, "error", err)
 			dto.InternalError(c, err)
 			return
 		}
@@ -81,7 +81,7 @@ func CreateEscalationPolicy(repo repository.EscalationPolicyRepository) gin.Hand
 		}
 
 		if err := repo.CreatePolicy(policy); err != nil {
-			slog.Error("failed to create escalation policy", "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to create escalation policy", "error", err)
 			dto.InternalError(c, err)
 			return
 		}
@@ -112,7 +112,7 @@ func UpdateEscalationPolicy(repo repository.EscalationPolicyRepository) gin.Hand
 				dto.NotFound(c, "escalation_policy", id.String())
 				return
 			}
-			slog.Error("failed to get escalation policy for update", "id", id, "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to get escalation policy for update", "id", id, "error", err)
 			dto.InternalError(c, err)
 			return
 		}
@@ -128,7 +128,7 @@ func UpdateEscalationPolicy(repo repository.EscalationPolicyRepository) gin.Hand
 		}
 
 		if err := repo.UpdatePolicy(policy); err != nil {
-			slog.Error("failed to update escalation policy", "id", id, "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to update escalation policy", "id", id, "error", err)
 			dto.InternalError(c, err)
 			return
 		}
@@ -151,7 +151,7 @@ func DeleteEscalationPolicy(repo repository.EscalationPolicyRepository) gin.Hand
 				dto.NotFound(c, "escalation_policy", id.String())
 				return
 			}
-			slog.Error("failed to delete escalation policy", "id", id, "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to delete escalation policy", "id", id, "error", err)
 			dto.InternalError(c, err)
 			return
 		}
@@ -178,7 +178,7 @@ func CreateEscalationTier(repo repository.EscalationPolicyRepository) gin.Handle
 		// Determine the next tier_index
 		existingTiers, err := repo.GetTiersByPolicy(policyID)
 		if err != nil {
-			slog.Error("failed to get tiers for policy", "policy_id", policyID, "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to get tiers for policy", "policy_id", policyID, "error", err)
 			dto.InternalError(c, err)
 			return
 		}
@@ -199,7 +199,7 @@ func CreateEscalationTier(repo repository.EscalationPolicyRepository) gin.Handle
 		}
 
 		if err := repo.CreateTier(tier); err != nil {
-			slog.Error("failed to create escalation tier", "policy_id", policyID, "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to create escalation tier", "policy_id", policyID, "error", err)
 			dto.InternalError(c, err)
 			return
 		}
@@ -261,7 +261,7 @@ func UpdateEscalationTier(repo repository.EscalationPolicyRepository) gin.Handle
 		}
 
 		if err := repo.UpdateTier(tier); err != nil {
-			slog.Error("failed to update escalation tier", "tier_id", tierID, "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to update escalation tier", "tier_id", tierID, "error", err)
 			dto.InternalError(c, err)
 			return
 		}
@@ -284,7 +284,7 @@ func DeleteEscalationTier(repo repository.EscalationPolicyRepository) gin.Handle
 				dto.NotFound(c, "escalation_tier", tierID.String())
 				return
 			}
-			slog.Error("failed to delete escalation tier", "tier_id", tierID, "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to delete escalation tier", "tier_id", tierID, "error", err)
 			dto.InternalError(c, err)
 			return
 		}

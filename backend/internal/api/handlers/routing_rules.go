@@ -39,7 +39,7 @@ func ListRoutingRules(ruleRepo repository.RoutingRuleRepository) gin.HandlerFunc
 		}
 
 		if err != nil {
-			slog.Error("failed to list routing rules",
+			slog.ErrorContext(c.Request.Context(), "failed to list routing rules",
 				"error", err,
 				"request_id", c.GetString("request_id"),
 			)
@@ -76,7 +76,7 @@ func GetRoutingRule(ruleRepo repository.RoutingRuleRepository) gin.HandlerFunc {
 				dto.NotFound(c, "routing_rule", id.String())
 				return
 			}
-			slog.Error("failed to get routing rule",
+			slog.ErrorContext(c.Request.Context(), "failed to get routing rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -111,7 +111,7 @@ func CreateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 
 		conflict, err := ruleRepo.CheckPriorityConflict(req.Priority, uuid.Nil)
 		if err != nil {
-			slog.Error("failed to check priority conflict",
+			slog.ErrorContext(c.Request.Context(), "failed to check priority conflict",
 				"error", err,
 				"priority", req.Priority,
 				"request_id", c.GetString("request_id"),
@@ -127,7 +127,7 @@ func CreateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 
 		rule := req.ToModel()
 		if err := ruleRepo.Create(rule); err != nil {
-			slog.Error("failed to create routing rule",
+			slog.ErrorContext(c.Request.Context(), "failed to create routing rule",
 				"error", err,
 				"name", req.Name,
 				"priority", req.Priority,
@@ -137,7 +137,7 @@ func CreateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 			return
 		}
 
-		slog.Info("routing rule created",
+		slog.InfoContext(c.Request.Context(), "routing rule created",
 			"id", rule.ID,
 			"name", rule.Name,
 			"priority", rule.Priority,
@@ -177,7 +177,7 @@ func UpdateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 				dto.NotFound(c, "routing_rule", id.String())
 				return
 			}
-			slog.Error("failed to get routing rule",
+			slog.ErrorContext(c.Request.Context(), "failed to get routing rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -189,7 +189,7 @@ func UpdateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 		if req.Priority != nil && *req.Priority != rule.Priority {
 			conflict, err := ruleRepo.CheckPriorityConflict(*req.Priority, id)
 			if err != nil {
-				slog.Error("failed to check priority conflict",
+				slog.ErrorContext(c.Request.Context(), "failed to check priority conflict",
 					"error", err,
 					"priority", *req.Priority,
 					"request_id", c.GetString("request_id"),
@@ -210,7 +210,7 @@ func UpdateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 		req.ApplyTo(rule)
 
 		if err := ruleRepo.Update(rule); err != nil {
-			slog.Error("failed to update routing rule",
+			slog.ErrorContext(c.Request.Context(), "failed to update routing rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -219,7 +219,7 @@ func UpdateRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 			return
 		}
 
-		slog.Info("routing rule updated",
+		slog.InfoContext(c.Request.Context(), "routing rule updated",
 			"id", rule.ID,
 			"name", rule.Name,
 			"priority", rule.Priority,
@@ -252,7 +252,7 @@ func DeleteRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 				dto.NotFound(c, "routing_rule", id.String())
 				return
 			}
-			slog.Error("failed to delete routing rule",
+			slog.ErrorContext(c.Request.Context(), "failed to delete routing rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -261,7 +261,7 @@ func DeleteRoutingRule(ruleRepo repository.RoutingRuleRepository, onRuleMutate f
 			return
 		}
 
-		slog.Info("routing rule deleted",
+		slog.InfoContext(c.Request.Context(), "routing rule deleted",
 			"id", id,
 			"request_id", c.GetString("request_id"),
 		)
@@ -298,12 +298,12 @@ func ReorderRoutingRules(ruleRepo repository.RoutingRuleRepository, onRuleMutate
 		}
 
 		if err := ruleRepo.Reorder(ids); err != nil {
-			slog.Error("failed to reorder routing rules", "error", err, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to reorder routing rules", "error", err, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
 
-		slog.Info("routing rules reordered", "count", len(ids), "request_id", c.GetString("request_id"))
+		slog.InfoContext(c.Request.Context(), "routing rules reordered", "count", len(ids), "request_id", c.GetString("request_id"))
 		if onRuleMutate != nil {
 			onRuleMutate()
 		}

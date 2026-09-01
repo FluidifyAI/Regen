@@ -42,7 +42,7 @@ func SlackEvents(resolver *services.SlackHandlerResolver) gin.HandlerFunc {
 
 		eventsAPIEvent, err := slackevents.ParseEvent(json.RawMessage(body), slackevents.OptionNoVerifyToken())
 		if err != nil {
-			slog.Warn("slack events: failed to parse payload", "error", err)
+			slog.WarnContext(c.Request.Context(), "slack events: failed to parse payload", "error", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event payload"})
 			return
 		}
@@ -82,7 +82,7 @@ func SlackInteractions(resolver *services.SlackHandlerResolver) gin.HandlerFunc 
 
 		var callback slack.InteractionCallback
 		if err := json.Unmarshal([]byte(payloadJSON), &callback); err != nil {
-			slog.Warn("slack interactions: failed to parse payload", "error", err)
+			slog.WarnContext(c.Request.Context(), "slack interactions: failed to parse payload", "error", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid interaction payload"})
 			return
 		}

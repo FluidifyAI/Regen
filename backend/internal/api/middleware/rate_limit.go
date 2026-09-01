@@ -55,7 +55,7 @@ func rateLimitWithIdentity(tier string, limit int, windowSecs int, identityFn fu
 
 		res, err := redis.Client.Eval(ctx, luaIncr, []string{key}, windowSecs).Int64()
 		if err != nil {
-			slog.Warn("rate limiter redis error — failing open",
+			slog.WarnContext(c.Request.Context(), "rate limiter redis error — failing open",
 				"tier", tier, "identity", identity, "error", err)
 			c.Next()
 			return

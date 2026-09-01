@@ -32,7 +32,7 @@ func ListAlerts(alertRepo repository.AlertRepository) gin.HandlerFunc {
 
 		alerts, total, err := alertRepo.List(filters.ToRepository(), pagination.ToRepository())
 		if err != nil {
-			slog.Error("failed to list alerts",
+			slog.ErrorContext(c.Request.Context(), "failed to list alerts",
 				"error", err,
 				"request_id", c.GetString("request_id"),
 			)
@@ -71,7 +71,7 @@ func GetAlert(alertRepo repository.AlertRepository) gin.HandlerFunc {
 				dto.NotFound(c, "alert", id.String())
 				return
 			}
-			slog.Error("failed to get alert",
+			slog.ErrorContext(c.Request.Context(), "failed to get alert",
 				"alert_id", id,
 				"error", err,
 				"request_id", c.GetString("request_id"),
@@ -121,7 +121,7 @@ func AcknowledgeAlert(
 				dto.NotFound(c, "alert", id.String())
 				return
 			}
-			slog.Error("failed to fetch alert for acknowledgment",
+			slog.ErrorContext(c.Request.Context(), "failed to fetch alert for acknowledgment",
 				"alert_id", id,
 				"error", err,
 				"request_id", c.GetString("request_id"),
@@ -136,7 +136,7 @@ func AcknowledgeAlert(
 		}
 
 		if err := services.AcknowledgeAlertWithTimeline(id, req.UserName, via, escalationEngine, incidentRepo, timelineRepo); err != nil {
-			slog.Error("failed to acknowledge alert",
+			slog.ErrorContext(c.Request.Context(), "failed to acknowledge alert",
 				"alert_id", id,
 				"error", err,
 				"request_id", c.GetString("request_id"),

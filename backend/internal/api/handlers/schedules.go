@@ -19,7 +19,7 @@ func ListSchedules(repo repository.ScheduleRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		schedules, err := repo.GetAll()
 		if err != nil {
-			slog.Error("failed to list schedules", "error", err, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to list schedules", "error", err, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -46,7 +46,7 @@ func GetSchedule(repo repository.ScheduleRepository) gin.HandlerFunc {
 				dto.NotFound(c, "schedule", id.String())
 				return
 			}
-			slog.Error("failed to get schedule", "error", err, "id", id, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to get schedule", "error", err, "id", id, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -64,11 +64,11 @@ func CreateSchedule(repo repository.ScheduleRepository) gin.HandlerFunc {
 		}
 		schedule := req.ToModel()
 		if err := repo.Create(schedule); err != nil {
-			slog.Error("failed to create schedule", "error", err, "name", req.Name, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to create schedule", "error", err, "name", req.Name, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
-		slog.Info("schedule created", "id", schedule.ID, "name", schedule.Name, "request_id", c.GetString("request_id"))
+		slog.InfoContext(c.Request.Context(), "schedule created", "id", schedule.ID, "name", schedule.Name, "request_id", c.GetString("request_id"))
 		schedule.Layers = nil // no layers on create response; client can GET
 		c.JSON(http.StatusCreated, dto.ToScheduleResponse(schedule))
 	}
@@ -93,13 +93,13 @@ func UpdateSchedule(repo repository.ScheduleRepository, holidaySvc *services.Hol
 				dto.NotFound(c, "schedule", id.String())
 				return
 			}
-			slog.Error("failed to get schedule for update", "error", err, "id", id, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to get schedule for update", "error", err, "id", id, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
 		req.ApplyTo(schedule)
 		if err := repo.Update(schedule); err != nil {
-			slog.Error("failed to update schedule", "error", err, "id", id, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to update schedule", "error", err, "id", id, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -108,21 +108,25 @@ func UpdateSchedule(repo repository.ScheduleRepository, holidaySvc *services.Hol
 		if req.HolidayCountriesSet() {
 			added, _, err := repo.SetHolidayCountries(id, req.HolidayCountries)
 			if err != nil {
-				slog.Error("failed to set holiday countries", "error", err, "id", id)
+				slog.ErrorContext(c.Request.Context(), "failed to set holiday countries", "error", err, "id", id)
 				dto.InternalError(c, err)
 				return
 			}
 			schedule.HolidayCountries = req.HolidayCountries
 			// Sync newly added countries in the background so the HTTP response is not delayed.
 			if len(added) > 0 {
+				// Captured before the goroutine, not read from c inside it: *gin.Context
+				// is pooled and reused once this handler returns, but a context.Context
+				// value extracted from it is a plain, safe-to-retain interface value.
+				bgCtx := c.Request.Context()
 				go func() {
 					defer func() {
 						if r := recover(); r != nil {
-							slog.Error("holiday sync goroutine panicked", "schedule_id", id, "panic", r)
+							slog.ErrorContext(bgCtx, "holiday sync goroutine panicked", "schedule_id", id, "panic", r)
 						}
 					}()
 					if err := holidaySvc.SyncSchedule(id, added); err != nil {
-						slog.Error("background holiday sync failed", "schedule_id", id, "error", err)
+						slog.ErrorContext(bgCtx, "background holiday sync failed", "schedule_id", id, "error", err)
 					}
 				}()
 			}
@@ -131,7 +135,7 @@ func UpdateSchedule(repo repository.ScheduleRepository, holidaySvc *services.Hol
 			schedule.HolidayCountries = codes
 		}
 
-		slog.Info("schedule updated", "id", schedule.ID, "request_id", c.GetString("request_id"))
+		slog.InfoContext(c.Request.Context(), "schedule updated", "id", schedule.ID, "request_id", c.GetString("request_id"))
 		c.JSON(http.StatusOK, dto.ToScheduleResponse(schedule))
 	}
 }
@@ -164,7 +168,7 @@ func GetHolidays(repo repository.ScheduleRepository) gin.HandlerFunc {
 
 		holidays, err := repo.ListHolidays(id, from, to)
 		if err != nil {
-			slog.Error("failed to list holidays", "error", err, "id", id)
+			slog.ErrorContext(c.Request.Context(), "failed to list holidays", "error", err, "id", id)
 			dto.InternalError(c, err)
 			return
 		}
@@ -190,11 +194,11 @@ func DeleteSchedule(repo repository.ScheduleRepository) gin.HandlerFunc {
 				dto.NotFound(c, "schedule", id.String())
 				return
 			}
-			slog.Error("failed to delete schedule", "error", err, "id", id, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to delete schedule", "error", err, "id", id, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
-		slog.Info("schedule deleted", "id", id, "request_id", c.GetString("request_id"))
+		slog.InfoContext(c.Request.Context(), "schedule deleted", "id", id, "request_id", c.GetString("request_id"))
 		c.JSON(http.StatusNoContent, nil)
 	}
 }
@@ -236,7 +240,7 @@ func CreateLayer(repo repository.ScheduleRepository) gin.HandlerFunc {
 
 		layer := req.ToLayer(scheduleID)
 		if err := repo.CreateLayer(layer); err != nil {
-			slog.Error("failed to create layer", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to create layer", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -245,14 +249,14 @@ func CreateLayer(repo repository.ScheduleRepository) gin.HandlerFunc {
 		participants := req.ToParticipants(layer.ID)
 		if len(participants) > 0 {
 			if err := repo.CreateParticipantsBulk(participants); err != nil {
-				slog.Error("failed to create participants", "error", err, "layer_id", layer.ID, "request_id", c.GetString("request_id"))
+				slog.ErrorContext(c.Request.Context(), "failed to create participants", "error", err, "layer_id", layer.ID, "request_id", c.GetString("request_id"))
 				dto.InternalError(c, err)
 				return
 			}
 			layer.Participants = participants
 		}
 
-		slog.Info("schedule layer created", "layer_id", layer.ID, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+		slog.InfoContext(c.Request.Context(), "schedule layer created", "layer_id", layer.ID, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 		c.JSON(http.StatusCreated, dto.ToLayerResponse(layer))
 	}
 }
@@ -285,7 +289,7 @@ func UpdateLayer(repo repository.ScheduleRepository) gin.HandlerFunc {
 				dto.NotFound(c, "schedule", scheduleID.String())
 				return
 			}
-			slog.Error("failed to get schedule for layer update", "error", err, "id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to get schedule for layer update", "error", err, "id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -341,7 +345,7 @@ func UpdateLayer(repo repository.ScheduleRepository) gin.HandlerFunc {
 		}
 
 		if err := repo.UpdateLayer(layer, participants); err != nil {
-			slog.Error("failed to update layer", "error", err, "layer_id", layerID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to update layer", "error", err, "layer_id", layerID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -349,13 +353,13 @@ func UpdateLayer(repo repository.ScheduleRepository) gin.HandlerFunc {
 		// Reload to get fresh data (new participant IDs after bulk-insert).
 		updatedSchedule, err := repo.GetWithLayers(scheduleID)
 		if err != nil {
-			slog.Error("failed to reload schedule after layer update", "error", err, "id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to reload schedule after layer update", "error", err, "id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
 		for i := range updatedSchedule.Layers {
 			if updatedSchedule.Layers[i].ID == layerID {
-				slog.Info("schedule layer updated", "layer_id", layerID, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+				slog.InfoContext(c.Request.Context(), "schedule layer updated", "layer_id", layerID, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 				c.JSON(http.StatusOK, dto.ToLayerResponse(&updatedSchedule.Layers[i]))
 				return
 			}
@@ -378,11 +382,11 @@ func DeleteLayer(repo repository.ScheduleRepository) gin.HandlerFunc {
 				dto.NotFound(c, "schedule_layer", layerID.String())
 				return
 			}
-			slog.Error("failed to delete layer", "error", err, "layer_id", layerID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to delete layer", "error", err, "layer_id", layerID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
-		slog.Info("schedule layer deleted", "layer_id", layerID, "request_id", c.GetString("request_id"))
+		slog.InfoContext(c.Request.Context(), "schedule layer deleted", "layer_id", layerID, "request_id", c.GetString("request_id"))
 		c.JSON(http.StatusNoContent, nil)
 	}
 }
@@ -412,7 +416,7 @@ func GetOnCall(repo repository.ScheduleRepository, evaluator services.ScheduleEv
 				dto.NotFound(c, "schedule", scheduleID.String())
 				return
 			}
-			slog.Error("failed to evaluate on-call", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to evaluate on-call", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -462,7 +466,7 @@ func GetOnCallTimeline(evaluator services.ScheduleEvaluator) gin.HandlerFunc {
 				dto.NotFound(c, "schedule", scheduleID.String())
 				return
 			}
-			slog.Error("failed to get timeline", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to get timeline", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -518,7 +522,7 @@ func GetLayerTimelines(evaluator services.ScheduleEvaluator) gin.HandlerFunc {
 				dto.NotFound(c, "schedule", scheduleID.String())
 				return
 			}
-			slog.Error("failed to get layer timelines", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to get layer timelines", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -561,12 +565,12 @@ func CreateOverride(repo repository.ScheduleRepository) gin.HandlerFunc {
 
 		override := req.ToModel(scheduleID)
 		if err := repo.CreateOverride(override); err != nil {
-			slog.Error("failed to create override", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to create override", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
 
-		slog.Info("schedule override created", "override_id", override.ID, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+		slog.InfoContext(c.Request.Context(), "schedule override created", "override_id", override.ID, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 		c.JSON(http.StatusCreated, dto.ToOverrideResponse(override))
 	}
 }
@@ -594,7 +598,7 @@ func ListOverrides(repo repository.ScheduleRepository) gin.HandlerFunc {
 				dto.NotFound(c, "schedule", scheduleID.String())
 				return
 			}
-			slog.Error("failed to list overrides", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to list overrides", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -619,11 +623,11 @@ func DeleteOverride(repo repository.ScheduleRepository) gin.HandlerFunc {
 				dto.NotFound(c, "schedule_override", overrideID.String())
 				return
 			}
-			slog.Error("failed to delete override", "error", err, "override_id", overrideID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to delete override", "error", err, "override_id", overrideID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
-		slog.Info("schedule override deleted", "override_id", overrideID, "request_id", c.GetString("request_id"))
+		slog.InfoContext(c.Request.Context(), "schedule override deleted", "override_id", overrideID, "request_id", c.GetString("request_id"))
 		c.JSON(http.StatusNoContent, nil)
 	}
 }
@@ -646,7 +650,7 @@ func ListUnavailabilities(repo repository.ScheduleRepository) gin.HandlerFunc {
 		}
 		unavailabilities, err := repo.ListUnavailabilities(scheduleID)
 		if err != nil {
-			slog.Error("failed to list unavailabilities", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to list unavailabilities", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
@@ -681,11 +685,11 @@ func CreateUnavailability(repo repository.ScheduleRepository) gin.HandlerFunc {
 		}
 		u := req.ToModel(scheduleID)
 		if err := repo.CreateUnavailability(u); err != nil {
-			slog.Error("failed to create unavailability", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to create unavailability", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
-		slog.Info("schedule unavailability created", "id", u.ID, "schedule_id", scheduleID, "user_name", u.UserName, "request_id", c.GetString("request_id"))
+		slog.InfoContext(c.Request.Context(), "schedule unavailability created", "id", u.ID, "schedule_id", scheduleID, "user_name", u.UserName, "request_id", c.GetString("request_id"))
 		c.JSON(http.StatusCreated, dto.ToUnavailabilityResponse(u))
 	}
 }
@@ -708,11 +712,11 @@ func DeleteUnavailability(repo repository.ScheduleRepository) gin.HandlerFunc {
 				dto.NotFound(c, "schedule_unavailability", uid.String())
 				return
 			}
-			slog.Error("failed to delete unavailability", "error", err, "id", uid, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			slog.ErrorContext(c.Request.Context(), "failed to delete unavailability", "error", err, "id", uid, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 			dto.InternalError(c, err)
 			return
 		}
-		slog.Info("schedule unavailability deleted", "id", uid, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+		slog.InfoContext(c.Request.Context(), "schedule unavailability deleted", "id", uid, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
 		c.JSON(http.StatusNoContent, nil)
 	}
 }

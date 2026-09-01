@@ -2,6 +2,8 @@ version: "2"
 run:
   modules-download-mode: readonly
 linters:
+  enable:
+    - sloglint
   settings:
     errcheck:
       exclude-functions:
@@ -11,6 +13,17 @@ linters:
         - fmt.Fprint
         - fmt.Fprintln
         - fmt.Fprintf
+    sloglint:
+      # "all": flags every plain slog.Info/Warn/Error/Debug call, everywhere
+      # sloglint runs. Deliberately not "scope" — sloglint's scope-detector
+      # only credits a variable whose *static* type is context.Context, and
+      # this codebase's dominant request-path pattern is *gin.Context (which
+      # satisfies that interface but isn't recognized as it), so "scope"
+      # would give near-zero enforcement in exactly the handler/middleware
+      # files this migrates. "all" plus the path exclusion below keeps this
+      # scoped to the migrated packages; a genuinely context-free call site
+      # within them gets an inline //nolint:sloglint with a reason instead.
+      context: all
   exclusions:
     generated: lax
     presets:
@@ -25,6 +38,13 @@ linters:
       - linters:
           - errcheck
         text: Error return value of .*(Write|Fprintf|Fprintln).*is not checked
+      # sloglint migration is in progress (REG-8/REG-157): these areas still
+      # use plain slog calls deliberately, tracked as follow-up work rather
+      # than migrated wholesale here. Shrink this list as REG-157 lands —
+      # removing a path re-enables enforcement there.
+      - linters:
+          - sloglint
+        path: ^(internal/services|internal/worker|internal/coordinator|internal/database|internal/auth|internal/redis|internal/licence|cmd/regen/commands)/
     paths:
       - third_party$
       - builtin$
@@ -36,3 +56,11 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+issues:
+  # Default caps (50 per linter, 3 identical) silently truncate the reported
+  # list once a run has more issues than that — found while adding sloglint,
+  # when identical `golangci-lint run` invocations returned different subsets
+  # of real findings from run to run. Unlimited here so CI always reports
+  # everything a linter actually found, not a non-deterministic sample of it.
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -98,7 +98,7 @@ func SaveTeamsConfig(repo repository.TeamsConfigRepository) gin.HandlerFunc {
 			ConnectedBy: connectedBy,
 		}
 		if err := repo.Save(cfg); err != nil {
-			slog.Error("failed to save teams config", "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to save teams config", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save teams config"})
 			return
 		}

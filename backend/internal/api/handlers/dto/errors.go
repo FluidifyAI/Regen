@@ -87,7 +87,7 @@ func Conflict(c *gin.Context, message string, details map[string]interface{}) {
 // Logs full error for debugging but returns safe message to client
 func InternalError(c *gin.Context, err error) {
 	// Log full error for debugging
-	slog.Error("internal server error",
+	slog.ErrorContext(c.Request.Context(), "internal server error",
 		"error", err,
 		"path", c.Request.URL.Path,
 		"method", c.Request.Method,

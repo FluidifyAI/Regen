@@ -42,7 +42,7 @@ func ListGroupingRules(ruleRepo repository.GroupingRuleRepository) gin.HandlerFu
 		}
 
 		if err != nil {
-			slog.Error("failed to list grouping rules",
+			slog.ErrorContext(c.Request.Context(), "failed to list grouping rules",
 				"error", err,
 				"request_id", c.GetString("request_id"),
 			)
@@ -84,7 +84,7 @@ func GetGroupingRule(ruleRepo repository.GroupingRuleRepository) gin.HandlerFunc
 				dto.NotFound(c, "grouping_rule", idParam)
 				return
 			}
-			slog.Error("failed to get grouping rule",
+			slog.ErrorContext(c.Request.Context(), "failed to get grouping rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -110,7 +110,7 @@ func CreateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 		// Check for priority conflicts
 		conflict, err := ruleRepo.CheckPriorityConflict(req.Priority, uuid.Nil)
 		if err != nil {
-			slog.Error("failed to check priority conflict",
+			slog.ErrorContext(c.Request.Context(), "failed to check priority conflict",
 				"error", err,
 				"priority", req.Priority,
 				"request_id", c.GetString("request_id"),
@@ -130,7 +130,7 @@ func CreateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 		// Convert to model and create
 		rule := req.ToModel()
 		if err := ruleRepo.Create(rule); err != nil {
-			slog.Error("failed to create grouping rule",
+			slog.ErrorContext(c.Request.Context(), "failed to create grouping rule",
 				"error", err,
 				"name", req.Name,
 				"priority", req.Priority,
@@ -140,7 +140,7 @@ func CreateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			return
 		}
 
-		slog.Info("grouping rule created",
+		slog.InfoContext(c.Request.Context(), "grouping rule created",
 			"id", rule.ID,
 			"name", rule.Name,
 			"priority", rule.Priority,
@@ -186,7 +186,7 @@ func UpdateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 				dto.NotFound(c, "grouping_rule", idParam)
 				return
 			}
-			slog.Error("failed to get grouping rule",
+			slog.ErrorContext(c.Request.Context(), "failed to get grouping rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -199,7 +199,7 @@ func UpdateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 		if req.Priority != nil && *req.Priority != rule.Priority {
 			conflict, err := ruleRepo.CheckPriorityConflict(*req.Priority, id)
 			if err != nil {
-				slog.Error("failed to check priority conflict",
+				slog.ErrorContext(c.Request.Context(), "failed to check priority conflict",
 					"error", err,
 					"priority", *req.Priority,
 					"request_id", c.GetString("request_id"),
@@ -222,7 +222,7 @@ func UpdateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 
 		// Save changes
 		if err := ruleRepo.Update(rule); err != nil {
-			slog.Error("failed to update grouping rule",
+			slog.ErrorContext(c.Request.Context(), "failed to update grouping rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -231,7 +231,7 @@ func UpdateGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			return
 		}
 
-		slog.Info("grouping rule updated",
+		slog.InfoContext(c.Request.Context(), "grouping rule updated",
 			"id", rule.ID,
 			"name", rule.Name,
 			"priority", rule.Priority,
@@ -270,7 +270,7 @@ func DeleteGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 				dto.NotFound(c, "grouping_rule", idParam)
 				return
 			}
-			slog.Error("failed to get grouping rule",
+			slog.ErrorContext(c.Request.Context(), "failed to get grouping rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -281,7 +281,7 @@ func DeleteGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 
 		// Delete rule
 		if err := ruleRepo.Delete(id); err != nil {
-			slog.Error("failed to delete grouping rule",
+			slog.ErrorContext(c.Request.Context(), "failed to delete grouping rule",
 				"error", err,
 				"id", id,
 				"request_id", c.GetString("request_id"),
@@ -290,7 +290,7 @@ func DeleteGroupingRule(ruleRepo repository.GroupingRuleRepository, onRuleMutate
 			return
 		}
 
-		slog.Info("grouping rule deleted",
+		slog.InfoContext(c.Request.Context(), "grouping rule deleted",
 			"id", id,
 			"request_id", c.GetString("request_id"),
 		)

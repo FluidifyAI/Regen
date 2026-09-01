@@ -73,14 +73,14 @@ func SaveTelegramConfig(repo repository.TelegramConfigRepository, incidentSvc se
 			ConnectedBy: connectedBy,
 		}
 		if err := repo.Save(cfg); err != nil {
-			slog.Error("failed to save telegram config", "error", err)
+			slog.ErrorContext(c.Request.Context(), "failed to save telegram config", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save telegram config"})
 			return
 		}
 		// Hot-reload: wire the new service into the incident service without restart
 		if tgSvc := services.NewTelegramServiceFromConfig(cfg, appURL); tgSvc != nil {
 			services.SetTelegramService(incidentSvc, tgSvc)
-			slog.Info("telegram service hot-reloaded", "chat_id", cfg.ChatID)
+			slog.InfoContext(c.Request.Context(), "telegram service hot-reloaded", "chat_id", cfg.ChatID)
 		}
 		c.JSON(http.StatusOK, toTelegramConfigResponse(cfg))
 	}
@@ -135,7 +135,7 @@ func DeleteTelegramConfig(repo repository.TelegramConfigRepository, incidentSvc 
 			return
 		}
 		services.SetTelegramService(incidentSvc, nil)
-		slog.Info("telegram service disabled")
+		slog.InfoContext(c.Request.Context(), "telegram service disabled")
 		c.JSON(http.StatusOK, gin.H{"message": "telegram integration removed"})
 	}
 }

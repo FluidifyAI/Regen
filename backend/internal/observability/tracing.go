@@ -36,7 +36,7 @@ func InitTracer(ctx context.Context, cfg Config) (shutdown func(context.Context)
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
 		// OTel's own contract: an error handed here must never propagate as a
 		// panic or a returned error — log once and keep running degraded.
-		slog.Error("observability: opentelemetry error", "error", err)
+		slog.ErrorContext(ctx, "observability: opentelemetry error", "error", err)
 	}))
 
 	// Set globally regardless of enabled/disabled state below: outbound HTTP
@@ -52,7 +52,7 @@ func InitTracer(ctx context.Context, cfg Config) (shutdown func(context.Context)
 
 	res, err := newResource(ctx, cfg)
 	if err != nil {
-		slog.Error("observability: failed to build resource, tracing disabled", "error", err)
+		slog.ErrorContext(ctx, "observability: failed to build resource, tracing disabled", "error", err)
 		otel.SetTracerProvider(noop.NewTracerProvider())
 		return func(context.Context) error { return nil }, nil
 	}
@@ -61,7 +61,7 @@ func InitTracer(ctx context.Context, cfg Config) (shutdown func(context.Context)
 	// OTEL_EXPORTER_OTLP_HEADERS itself when no explicit option overrides them.
 	exporter, err := otlptracegrpc.New(ctx)
 	if err != nil {
-		slog.Error("observability: failed to create OTLP exporter, tracing disabled", "error", err)
+		slog.ErrorContext(ctx, "observability: failed to create OTLP exporter, tracing disabled", "error", err)
 		otel.SetTracerProvider(noop.NewTracerProvider())
 		return func(context.Context) error { return nil }, nil
 	}

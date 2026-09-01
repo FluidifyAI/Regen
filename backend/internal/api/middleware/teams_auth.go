@@ -146,7 +146,7 @@ func fetchBotFrameworkJWKS(ctx context.Context) (jwt.VerificationKeySet, error) 
 			X5c []string `json:"x5c"`
 		}
 		if err := json.Unmarshal(rawKey, &keyData); err != nil {
-			slog.Warn("teams auth: failed to unmarshal JWKS key entry, skipping", "error", err)
+			slog.WarnContext(ctx, "teams auth: failed to unmarshal JWKS key entry, skipping", "error", err)
 			continue
 		}
 		if keyData.Kty != "RSA" || len(keyData.X5c) == 0 {
@@ -156,7 +156,7 @@ func fetchBotFrameworkJWKS(ctx context.Context) (jwt.VerificationKeySet, error) 
 		certPEM := "-----BEGIN CERTIFICATE-----\n" + keyData.X5c[0] + "\n-----END CERTIFICATE-----"
 		key, err := jwt.ParseRSAPublicKeyFromPEM([]byte(certPEM))
 		if err != nil {
-			slog.Warn("teams auth: failed to parse RSA key from x5c, skipping",
+			slog.WarnContext(ctx, "teams auth: failed to parse RSA key from x5c, skipping",
 				"kid", keyData.Kid, "error", err)
 			continue
 		}

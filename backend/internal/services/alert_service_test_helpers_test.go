@@ -5,6 +5,7 @@ package services
 // ProcessNormalizedAlerts.
 
 import (
+	"context"
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/integrations/llm"
@@ -21,11 +22,11 @@ type mockAlertRepository struct {
 	existingAlert *models.Alert
 }
 
-func (m *mockAlertRepository) Create(alert *models.Alert) error { return nil }
+func (m *mockAlertRepository) Create(ctx context.Context, alert *models.Alert) error { return nil }
 func (m *mockAlertRepository) GetByID(id uuid.UUID) (*models.Alert, error) {
 	return nil, &repository.NotFoundError{Resource: "alert", ID: id.String()}
 }
-func (m *mockAlertRepository) GetByExternalID(source, externalID string) (*models.Alert, error) {
+func (m *mockAlertRepository) GetByExternalID(ctx context.Context, source, externalID string) (*models.Alert, error) {
 	if m.existingAlert != nil &&
 		m.existingAlert.Source == source &&
 		m.existingAlert.ExternalID == externalID {
@@ -36,7 +37,7 @@ func (m *mockAlertRepository) GetByExternalID(source, externalID string) (*model
 func (m *mockAlertRepository) List(filters repository.AlertFilters, pagination repository.Pagination) ([]models.Alert, int64, error) {
 	return nil, 0, nil
 }
-func (m *mockAlertRepository) Update(alert *models.Alert) error { return nil }
+func (m *mockAlertRepository) Update(ctx context.Context, alert *models.Alert) error { return nil }
 
 var _ repository.AlertRepository = &mockAlertRepository{}
 
@@ -49,13 +50,13 @@ type mockIncidentService struct {
 func (m *mockIncidentService) ShouldCreateIncident(severity models.AlertSeverity) bool {
 	return m.shouldCreate
 }
-func (m *mockIncidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled bool) (*models.Incident, error) {
+func (m *mockIncidentService) CreateIncidentFromAlert(ctx context.Context, alert *models.Alert, aiEnabled bool) (*models.Incident, error) {
 	return &models.Incident{ID: uuid.New()}, nil
 }
-func (m *mockIncidentService) CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string, aiEnabled bool) (*models.Incident, error) {
+func (m *mockIncidentService) CreateIncidentFromAlertWithGrouping(ctx context.Context, alert *models.Alert, groupKey string, aiEnabled bool) (*models.Incident, error) {
 	return &models.Incident{ID: uuid.New()}, nil
 }
-func (m *mockIncidentService) LinkAlertToExistingIncident(alert *models.Alert, incidentID uuid.UUID) error {
+func (m *mockIncidentService) LinkAlertToExistingIncident(ctx context.Context, alert *models.Alert, incidentID uuid.UUID) error {
 	return nil
 }
 func (m *mockIncidentService) CreateSlackChannelForIncident(incident *models.Incident, alerts []models.Alert) error {

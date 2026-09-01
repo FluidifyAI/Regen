@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -71,7 +72,7 @@ func TestAcknowledgeAlert_Success(t *testing.T) {
 		StartedAt:   time.Now(),
 		ReceivedAt:  time.Now(),
 	}
-	require.NoError(t, alertRepo.Create(alert))
+	require.NoError(t, alertRepo.Create(context.Background(), alert))
 
 	acknowledged := false
 	engine := &mockEscalationEngineForHandler{
@@ -173,7 +174,7 @@ func TestAcknowledgeAlert_MissingUserName(t *testing.T) {
 		StartedAt:   time.Now(),
 		ReceivedAt:  time.Now(),
 	}
-	require.NoError(t, alertRepo.Create(alert))
+	require.NoError(t, alertRepo.Create(context.Background(), alert))
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -211,7 +212,7 @@ func TestAcknowledgeAlert_DefaultViaIsAPI(t *testing.T) {
 		StartedAt:   time.Now(),
 		ReceivedAt:  time.Now(),
 	}
-	require.NoError(t, alertRepo.Create(alert))
+	require.NoError(t, alertRepo.Create(context.Background(), alert))
 
 	// Omit acknowledged_via — should default to "api"
 	body := []byte(`{"user_name":"bob"}`)

@@ -42,7 +42,7 @@ func ReceiveNeuriResult(
 			return
 		}
 
-		if _, err := incidentRepo.GetByID(incidentID); err != nil {
+		if _, err := incidentRepo.GetByID(c.Request.Context(), incidentID); err != nil {
 			if _, ok := err.(*repository.NotFoundError); ok {
 				dto.NotFound(c, "incident", req.IncidentID)
 				return
@@ -128,7 +128,7 @@ func TriggerNeuriInvestigation(
 			return
 		}
 
-		incident, err := incidentRepo.GetByID(incidentID)
+		incident, err := incidentRepo.GetByID(c.Request.Context(), incidentID)
 		if err != nil {
 			if _, ok := err.(*repository.NotFoundError); ok {
 				dto.NotFound(c, "incident", req.IncidentID)

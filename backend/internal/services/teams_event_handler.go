@@ -218,7 +218,7 @@ func (h *TeamsEventHandler) handleStatus(_ context.Context, activity BotActivity
 // syncMessageToTimeline saves a non-command Teams message as a timeline entry
 // for the incident associated with the channel. This gives inbound parity with
 // Slack: messages posted in the Teams channel appear in the UI timeline.
-func (h *TeamsEventHandler) syncMessageToTimeline(_ context.Context, activity BotActivity, text string) {
+func (h *TeamsEventHandler) syncMessageToTimeline(ctx context.Context, activity BotActivity, text string) {
 	if text == "" {
 		return
 	}
@@ -245,8 +245,8 @@ func (h *TeamsEventHandler) syncMessageToTimeline(_ context.Context, activity Bo
 			"user":    activity.From.Name,
 		},
 	}
-	if err := h.timelineRepo.Create(entry); err != nil {
-		slog.Warn("teams bot: failed to sync message to timeline",
+	if err := h.timelineRepo.Create(ctx, entry); err != nil {
+		slog.WarnContext(ctx, "teams bot: failed to sync message to timeline",
 			"incident_id", incident.ID,
 			"error", err)
 	}

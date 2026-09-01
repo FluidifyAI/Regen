@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -203,7 +204,7 @@ func TestListIncidents(t *testing.T) {
 
 			// Create test incidents
 			for _, incident := range tt.setupIncidents {
-				require.NoError(t, incidentRepo.Create(&incident), "Failed to create test incident")
+				require.NoError(t, incidentRepo.Create(context.Background(), &incident), "Failed to create test incident")
 			}
 
 			// Create test router
@@ -360,7 +361,7 @@ func TestGetIncident(t *testing.T) {
 
 			// Create test incident if provided
 			if tt.setupIncident != nil {
-				require.NoError(t, incidentRepo.Create(tt.setupIncident), "Failed to create test incident")
+				require.NoError(t, incidentRepo.Create(context.Background(), tt.setupIncident), "Failed to create test incident")
 
 				// Create timeline entry for incident creation
 				timelineEntry := &models.TimelineEntry{
@@ -372,12 +373,12 @@ func TestGetIncident(t *testing.T) {
 					ActorID:    "test-user",
 					Content:    models.JSONB{"trigger": "manual"},
 				}
-				require.NoError(t, timelineRepo.Create(timelineEntry), "Failed to create timeline entry")
+				require.NoError(t, timelineRepo.Create(context.Background(), timelineEntry), "Failed to create timeline entry")
 
 				// Create and link alerts if provided
 				for _, alert := range tt.setupAlerts {
-					require.NoError(t, alertRepo.Create(&alert), "Failed to create alert")
-					require.NoError(t, incidentRepo.LinkAlert(tt.setupIncident.ID, alert.ID, "system", "test"),
+					require.NoError(t, alertRepo.Create(context.Background(), &alert), "Failed to create alert")
+					require.NoError(t, incidentRepo.LinkAlert(context.Background(), tt.setupIncident.ID, alert.ID, "system", "test"),
 						"Failed to link alert to incident")
 				}
 			}
@@ -725,7 +726,7 @@ func TestUpdateIncident(t *testing.T) {
 
 			// Create test incident if provided
 			if tt.setupIncident != nil {
-				require.NoError(t, incidentRepo.Create(tt.setupIncident), "Failed to create test incident")
+				require.NoError(t, incidentRepo.Create(context.Background(), tt.setupIncident), "Failed to create test incident")
 			}
 
 			// Create test router
@@ -789,7 +790,7 @@ func TestIncidentStatusTransitions(t *testing.T) {
 				CreatedByID:   "test-user",
 				TriggeredAt:   time.Now(),
 			}
-			require.NoError(t, incidentRepo.Create(incident))
+			require.NoError(t, incidentRepo.Create(context.Background(), incident))
 
 			// Create router
 			router := gin.New()
@@ -840,7 +841,7 @@ func TestIncidentStatusTransitions(t *testing.T) {
 				CreatedByID:   "test-user",
 				TriggeredAt:   time.Now(),
 			}
-			require.NoError(t, incidentRepo.Create(incident))
+			require.NoError(t, incidentRepo.Create(context.Background(), incident))
 
 			// Create router
 			router := gin.New()

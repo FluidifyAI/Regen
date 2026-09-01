@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,10 +25,10 @@ type ProcessingResult struct {
 // AlertService defines the interface for alert processing operations
 type AlertService interface {
 	// ProcessAlertmanagerPayload processes Prometheus Alertmanager webhooks (legacy method for v0.1 compatibility)
-	ProcessAlertmanagerPayload(payload *webhooks.AlertmanagerPayload) (*ProcessingResult, error)
+	ProcessAlertmanagerPayload(ctx context.Context, payload *webhooks.AlertmanagerPayload) (*ProcessingResult, error)
 
 	// ProcessNormalizedAlerts processes alerts from any source after normalization (v0.3+)
-	ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert) (*ProcessingResult, error)
+	ProcessNormalizedAlerts(ctx context.Context, alerts []webhooks.NormalizedAlert) (*ProcessingResult, error)
 
 	// SetGroupingEngine sets the grouping engine for alert deduplication and grouping (v0.3+)
 	SetGroupingEngine(engine GroupingEngine)
@@ -105,7 +106,7 @@ func (s *alertService) SetEscalationRepos(
 //	Handler → PrometheusProvider.ParsePayload() → ProcessNormalizedAlerts() → createOrUpdateAlert()
 //
 // This refactor uses the new flow while keeping the same public API for existing handlers.
-func (s *alertService) ProcessAlertmanagerPayload(payload *webhooks.AlertmanagerPayload) (*ProcessingResult, error) {
+func (s *alertService) ProcessAlertmanagerPayload(ctx context.Context, payload *webhooks.AlertmanagerPayload) (*ProcessingResult, error) {
 	// Marshal payload back to JSON for PrometheusProvider
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -120,21 +121,21 @@ func (s *alertService) ProcessAlertmanagerPayload(payload *webhooks.Alertmanager
 	}
 
 	// Delegate to the generic processing method
-	return s.ProcessNormalizedAlerts(normalized)
+	return s.ProcessNormalizedAlerts(ctx, normalized)
 }
 
 // createOrUpdateAlert handles deduplication logic
 // Returns true if alert was created, false if updated
-func (s *alertService) createOrUpdateAlert(alert *models.Alert) (bool, error) {
+func (s *alertService) createOrUpdateAlert(ctx context.Context, alert *models.Alert) (bool, error) {
 	// Try to find existing alert by source and external_id
-	existing, err := s.alertRepo.GetByExternalID(alert.Source, alert.ExternalID)
+	existing, err := s.alertRepo.GetByExternalID(ctx, alert.Source, alert.ExternalID)
 
 	if err != nil {
 		// Check if it's a NotFoundError
 		var notFoundErr *repository.NotFoundError
 		if errors.As(err, &notFoundErr) {
 			// Alert doesn't exist, create new one
-			if err := s.alertRepo.Create(alert); err != nil {
+			if err := s.alertRepo.Create(ctx, alert); err != nil {
 				return false, fmt.Errorf("failed to create alert: %w", err)
 			}
 			return true, nil
@@ -149,7 +150,7 @@ func (s *alertService) createOrUpdateAlert(alert *models.Alert) (bool, error) {
 	existing.Description = alert.Description
 	existing.EndedAt = alert.EndedAt
 
-	if err := s.alertRepo.Update(existing); err != nil {
+	if err := s.alertRepo.Update(ctx, existing); err != nil {
 		return false, fmt.Errorf("failed to update alert: %w", err)
 	}
 
@@ -191,7 +192,7 @@ func parseSeverity(severity string) models.AlertSeverity {
 //
 // The existing ProcessAlertmanagerPayload() delegates to this method after Prometheus-specific
 // parsing, ensuring backwards compatibility while enabling multi-source support.
-func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert) (*ProcessingResult, error) {
+func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []webhooks.NormalizedAlert) (*ProcessingResult, error) {
 	result := &ProcessingResult{
 		Received: len(alerts),
 	}
@@ -201,7 +202,7 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 		alert := s.normalizedAlertToModel(&normalized)
 
 		// Create or update the alert with deduplication
-		created, err := s.createOrUpdateAlert(alert)
+		created, err := s.createOrUpdateAlert(ctx, alert)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process alert %s from source %s: %w",
 				normalized.ExternalID, normalized.Source, err)
@@ -235,12 +236,12 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 				}
 				if policyID != nil {
 					alert.EscalationPolicyID = policyID
-					if err := s.alertRepo.Update(alert); err != nil {
-						slog.Error("failed to persist escalation_policy_id on alert", "alert_id", alert.ID, "err", err)
+					if err := s.alertRepo.Update(ctx, alert); err != nil {
+						slog.ErrorContext(ctx, "failed to persist escalation_policy_id on alert", "alert_id", alert.ID, "err", err)
 					}
 					if err := s.escalationEngine.TriggerEscalation(alert); err != nil {
 						// Log and continue — escalation failure must not block incident creation.
-						slog.Error("failed to trigger escalation for alert", "alert_id", alert.ID, "err", err)
+						slog.ErrorContext(ctx, "failed to trigger escalation for alert", "alert_id", alert.ID, "err", err)
 					}
 				}
 			}
@@ -265,14 +266,14 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 					switch decision.Action {
 					case GroupActionLinkToExisting:
 						// Link alert to existing incident
-						if err := s.incidentSvc.LinkAlertToExistingIncident(alert, *decision.IncidentID); err != nil {
+						if err := s.incidentSvc.LinkAlertToExistingIncident(ctx, alert, *decision.IncidentID); err != nil {
 							return nil, fmt.Errorf("failed to link alert to incident: %w", err)
 						}
 						// Note: Incident was already created, don't increment IncidentsCreated
 
 					case GroupActionCreateNew:
 						// Create new incident with group_key
-						_, err := s.incidentSvc.CreateIncidentFromAlertWithGrouping(alert, decision.GroupKey, routingDecision.AIEnabled)
+						_, err := s.incidentSvc.CreateIncidentFromAlertWithGrouping(ctx, alert, decision.GroupKey, routingDecision.AIEnabled)
 						if err != nil {
 							return nil, fmt.Errorf("failed to create incident with grouping: %w", err)
 						}
@@ -280,7 +281,7 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 
 					case GroupActionDefault:
 						// No grouping rule matched — use default behavior
-						_, err := s.incidentSvc.CreateIncidentFromAlert(alert, routingDecision.AIEnabled)
+						_, err := s.incidentSvc.CreateIncidentFromAlert(ctx, alert, routingDecision.AIEnabled)
 						if err != nil {
 							return nil, fmt.Errorf("failed to create incident: %w", err)
 						}
@@ -288,7 +289,7 @@ func (s *alertService) ProcessNormalizedAlerts(alerts []webhooks.NormalizedAlert
 					}
 				} else {
 					// Grouping disabled - use v0.2 behavior (create without group_key)
-					_, err := s.incidentSvc.CreateIncidentFromAlert(alert, routingDecision.AIEnabled)
+					_, err := s.incidentSvc.CreateIncidentFromAlert(ctx, alert, routingDecision.AIEnabled)
 					if err != nil {
 						return nil, fmt.Errorf("failed to create incident for alert %s: %w", alert.ID, err)
 					}

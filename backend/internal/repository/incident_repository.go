@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -9,17 +10,23 @@ import (
 	"gorm.io/gorm"
 )
 
-// IncidentRepository defines the interface for incident data access
+// IncidentRepository defines the interface for incident data access.
+//
+// Create, GetByID, Update, and LinkAlert take ctx (REG-157): they sit on the
+// alert-webhook -> incident-create path, so threading ctx into db.WithContext
+// lets the gorm tracing plugin (REG-9) attach a real child span. The
+// remaining methods do not yet — same mixed pattern already established by
+// user_repository.go's Upsert, not a uniform migration of every method.
 type IncidentRepository interface {
-	Create(incident *models.Incident) error
-	GetByID(id uuid.UUID) (*models.Incident, error)
+	Create(ctx context.Context, incident *models.Incident) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.Incident, error)
 	GetByNumber(number int) (*models.Incident, error)
 	GetBySlackChannelID(channelID string) (*models.Incident, error)
 	GetBySlackMessageTS(messageTS string) (*models.Incident, error)
 	GetByTeamsChannelID(channelID string) (*models.Incident, error)
 	GetByTeamsConversationID(conversationID string) (*models.Incident, error)
 	List(filters IncidentFilters, pagination Pagination) ([]models.Incident, int64, error)
-	Update(incident *models.Incident) error
+	Update(ctx context.Context, incident *models.Incident) error
 	UpdateStatus(id uuid.UUID, status models.IncidentStatus) error
 	UpdateSlackChannel(id uuid.UUID, channelID, channelName string) error
 	UpdateSlackMessageTS(id uuid.UUID, messageTS string) error
@@ -27,7 +34,7 @@ type IncidentRepository interface {
 	UpdateTeamsConversationID(id uuid.UUID, conversationID string) error
 	UpdateTeamsActivityID(id uuid.UUID, activityID string) error
 	UpdateTeamsPostingIDs(id uuid.UUID, conversationID, activityID string) error
-	LinkAlert(incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error
+	LinkAlert(ctx context.Context, incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error
 	GetAlerts(incidentID uuid.UUID) ([]models.Alert, error)
 	GetIncidentByAlertID(alertID uuid.UUID) (*models.Incident, error)
 	UpdateAISummary(id uuid.UUID, summary string, generatedAt time.Time) error
@@ -53,17 +60,17 @@ func NewIncidentRepository(db *gorm.DB) IncidentRepository {
 }
 
 // Create inserts a new incident and returns it with the generated incident_number
-func (r *incidentRepository) Create(incident *models.Incident) error {
-	if err := r.db.Create(incident).Error; err != nil {
+func (r *incidentRepository) Create(ctx context.Context, incident *models.Incident) error {
+	if err := r.db.WithContext(ctx).Create(incident).Error; err != nil {
 		return &DatabaseError{Op: "create incident", Err: err}
 	}
 	return nil
 }
 
 // GetByID retrieves an incident by UUID
-func (r *incidentRepository) GetByID(id uuid.UUID) (*models.Incident, error) {
+func (r *incidentRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Incident, error) {
 	var incident models.Incident
-	if err := r.db.Where("id = ?", id).First(&incident).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&incident).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &NotFoundError{Resource: "incident", ID: id}
 		}
@@ -153,7 +160,7 @@ func (r *incidentRepository) List(filters IncidentFilters, pagination Pagination
 }
 
 // Update updates mutable fields of an incident
-func (r *incidentRepository) Update(incident *models.Incident) error {
+func (r *incidentRepository) Update(ctx context.Context, incident *models.Incident) error {
 	// Only update mutable fields
 	updates := map[string]interface{}{
 		"title":                 incident.Title,
@@ -174,7 +181,7 @@ func (r *incidentRepository) Update(incident *models.Incident) error {
 		"custom_fields":         incident.CustomFields,
 	}
 
-	if err := r.db.Model(incident).Updates(updates).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(incident).Updates(updates).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &NotFoundError{Resource: "incident", ID: incident.ID}
 		}
@@ -318,7 +325,7 @@ func (r *incidentRepository) UpdateAISummary(id uuid.UUID, summary string, gener
 }
 
 // LinkAlert creates an incident_alert association
-func (r *incidentRepository) LinkAlert(incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error {
+func (r *incidentRepository) LinkAlert(ctx context.Context, incidentID, alertID uuid.UUID, linkedByType, linkedByID string) error {
 	link := map[string]interface{}{
 		"incident_id":    incidentID,
 		"alert_id":       alertID,
@@ -326,7 +333,7 @@ func (r *incidentRepository) LinkAlert(incidentID, alertID uuid.UUID, linkedByTy
 		"linked_by_id":   linkedByID,
 	}
 
-	if err := r.db.Table("incident_alerts").Create(link).Error; err != nil {
+	if err := r.db.WithContext(ctx).Table("incident_alerts").Create(link).Error; err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return &AlreadyExistsError{
 				Resource: "incident_alert",

@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -27,6 +28,7 @@ func DemoDataExists(incidentRepo repository.IncidentRepository) (bool, error) {
 // SeedDemoData creates a representative dataset so new installs feel populated.
 // Safe to call only when DemoDataExists() returns false.
 func SeedDemoData(
+	ctx context.Context,
 	scheduleRepo repository.ScheduleRepository,
 	escalationRepo repository.EscalationPolicyRepository,
 	routingRepo repository.RoutingRuleRepository,
@@ -135,7 +137,7 @@ func SeedDemoData(
 		AcknowledgedAt: &acknowledgedAt,
 		ResolvedAt:     &resolvedAt,
 	}
-	if err := incidentRepo.Create(incident); err != nil {
+	if err := incidentRepo.Create(ctx, incident); err != nil {
 		return err
 	}
 	slog.Info("demo: created incident", "id", incident.ID, "number", incident.IncidentNumber)

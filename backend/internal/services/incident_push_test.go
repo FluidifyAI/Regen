@@ -114,7 +114,7 @@ type minimalScheduleRepo struct {
 	schedules []models.Schedule
 }
 
-func (r *minimalScheduleRepo) Create(_ *models.Schedule) error    { return nil }
+func (r *minimalScheduleRepo) Create(_ *models.Schedule) error { return nil }
 func (r *minimalScheduleRepo) GetByID(_ uuid.UUID) (*models.Schedule, error) {
 	if len(r.schedules) > 0 {
 		s := r.schedules[0]
@@ -125,11 +125,11 @@ func (r *minimalScheduleRepo) GetByID(_ uuid.UUID) (*models.Schedule, error) {
 func (r *minimalScheduleRepo) GetAll() ([]models.Schedule, error) {
 	return r.schedules, nil
 }
-func (r *minimalScheduleRepo) Update(_ *models.Schedule) error              { return nil }
-func (r *minimalScheduleRepo) Delete(_ uuid.UUID) error                     { return nil }
+func (r *minimalScheduleRepo) Update(_ *models.Schedule) error                     { return nil }
+func (r *minimalScheduleRepo) Delete(_ uuid.UUID) error                            { return nil }
 func (r *minimalScheduleRepo) GetWithLayers(_ uuid.UUID) (*models.Schedule, error) { return nil, nil }
-func (r *minimalScheduleRepo) CreateLayer(_ *models.ScheduleLayer) error    { return nil }
-func (r *minimalScheduleRepo) DeleteLayer(_ uuid.UUID) error                { return nil }
+func (r *minimalScheduleRepo) CreateLayer(_ *models.ScheduleLayer) error           { return nil }
+func (r *minimalScheduleRepo) DeleteLayer(_ uuid.UUID) error                       { return nil }
 func (r *minimalScheduleRepo) UpdateLayer(_ *models.ScheduleLayer, _ *[]models.ScheduleParticipant) error {
 	return nil
 }
@@ -206,8 +206,8 @@ func (r *minimalUserRepo) GetByEmail(email string) (*models.User, error) {
 	return nil, &repository.NotFoundError{Resource: "user", ID: email}
 }
 func (r *minimalUserRepo) Upsert(_ context.Context, _ *models.User) error { return nil }
-func (r *minimalUserRepo) UpdateLastLogin(_ uuid.UUID, _ time.Time) error  { return nil }
-func (r *minimalUserRepo) CreateLocal(_ *models.User) error                { return nil }
+func (r *minimalUserRepo) UpdateLastLogin(_ uuid.UUID, _ time.Time) error { return nil }
+func (r *minimalUserRepo) CreateLocal(_ *models.User) error               { return nil }
 func (r *minimalUserRepo) ListAll() ([]models.User, error) {
 	users := make([]models.User, 0, len(r.byEmail))
 	for _, u := range r.byEmail {
@@ -227,16 +227,16 @@ func (r *minimalUserRepo) GetByID(id uuid.UUID) (*models.User, error) {
 	u := &models.User{ID: id, Name: "Unknown", Email: ""}
 	return u, nil
 }
-func (r *minimalUserRepo) Update(_ *models.User) error                   { return nil }
-func (r *minimalUserRepo) Count() (int64, error)                         { return 0, nil }
-func (r *minimalUserRepo) CountByRole(_ models.UserRole) (int64, error)  { return 0, nil }
-func (r *minimalUserRepo) Deactivate(_ uuid.UUID) error                  { return nil }
-func (r *minimalUserRepo) CreateAgent(_ *models.User) error              { return nil }
-func (r *minimalUserRepo) SetActive(_ uuid.UUID, _ bool) error           { return nil }
-func (r *minimalUserRepo) ListAgents() ([]models.User, error)            { return nil, nil }
+func (r *minimalUserRepo) Update(_ *models.User) error                     { return nil }
+func (r *minimalUserRepo) Count() (int64, error)                           { return 0, nil }
+func (r *minimalUserRepo) CountByRole(_ models.UserRole) (int64, error)    { return 0, nil }
+func (r *minimalUserRepo) Deactivate(_ uuid.UUID) error                    { return nil }
+func (r *minimalUserRepo) CreateAgent(_ *models.User) error                { return nil }
+func (r *minimalUserRepo) SetActive(_ uuid.UUID, _ bool) error             { return nil }
+func (r *minimalUserRepo) ListAgents() ([]models.User, error)              { return nil, nil }
 func (r *minimalUserRepo) GetBySlackUserID(_ string) (*models.User, error) { return nil, nil }
 func (r *minimalUserRepo) GetByTeamsUserID(_ string) (*models.User, error) { return nil, nil }
-func (r *minimalUserRepo) RestoreAgent(_ uuid.UUID) error                { return nil }
+func (r *minimalUserRepo) RestoreAgent(_ uuid.UUID) error                  { return nil }
 
 // Compile-time check.
 var _ repository.UserRepository = (*minimalUserRepo)(nil)
@@ -271,9 +271,9 @@ func TestCreateIncidentFromAlert_PushSentToOnCallUser(t *testing.T) {
 	SetCommanderDeps(svc, deps.userRepo(), deps.scheduleRepo(), deps.evaluator())
 
 	alert := makePushTestAlert()
-	require.NoError(t, repository.NewAlertRepository(db).Create(alert))
+	require.NoError(t, repository.NewAlertRepository(db).Create(context.Background(), alert))
 
-	_, err := svc.CreateIncidentFromAlert(alert, false)
+	_, err := svc.CreateIncidentFromAlert(context.Background(), alert, false)
 	require.NoError(t, err)
 
 	// Push is goroutine-based; wait for it.
@@ -298,9 +298,9 @@ func TestCreateIncidentFromAlert_PushNotCalledWhenNilPushSvc(t *testing.T) {
 	SetCommanderDeps(svc, deps.userRepo(), deps.scheduleRepo(), deps.evaluator())
 
 	alert := makePushTestAlert()
-	require.NoError(t, repository.NewAlertRepository(db).Create(alert))
+	require.NoError(t, repository.NewAlertRepository(db).Create(context.Background(), alert))
 
-	_, err := svc.CreateIncidentFromAlert(alert, false)
+	_, err := svc.CreateIncidentFromAlert(context.Background(), alert, false)
 	require.NoError(t, err)
 
 	// Allow goroutine time to run
@@ -331,10 +331,10 @@ func TestCreateIncidentFromAlertWithGrouping_PushSentToOnCallUser(t *testing.T) 
 	SetCommanderDeps(svc, deps.userRepo(), deps.scheduleRepo(), deps.evaluator())
 
 	alert := makePushTestAlert()
-	require.NoError(t, repository.NewAlertRepository(db).Create(alert))
+	require.NoError(t, repository.NewAlertRepository(db).Create(context.Background(), alert))
 
 	groupKey := "test-group-" + uuid.New().String()[:8]
-	_, err = svc.CreateIncidentFromAlertWithGrouping(alert, groupKey, false)
+	_, err = svc.CreateIncidentFromAlertWithGrouping(context.Background(), alert, groupKey, false)
 	require.NoError(t, err)
 
 	time.Sleep(150 * time.Millisecond)
@@ -369,7 +369,7 @@ func TestUpdateIncident_ResolvedStatus_PushSentToCommander(t *testing.T) {
 		TriggeredAt:   time.Now(),
 	}
 	repo := repository.NewIncidentRepository(db)
-	require.NoError(t, repo.Create(incident))
+	require.NoError(t, repo.Create(context.Background(), incident))
 
 	_, err := svc.UpdateIncident(incident.ID, &UpdateIncidentParams{
 		Status:    models.IncidentStatusResolved,
@@ -408,7 +408,7 @@ func TestUpdateIncident_ResolvedStatus_NoPushWhenNoCommander(t *testing.T) {
 		TriggeredAt:   time.Now(),
 	}
 	repo := repository.NewIncidentRepository(db)
-	require.NoError(t, repo.Create(incident))
+	require.NoError(t, repo.Create(context.Background(), incident))
 
 	_, err := svc.UpdateIncident(incident.ID, &UpdateIncidentParams{
 		Status:    models.IncidentStatusResolved,
@@ -444,7 +444,7 @@ func TestResolveIncident_PushSentToCommander(t *testing.T) {
 		TriggeredAt:   time.Now(),
 	}
 	repo := repository.NewIncidentRepository(db)
-	require.NoError(t, repo.Create(incident))
+	require.NoError(t, repo.Create(context.Background(), incident))
 
 	err := svc.ResolveIncident(incident.ID, "user", "test-user")
 	require.NoError(t, err)
@@ -478,7 +478,7 @@ func TestResolveIncident_NoPushWhenPushSvcNil(t *testing.T) {
 		TriggeredAt:   time.Now(),
 	}
 	repo := repository.NewIncidentRepository(db)
-	require.NoError(t, repo.Create(incident))
+	require.NoError(t, repo.Create(context.Background(), incident))
 
 	// Should not panic when pushSvc is nil
 	err := svc.ResolveIncident(incident.ID, "user", "test-user")

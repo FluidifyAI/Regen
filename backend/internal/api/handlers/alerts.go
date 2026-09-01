@@ -135,7 +135,7 @@ func AcknowledgeAlert(
 			via = models.AcknowledgmentViaAPI
 		}
 
-		if err := services.AcknowledgeAlertWithTimeline(id, req.UserName, via, escalationEngine, incidentRepo, timelineRepo); err != nil {
+		if err := services.AcknowledgeAlertWithTimeline(c.Request.Context(), id, req.UserName, via, escalationEngine, incidentRepo, timelineRepo); err != nil {
 			slog.ErrorContext(c.Request.Context(), "failed to acknowledge alert",
 				"alert_id", id,
 				"error", err,

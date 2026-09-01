@@ -55,12 +55,19 @@ type CreateTimelineEntryParams struct {
 	ActorID    string
 }
 
-// IncidentService defines the interface for incident operations
+// IncidentService defines the interface for incident operations.
+//
+// The three alert-triggered creation methods take ctx (REG-157): they sit on
+// the alert-webhook -> incident-create path, so threading ctx through to the
+// repository layer lets the gorm tracing plugin (REG-9) attach real child
+// spans. The rest of the interface does not yet — same mixed pattern already
+// established elsewhere (user_repository.go's Upsert), not a uniform
+// migration of every method.
 type IncidentService interface {
 	// Alert-triggered incident creation
-	CreateIncidentFromAlert(alert *models.Alert, aiEnabled bool) (*models.Incident, error)
-	CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string, aiEnabled bool) (*models.Incident, error)
-	LinkAlertToExistingIncident(alert *models.Alert, incidentID uuid.UUID) error
+	CreateIncidentFromAlert(ctx context.Context, alert *models.Alert, aiEnabled bool) (*models.Incident, error)
+	CreateIncidentFromAlertWithGrouping(ctx context.Context, alert *models.Alert, groupKey string, aiEnabled bool) (*models.Incident, error)
+	LinkAlertToExistingIncident(ctx context.Context, alert *models.Alert, incidentID uuid.UUID) error
 	ShouldCreateIncident(severity models.AlertSeverity) bool
 	CreateSlackChannelForIncident(incident *models.Incident, alerts []models.Alert) error
 
@@ -268,7 +275,11 @@ func (s *incidentService) ShouldCreateIncident(severity models.AlertSeverity) bo
 }
 
 // CreateIncidentFromAlert creates an incident from an alert with full transaction support
-func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled bool) (*models.Incident, error) {
+//
+// NOTE: the transaction wrapper below does not actually provide atomicity —
+// see REG-159, filed separately, not fixed here (different change, needs its
+// own test coverage).
+func (s *incidentService) CreateIncidentFromAlert(ctx context.Context, alert *models.Alert, aiEnabled bool) (*models.Incident, error) {
 	// Map alert severity to incident severity
 	incidentSeverity := mapAlertSeverityToIncident(alert.Severity)
 
@@ -299,12 +310,12 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 	// Execute all operations in a transaction for atomicity
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Step 1: Create the incident
-		if err := s.incidentRepo.Create(incident); err != nil {
+		if err := s.incidentRepo.Create(ctx, incident); err != nil {
 			return fmt.Errorf("failed to create incident: %w", err)
 		}
 
 		// Step 2: Link the alert to the incident
-		if err := s.incidentRepo.LinkAlert(incident.ID, alert.ID, "system", "alertmanager"); err != nil {
+		if err := s.incidentRepo.LinkAlert(ctx, incident.ID, alert.ID, "system", "alertmanager"); err != nil {
 			return fmt.Errorf("failed to link alert to incident: %w", err)
 		}
 
@@ -323,7 +334,7 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 			},
 		}
 
-		if err := s.timelineRepo.Create(timelineEntry); err != nil {
+		if err := s.timelineRepo.Create(ctx, timelineEntry); err != nil {
 			return fmt.Errorf("failed to create timeline entry: %w", err)
 		}
 
@@ -336,9 +347,9 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 
 	// Reload to pick up DB-assigned fields (e.g. incident_number) and get a fresh pointer
 	// that is not shared with the caller, avoiding data races in the channel-creation goroutine.
-	reloadedIncident, err := s.incidentRepo.GetByID(incident.ID)
+	reloadedIncident, err := s.incidentRepo.GetByID(ctx, incident.ID)
 	if err != nil {
-		slog.Error("failed to reload incident after creation; proceeding with partial struct",
+		slog.ErrorContext(ctx, "failed to reload incident after creation; proceeding with partial struct",
 			"incident_id", incident.ID, "error", err)
 		s.launchChannelCreation(incident, []models.Alert{*alert})
 		return incident, nil
@@ -350,8 +361,8 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 		onCallID = s.findOnCallUserID()
 		if onCallID != nil {
 			reloadedIncident.CommanderID = onCallID
-			if err := s.incidentRepo.Update(reloadedIncident); err != nil {
-				slog.Warn("failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
+			if err := s.incidentRepo.Update(ctx, reloadedIncident); err != nil {
+				slog.WarnContext(ctx, "failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
 			}
 		}
 	} else {
@@ -363,12 +374,18 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 	// Create Slack + Teams channels asynchronously (non-blocking)
 	s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
 
+	// bgCtx keeps the trace link (see recoverAsyncPanic) but drops the
+	// request's cancellation, so a returned HTTP response does not kill these
+	// in-flight background sends — the REG-10 WithoutCancel criterion, now
+	// achievable because ctx is a real parameter here.
+	bgCtx := context.WithoutCancel(ctx)
+
 	// Post Telegram incident-created notification asynchronously
 	if s.telegramSvc != nil {
 		go func() {
-			defer recoverAsyncPanic(context.Background(), "sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
+			defer recoverAsyncPanic(bgCtx, "sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
 			if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
-				slog.Error("telegram: failed to send incident created notification",
+				slog.ErrorContext(bgCtx, "telegram: failed to send incident created notification",
 					"incident_id", reloadedIncident.ID, "error", err)
 			}
 		}()
@@ -378,7 +395,7 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 	if s.pushSvc != nil && s.pushSvc.IsEnabled() && onCallID != nil {
 		inc := reloadedIncident
 		go func() {
-			defer recoverAsyncPanic(context.Background(), "sendPushIncidentCreated", "incident_id", inc.ID)
+			defer recoverAsyncPanic(bgCtx, "sendPushIncidentCreated", "incident_id", inc.ID)
 			n := PushNotification{
 				Title: fmt.Sprintf("INC-%d: %s", inc.IncidentNumber, inc.Title),
 				Body:  fmt.Sprintf("%s severity incident triggered", strings.ToUpper(string(inc.Severity))),
@@ -388,8 +405,8 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 					"incident_number": strconv.Itoa(inc.IncidentNumber),
 				},
 			}
-			if err := s.pushSvc.SendToUser(context.Background(), *onCallID, n); err != nil {
-				slog.Error("push: failed to send incident created notification",
+			if err := s.pushSvc.SendToUser(bgCtx, *onCallID, n); err != nil {
+				slog.ErrorContext(bgCtx, "push: failed to send incident created notification",
 					"incident_id", inc.ID, "err", err)
 			}
 		}()
@@ -405,7 +422,7 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 // This method is called when a grouping rule matches and no existing incident is found.
 // It uses PostgreSQL advisory locks to prevent race conditions when concurrent webhooks
 // with the same group_key try to create incidents.
-func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Alert, groupKey string, aiEnabled bool) (*models.Incident, error) {
+func (s *incidentService) CreateIncidentFromAlertWithGrouping(ctx context.Context, alert *models.Alert, groupKey string, aiEnabled bool) (*models.Incident, error) {
 	// Map alert severity to incident severity
 	incidentSeverity := mapAlertSeverityToIncident(alert.Severity)
 
@@ -450,7 +467,7 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 
 		if err == nil {
 			// Found existing incident - link alert to it instead of creating new
-			slog.Info("incident already exists for group_key (race condition avoided)",
+			slog.InfoContext(ctx, "incident already exists for group_key (race condition avoided)",
 				"group_key", groupKey,
 				"incident_id", existingIncident.ID)
 			return s.linkAlertToIncidentInTx(tx, alert, &existingIncident)
@@ -507,9 +524,9 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 
 	if newIncidentCreated {
 		// Reload to get DB-assigned fields and a fresh pointer for the goroutine.
-		reloadedIncident, err := s.incidentRepo.GetByID(incident.ID)
+		reloadedIncident, err := s.incidentRepo.GetByID(ctx, incident.ID)
 		if err != nil {
-			slog.Error("failed to reload incident after creation; proceeding with partial struct",
+			slog.ErrorContext(ctx, "failed to reload incident after creation; proceeding with partial struct",
 				"incident_id", incident.ID, "error", err)
 			s.launchChannelCreation(incident, []models.Alert{*alert})
 			return incident, nil
@@ -521,8 +538,8 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 			onCallIDGrouped = s.findOnCallUserID()
 			if onCallIDGrouped != nil {
 				reloadedIncident.CommanderID = onCallIDGrouped
-				if err := s.incidentRepo.Update(reloadedIncident); err != nil {
-					slog.Warn("failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
+				if err := s.incidentRepo.Update(ctx, reloadedIncident); err != nil {
+					slog.WarnContext(ctx, "failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
 				}
 			}
 		} else {
@@ -531,12 +548,17 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		reloadedIncident.CommanderName = s.resolveCommanderName(reloadedIncident.CommanderID)
 
 		s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
+
+		// bgCtx keeps the trace link (see recoverAsyncPanic) but drops the
+		// request's cancellation — the REG-10 WithoutCancel criterion.
+		bgCtx := context.WithoutCancel(ctx)
+
 		// Post Telegram incident-created notification asynchronously
 		if s.telegramSvc != nil {
 			go func() {
-				defer recoverAsyncPanic(context.Background(), "sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
+				defer recoverAsyncPanic(bgCtx, "sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
 				if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
-					slog.Error("telegram: failed to send incident created notification",
+					slog.ErrorContext(bgCtx, "telegram: failed to send incident created notification",
 						"incident_id", reloadedIncident.ID, "error", err)
 				}
 			}()
@@ -546,7 +568,7 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		if s.pushSvc != nil && s.pushSvc.IsEnabled() && onCallIDGrouped != nil {
 			inc := reloadedIncident
 			go func() {
-				defer recoverAsyncPanic(context.Background(), "sendPushIncidentCreated", "incident_id", inc.ID)
+				defer recoverAsyncPanic(bgCtx, "sendPushIncidentCreated", "incident_id", inc.ID)
 				n := PushNotification{
 					Title: fmt.Sprintf("INC-%d: %s", inc.IncidentNumber, inc.Title),
 					Body:  fmt.Sprintf("%s severity incident triggered", strings.ToUpper(string(inc.Severity))),
@@ -556,8 +578,8 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 						"incident_number": strconv.Itoa(inc.IncidentNumber),
 					},
 				}
-				if err := s.pushSvc.SendToUser(context.Background(), *onCallIDGrouped, n); err != nil {
-					slog.Error("push: failed to send incident created notification",
+				if err := s.pushSvc.SendToUser(bgCtx, *onCallIDGrouped, n); err != nil {
+					slog.ErrorContext(bgCtx, "push: failed to send incident created notification",
 						"incident_id", inc.ID, "err", err)
 				}
 			}()
@@ -574,7 +596,7 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 //
 // This is called when the grouping engine finds an existing incident with the same group_key.
 // It creates a timeline entry for the alert linkage and posts a Slack notification.
-func (s *incidentService) LinkAlertToExistingIncident(alert *models.Alert, incidentID uuid.UUID) error {
+func (s *incidentService) LinkAlertToExistingIncident(ctx context.Context, alert *models.Alert, incidentID uuid.UUID) error {
 	// Execute in transaction
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		return s.linkAlertToIncidentInTx(tx, alert, &models.Incident{ID: incidentID})
@@ -586,10 +608,15 @@ func (s *incidentService) LinkAlertToExistingIncident(alert *models.Alert, incid
 
 	// Post Slack notification asynchronously (non-blocking)
 	if s.chatService != nil {
+		// bgCtx keeps the trace link but drops the request's cancellation — the
+		// REG-10 WithoutCancel criterion.
+		bgCtx := context.WithoutCancel(ctx)
 		go func() {
-			incident, err := s.incidentRepo.GetByID(incidentID)
+			defer recoverAsyncPanic(bgCtx, "postAlertLinkedToSlack", "incident_id", incidentID)
+
+			incident, err := s.incidentRepo.GetByID(bgCtx, incidentID)
 			if err != nil {
-				slog.Error("failed to get incident for slack notification",
+				slog.ErrorContext(bgCtx, "failed to get incident for slack notification",
 					"incident_id", incidentID,
 					"error", err)
 				return
@@ -604,7 +631,7 @@ func (s *incidentService) LinkAlertToExistingIncident(alert *models.Alert, incid
 			message := s.messageBuilder.BuildAlertLinkedMessage(alert, incident)
 			_, err = s.chatService.PostMessage(incident.SlackChannelID, message)
 			if err != nil {
-				slog.Error("failed to post alert linked message to slack",
+				slog.ErrorContext(bgCtx, "failed to post alert linked message to slack",
 					"incident_id", incidentID,
 					"alert_id", alert.ID,
 					"error", err)
@@ -787,6 +814,14 @@ func (s *incidentService) CreateSlackChannelForIncident(incident *models.Inciden
 
 // createTimelineEntry creates a timeline entry without failing if it errors.
 // Timeline entries are important but not critical enough to fail the entire operation.
+//
+// Called from a wide mix of contexts — request-backed status-transition
+// methods, and channel-creation goroutines that today start from
+// context.Background() rather than a real request context. Threading a real
+// ctx through every one of those call sites (some nested inside async
+// goroutines with no context of their own) is out of scope for this slice —
+// tracked in REG-157 as the remaining IncidentService CRUD/goroutine surface.
+// context.Background() here is an honest placeholder, not a silent gap.
 func (s *incidentService) createTimelineEntry(incidentID uuid.UUID, entryType string, content models.JSONB) {
 	entry := &models.TimelineEntry{
 		ID:         uuid.New(),
@@ -798,7 +833,7 @@ func (s *incidentService) createTimelineEntry(incidentID uuid.UUID, entryType st
 		Content:    content,
 	}
 
-	if err := s.timelineRepo.Create(entry); err != nil {
+	if err := s.timelineRepo.Create(context.Background(), entry); err != nil {
 		slog.Error("failed to create timeline entry",
 			"incident_id", incidentID,
 			"type", entryType,
@@ -910,7 +945,7 @@ func (s *incidentService) GetIncident(id uuid.UUID, number int) (*models.Inciden
 		err      error
 	)
 	if id != uuid.Nil {
-		incident, err = s.incidentRepo.GetByID(id)
+		incident, err = s.incidentRepo.GetByID(context.Background(), id)
 	} else {
 		incident, err = s.incidentRepo.GetByNumber(number)
 	}
@@ -936,7 +971,7 @@ func (s *incidentService) GetIncidentBySlackMessageTS(messageTS string) (*models
 // UpdateIncidentStatus transitions an incident to the given status and records a timeline entry.
 // Used by bots and integrations (e.g. Slack emoji reactions) where the target status is dynamic.
 func (s *incidentService) UpdateIncidentStatus(id uuid.UUID, status models.IncidentStatus, actorType, actorID string) error {
-	incident, err := s.incidentRepo.GetByID(id)
+	incident, err := s.incidentRepo.GetByID(context.Background(), id)
 	if err != nil {
 		return err
 	}
@@ -951,7 +986,7 @@ func (s *incidentService) UpdateIncidentStatus(id uuid.UUID, status models.Incid
 	})
 	if status == models.IncidentStatusResolved {
 		go publishResolved(id, incident.AIEnabled)
-		if updatedIncident, err := s.incidentRepo.GetByID(id); err == nil && s.teamsSvc != nil {
+		if updatedIncident, err := s.incidentRepo.GetByID(context.Background(), id); err == nil && s.teamsSvc != nil {
 			go func() {
 				defer recoverAsyncPanic(context.Background(), "postStatusUpdateToTeams(reaction-resolve)", "incident_id", id)
 				s.postStatusUpdateToTeams(updatedIncident, previousStatus, status, actorID)
@@ -985,7 +1020,7 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 	// Execute in transaction
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Create incident
-		if err := s.incidentRepo.Create(incident); err != nil {
+		if err := s.incidentRepo.Create(context.Background(), incident); err != nil {
 			return fmt.Errorf("failed to create incident: %w", err)
 		}
 
@@ -1002,7 +1037,7 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 			},
 		}
 
-		if err := s.timelineRepo.Create(timelineEntry); err != nil {
+		if err := s.timelineRepo.Create(context.Background(), timelineEntry); err != nil {
 			return fmt.Errorf("failed to create timeline entry: %w", err)
 		}
 
@@ -1014,7 +1049,7 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 	}
 
 	// Reload incident to get trigger-assigned fields (e.g., incident_number)
-	reloadedIncident, err := s.incidentRepo.GetByID(incident.ID)
+	reloadedIncident, err := s.incidentRepo.GetByID(context.Background(), incident.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reload incident after creation: %w", err)
 	}
@@ -1023,7 +1058,7 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 	if reloadedIncident.CommanderID == nil {
 		if onCallID := s.findOnCallUserID(); onCallID != nil {
 			reloadedIncident.CommanderID = onCallID
-			if err := s.incidentRepo.Update(reloadedIncident); err != nil {
+			if err := s.incidentRepo.Update(context.Background(), reloadedIncident); err != nil {
 				slog.Warn("failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
 			}
 		}
@@ -1057,7 +1092,7 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 // UpdateIncident updates an incident and creates timeline entries for changes
 func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentParams) (*models.Incident, error) {
 	// Fetch current incident
-	incident, err := s.incidentRepo.GetByID(id)
+	incident, err := s.incidentRepo.GetByID(context.Background(), id)
 	if err != nil {
 		return nil, err
 	}
@@ -1108,7 +1143,7 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 					"client_ip":       params.ClientIP,
 				},
 			}
-			if err := s.timelineRepo.Create(timelineEntry); err != nil {
+			if err := s.timelineRepo.Create(context.Background(), timelineEntry); err != nil {
 				return err
 			}
 		}
@@ -1142,7 +1177,7 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 					"client_ip":         params.ClientIP,
 				},
 			}
-			if err := s.timelineRepo.Create(timelineEntry); err != nil {
+			if err := s.timelineRepo.Create(context.Background(), timelineEntry); err != nil {
 				return err
 			}
 		}
@@ -1193,14 +1228,14 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 					ActorID:    params.UpdatedBy,
 					Content:    timelineContent,
 				}
-				if err := s.timelineRepo.Create(entry); err != nil {
+				if err := s.timelineRepo.Create(context.Background(), entry); err != nil {
 					return err
 				}
 			}
 		}
 
 		// Update incident
-		if err := s.incidentRepo.Update(incident); err != nil {
+		if err := s.incidentRepo.Update(context.Background(), incident); err != nil {
 			return err
 		}
 
@@ -1340,7 +1375,7 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 	}
 
 	// Fetch updated incident
-	updatedIncident, err := s.incidentRepo.GetByID(id)
+	updatedIncident, err := s.incidentRepo.GetByID(context.Background(), id)
 	if err != nil {
 		return nil, err
 	}
@@ -1371,7 +1406,7 @@ func (s *incidentService) CreateTimelineEntry(params *CreateTimelineEntryParams)
 		Content:    params.Content,
 	}
 
-	if err := s.timelineRepo.Create(entry); err != nil {
+	if err := s.timelineRepo.Create(context.Background(), entry); err != nil {
 		return nil, err
 	}
 
@@ -1397,7 +1432,7 @@ func (s *incidentService) CreateTimelineEntry(params *CreateTimelineEntryParams)
 // postTimelineNoteToSlack posts a user-created note to the incident's Slack channel.
 // Runs asynchronously so it doesn't block the API response.
 func (s *incidentService) postTimelineNoteToSlack(incidentID uuid.UUID, content models.JSONB) {
-	incident, err := s.incidentRepo.GetByID(incidentID)
+	incident, err := s.incidentRepo.GetByID(context.Background(), incidentID)
 	if err != nil {
 		slog.Error("postTimelineNoteToSlack: failed to load incident",
 			"incident_id", incidentID, "error", err)
@@ -1434,7 +1469,7 @@ func (s *incidentService) postTimelineNoteToSlack(incidentID uuid.UUID, content 
 // Mirrors postTimelineNoteToSlack for bidirectional Teams parity (v0.9+).
 // Runs asynchronously so it doesn't block the API response.
 func (s *incidentService) postTimelineNoteToTeams(incidentID uuid.UUID, content models.JSONB) {
-	incident, err := s.incidentRepo.GetByID(incidentID)
+	incident, err := s.incidentRepo.GetByID(context.Background(), incidentID)
 	if err != nil {
 		slog.Error("postTimelineNoteToTeams: failed to load incident",
 			"incident_id", incidentID, "error", err)
@@ -1605,7 +1640,7 @@ func (s *incidentService) GenerateHandoffDigest(incident *models.Incident) (stri
 // AcknowledgeIncident transitions an incident to "acknowledged".
 // Used by the Teams and Slack bots so they can acknowledge via simple commands.
 func (s *incidentService) AcknowledgeIncident(id uuid.UUID, actorType, actorID string) error {
-	incident, err := s.incidentRepo.GetByID(id)
+	incident, err := s.incidentRepo.GetByID(context.Background(), id)
 	if err != nil {
 		return err
 	}
@@ -1623,7 +1658,7 @@ func (s *incidentService) AcknowledgeIncident(id uuid.UUID, actorType, actorID s
 // ResolveIncident transitions an incident to "resolved".
 // Used by the Teams and Slack bots so they can resolve via simple commands.
 func (s *incidentService) ResolveIncident(id uuid.UUID, actorType, actorID string) error {
-	incident, err := s.incidentRepo.GetByID(id)
+	incident, err := s.incidentRepo.GetByID(context.Background(), id)
 	if err != nil {
 		return err
 	}
@@ -1639,7 +1674,7 @@ func (s *incidentService) ResolveIncident(id uuid.UUID, actorType, actorID strin
 	go publishResolved(id, incident.AIEnabled)
 	// Re-fetch with updated status so postStatusUpdateToTeams sees the correct state.
 	// This also ensures the card update shows "resolved" rather than the previous status.
-	if updatedIncident, err := s.incidentRepo.GetByID(id); err == nil && s.teamsSvc != nil {
+	if updatedIncident, err := s.incidentRepo.GetByID(context.Background(), id); err == nil && s.teamsSvc != nil {
 		go func() {
 			defer recoverAsyncPanic(context.Background(), "postStatusUpdateToTeams(resolve)", "incident_id", id)
 			s.postStatusUpdateToTeams(updatedIncident, incident.Status, models.IncidentStatusResolved, actorID)

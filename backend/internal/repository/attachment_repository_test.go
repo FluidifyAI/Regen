@@ -1,6 +1,7 @@
 package repository_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
@@ -16,7 +17,7 @@ func TestAttachmentRepository_CreateAndList(t *testing.T) {
 	repo := repository.NewAttachmentRepository(db)
 
 	inc := makeTestIncident()
-	require.NoError(t, incidentRepo.Create(inc))
+	require.NoError(t, incidentRepo.Create(context.Background(), inc))
 
 	att := &models.IncidentAttachment{
 		IncidentID: inc.ID,
@@ -41,7 +42,7 @@ func TestAttachmentRepository_GetWithData(t *testing.T) {
 	repo := repository.NewAttachmentRepository(db)
 
 	inc := makeTestIncident()
-	require.NoError(t, incidentRepo.Create(inc))
+	require.NoError(t, incidentRepo.Create(context.Background(), inc))
 
 	att := &models.IncidentAttachment{
 		IncidentID: inc.ID,
@@ -65,7 +66,7 @@ func TestAttachmentRepository_Delete(t *testing.T) {
 	repo := repository.NewAttachmentRepository(db)
 
 	inc := makeTestIncident()
-	require.NoError(t, incidentRepo.Create(inc))
+	require.NoError(t, incidentRepo.Create(context.Background(), inc))
 
 	att := &models.IncidentAttachment{
 		IncidentID: inc.ID,

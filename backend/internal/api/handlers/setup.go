@@ -30,7 +30,7 @@ func SeedDemoData(
 			return
 		}
 
-		if err := coordinator.SeedDemoData(scheduleRepo, escalationRepo, routingRepo, incidentRepo, timelineRepo); err != nil {
+		if err := coordinator.SeedDemoData(c.Request.Context(), scheduleRepo, escalationRepo, routingRepo, incidentRepo, timelineRepo); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "failed to seed demo data: " + err.Error()}})
 			return
 		}

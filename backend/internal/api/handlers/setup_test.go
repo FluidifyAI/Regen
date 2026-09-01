@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -26,8 +27,10 @@ type mockIncidentRepoForSetup struct {
 func (m *mockIncidentRepoForSetup) GetByNumber(n int) (*models.Incident, error) {
 	return m.GetByNumberFn(n)
 }
-func (m *mockIncidentRepoForSetup) Create(_ *models.Incident) error                    { return nil }
-func (m *mockIncidentRepoForSetup) GetByID(_ uuid.UUID) (*models.Incident, error)      { return nil, nil }
+func (m *mockIncidentRepoForSetup) Create(_ context.Context, _ *models.Incident) error { return nil }
+func (m *mockIncidentRepoForSetup) GetByID(_ context.Context, _ uuid.UUID) (*models.Incident, error) {
+	return nil, nil
+}
 func (m *mockIncidentRepoForSetup) GetBySlackChannelID(_ string) (*models.Incident, error) {
 	return nil, nil
 }
@@ -43,16 +46,20 @@ func (m *mockIncidentRepoForSetup) GetByTeamsConversationID(_ string) (*models.I
 func (m *mockIncidentRepoForSetup) List(_ repository.IncidentFilters, _ repository.Pagination) ([]models.Incident, int64, error) {
 	return nil, 0, nil
 }
-func (m *mockIncidentRepoForSetup) Update(_ *models.Incident) error                        { return nil }
-func (m *mockIncidentRepoForSetup) UpdateStatus(_ uuid.UUID, _ models.IncidentStatus) error { return nil }
-func (m *mockIncidentRepoForSetup) UpdateSlackChannel(_ uuid.UUID, _, _ string) error       { return nil }
-func (m *mockIncidentRepoForSetup) UpdateSlackMessageTS(_ uuid.UUID, _ string) error        { return nil }
-func (m *mockIncidentRepoForSetup) UpdateTeamsChannel(_ uuid.UUID, _, _ string) error       { return nil }
-func (m *mockIncidentRepoForSetup) UpdateTeamsConversationID(_ uuid.UUID, _ string) error   { return nil }
-func (m *mockIncidentRepoForSetup) UpdateTeamsActivityID(_ uuid.UUID, _ string) error       { return nil }
-func (m *mockIncidentRepoForSetup) UpdateTeamsPostingIDs(_ uuid.UUID, _, _ string) error    { return nil }
-func (m *mockIncidentRepoForSetup) LinkAlert(_ uuid.UUID, _ uuid.UUID, _, _ string) error   { return nil }
-func (m *mockIncidentRepoForSetup) GetAlerts(_ uuid.UUID) ([]models.Alert, error)           { return nil, nil }
+func (m *mockIncidentRepoForSetup) Update(_ context.Context, _ *models.Incident) error { return nil }
+func (m *mockIncidentRepoForSetup) UpdateStatus(_ uuid.UUID, _ models.IncidentStatus) error {
+	return nil
+}
+func (m *mockIncidentRepoForSetup) UpdateSlackChannel(_ uuid.UUID, _, _ string) error     { return nil }
+func (m *mockIncidentRepoForSetup) UpdateSlackMessageTS(_ uuid.UUID, _ string) error      { return nil }
+func (m *mockIncidentRepoForSetup) UpdateTeamsChannel(_ uuid.UUID, _, _ string) error     { return nil }
+func (m *mockIncidentRepoForSetup) UpdateTeamsConversationID(_ uuid.UUID, _ string) error { return nil }
+func (m *mockIncidentRepoForSetup) UpdateTeamsActivityID(_ uuid.UUID, _ string) error     { return nil }
+func (m *mockIncidentRepoForSetup) UpdateTeamsPostingIDs(_ uuid.UUID, _, _ string) error  { return nil }
+func (m *mockIncidentRepoForSetup) LinkAlert(_ context.Context, _ uuid.UUID, _ uuid.UUID, _, _ string) error {
+	return nil
+}
+func (m *mockIncidentRepoForSetup) GetAlerts(_ uuid.UUID) ([]models.Alert, error) { return nil, nil }
 func (m *mockIncidentRepoForSetup) GetIncidentByAlertID(_ uuid.UUID) (*models.Incident, error) {
 	return nil, nil
 }
@@ -77,8 +84,8 @@ func (m *mockScheduleRepoForSetup) Create(_ *models.Schedule) error    { return 
 func (m *mockScheduleRepoForSetup) GetByID(_ uuid.UUID) (*models.Schedule, error) {
 	return nil, nil
 }
-func (m *mockScheduleRepoForSetup) Update(_ *models.Schedule) error       { return nil }
-func (m *mockScheduleRepoForSetup) Delete(_ uuid.UUID) error              { return nil }
+func (m *mockScheduleRepoForSetup) Update(_ *models.Schedule) error { return nil }
+func (m *mockScheduleRepoForSetup) Delete(_ uuid.UUID) error        { return nil }
 func (m *mockScheduleRepoForSetup) GetWithLayers(_ uuid.UUID) (*models.Schedule, error) {
 	return nil, nil
 }

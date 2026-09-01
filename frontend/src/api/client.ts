@@ -1,4 +1,5 @@
 import type { ApiError, AIAgent } from './types'
+import { generateTraceparent, shouldInjectTraceparent } from '../lib/tracing'
 
 const BASE_URL = import.meta.env.VITE_API_URL || ''
 
@@ -12,13 +13,21 @@ class ApiClient {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${BASE_URL}${endpoint}`
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> | undefined),
+    }
+    // REG-14: propagate a fresh trace-context header so one browser action
+    // continues as a single trace into the backend (otelgin already extracts
+    // and parents under an incoming traceparent — see src/lib/tracing.ts).
+    if (shouldInjectTraceparent(url)) {
+      headers.traceparent = generateTraceparent()
+    }
+
     const config: RequestInit = {
       ...options,
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     }
 
     // Log requests in development

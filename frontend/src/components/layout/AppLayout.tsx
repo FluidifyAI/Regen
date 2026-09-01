@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
-import { posthog } from '../../main'
+import { posthog } from '../../lib/posthogClient'
 import { Sidebar } from './Sidebar'
 import { AnnouncementBanner } from '../AnnouncementBanner'
 import { getSystemSettings } from '../../api/settings'

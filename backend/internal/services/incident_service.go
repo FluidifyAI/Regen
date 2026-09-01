@@ -17,9 +17,12 @@ import (
 	"github.com/FluidifyAI/Regen/backend/internal/integrations/llm"
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	appredis "github.com/FluidifyAI/Regen/backend/internal/redis"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
@@ -363,7 +366,7 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 	// Post Telegram incident-created notification asynchronously
 	if s.telegramSvc != nil {
 		go func() {
-			defer recoverAsyncPanic("sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
+			defer recoverAsyncPanic(context.Background(), "sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
 			if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
 				slog.Error("telegram: failed to send incident created notification",
 					"incident_id", reloadedIncident.ID, "error", err)
@@ -375,7 +378,7 @@ func (s *incidentService) CreateIncidentFromAlert(alert *models.Alert, aiEnabled
 	if s.pushSvc != nil && s.pushSvc.IsEnabled() && onCallID != nil {
 		inc := reloadedIncident
 		go func() {
-			defer recoverAsyncPanic("sendPushIncidentCreated", "incident_id", inc.ID)
+			defer recoverAsyncPanic(context.Background(), "sendPushIncidentCreated", "incident_id", inc.ID)
 			n := PushNotification{
 				Title: fmt.Sprintf("INC-%d: %s", inc.IncidentNumber, inc.Title),
 				Body:  fmt.Sprintf("%s severity incident triggered", strings.ToUpper(string(inc.Severity))),
@@ -531,7 +534,7 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		// Post Telegram incident-created notification asynchronously
 		if s.telegramSvc != nil {
 			go func() {
-				defer recoverAsyncPanic("sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
+				defer recoverAsyncPanic(context.Background(), "sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
 				if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
 					slog.Error("telegram: failed to send incident created notification",
 						"incident_id", reloadedIncident.ID, "error", err)
@@ -543,7 +546,7 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(alert *models.Aler
 		if s.pushSvc != nil && s.pushSvc.IsEnabled() && onCallIDGrouped != nil {
 			inc := reloadedIncident
 			go func() {
-				defer recoverAsyncPanic("sendPushIncidentCreated", "incident_id", inc.ID)
+				defer recoverAsyncPanic(context.Background(), "sendPushIncidentCreated", "incident_id", inc.ID)
 				n := PushNotification{
 					Title: fmt.Sprintf("INC-%d: %s", inc.IncidentNumber, inc.Title),
 					Body:  fmt.Sprintf("%s severity incident triggered", strings.ToUpper(string(inc.Severity))),
@@ -950,7 +953,7 @@ func (s *incidentService) UpdateIncidentStatus(id uuid.UUID, status models.Incid
 		go publishResolved(id, incident.AIEnabled)
 		if updatedIncident, err := s.incidentRepo.GetByID(id); err == nil && s.teamsSvc != nil {
 			go func() {
-				defer recoverAsyncPanic("postStatusUpdateToTeams(reaction-resolve)", "incident_id", id)
+				defer recoverAsyncPanic(context.Background(), "postStatusUpdateToTeams(reaction-resolve)", "incident_id", id)
 				s.postStatusUpdateToTeams(updatedIncident, previousStatus, status, actorID)
 			}()
 		}
@@ -1034,7 +1037,7 @@ func (s *incidentService) CreateIncident(params *CreateIncidentParams) (*models.
 	if s.telegramSvc != nil {
 		slog.Info("telegram: sending incident created notification", "incident_id", reloadedIncident.ID, "incident_number", reloadedIncident.IncidentNumber)
 		go func() {
-			defer recoverAsyncPanic("sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
+			defer recoverAsyncPanic(context.Background(), "sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
 			if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
 				slog.Error("telegram: failed to send incident created notification",
 					"incident_id", reloadedIncident.ID, "error", err)
@@ -1245,7 +1248,7 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 	// Post Teams notification and optionally archive Teams channel, asynchronously (v0.8+)
 	if statusChanged && s.teamsSvc != nil {
 		go func() {
-			defer recoverAsyncPanic("postStatusUpdateToTeams", "incident_id", incident.ID)
+			defer recoverAsyncPanic(context.Background(), "postStatusUpdateToTeams", "incident_id", incident.ID)
 			s.postStatusUpdateToTeams(incident, previousStatus, params.Status, params.UpdatedBy)
 		}()
 	}
@@ -1253,7 +1256,7 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 	// Post Telegram status-change notification asynchronously
 	if statusChanged && s.telegramSvc != nil {
 		go func() {
-			defer recoverAsyncPanic("postStatusUpdateToTelegram", "incident_id", incident.ID)
+			defer recoverAsyncPanic(context.Background(), "postStatusUpdateToTelegram", "incident_id", incident.ID)
 			if err := s.telegramSvc.SendStatusUpdate(incident, string(params.Status)); err != nil {
 				slog.Error("telegram: failed to post status update", "incident_id", incident.ID, "error", err)
 			} else {
@@ -1272,7 +1275,7 @@ func (s *incidentService) UpdateIncident(id uuid.UUID, params *UpdateIncidentPar
 		s.pushSvc != nil && s.pushSvc.IsEnabled() && incident.CommanderID != nil {
 		inc := *incident // capture a copy before goroutine
 		go func() {
-			defer recoverAsyncPanic("sendPushIncidentResolved(update)", "incident_id", inc.ID)
+			defer recoverAsyncPanic(context.Background(), "sendPushIncidentResolved(update)", "incident_id", inc.ID)
 			n := PushNotification{
 				Title: fmt.Sprintf("INC-%d resolved", inc.IncidentNumber),
 				Body:  inc.Title,
@@ -1376,13 +1379,13 @@ func (s *incidentService) CreateTimelineEntry(params *CreateTimelineEntryParams)
 	if params.Type == "message" {
 		if s.chatService != nil {
 			go func() {
-				defer recoverAsyncPanic("postTimelineNoteToSlack", "incident_id", params.IncidentID)
+				defer recoverAsyncPanic(context.Background(), "postTimelineNoteToSlack", "incident_id", params.IncidentID)
 				s.postTimelineNoteToSlack(params.IncidentID, params.Content)
 			}()
 		}
 		if s.teamsSvc != nil {
 			go func() {
-				defer recoverAsyncPanic("postTimelineNoteToTeams", "incident_id", params.IncidentID)
+				defer recoverAsyncPanic(context.Background(), "postTimelineNoteToTeams", "incident_id", params.IncidentID)
 				s.postTimelineNoteToTeams(params.IncidentID, params.Content)
 			}()
 		}
@@ -1557,7 +1560,7 @@ func (s *incidentService) GenerateAISummary(incident *models.Incident) (string, 
 	if s.telegramSvc != nil {
 		summaryCopy := summary
 		go func() {
-			defer recoverAsyncPanic("sendAISummaryToTelegram", "incident_id", incident.ID)
+			defer recoverAsyncPanic(context.Background(), "sendAISummaryToTelegram", "incident_id", incident.ID)
 			if err := s.telegramSvc.SendAISummary(incident, summaryCopy); err != nil {
 				slog.Error("telegram: failed to send AI summary", "incident_id", incident.ID, "error", err)
 			} else {
@@ -1638,7 +1641,7 @@ func (s *incidentService) ResolveIncident(id uuid.UUID, actorType, actorID strin
 	// This also ensures the card update shows "resolved" rather than the previous status.
 	if updatedIncident, err := s.incidentRepo.GetByID(id); err == nil && s.teamsSvc != nil {
 		go func() {
-			defer recoverAsyncPanic("postStatusUpdateToTeams(resolve)", "incident_id", id)
+			defer recoverAsyncPanic(context.Background(), "postStatusUpdateToTeams(resolve)", "incident_id", id)
 			s.postStatusUpdateToTeams(updatedIncident, incident.Status, models.IncidentStatusResolved, actorID)
 		}()
 	}
@@ -1647,7 +1650,7 @@ func (s *incidentService) ResolveIncident(id uuid.UUID, actorType, actorID strin
 	if s.pushSvc != nil && s.pushSvc.IsEnabled() && incident.CommanderID != nil {
 		inc := *incident // capture a copy
 		go func() {
-			defer recoverAsyncPanic("sendPushIncidentResolved", "incident_id", inc.ID)
+			defer recoverAsyncPanic(context.Background(), "sendPushIncidentResolved", "incident_id", inc.ID)
 			n := PushNotification{
 				Title: fmt.Sprintf("INC-%d resolved", inc.IncidentNumber),
 				Body:  inc.Title,
@@ -1762,13 +1765,36 @@ func (s *incidentService) createTeamsChannelForIncident(incident *models.Inciden
 	return nil
 }
 
-// recoverAsyncPanic logs a recovered panic from an async goroutine.
+// asyncSpanTracer records panics recovered from async goroutines. A
+// package-level var (not observability.Tracer() called directly inline) so
+// tests can substitute an isolated tracer without touching otel's
+// process-global TracerProvider — REG-7 found that global to be a shared,
+// order-dependent singleton, unsafe to save/restore per-test.
+var asyncSpanTracer = observability.Tracer()
+
+// recoverAsyncPanic logs a recovered panic from an async goroutine and
+// records it as an error on a span linked to (not parented by) ctx's span,
+// when ctx carries a real one — the async goroutine commonly outlives the
+// request that spawned it, so a link records the causal relationship
+// without nesting under a span that may have already ended.
+//
+// ctx is context.Background() at every current call site (see REG-157): none
+// of IncidentService's methods take a context parameter yet, so there is no
+// real request context to pass here today. The link degrades harmlessly to
+// an invalid one in that case — this wiring is ready for REG-157 to feed it
+// a real ctx, not yet doing so itself.
+//
 // Gin's recovery middleware only covers the HTTP handler goroutine; any goroutine
 // spawned with `go` must recover its own panics to prevent crashing the server.
-func recoverAsyncPanic(op string, extra ...any) {
+func recoverAsyncPanic(ctx context.Context, op string, extra ...any) {
 	if r := recover(); r != nil {
 		args := append([]any{"panic", fmt.Sprintf("%v", r)}, extra...)
-		slog.Error("panic in async goroutine — recovered", append([]any{"op", op}, args...)...)
+		slog.ErrorContext(ctx, "panic in async goroutine — recovered", append([]any{"op", op}, args...)...)
+
+		_, span := asyncSpanTracer.Start(context.Background(), op, trace.WithLinks(trace.LinkFromContext(ctx)))
+		span.RecordError(fmt.Errorf("panic: %v", r))
+		span.SetStatus(codes.Error, "panic recovered")
+		span.End()
 	}
 }
 
@@ -1799,7 +1825,7 @@ func publishResolved(incidentID uuid.UUID, aiEnabled bool) {
 func (s *incidentService) launchChannelCreation(incident *models.Incident, alerts []models.Alert) {
 	if s.chatService != nil {
 		go func() {
-			defer recoverAsyncPanic("CreateSlackChannelForIncident", "incident_id", incident.ID)
+			defer recoverAsyncPanic(context.Background(), "CreateSlackChannelForIncident", "incident_id", incident.ID)
 			if err := s.CreateSlackChannelForIncident(incident, alerts); err != nil {
 				slog.Error("failed to create slack channel",
 					"incident_id", incident.ID,
@@ -1810,7 +1836,7 @@ func (s *incidentService) launchChannelCreation(incident *models.Incident, alert
 	}
 	if s.teamsSvc != nil {
 		go func() {
-			defer recoverAsyncPanic("createTeamsChannelForIncident", "incident_id", incident.ID)
+			defer recoverAsyncPanic(context.Background(), "createTeamsChannelForIncident", "incident_id", incident.ID)
 			if err := s.createTeamsChannelForIncident(incident, alerts); err != nil {
 				slog.Error("failed to create teams channel",
 					"incident_id", incident.ID,

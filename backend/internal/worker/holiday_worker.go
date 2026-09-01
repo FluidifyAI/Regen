@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
 
@@ -29,7 +30,7 @@ func (w *HolidayWorker) Run(ctx context.Context) {
 	}()
 
 	slog.Info("holiday worker started")
-	w.svc.SyncAll()
+	w.tick()
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
@@ -39,7 +40,17 @@ func (w *HolidayWorker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			w.svc.SyncAll()
+			w.tick()
 		}
 	}
+}
+
+// tick runs one holiday sync.
+//
+// Opens its own root span per REG-10: this worker has no originating HTTP
+// request, so each tick starts a fresh trace.
+func (w *HolidayWorker) tick() {
+	_, span := observability.StartWorkerTick(observability.Tracer(), "holiday_worker.tick")
+	defer observability.EndWorkerTick(span, nil) // SyncAll logs its own errors internally, nothing to report here
+	w.svc.SyncAll()
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/config"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -64,8 +65,8 @@ func (tw *TelemetryWorker) Run(ctx context.Context) {
 	instanceID := tw.ensureInstanceID()
 	slog.Info("telemetry worker started", "instance_id", instanceID, "disabled", tw.cfg.TelemetryDisabled)
 
-	tw.sendHeartbeat(instanceID)
-	tw.fetchAnnouncements()
+	tw.tickHeartbeat(instanceID)
+	tw.tickAnnouncements()
 
 	heartbeatTicker := time.NewTicker(24 * time.Hour)
 	announcementsTicker := time.NewTicker(6 * time.Hour)
@@ -77,11 +78,29 @@ func (tw *TelemetryWorker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-heartbeatTicker.C:
-			tw.sendHeartbeat(instanceID)
+			tw.tickHeartbeat(instanceID)
 		case <-announcementsTicker.C:
-			tw.fetchAnnouncements()
+			tw.tickAnnouncements()
 		}
 	}
+}
+
+// tickHeartbeat and tickAnnouncements each open their own root span per
+// REG-10: this worker has no originating HTTP request, so each tick starts a
+// fresh trace. sendHeartbeat/fetchAnnouncements are void and log their own
+// errors internally (many early-return exit points, none of them surfaced as
+// a return value), so the span wraps the call as an opaque unit rather than
+// trying to capture a granular error from inside it.
+func (tw *TelemetryWorker) tickHeartbeat(instanceID string) {
+	_, span := observability.StartWorkerTick(observability.Tracer(), "telemetry_worker.heartbeat")
+	defer observability.EndWorkerTick(span, nil)
+	tw.sendHeartbeat(instanceID)
+}
+
+func (tw *TelemetryWorker) tickAnnouncements() {
+	_, span := observability.StartWorkerTick(observability.Tracer(), "telemetry_worker.fetch_announcements")
+	defer observability.EndWorkerTick(span, nil)
+	tw.fetchAnnouncements()
 }
 
 func (tw *TelemetryWorker) ensureInstanceID() string {

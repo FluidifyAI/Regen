@@ -9,6 +9,7 @@ import (
 
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 )
@@ -28,9 +29,9 @@ const (
 // into NewEscalationEngine as the notification sink.
 type EscalationWorker struct {
 	engine      services.EscalationEngine
-	chatService services.ChatService     // nil → DM sends are graceful no-ops
+	chatService services.ChatService // nil → DM sends are graceful no-ops
 	msgBuilder  *services.SlackMessageBuilder
-	pushSvc     services.PushNotifier   // nil → push disabled
+	pushSvc     services.PushNotifier     // nil → push disabled
 	userRepo    repository.UserRepository // nil → push disabled (can't resolve UUID)
 }
 
@@ -82,8 +83,16 @@ func (w *EscalationWorker) Run(ctx context.Context) {
 }
 
 // tick calls EvaluateEscalations once and logs any error.
+//
+// Opens its own root span per REG-10: this worker has no originating HTTP
+// request, so each tick starts a fresh trace rather than inheriting Run's
+// long-lived lifecycle context.
 func (w *EscalationWorker) tick() {
-	if err := w.engine.EvaluateEscalations(); err != nil {
+	_, span := observability.StartWorkerTick(observability.Tracer(), "escalation_worker.tick")
+	var err error
+	defer func() { observability.EndWorkerTick(span, err) }()
+
+	if err = w.engine.EvaluateEscalations(); err != nil {
 		slog.Error("escalation worker: EvaluateEscalations failed", "err", err)
 		metrics.WorkerJobsFailedTotal.WithLabelValues("escalation_evaluate").Inc()
 		return

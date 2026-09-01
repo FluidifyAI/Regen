@@ -32,18 +32,20 @@ type Config struct {
 	MaxTokens int
 }
 
-// New returns a Client for the provider named in cfg.Provider.
+// New returns a Client for the provider named in cfg.Provider, wrapped with a
+// GenAI span per completion (REG-12) — every provider gets the same
+// instrumentation, so callers never need to know or care which one is live.
 func New(cfg Config) (Client, error) {
 	switch cfg.Provider {
 	case "openai", "":
-		return newOpenAIClient(cfg, "openai"), nil
+		return newInstrumentedClient(newOpenAIClient(cfg, "openai"), "openai", cfg.Model), nil
 	case "anthropic":
-		return newAnthropicClient(cfg), nil
+		return newInstrumentedClient(newAnthropicClient(cfg), "anthropic", cfg.Model), nil
 	case "ollama":
 		if cfg.BaseURL == "" {
 			return nil, fmt.Errorf("llm: ollama provider requires BaseURL (OLLAMA_BASE_URL)")
 		}
-		return newOllamaClient(cfg), nil
+		return newInstrumentedClient(newOllamaClient(cfg), "ollama", cfg.Model), nil
 	default:
 		return nil, fmt.Errorf("llm: unknown provider %q (valid: openai, anthropic, ollama)", cfg.Provider)
 	}

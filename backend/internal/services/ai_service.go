@@ -106,6 +106,7 @@ func (s *aiService) GenerateSummary(ctx context.Context, incident *models.Incide
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: buildSummaryPrompt(incident, timeline, alerts, slackMessages)},
 	}
+	ctx = llm.WithCallMeta(ctx, llm.CallMeta{AgentName: "Incident Summarizer", IncidentID: incident.ID.String()})
 	text, usage, err := client.Complete(ctx, messages)
 	return text, usage, err
 }
@@ -121,6 +122,7 @@ func (s *aiService) GenerateHandoffDigest(ctx context.Context, incident *models.
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: buildHandoffPrompt(incident, timeline, alerts)},
 	}
+	ctx = llm.WithCallMeta(ctx, llm.CallMeta{AgentName: "Handoff Digest Writer", IncidentID: incident.ID.String()})
 	text, usage, err := client.Complete(ctx, messages)
 	return text, usage, err
 }
@@ -136,6 +138,7 @@ func (s *aiService) GeneratePostMortem(ctx context.Context, incident *models.Inc
 		{Role: "system", Content: postMortemSystemPrompt},
 		{Role: "user", Content: buildPostMortemPrompt(incident, timeline, alerts, sections)},
 	}
+	ctx = llm.WithCallMeta(ctx, llm.CallMeta{AgentName: "Post-Mortem Drafter", IncidentID: incident.ID.String()})
 	text, usage, err := client.Complete(ctx, messages)
 	return text, usage, err
 }
@@ -151,6 +154,9 @@ func (s *aiService) EnhancePostMortem(ctx context.Context, content string) (stri
 		{Role: "system", Content: postMortemSystemPrompt},
 		{Role: "user", Content: buildEnhancePrompt(content)},
 	}
+	// No incident in scope here — content is arbitrary post-mortem text the
+	// user is editing, not necessarily tied to one incident's ID at this point.
+	ctx = llm.WithCallMeta(ctx, llm.CallMeta{AgentName: "Post-Mortem Enhancer"})
 	text, usage, err := client.Complete(ctx, messages)
 	return text, usage, err
 }
@@ -166,6 +172,8 @@ func (s *aiService) EnhanceIncidentDraft(ctx context.Context, brief string) (str
 		{Role: "system", Content: `You are an expert incident management assistant. Convert rough incident descriptions into professional incident titles and summaries. Always respond with valid JSON only, no markdown, no commentary.`},
 		{Role: "user", Content: buildEnhanceDraftPrompt(brief)},
 	}
+	// No incident exists yet — this call is what drafts one.
+	ctx = llm.WithCallMeta(ctx, llm.CallMeta{AgentName: "Incident Draft Enhancer"})
 	raw, usage, err := client.Complete(ctx, messages)
 	if err != nil {
 		return "", "", usage, fmt.Errorf("AI enhance draft: %w", err)
@@ -382,6 +390,11 @@ func (s *aiService) AnswerQuestion(ctx context.Context, question string, current
 		{Role: "system", Content: buildAnswerQuestionSystemPrompt()},
 		{Role: "user", Content: buildAnswerQuestionPrompt(question, current, similar, postMortems)},
 	}
+	meta := llm.CallMeta{AgentName: "Question Answerer"}
+	if current != nil {
+		meta.IncidentID = current.ID.String()
+	}
+	ctx = llm.WithCallMeta(ctx, meta)
 	reply, usage, err := client.Complete(ctx, messages)
 	if err != nil {
 		return "", usage, fmt.Errorf("AI answer question: %w", err)

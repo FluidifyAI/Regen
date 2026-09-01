@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 )
 
@@ -49,9 +50,17 @@ func (w *PushCleanupWorker) Run(ctx context.Context) {
 }
 
 // sweep deletes device tokens that have not been seen in 90 days.
+//
+// Opens its own root span per REG-10: this worker has no originating HTTP
+// request, so each sweep starts a fresh trace.
 func (w *PushCleanupWorker) sweep() {
+	_, span := observability.StartWorkerTick(observability.Tracer(), "push_cleanup_worker.sweep")
+	var err error
+	defer func() { observability.EndWorkerTick(span, err) }()
+
 	cutoff := time.Now().Add(-staleTokenAge)
-	deleted, err := w.repo.DeleteStale(cutoff)
+	var deleted int64
+	deleted, err = w.repo.DeleteStale(cutoff)
 	if err != nil {
 		slog.Error("push cleanup: failed to delete stale tokens", "err", err)
 		return

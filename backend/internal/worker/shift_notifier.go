@@ -9,6 +9,7 @@ import (
 
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
+	"github.com/FluidifyAI/Regen/backend/internal/observability"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
 	"github.com/google/uuid"
@@ -78,13 +79,21 @@ func (n *ShiftNotifier) Run(ctx context.Context) {
 
 // tick fetches all schedules with their layers and fires notifications for any
 // layers whose shift boundary falls within the next notifyWindow.
+//
+// Opens its own root span per REG-10: this worker has no originating HTTP
+// request, so each tick starts a fresh trace.
 func (n *ShiftNotifier) tick() {
+	_, span := observability.StartWorkerTick(observability.Tracer(), "shift_notifier.tick")
+	var err error
+	defer func() { observability.EndWorkerTick(span, err) }()
+
 	now := time.Now().UTC()
 
 	// Clean up stale entries in the dedup map (older than 24 hours) to prevent unbounded growth
 	n.cleanupDedupMap(now)
 
-	schedules, err := n.repo.GetAll()
+	var schedules []models.Schedule
+	schedules, err = n.repo.GetAll()
 	if err != nil {
 		slog.Error("shift notifier: failed to list schedules", "error", err)
 		metrics.WorkerJobsFailedTotal.WithLabelValues("shift_notify").Inc()

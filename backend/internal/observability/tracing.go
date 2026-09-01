@@ -7,6 +7,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strings"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -58,8 +59,22 @@ func InitTracer(ctx context.Context, cfg Config) (shutdown func(context.Context)
 	}
 
 	// otlptracegrpc.New reads OTEL_EXPORTER_OTLP_ENDPOINT and
-	// OTEL_EXPORTER_OTLP_HEADERS itself when no explicit option overrides them.
-	exporter, err := otlptracegrpc.New(ctx)
+	// OTEL_EXPORTER_OTLP_HEADERS itself when no explicit option overrides
+	// them. But a bare host:port (no scheme) is silently misparsed by the
+	// SDK's own env-config as scheme:opaque rather than host:port, producing
+	// an empty gRPC target and failing every export forever with no
+	// actionable error. Detect that and normalize explicitly rather than let
+	// it fail silently — self-hosted collectors reached via a bare host:port
+	// are overwhelmingly plaintext, so WithInsecure() is the right default;
+	// anyone who needs TLS already knows to write https://.
+	var exporterOpts []otlptracegrpc.Option
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if !hasURLScheme(endpoint) {
+		slog.WarnContext(ctx, "observability: OTEL_EXPORTER_OTLP_ENDPOINT is missing a URL scheme (expected http:// or https://) — assuming a plaintext endpoint",
+			"value", endpoint)
+		exporterOpts = append(exporterOpts, otlptracegrpc.WithEndpoint(endpoint), otlptracegrpc.WithInsecure())
+	}
+	exporter, err := otlptracegrpc.New(ctx, exporterOpts...)
 	if err != nil {
 		slog.ErrorContext(ctx, "observability: failed to create OTLP exporter, tracing disabled", "error", err)
 		otel.SetTracerProvider(noop.NewTracerProvider())
@@ -73,6 +88,14 @@ func InitTracer(ctx context.Context, cfg Config) (shutdown func(context.Context)
 	otel.SetTracerProvider(tp)
 
 	return tp.Shutdown, nil
+}
+
+// hasURLScheme reports whether endpoint looks like a URL with a scheme
+// (e.g. "http://host:4317"), as opposed to a bare "host:port". The OTel spec
+// requires the former for OTEL_EXPORTER_OTLP_ENDPOINT; the latter is silently
+// misparsed by the SDK's own env config as scheme:opaque, not host:port.
+func hasURLScheme(endpoint string) bool {
+	return strings.Contains(endpoint, "://")
 }
 
 // newResource builds the resource stamped onto every span: a fixed

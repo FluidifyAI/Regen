@@ -31,6 +31,10 @@ type RoutingDecision struct {
 	// Set from the "escalation_policy_id" key in the matching rule's actions JSONB.
 	EscalationPolicyID *uuid.UUID
 
+	// NotifyEmailLabel is the alert label whose value is a Slack email to DM.
+	// Empty means this rule does not DM anyone. The DM is independent of Suppress.
+	NotifyEmailLabel string
+
 	// AIEnabled controls whether AI agents process the resulting incident.
 	// Defaults to true; can be set false via the "ai_enabled" key in the rule's actions JSONB.
 	AIEnabled bool
@@ -179,6 +183,7 @@ func (r *routingEngine) EvaluateAlert(alert *models.Alert) (*RoutingDecision, er
 				"suppress", decision.Suppress,
 				"severity_override", decision.SeverityOverride,
 				"channel_override", decision.ChannelOverride,
+				"notify_email_label", decision.NotifyEmailLabel,
 			)
 
 			return decision, nil
@@ -385,6 +390,12 @@ func (r *routingEngine) buildDecision(rule *models.RoutingRule) *RoutingDecision
 	if override, ok := actions["channel_override"]; ok {
 		if s, ok := override.(string); ok {
 			decision.ChannelOverride = s
+		}
+	}
+
+	if labelKey, ok := actions["notify_email_label"]; ok {
+		if s, ok := labelKey.(string); ok {
+			decision.NotifyEmailLabel = strings.TrimSpace(s)
 		}
 	}
 

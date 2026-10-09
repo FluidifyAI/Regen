@@ -108,6 +108,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, cfg *config.Config, appVersion
 	alertSvc.SetRoutingEngine(routingEngine)
 	alertSvc.SetEscalationEngine(escalationEngine)
 	alertSvc.SetEscalationRepos(escalationPolicyRepo, systemSettingsRepo)
+	alertSvc.SetChatService(chatService)
 
 	// Post-mortem service (v0.7+)
 	commentRepo := repository.NewPostMortemCommentRepository(db)

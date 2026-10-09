@@ -86,6 +86,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
   const [escalate, setEscalate]       = useState(false)
   const [escalationPolicyId, setEpId] = useState('')
   const [severityOverride, setSevOvr] = useState('')
+  const [notifyEmailLabel, setNotifyEmailLabel] = useState('')
 
   const [policies, setPolicies] = useState<EscalationPolicy[]>([])
   const [error, setError]       = useState<string | null>(null)
@@ -116,10 +117,12 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
       setEscalate(Boolean(ac.escalation_policy_id))
       setEpId(typeof ac.escalation_policy_id === 'string' ? ac.escalation_policy_id : '')
       setSevOvr(typeof ac.severity_override === 'string' ? ac.severity_override : '')
+      setNotifyEmailLabel(typeof ac.notify_email_label === 'string' ? ac.notify_email_label : '')
     } else {
       setName(''); setEnabled(true); setSources([]); setSeverities([])
       setLabelPairs([]); setAnnotPairs([]); setTitle(''); setDesc('')
       setCreate(true); setSuppress(false); setEscalate(false); setEpId(''); setSevOvr('')
+      setNotifyEmailLabel('')
     }
     setError(null)
   }, [rule, isOpen])
@@ -164,6 +167,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
     if (suppress)                           actions.suppress           = true
     if (escalate && escalationPolicyId)     actions.escalation_policy_id = escalationPolicyId
     if (severityOverride)                   actions.severity_override  = severityOverride
+    if (notifyEmailLabel.trim())            actions.notify_email_label = notifyEmailLabel.trim()
 
     setSaving(true); setError(null)
     try {
@@ -465,6 +469,16 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                     <ChevronDown className="absolute right-2 top-2 w-4 h-4 text-text-tertiary pointer-events-none" />
                   </div>
                 </div>
+                <div>
+                  <p className="text-sm font-medium text-text-primary">Slack DM from label</p>
+                  <p className="text-xs text-text-tertiary mb-2">Label whose value is the recipient's Slack email. Sent even when the alert is suppressed.</p>
+                  <input
+                    value={notifyEmailLabel}
+                    onChange={(e) => setNotifyEmailLabel(e.target.value)}
+                    placeholder="email"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -522,6 +536,9 @@ function RuleRow({
     if (ac.suppress)          parts.push('Suppress')
     if (ac.create_incident)   parts.push('Create incident')
     if (ac.severity_override) parts.push(`→ ${ac.severity_override}`)
+    if (typeof ac.notify_email_label === 'string' && ac.notify_email_label) {
+      parts.push(`DM ${ac.notify_email_label}`)
+    }
     if (ac.escalation_policy_id) {
       const policy = policies.find((p) => p.id === ac.escalation_policy_id)
       parts.push(`Escalate → ${policy?.name ?? '…'}`)

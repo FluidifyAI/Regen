@@ -559,3 +559,35 @@ func TestRoutingEngine_WildcardStillWorks_Regex(t *testing.T) {
 		t.Error("wildcard * should match any value")
 	}
 }
+
+func TestRoutingEngine_NotifyEmailLabel(t *testing.T) {
+	rules := []models.RoutingRule{
+		makeRoutingRule(10, models.JSONB{}, models.JSONB{
+			"suppress":           true,
+			"notify_email_label": " email ",
+		}),
+	}
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: rules})
+
+	decision, err := engine.EvaluateAlert(makeAlert("generic", "warning", nil))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.NotifyEmailLabel != "email" {
+		t.Errorf("NotifyEmailLabel = %q, want email", decision.NotifyEmailLabel)
+	}
+	if !decision.Suppress {
+		t.Error("expected suppress to stay set alongside notify_email_label")
+	}
+}
+
+func TestRoutingEngine_NotifyEmailLabel_Absent(t *testing.T) {
+	engine := NewRoutingEngine(&mockRoutingRuleRepo{rules: nil})
+	decision, err := engine.EvaluateAlert(makeAlert("generic", "warning", nil))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.NotifyEmailLabel != "" {
+		t.Errorf("NotifyEmailLabel = %q, want empty", decision.NotifyEmailLabel)
+	}
+}

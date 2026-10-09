@@ -69,6 +69,7 @@ Regex uses Go's [RE2 syntax](https://pkg.go.dev/regexp/syntax) — no lookaheads
 | Suppress | `"suppress": true` | Store the alert but create no incident |
 | Override severity | `"severity_override": "critical"` | Change the alert's severity before incident creation |
 | Override channel | `"channel_override": "db-oncall"` | Use a different Slack/Teams channel name suffix |
+| DM by label | `"notify_email_label": "email"` | DM the Slack user whose address is in that label. Still sent when the alert is suppressed |
 
 ```json
 {
@@ -134,6 +135,40 @@ Use an annotation regex to catch alerts that already self-describe as expected.
   "actions": {
     "suppress": true
   }
+}
+```
+
+### DM the author of a CI failure
+
+Match CI webhooks and suppress the incident. Put the author's Slack email in the `email` label. Regen looks that address up with `users.lookupByEmail` and sends a DM. The Slack app needs `users:read.email` and `im:write`.
+
+```json
+{
+  "match_criteria": {
+    "source": ["generic"],
+    "labels": { "kind": "ci" }
+  },
+  "actions": {
+    "suppress": true,
+    "notify_email_label": "email"
+  }
+}
+```
+
+```json
+{
+  "alerts": [
+    {
+      "title": "CI failed on main",
+      "source": "generic",
+      "severity": "warning",
+      "external_id": "ci-main-1842",
+      "labels": {
+        "kind": "ci",
+        "email": "dev@example.com"
+      }
+    }
+  ]
 }
 ```
 

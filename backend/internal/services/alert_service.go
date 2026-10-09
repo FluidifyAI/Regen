@@ -42,6 +42,9 @@ type AlertService interface {
 	// SetEscalationRepos provides repos for the severity-rule and global-fallback
 	// steps in the escalation policy resolution chain.
 	SetEscalationRepos(escalationRepo repository.EscalationPolicyRepository, systemSettingsRepo repository.SystemSettingsRepository)
+
+	// SetChatService sets the chat provider used to DM a Slack user named by an alert label.
+	SetChatService(chat ChatService)
 }
 
 // alertService implements AlertService
@@ -53,6 +56,7 @@ type alertService struct {
 	escalationEngine   EscalationEngine                      // Optional - can be nil if escalation disabled
 	escalationRepo     repository.EscalationPolicyRepository // For severity-rule fallback
 	systemSettingsRepo repository.SystemSettingsRepository   // For global-fallback policy
+	chat               ChatService                           // Optional - nil skips label DMs
 }
 
 // NewAlertService creates a new alert service
@@ -90,6 +94,11 @@ func (s *alertService) SetEscalationRepos(
 ) {
 	s.escalationRepo = escalationRepo
 	s.systemSettingsRepo = systemSettingsRepo
+}
+
+// SetChatService sets the chat provider used to DM a Slack user named by an alert label.
+func (s *alertService) SetChatService(chat ChatService) {
+	s.chat = chat
 }
 
 // ProcessAlertmanagerPayload processes all alerts from an Alertmanager webhook (v0.1 legacy method).
@@ -219,6 +228,12 @@ func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []web
 					return nil, fmt.Errorf("failed to evaluate routing for alert %s: %w", alert.ID, err)
 				}
 				routingDecision = rd
+			}
+
+			// DM the address in the named label before suppress is applied.
+			// A suppressed CI alert should still reach the person who pushed.
+			if routingDecision.NotifyEmailLabel != "" {
+				s.notifyLabeledEmail(ctx, alert, routingDecision.NotifyEmailLabel)
 			}
 
 			// If routing says suppress, skip incident creation entirely.
@@ -352,6 +367,72 @@ func (s *alertService) normalizedAlertToModel(normalized *webhooks.NormalizedAle
 		StartedAt:   normalized.StartedAt,
 		EndedAt:     normalized.EndedAt,
 	}
+}
+
+// notifyLabeledEmail DMs the Slack user whose email is stored in alert.Labels[labelKey].
+// Missing labels, non-email values, and a missing Slack config are skipped.
+// A Slack API failure is logged and does not fail alert processing.
+func (s *alertService) notifyLabeledEmail(ctx context.Context, alert *models.Alert, labelKey string) {
+	if s.chat == nil {
+		return
+	}
+
+	email, ok := emailFromLabel(alert.Labels, labelKey)
+	if !ok {
+		slog.InfoContext(ctx, "notify_email_label set but label is missing or not an email",
+			"alert_id", alert.ID,
+			"label", labelKey,
+		)
+		return
+	}
+
+	text := alert.Title
+	if alert.Description != "" {
+		text += "\n" + alert.Description
+	}
+	if err := s.chat.SendDirectMessage(email, Message{Text: text}); err != nil {
+		if errors.Is(err, ErrSlackNotConfigured) {
+			slog.DebugContext(ctx, "skipping label DM; slack is not configured", "alert_id", alert.ID)
+			return
+		}
+		slog.ErrorContext(ctx, "failed to DM slack user for alert",
+			"alert_id", alert.ID,
+			"label", labelKey,
+			"err", err,
+		)
+	}
+}
+
+// emailFromLabel returns the trimmed label value when it looks like an email.
+func emailFromLabel(labels models.JSONB, key string) (string, bool) {
+	if key == "" || labels == nil {
+		return "", false
+	}
+	raw, ok := labels[key]
+	if !ok {
+		return "", false
+	}
+	email, ok := raw.(string)
+	if !ok {
+		return "", false
+	}
+	email = strings.TrimSpace(email)
+	if !looksLikeEmail(email) {
+		return "", false
+	}
+	return email, true
+}
+
+// looksLikeEmail rejects values that would fall through to a display-name search.
+func looksLikeEmail(s string) bool {
+	at := strings.LastIndex(s, "@")
+	if at <= 0 || at == len(s)-1 {
+		return false
+	}
+	if strings.ContainsAny(s, " \t\r\n") {
+		return false
+	}
+	return strings.Contains(s[at+1:], ".")
 }
 
 // resolveEscalationPolicy walks the fallback chain to find an escalation policy

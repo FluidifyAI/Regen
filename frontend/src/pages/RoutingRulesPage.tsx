@@ -471,11 +471,11 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                 </div>
                 <div>
                   <p className="text-sm font-medium text-text-primary">Slack DM from label</p>
-                  <p className="text-xs text-text-tertiary mb-2">Label whose value is the recipient's Slack email. Sent even when the alert is suppressed.</p>
+                  <p className="text-xs text-text-tertiary mb-2">Label whose value is a Regen user's email. Sent even when the alert is suppressed.</p>
                   <input
                     value={notifyEmailLabel}
                     onChange={(e) => setNotifyEmailLabel(e.target.value)}
-                    placeholder="email"
+                    placeholder="owner"
                     className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                   />
                 </div>

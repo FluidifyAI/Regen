@@ -48,7 +48,7 @@ import (
 //	  "suppress":           true,        // alert stored, no incident created
 //	  "severity_override":  "critical",  // override alert severity
 //	  "channel_override":   "db-oncall"  // override Slack channel name suffix
-//	  "notify_email_label": "email"      // DM the Slack user at labels[email]
+//	  "notify_email_label": "owner"      // DM the Regen user at labels[owner]
 //	}
 type RoutingRule struct {
 	// ID is the unique identifier for this routing rule

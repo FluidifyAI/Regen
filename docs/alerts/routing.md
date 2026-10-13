@@ -69,7 +69,7 @@ Regex uses Go's [RE2 syntax](https://pkg.go.dev/regexp/syntax) — no lookaheads
 | Suppress | `"suppress": true` | Store the alert but create no incident |
 | Override severity | `"severity_override": "critical"` | Change the alert's severity before incident creation |
 | Override channel | `"channel_override": "db-oncall"` | Use a different Slack/Teams channel name suffix |
-| DM by label | `"notify_email_label": "email"` | DM the Slack user whose address is in that label. Still sent when the alert is suppressed |
+| DM by label | `"notify_email_label": "owner"` | DM the Regen user whose email is in that label. Still sent when the alert is suppressed |
 
 ```json
 {
@@ -138,9 +138,9 @@ Use an annotation regex to catch alerts that already self-describe as expected.
 }
 ```
 
-### DM the author of a CI failure
+### DM the owner of a suppressed alert
 
-Match CI webhooks and suppress the incident. Put the author's Slack email in the `email` label. Regen looks that address up with `users.lookupByEmail` and sends a DM. The Slack app needs `users:read.email` and `im:write`.
+Put the owner's email in a label and name that label in the rule. The address must belong to an active Regen user; any other address is ignored. When the user has a linked Slack ID, Regen DMs it directly. Otherwise it resolves the email with `users.lookupByEmail`, which needs the `users:read.email` scope. Sending the DM needs `im:write`.
 
 ```json
 {
@@ -150,7 +150,7 @@ Match CI webhooks and suppress the incident. Put the author's Slack email in the
   },
   "actions": {
     "suppress": true,
-    "notify_email_label": "email"
+    "notify_email_label": "owner"
   }
 }
 ```
@@ -165,7 +165,7 @@ Match CI webhooks and suppress the incident. Put the author's Slack email in the
       "external_id": "ci-main-1842",
       "labels": {
         "kind": "ci",
-        "email": "dev@example.com"
+        "owner": "dev@example.com"
       }
     }
   ]

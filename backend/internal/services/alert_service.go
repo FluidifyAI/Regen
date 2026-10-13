@@ -43,8 +43,8 @@ type AlertService interface {
 	// steps in the escalation policy resolution chain.
 	SetEscalationRepos(escalationRepo repository.EscalationPolicyRepository, systemSettingsRepo repository.SystemSettingsRepository)
 
-	// SetChatService sets the chat provider used to DM a Slack user named by an alert label.
-	SetChatService(chat ChatService)
+	// SetChatService sets the chat provider and user lookup used to DM the Regen user named by an alert label.
+	SetChatService(chat ChatService, users repository.UserRepository)
 }
 
 // alertService implements AlertService
@@ -57,6 +57,7 @@ type alertService struct {
 	escalationRepo     repository.EscalationPolicyRepository // For severity-rule fallback
 	systemSettingsRepo repository.SystemSettingsRepository   // For global-fallback policy
 	chat               ChatService                           // Optional - nil skips label DMs
+	userRepo           repository.UserRepository             // Label DMs go only to known users
 }
 
 // NewAlertService creates a new alert service
@@ -96,9 +97,10 @@ func (s *alertService) SetEscalationRepos(
 	s.systemSettingsRepo = systemSettingsRepo
 }
 
-// SetChatService sets the chat provider used to DM a Slack user named by an alert label.
-func (s *alertService) SetChatService(chat ChatService) {
+// SetChatService sets the chat provider and user lookup used to DM the Regen user named by an alert label.
+func (s *alertService) SetChatService(chat ChatService, users repository.UserRepository) {
 	s.chat = chat
+	s.userRepo = users
 }
 
 // ProcessAlertmanagerPayload processes all alerts from an Alertmanager webhook (v0.1 legacy method).
@@ -230,8 +232,8 @@ func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []web
 				routingDecision = rd
 			}
 
-			// DM the address in the named label before suppress is applied.
-			// A suppressed CI alert should still reach the person who pushed.
+			// DM the user in the named label before suppress is applied, so a
+			// suppressed alert still reaches its owner.
 			if routingDecision.NotifyEmailLabel != "" {
 				s.notifyLabeledEmail(ctx, alert, routingDecision.NotifyEmailLabel)
 			}
@@ -369,11 +371,11 @@ func (s *alertService) normalizedAlertToModel(normalized *webhooks.NormalizedAle
 	}
 }
 
-// notifyLabeledEmail DMs the Slack user whose email is stored in alert.Labels[labelKey].
-// Missing labels, non-email values, and a missing Slack config are skipped.
+// notifyLabeledEmail DMs the Regen user whose email is stored in alert.Labels[labelKey].
+// Addresses that do not belong to an active Regen user are ignored.
 // A Slack API failure is logged and does not fail alert processing.
 func (s *alertService) notifyLabeledEmail(ctx context.Context, alert *models.Alert, labelKey string) {
-	if s.chat == nil {
+	if s.chat == nil || s.userRepo == nil {
 		return
 	}
 
@@ -386,18 +388,56 @@ func (s *alertService) notifyLabeledEmail(ctx context.Context, alert *models.Ale
 		return
 	}
 
+	user, err := s.userRepo.GetByEmail(email)
+	if err != nil {
+		var notFound *repository.NotFoundError
+		if errors.As(err, &notFound) {
+			slog.InfoContext(ctx, "notify_email_label does not match a Regen user",
+				"alert_id", alert.ID,
+				"label", labelKey,
+			)
+		} else {
+			slog.ErrorContext(ctx, "failed to look up user for label DM",
+				"alert_id", alert.ID,
+				"label", labelKey,
+				"err", err,
+			)
+		}
+		return
+	}
+	if !user.Active {
+		slog.InfoContext(ctx, "notify_email_label matches an inactive user, skipping DM",
+			"alert_id", alert.ID,
+			"user_id", user.ID,
+		)
+		return
+	}
+
 	text := alert.Title
 	if alert.Description != "" {
 		text += "\n" + alert.Description
 	}
-	if err := s.chat.SendDirectMessage(email, Message{Text: text}); err != nil {
+	msg := Message{Text: text}
+
+	if user.SlackUserID != nil && *user.SlackUserID != "" {
+		err = s.chat.SendDirectMessage(*user.SlackUserID, msg)
+	} else if byEmail, ok := s.chat.(EmailDirectMessager); ok {
+		err = byEmail.SendDirectMessageByEmail(user.Email, msg)
+	} else {
+		slog.InfoContext(ctx, "chat provider cannot DM by email and user has no slack_user_id",
+			"alert_id", alert.ID,
+			"user_id", user.ID,
+		)
+		return
+	}
+	if err != nil {
 		if errors.Is(err, ErrSlackNotConfigured) {
 			slog.DebugContext(ctx, "skipping label DM; slack is not configured", "alert_id", alert.ID)
 			return
 		}
 		slog.ErrorContext(ctx, "failed to DM slack user for alert",
 			"alert_id", alert.ID,
-			"label", labelKey,
+			"user_id", user.ID,
 			"err", err,
 		)
 	}
@@ -417,22 +457,10 @@ func emailFromLabel(labels models.JSONB, key string) (string, bool) {
 		return "", false
 	}
 	email = strings.TrimSpace(email)
-	if !looksLikeEmail(email) {
+	if !strings.Contains(email, "@") {
 		return "", false
 	}
 	return email, true
-}
-
-// looksLikeEmail rejects values that would fall through to a display-name search.
-func looksLikeEmail(s string) bool {
-	at := strings.LastIndex(s, "@")
-	if at <= 0 || at == len(s)-1 {
-		return false
-	}
-	if strings.ContainsAny(s, " \t\r\n") {
-		return false
-	}
-	return strings.Contains(s[at+1:], ".")
 }
 
 // resolveEscalationPolicy walks the fallback chain to find an escalation policy

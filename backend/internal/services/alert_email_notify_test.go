@@ -7,12 +7,14 @@ import (
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/models/webhooks"
+	"github.com/google/uuid"
 )
 
 type recordingChat struct {
-	recipients []string
-	texts      []string
-	err        error
+	ids    []string
+	emails []string
+	texts  []string
+	err    error
 }
 
 func (m *recordingChat) CreateChannel(string, string) (*Channel, error) { return nil, nil }
@@ -23,27 +25,44 @@ func (m *recordingChat) InviteUsers(string, []string) error             { return
 func (m *recordingChat) GetThreadMessages(string, string) ([]string, error) {
 	return nil, nil
 }
-func (m *recordingChat) SendDirectMessage(username string, message Message) error {
-	m.recipients = append(m.recipients, username)
+func (m *recordingChat) SendDirectMessage(id string, message Message) error {
+	m.ids = append(m.ids, id)
+	m.texts = append(m.texts, message.Text)
+	return m.err
+}
+func (m *recordingChat) SendDirectMessageByEmail(email string, message Message) error {
+	m.emails = append(m.emails, email)
 	m.texts = append(m.texts, message.Text)
 	return m.err
 }
 
-func TestAlertService_DMsEmailFromLabelWhenSuppressed(t *testing.T) {
-	rules := []models.RoutingRule{
-		makeRoutingRule(10, models.JSONB{}, models.JSONB{
-			"suppress":           true,
-			"notify_email_label": "email",
-		}),
+func labelDMRule(actions models.JSONB) []models.RoutingRule {
+	return []models.RoutingRule{makeRoutingRule(10, models.JSONB{}, actions)}
+}
+
+func labelDMUsers(users ...models.User) *minimalUserRepo {
+	repo := &minimalUserRepo{byEmail: map[string]models.User{}}
+	for _, u := range users {
+		if u.ID == uuid.Nil {
+			u.ID = uuid.New()
+		}
+		repo.byEmail[u.Email] = u
 	}
+	return repo
+}
+
+func TestAlertService_DMsEmailFromLabelWhenSuppressed(t *testing.T) {
 	chat := &recordingChat{}
-	svc := buildAlertServiceWithEscalation(rules, &mockEscalationEngine{})
-	svc.SetChatService(chat)
+	svc := buildAlertServiceWithEscalation(labelDMRule(models.JSONB{
+		"suppress":           true,
+		"notify_email_label": "owner",
+	}), &mockEscalationEngine{})
+	svc.SetChatService(chat, labelDMUsers(models.User{Email: "dev@example.com", Active: true}))
 
 	alert := makeNormalizedAlert("generic", "warning")
 	alert.Title = "CI failed"
 	alert.Description = "main"
-	alert.Labels = map[string]string{"email": "dev@example.com"}
+	alert.Labels = map[string]string{"owner": "dev@example.com"}
 
 	result, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{alert})
 	if err != nil {
@@ -52,64 +71,110 @@ func TestAlertService_DMsEmailFromLabelWhenSuppressed(t *testing.T) {
 	if result.IncidentsCreated != 0 {
 		t.Errorf("suppressed alert created %d incidents", result.IncidentsCreated)
 	}
-	if len(chat.recipients) != 1 || chat.recipients[0] != "dev@example.com" {
-		t.Fatalf("recipients = %v, want [dev@example.com]", chat.recipients)
+	if len(chat.emails) != 1 || chat.emails[0] != "dev@example.com" {
+		t.Fatalf("emails = %v, want [dev@example.com]", chat.emails)
+	}
+	if len(chat.ids) != 0 {
+		t.Errorf("ids = %v, want none", chat.ids)
 	}
 	if chat.texts[0] != "CI failed\nmain" {
 		t.Errorf("message = %q", chat.texts[0])
 	}
 }
 
-func TestAlertService_SkipsDMWhenLabelIsNotAnEmail(t *testing.T) {
-	rules := []models.RoutingRule{
-		makeRoutingRule(10, models.JSONB{}, models.JSONB{"notify_email_label": "email"}),
-	}
+func TestAlertService_UsesStoredSlackIDWithoutLookup(t *testing.T) {
 	chat := &recordingChat{}
-	svc := buildAlertServiceWithEscalation(rules, &mockEscalationEngine{})
-	svc.SetChatService(chat)
+	slackID := "U0AJLLY3678"
+	svc := buildAlertServiceWithEscalation(labelDMRule(models.JSONB{"notify_email_label": "owner"}), &mockEscalationEngine{})
+	svc.SetChatService(chat, labelDMUsers(models.User{Email: "dev@example.com", Active: true, SlackUserID: &slackID}))
 
 	alert := makeNormalizedAlert("generic", "warning")
-	alert.Labels = map[string]string{"email": "not-an-email"}
+	alert.Labels = map[string]string{"owner": "dev@example.com"}
 
 	if _, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{alert}); err != nil {
 		t.Fatalf("ProcessNormalizedAlerts: %v", err)
 	}
-	if len(chat.recipients) != 0 {
-		t.Fatalf("recipients = %v, want none", chat.recipients)
+	if len(chat.ids) != 1 || chat.ids[0] != slackID {
+		t.Fatalf("ids = %v, want [%s]", chat.ids, slackID)
+	}
+	if len(chat.emails) != 0 {
+		t.Errorf("emails = %v, want none", chat.emails)
+	}
+}
+
+func TestAlertService_SkipsDMWhenNoRegenUser(t *testing.T) {
+	chat := &recordingChat{}
+	svc := buildAlertServiceWithEscalation(labelDMRule(models.JSONB{"notify_email_label": "owner"}), &mockEscalationEngine{})
+	svc.SetChatService(chat, labelDMUsers())
+
+	alert := makeNormalizedAlert("generic", "warning")
+	alert.Labels = map[string]string{"owner": "stranger@example.com"}
+
+	if _, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{alert}); err != nil {
+		t.Fatalf("ProcessNormalizedAlerts: %v", err)
+	}
+	if len(chat.ids)+len(chat.emails) != 0 {
+		t.Fatalf("DM sent to unknown address: ids=%v emails=%v", chat.ids, chat.emails)
+	}
+}
+
+func TestAlertService_SkipsDMWhenUserInactive(t *testing.T) {
+	chat := &recordingChat{}
+	svc := buildAlertServiceWithEscalation(labelDMRule(models.JSONB{"notify_email_label": "owner"}), &mockEscalationEngine{})
+	svc.SetChatService(chat, labelDMUsers(models.User{Email: "dev@example.com", Active: false}))
+
+	alert := makeNormalizedAlert("generic", "warning")
+	alert.Labels = map[string]string{"owner": "dev@example.com"}
+
+	if _, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{alert}); err != nil {
+		t.Fatalf("ProcessNormalizedAlerts: %v", err)
+	}
+	if len(chat.ids)+len(chat.emails) != 0 {
+		t.Fatalf("DM sent to inactive user: ids=%v emails=%v", chat.ids, chat.emails)
+	}
+}
+
+func TestAlertService_SkipsDMWhenLabelIsNotAnEmail(t *testing.T) {
+	chat := &recordingChat{}
+	svc := buildAlertServiceWithEscalation(labelDMRule(models.JSONB{"notify_email_label": "owner"}), &mockEscalationEngine{})
+	svc.SetChatService(chat, labelDMUsers(models.User{Email: "not-an-email", Active: true}))
+
+	alert := makeNormalizedAlert("generic", "warning")
+	alert.Labels = map[string]string{"owner": "not-an-email"}
+
+	if _, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{alert}); err != nil {
+		t.Fatalf("ProcessNormalizedAlerts: %v", err)
+	}
+	if len(chat.ids)+len(chat.emails) != 0 {
+		t.Fatalf("DM sent for non-email label: ids=%v emails=%v", chat.ids, chat.emails)
 	}
 }
 
 func TestAlertService_SlackErrorDoesNotFailProcessing(t *testing.T) {
-	rules := []models.RoutingRule{
-		makeRoutingRule(10, models.JSONB{}, models.JSONB{"notify_email_label": "email"}),
-	}
 	chat := &recordingChat{err: errors.New("slack down")}
-	svc := buildAlertServiceWithEscalation(rules, &mockEscalationEngine{})
-	svc.SetChatService(chat)
+	svc := buildAlertServiceWithEscalation(labelDMRule(models.JSONB{"notify_email_label": "owner"}), &mockEscalationEngine{})
+	svc.SetChatService(chat, labelDMUsers(models.User{Email: "dev@example.com", Active: true}))
 
 	alert := makeNormalizedAlert("generic", "warning")
-	alert.Labels = map[string]string{"email": "dev@example.com"}
+	alert.Labels = map[string]string{"owner": "dev@example.com"}
 
 	if _, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{alert}); err != nil {
 		t.Fatalf("ProcessNormalizedAlerts: %v", err)
 	}
-	if len(chat.recipients) != 1 {
-		t.Fatalf("expected one DM attempt, got %d", len(chat.recipients))
+	if len(chat.emails) != 1 {
+		t.Fatalf("expected one DM attempt, got %d", len(chat.emails))
 	}
 }
 
 func TestAlertService_RepeatAlertDoesNotDMAgain(t *testing.T) {
-	rules := []models.RoutingRule{
-		makeRoutingRule(10, models.JSONB{}, models.JSONB{"notify_email_label": "email"}),
-	}
 	chat := &recordingChat{}
 	alertRepo := &mockAlertRepository{}
 	svc := NewAlertService(alertRepo, &mockIncidentService{shouldCreate: true})
-	svc.SetRoutingEngine(NewRoutingEngine(&mockRoutingRuleRepo{rules: rules}))
-	svc.SetChatService(chat)
+	svc.SetRoutingEngine(NewRoutingEngine(&mockRoutingRuleRepo{rules: labelDMRule(models.JSONB{"notify_email_label": "owner"})}))
+	svc.SetChatService(chat, labelDMUsers(models.User{Email: "dev@example.com", Active: true}))
 
 	alert := makeNormalizedAlert("generic", "warning")
-	alert.Labels = map[string]string{"email": "dev@example.com"}
+	alert.Labels = map[string]string{"owner": "dev@example.com"}
 
 	if _, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{alert}); err != nil {
 		t.Fatalf("first process: %v", err)
@@ -118,14 +183,14 @@ func TestAlertService_RepeatAlertDoesNotDMAgain(t *testing.T) {
 	if _, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{alert}); err != nil {
 		t.Fatalf("second process: %v", err)
 	}
-	if len(chat.recipients) != 1 {
-		t.Fatalf("DM count = %d, want 1", len(chat.recipients))
+	if len(chat.emails) != 1 {
+		t.Fatalf("DM count = %d, want 1", len(chat.emails))
 	}
 }
 
 func TestEmailFromLabel(t *testing.T) {
-	labels := models.JSONB{"email": "  dev@example.com  ", "name": "dev"}
-	got, ok := emailFromLabel(labels, "email")
+	labels := models.JSONB{"owner": "  dev@example.com  ", "name": "dev"}
+	got, ok := emailFromLabel(labels, "owner")
 	if !ok || got != "dev@example.com" {
 		t.Fatalf("email = %q ok=%v", got, ok)
 	}

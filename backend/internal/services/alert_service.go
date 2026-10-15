@@ -419,16 +419,18 @@ func (s *alertService) notifyLabeledEmail(ctx context.Context, alert *models.Ale
 	}
 	msg := Message{Text: text}
 
-	if user.SlackUserID != nil && *user.SlackUserID != "" {
-		err = s.chat.SendDirectMessage(*user.SlackUserID, msg)
-	} else if byEmail, ok := s.chat.(EmailDirectMessager); ok {
-		err = byEmail.SendDirectMessageByEmail(user.Email, msg)
-	} else {
-		slog.InfoContext(ctx, "chat provider cannot DM by email and user has no slack_user_id",
+	dm, ok := s.chat.(UserDirectMessager)
+	if !ok {
+		slog.InfoContext(ctx, "chat provider cannot DM by user ID or email, skipping label DM",
 			"alert_id", alert.ID,
 			"user_id", user.ID,
 		)
 		return
+	}
+	if user.SlackUserID != nil && *user.SlackUserID != "" {
+		err = dm.SendDirectMessageByUserID(*user.SlackUserID, msg)
+	} else {
+		err = dm.SendDirectMessageByEmail(user.Email, msg)
 	}
 	if err != nil {
 		if errors.Is(err, ErrSlackNotConfigured) {
@@ -443,7 +445,7 @@ func (s *alertService) notifyLabeledEmail(ctx context.Context, alert *models.Ale
 	}
 }
 
-// emailFromLabel returns the trimmed label value when it looks like an email.
+// emailFromLabel returns the trimmed, lower-cased label value when it looks like an email.
 func emailFromLabel(labels models.JSONB, key string) (string, bool) {
 	if key == "" || labels == nil {
 		return "", false
@@ -456,7 +458,7 @@ func emailFromLabel(labels models.JSONB, key string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	email = strings.TrimSpace(email)
+	email = strings.ToLower(strings.TrimSpace(email))
 	if !strings.Contains(email, "@") {
 		return "", false
 	}

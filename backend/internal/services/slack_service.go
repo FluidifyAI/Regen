@@ -324,6 +324,11 @@ func (s *slackService) SendDirectMessage(username string, message Message) error
 	return s.sendDM(username, userID, message)
 }
 
+// SendDirectMessageByUserID DMs a Slack member ID without any lookup.
+func (s *slackService) SendDirectMessageByUserID(userID string, message Message) error {
+	return s.sendDM(userID, userID, message)
+}
+
 // SendDirectMessageByEmail resolves the user with users.lookupByEmail only.
 // Unlike SendDirectMessage it never falls back to a display-name search.
 func (s *slackService) SendDirectMessageByEmail(email string, message Message) error {

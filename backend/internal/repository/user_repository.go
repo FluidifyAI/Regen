@@ -66,7 +66,7 @@ func (r *userRepository) GetBySubject(subject string) (*models.User, error) {
 
 func (r *userRepository) GetByEmail(email string) (*models.User, error) {
 	var user models.User
-	err := r.db.Where("email = ?", email).First(&user).Error
+	err := r.db.Where("LOWER(email) = LOWER(?)", email).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &NotFoundError{Resource: "user", ID: email}
 	}

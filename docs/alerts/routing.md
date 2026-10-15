@@ -140,7 +140,9 @@ Use an annotation regex to catch alerts that already self-describe as expected.
 
 ### DM the owner of a suppressed alert
 
-Put the owner's email in a label and name that label in the rule. The address must belong to an active Regen user; any other address is ignored. When the user has a linked Slack ID, Regen DMs it directly. Otherwise it resolves the email with `users.lookupByEmail`, which needs the `users:read.email` scope. Sending the DM needs `im:write`.
+Put the owner's email in a label and name that label in the rule. The address must belong to an active Regen user; any other address is ignored. When the user has a linked Slack ID, Regen DMs it directly. Otherwise it resolves the email with `users.lookupByEmail`, which needs the `users:read.email` scope. Sending the DM needs `im:write`. Email matching is case-insensitive.
+
+The DM text is the alert title and description, so whoever can post to the webhook controls what the user receives. Sign the webhook (see [Authentication](sources/generic.md#authentication-optional)) and keep the rule's match criteria narrow.
 
 ```json
 {

@@ -119,16 +119,32 @@ func (l *lazySlackService) SendDirectMessage(username string, message Message) e
 	return svc.SendDirectMessage(username, message)
 }
 
-func (l *lazySlackService) SendDirectMessageByEmail(email string, message Message) error {
-	svc, err := l.resolve()
+func (l *lazySlackService) SendDirectMessageByUserID(userID string, message Message) error {
+	dm, err := l.resolveUserDM()
 	if err != nil {
 		return err
 	}
-	byEmail, ok := svc.(EmailDirectMessager)
-	if !ok {
-		return fmt.Errorf("slack service does not support DM by email")
+	return dm.SendDirectMessageByUserID(userID, message)
+}
+
+func (l *lazySlackService) SendDirectMessageByEmail(email string, message Message) error {
+	dm, err := l.resolveUserDM()
+	if err != nil {
+		return err
 	}
-	return byEmail.SendDirectMessageByEmail(email, message)
+	return dm.SendDirectMessageByEmail(email, message)
+}
+
+func (l *lazySlackService) resolveUserDM() (UserDirectMessager, error) {
+	svc, err := l.resolve()
+	if err != nil {
+		return nil, err
+	}
+	dm, ok := svc.(UserDirectMessager)
+	if !ok {
+		return nil, fmt.Errorf("slack service does not support user DMs")
+	}
+	return dm, nil
 }
 
 func (l *lazySlackService) GetThreadMessages(channelID, threadTS string) ([]string, error) {

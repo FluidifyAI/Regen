@@ -44,10 +44,11 @@ import (
 // actions JSONB schema:
 //
 //	{
-//	  "create_incident":   true,        // default action
-//	  "suppress":          true,        // alert stored, no incident created
-//	  "severity_override": "critical",  // override alert severity
-//	  "channel_override":  "db-oncall"  // override Slack channel name suffix
+//	  "create_incident":    true,        // default action
+//	  "suppress":           true,        // alert stored, no incident created
+//	  "severity_override":  "critical",  // override alert severity
+//	  "channel_override":   "db-oncall"  // override Slack channel name suffix
+//	  "notify_email_label": "owner"      // DM the Regen user at labels[owner]
 //	}
 type RoutingRule struct {
 	// ID is the unique identifier for this routing rule
@@ -71,7 +72,7 @@ type RoutingRule struct {
 	MatchCriteria JSONB `gorm:"type:jsonb;not null;default:'{}'" json:"match_criteria"`
 
 	// Actions defines what to do when this rule matches (JSONB).
-	// Supported keys: create_incident, suppress, severity_override, channel_override.
+	// Supported keys: create_incident, suppress, severity_override, channel_override, notify_email_label.
 	Actions JSONB `gorm:"type:jsonb;not null;default:'{}'" json:"actions"`
 
 	// CreatedAt is when this rule was created (immutable)

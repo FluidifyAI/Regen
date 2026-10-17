@@ -69,6 +69,7 @@ Regex uses Go's [RE2 syntax](https://pkg.go.dev/regexp/syntax) — no lookaheads
 | Suppress | `"suppress": true` | Store the alert but create no incident |
 | Override severity | `"severity_override": "critical"` | Change the alert's severity before incident creation |
 | Override channel | `"channel_override": "db-oncall"` | Use a different Slack/Teams channel name suffix |
+| DM by label | `"notify_email_label": "owner"` | DM the Regen user whose email is in that label. Still sent when the alert is suppressed |
 
 ```json
 {
@@ -134,6 +135,42 @@ Use an annotation regex to catch alerts that already self-describe as expected.
   "actions": {
     "suppress": true
   }
+}
+```
+
+### DM the owner of a suppressed alert
+
+Put the owner's email in a label and name that label in the rule. The address must belong to an active Regen user; any other address is ignored. When the user has a linked Slack ID, Regen DMs it directly. Otherwise it resolves the email with `users.lookupByEmail`, which needs the `users:read.email` scope. Sending the DM needs `im:write`. Email matching is case-insensitive.
+
+The DM text is the alert title and description, so whoever can post to the webhook controls what the user receives. Sign the webhook (see [Authentication](sources/generic.md#authentication-optional)) and keep the rule's match criteria narrow.
+
+```json
+{
+  "match_criteria": {
+    "source": ["generic"],
+    "labels": { "kind": "ci" }
+  },
+  "actions": {
+    "suppress": true,
+    "notify_email_label": "owner"
+  }
+}
+```
+
+```json
+{
+  "alerts": [
+    {
+      "title": "CI failed on main",
+      "source": "generic",
+      "severity": "warning",
+      "external_id": "ci-main-1842",
+      "labels": {
+        "kind": "ci",
+        "owner": "dev@example.com"
+      }
+    }
+  ]
 }
 ```
 

@@ -111,6 +111,13 @@ type ChatService interface {
 	GetThreadMessages(channelID, threadTS string) ([]string, error)
 }
 
+// UserDirectMessager is implemented by providers that can DM a known user ID
+// or an email without falling back to a display-name search.
+type UserDirectMessager interface {
+	SendDirectMessageByUserID(userID string, message Message) error
+	SendDirectMessageByEmail(email string, message Message) error
+}
+
 // Channel represents a chat channel with platform-specific details.
 type Channel struct {
 	// ID is the platform-specific channel identifier

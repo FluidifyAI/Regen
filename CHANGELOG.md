@@ -2,6 +2,25 @@
 
 All notable changes to Fluidify Regen are documented here.
 
+## [1.2.0] — 2026-10-18
+
+### Added
+
+- **Admins can edit schedule holidays** — hide or restore imported holidays, rename them, and add their own from a Holidays panel on the schedule page. Country feeds keep syncing daily but no longer undo these edits. Hidden holidays show dimmed on the calendar for admins only. New admin-only endpoints: `POST`, `PATCH` and `DELETE /api/v1/schedules/:id/holidays`. Adds migration `000045`. (#180)
+- **Slack DM from a routing rule** — a rule can name an alert label that holds an email (`notify_email_label`). If it matches an active Regen user, that person gets a Slack DM, even when the rule suppresses the incident. Addresses that are not Regen users are ignored. (#175)
+- **Mobile PWA** — installable web app with push notifications and five mobile screens. (#159)
+- **OpenTelemetry tracing, off by default** — set `OTEL_EXPORTER_OTLP_ENDPOINT` to enable. Covers HTTP, database, Redis and outbound HTTP calls, workers and async work, and LLM completions (GenAI span conventions), with W3C `traceparent` propagation, RED metrics with trace exemplars, and trace-aware logs. Browser error tracking and real-user monitoring with trace propagation from the frontend. An optional collector with tail sampling and PII scrubbing ships in the dev compose (`--profile observability`). See `docs/OBSERVABILITY.md`. (#162–#173)
+
+### Bug fixes
+
+- **On-call calendar showed a layer starting a day late** — the start day was drawn as empty because the calendar picked the first slice of the day. It now shows the person on call for most of the day. (#179, GitHub #178)
+- **Push handlers checked the request body before authentication** — authentication now runs first. (#158)
+- **`OTEL_EXPORTER_OTLP_ENDPOINT` without a scheme** is now normalized instead of failing. (#166)
+
+### Known limitations
+
+- Holidays are not tied to a state or region, so a feed such as Australia's includes every state's holidays. Admins can now hide the ones that do not apply; region-aware feeds are planned (GitHub #177).
+
 ## [1.1.0] — 2026-08-08
 
 ### Mobile

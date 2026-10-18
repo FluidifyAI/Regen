@@ -244,8 +244,22 @@ type ScheduleHoliday struct {
 	CountryCode string    `gorm:"type:varchar(10);not null"                     json:"country_code"`
 	Date        DateOnly  `gorm:"type:date;not null"                            json:"date"`
 	Name        string    `gorm:"type:varchar(255);not null"                    json:"name"`
-	CreatedAt   time.Time `gorm:"not null;default:now()"                        json:"created_at"`
+	// Source is HolidaySourceFeed for imported rows and HolidaySourceManual for rows an
+	// admin added or renamed. The feed sync never overwrites manual rows.
+	Source string `gorm:"type:varchar(10);not null;default:feed"        json:"source"`
+	// Hidden marks a feed holiday an admin removed. The row is kept so the sync cannot re-add it.
+	Hidden    bool      `gorm:"not null;default:false"                        json:"hidden"`
+	CreatedAt time.Time `gorm:"not null;default:now()"                        json:"created_at"`
 }
+
+const (
+	HolidaySourceFeed   = "feed"
+	HolidaySourceManual = "manual"
+
+	// HolidayCountryCustom is the country_code of admin-added holidays. It never matches a
+	// real country, so removing a country from a schedule does not purge them.
+	HolidayCountryCustom = "custom"
+)
 
 // TableName specifies the database table name.
 func (ScheduleHoliday) TableName() string {

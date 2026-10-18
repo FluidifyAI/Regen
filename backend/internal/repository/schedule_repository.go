@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -80,11 +81,27 @@ type ScheduleRepository interface {
 	// Removed countries have their holiday rows purged. Returns the added codes.
 	SetHolidayCountries(scheduleID uuid.UUID, countries []string) (added []string, removed []string, err error)
 
-	// UpsertHolidays inserts or ignores holiday rows (unique on schedule_id+country+date).
+	// UpsertHolidays inserts feed holiday rows (unique on schedule_id+country+date). An existing
+	// row is refreshed only if it is an untouched feed row: hidden rows stay hidden and manual
+	// rows keep the admin's edits.
 	UpsertHolidays(holidays []models.ScheduleHoliday) error
 
 	// ListHolidays returns holidays for a schedule within [from, to) ordered by date.
-	ListHolidays(scheduleID uuid.UUID, from, to time.Time) ([]models.ScheduleHoliday, error)
+	// Hidden rows are returned only when includeHidden is true.
+	ListHolidays(scheduleID uuid.UUID, from, to time.Time, includeHidden bool) ([]models.ScheduleHoliday, error)
+
+	// GetHoliday returns one holiday of the schedule, or a NotFoundError.
+	GetHoliday(scheduleID, holidayID uuid.UUID) (*models.ScheduleHoliday, error)
+
+	// CreateHoliday inserts an admin-added holiday and assigns its ID.
+	// Returns an AlreadyExistsError if the schedule already has that country+date.
+	CreateHoliday(holiday *models.ScheduleHoliday) error
+
+	// UpdateHoliday saves the name, source and hidden fields of a holiday.
+	UpdateHoliday(holiday *models.ScheduleHoliday) error
+
+	// DeleteHoliday permanently removes one holiday of the schedule, or returns a NotFoundError.
+	DeleteHoliday(scheduleID, holidayID uuid.UUID) error
 
 	// DeleteHolidaysByCountry removes all holidays for a schedule+country pair.
 	DeleteHolidaysByCountry(scheduleID uuid.UUID, countryCode string) error
@@ -442,20 +459,79 @@ func (r *scheduleRepository) UpsertHolidays(holidays []models.ScheduleHoliday) e
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "schedule_id"}, {Name: "country_code"}, {Name: "date"}},
 			DoUpdates: clause.AssignmentColumns([]string{"name"}),
+			// Only untouched feed rows are refreshed; admin edits and hides win.
+			Where: clause.Where{Exprs: []clause.Expression{
+				clause.Expr{SQL: "schedule_holidays.source = ? AND schedule_holidays.hidden = ?", Vars: []interface{}{models.HolidaySourceFeed, false}},
+			}},
 		}).
 		CreateInBatches(deduped, 100).Error
 }
 
-func (r *scheduleRepository) ListHolidays(scheduleID uuid.UUID, from, to time.Time) ([]models.ScheduleHoliday, error) {
+func (r *scheduleRepository) ListHolidays(scheduleID uuid.UUID, from, to time.Time, includeHidden bool) ([]models.ScheduleHoliday, error) {
 	var holidays []models.ScheduleHoliday
-	err := r.db.
-		Where("schedule_id = ? AND date >= ? AND date < ?", scheduleID, from.Format("2006-01-02"), to.Format("2006-01-02")).
-		Order("date ASC").
-		Find(&holidays).Error
+	q := r.db.
+		Where("schedule_id = ? AND date >= ? AND date < ?", scheduleID, from.Format("2006-01-02"), to.Format("2006-01-02"))
+	if !includeHidden {
+		q = q.Where("hidden = ?", false)
+	}
+	err := q.Order("date ASC").Find(&holidays).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to list holidays: %w", err)
 	}
 	return holidays, nil
+}
+
+func (r *scheduleRepository) GetHoliday(scheduleID, holidayID uuid.UUID) (*models.ScheduleHoliday, error) {
+	var h models.ScheduleHoliday
+	err := r.db.Where("id = ? AND schedule_id = ?", holidayID, scheduleID).First(&h).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, &NotFoundError{Resource: "holiday", ID: holidayID}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get holiday: %w", err)
+	}
+	return &h, nil
+}
+
+func (r *scheduleRepository) CreateHoliday(h *models.ScheduleHoliday) error {
+	var count int64
+	if err := r.db.Model(&models.ScheduleHoliday{}).
+		Where("schedule_id = ? AND country_code = ? AND date = ?", h.ScheduleID, h.CountryCode, h.Date).
+		Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check for existing holiday: %w", err)
+	}
+	if count > 0 {
+		return &AlreadyExistsError{Resource: "holiday", Field: "date", Value: h.Date}
+	}
+	h.ID = uuid.New()
+	if err := r.db.Create(h).Error; err != nil {
+		return fmt.Errorf("failed to create holiday: %w", err)
+	}
+	return nil
+}
+
+func (r *scheduleRepository) UpdateHoliday(h *models.ScheduleHoliday) error {
+	res := r.db.Model(&models.ScheduleHoliday{}).
+		Where("id = ? AND schedule_id = ?", h.ID, h.ScheduleID).
+		Updates(map[string]interface{}{"name": h.Name, "source": h.Source, "hidden": h.Hidden})
+	if res.Error != nil {
+		return fmt.Errorf("failed to update holiday: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return &NotFoundError{Resource: "holiday", ID: h.ID}
+	}
+	return nil
+}
+
+func (r *scheduleRepository) DeleteHoliday(scheduleID, holidayID uuid.UUID) error {
+	res := r.db.Where("id = ? AND schedule_id = ?", holidayID, scheduleID).Delete(&models.ScheduleHoliday{})
+	if res.Error != nil {
+		return fmt.Errorf("failed to delete holiday: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return &NotFoundError{Resource: "holiday", ID: holidayID}
+	}
+	return nil
 }
 
 func (r *scheduleRepository) DeleteHolidaysByCountry(scheduleID uuid.UUID, countryCode string) error {

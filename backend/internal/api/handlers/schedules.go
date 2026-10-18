@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/api/handlers/dto"
+	"github.com/FluidifyAI/Regen/backend/internal/api/middleware"
 	"github.com/FluidifyAI/Regen/backend/internal/models"
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
@@ -166,7 +168,12 @@ func GetHolidays(repo repository.ScheduleRepository) gin.HandlerFunc {
 			}
 		}
 
-		holidays, err := repo.ListHolidays(id, from, to)
+		// Hidden holidays are only shown to admins, who manage them from the Holidays panel.
+		user := middleware.GetLocalUser(c)
+		isAdmin := user != nil && user.Role == models.UserRoleAdmin
+		includeHidden := isAdmin && c.Query("include_hidden") == "true"
+
+		holidays, err := repo.ListHolidays(id, from, to, includeHidden)
 		if err != nil {
 			slog.ErrorContext(c.Request.Context(), "failed to list holidays", "error", err, "id", id)
 			dto.InternalError(c, err)
@@ -179,6 +186,174 @@ func GetHolidays(repo repository.ScheduleRepository) gin.HandlerFunc {
 		}
 		c.JSON(http.StatusOK, gin.H{"data": responses, "total": len(responses)})
 	}
+}
+
+// maxHolidayNameLen matches the schedule_holidays.name column.
+const maxHolidayNameLen = 255
+
+// parseHolidayName trims a holiday name and checks it fits the column.
+func parseHolidayName(raw string) (string, bool) {
+	name := strings.TrimSpace(raw)
+	return name, name != "" && len(name) <= maxHolidayNameLen
+}
+
+// CreateHoliday handles POST /api/v1/schedules/:id/holidays (admin only).
+// Adds a holiday that the feed sync will never touch.
+func CreateHoliday(repo repository.ScheduleRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scheduleID, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			dto.BadRequest(c, "Invalid schedule ID", map[string]interface{}{"id": "must be a valid UUID"})
+			return
+		}
+		if _, err := repo.GetByID(scheduleID); err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "schedule", scheduleID.String())
+				return
+			}
+			dto.InternalError(c, err)
+			return
+		}
+
+		var req dto.CreateHolidayRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			dto.ValidationError(c, err)
+			return
+		}
+		if _, err := time.Parse("2006-01-02", req.Date); err != nil {
+			dto.BadRequest(c, "Invalid date", map[string]interface{}{"date": "must be YYYY-MM-DD"})
+			return
+		}
+		name, ok := parseHolidayName(req.Name)
+		if !ok {
+			dto.BadRequest(c, "Invalid name", map[string]interface{}{"name": "must be 1-255 characters"})
+			return
+		}
+
+		h := &models.ScheduleHoliday{
+			ScheduleID:  scheduleID,
+			CountryCode: models.HolidayCountryCustom,
+			Date:        models.DateOnly(req.Date),
+			Name:        name,
+			Source:      models.HolidaySourceManual,
+		}
+		if err := repo.CreateHoliday(h); err != nil {
+			if _, dup := err.(*repository.AlreadyExistsError); dup {
+				dto.Conflict(c, "A custom holiday already exists on that date", map[string]interface{}{"date": req.Date})
+				return
+			}
+			slog.ErrorContext(c.Request.Context(), "failed to create holiday", "error", err, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+		slog.InfoContext(c.Request.Context(), "schedule holiday created", "holiday_id", h.ID, "schedule_id", scheduleID, "request_id", c.GetString("request_id"))
+		c.JSON(http.StatusCreated, dto.ToHolidayResponse(h))
+	}
+}
+
+// UpdateHoliday handles PATCH /api/v1/schedules/:id/holidays/:holiday_id (admin only).
+// Renaming marks the row manual so the feed sync stops refreshing its name.
+func UpdateHoliday(repo repository.ScheduleRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scheduleID, holidayID, ok := parseHolidayIDs(c)
+		if !ok {
+			return
+		}
+		var req dto.UpdateHolidayRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			dto.ValidationError(c, err)
+			return
+		}
+		if req.Name == nil && req.Hidden == nil {
+			dto.BadRequest(c, "Nothing to update", map[string]interface{}{"body": "provide name and/or hidden"})
+			return
+		}
+
+		h, err := repo.GetHoliday(scheduleID, holidayID)
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "holiday", holidayID.String())
+				return
+			}
+			dto.InternalError(c, err)
+			return
+		}
+		if req.Name != nil {
+			name, ok := parseHolidayName(*req.Name)
+			if !ok {
+				dto.BadRequest(c, "Invalid name", map[string]interface{}{"name": "must be 1-255 characters"})
+				return
+			}
+			h.Name = name
+			h.Source = models.HolidaySourceManual
+		}
+		if req.Hidden != nil {
+			h.Hidden = *req.Hidden
+		}
+		if err := repo.UpdateHoliday(h); err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "holiday", holidayID.String())
+				return
+			}
+			slog.ErrorContext(c.Request.Context(), "failed to update holiday", "error", err, "holiday_id", holidayID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, dto.ToHolidayResponse(h))
+	}
+}
+
+// DeleteHoliday handles DELETE /api/v1/schedules/:id/holidays/:holiday_id (admin only).
+// Admin-added (custom) holidays are removed. Anything from a country feed is hidden
+// instead, because deleting the row would let the next sync re-import it.
+func DeleteHoliday(repo repository.ScheduleRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scheduleID, holidayID, ok := parseHolidayIDs(c)
+		if !ok {
+			return
+		}
+		h, err := repo.GetHoliday(scheduleID, holidayID)
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "holiday", holidayID.String())
+				return
+			}
+			dto.InternalError(c, err)
+			return
+		}
+
+		if h.CountryCode == models.HolidayCountryCustom {
+			err = repo.DeleteHoliday(scheduleID, holidayID)
+		} else {
+			h.Hidden = true
+			err = repo.UpdateHoliday(h)
+		}
+		if err != nil {
+			if isNotFound(err) {
+				dto.NotFound(c, "holiday", holidayID.String())
+				return
+			}
+			slog.ErrorContext(c.Request.Context(), "failed to delete holiday", "error", err, "holiday_id", holidayID, "request_id", c.GetString("request_id"))
+			dto.InternalError(c, err)
+			return
+		}
+		c.Status(http.StatusNoContent)
+	}
+}
+
+// parseHolidayIDs reads :id and :holiday_id, writing a 400 and returning false on failure.
+func parseHolidayIDs(c *gin.Context) (scheduleID, holidayID uuid.UUID, ok bool) {
+	scheduleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		dto.BadRequest(c, "Invalid schedule ID", map[string]interface{}{"id": "must be a valid UUID"})
+		return uuid.Nil, uuid.Nil, false
+	}
+	holidayID, err = uuid.Parse(c.Param("holiday_id"))
+	if err != nil {
+		dto.BadRequest(c, "Invalid holiday ID", map[string]interface{}{"holiday_id": "must be a valid UUID"})
+		return uuid.Nil, uuid.Nil, false
+	}
+	return scheduleID, holidayID, true
 }
 
 // DeleteSchedule handles DELETE /api/v1/schedules/:id

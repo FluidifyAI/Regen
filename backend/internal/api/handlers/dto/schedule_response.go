@@ -29,6 +29,8 @@ type HolidayResponse struct {
 	CountryCode string    `json:"country_code"`
 	Date        string    `json:"date"` // YYYY-MM-DD
 	Name        string    `json:"name"`
+	Source      string    `json:"source"` // "feed" or "manual"
+	Hidden      bool      `json:"hidden"`
 }
 
 // LayerResponse is the response body for a schedule layer.
@@ -114,6 +116,8 @@ func ToHolidayResponse(h *models.ScheduleHoliday) HolidayResponse {
 		CountryCode: h.CountryCode,
 		Date:        h.Date.String(),
 		Name:        h.Name,
+		Source:      h.Source,
+		Hidden:      h.Hidden,
 	}
 }
 

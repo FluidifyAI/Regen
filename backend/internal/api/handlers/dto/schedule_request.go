@@ -197,3 +197,16 @@ func defaultShiftDuration(rt models.RotationType) int {
 		return 604800
 	}
 }
+
+// CreateHolidayRequest is the body for POST /schedules/:id/holidays.
+type CreateHolidayRequest struct {
+	Date string `json:"date" binding:"required"` // YYYY-MM-DD
+	Name string `json:"name" binding:"required"`
+}
+
+// UpdateHolidayRequest is the body for PATCH /schedules/:id/holidays/:holiday_id.
+// Omitted fields are left unchanged.
+type UpdateHolidayRequest struct {
+	Name   *string `json:"name"`
+	Hidden *bool   `json:"hidden"`
+}

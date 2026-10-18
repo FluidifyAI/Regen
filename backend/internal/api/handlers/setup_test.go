@@ -114,8 +114,14 @@ func (m *mockScheduleRepoForSetup) GetHolidayCountries(_ uuid.UUID) ([]string, e
 func (m *mockScheduleRepoForSetup) SetHolidayCountries(_ uuid.UUID, _ []string) ([]string, []string, error) {
 	return nil, nil, nil
 }
+func (m *mockScheduleRepoForSetup) GetHoliday(_, _ uuid.UUID) (*models.ScheduleHoliday, error) {
+	return nil, nil
+}
+func (m *mockScheduleRepoForSetup) CreateHoliday(_ *models.ScheduleHoliday) error   { return nil }
+func (m *mockScheduleRepoForSetup) UpdateHoliday(_ *models.ScheduleHoliday) error   { return nil }
+func (m *mockScheduleRepoForSetup) DeleteHoliday(_, _ uuid.UUID) error              { return nil }
 func (m *mockScheduleRepoForSetup) UpsertHolidays(_ []models.ScheduleHoliday) error { return nil }
-func (m *mockScheduleRepoForSetup) ListHolidays(_ uuid.UUID, _, _ time.Time) ([]models.ScheduleHoliday, error) {
+func (m *mockScheduleRepoForSetup) ListHolidays(_ uuid.UUID, _, _ time.Time, _ bool) ([]models.ScheduleHoliday, error) {
 	return nil, nil
 }
 func (m *mockScheduleRepoForSetup) DeleteHolidaysByCountry(_ uuid.UUID, _ string) error { return nil }

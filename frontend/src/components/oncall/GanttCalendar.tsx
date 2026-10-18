@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Globe, Trash2 } from 'lucide-react'
 import type { TimelineSegment } from '../../api/types'
+import { NOBODY, getSegmentForDay } from './ganttSegments'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -78,7 +79,6 @@ export function userHue(name: string): number {
   return PALETTE_HUES[idx] as number
 }
 
-const NOBODY = '(nobody)'
 
 export function segmentBg(name: string): string {
   if (!name || name === NOBODY) return '#e5e7eb' // gray-200 — neutral empty slot
@@ -99,19 +99,6 @@ function displayName(name: string): string {
   return at > 0 ? name.slice(0, at) : name
 }
 
-function getSegmentForDay(segments: TimelineSegment[], day: Date): TimelineSegment | null {
-  const dayStart = new Date(day)
-  dayStart.setHours(0, 0, 0, 0)
-  const dayEnd = new Date(day)
-  dayEnd.setHours(23, 59, 59, 999)
-  const matches = segments.filter((s) => {
-    const segStart = new Date(s.start)
-    const segEnd = new Date(s.end)
-    return segStart < dayEnd && segEnd > dayStart
-  })
-  // Prefer override segments over regular rotation segments
-  return matches.find((s) => s.is_override) ?? matches[0] ?? null
-}
 
 interface DayGroup {
   seg: TimelineSegment | null

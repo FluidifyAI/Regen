@@ -263,6 +263,10 @@ export interface ScheduleHoliday {
   country_code: string
   date: string   // YYYY-MM-DD
   name: string
+  /** 'feed' = imported from the country feed, 'manual' = added or renamed by an admin */
+  source: 'feed' | 'manual'
+  /** Admin removed this feed holiday. Only returned to admins (include_hidden). */
+  hidden: boolean
 }
 
 export interface ScheduleLayer {

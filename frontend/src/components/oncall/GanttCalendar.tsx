@@ -15,6 +15,8 @@ export interface HolidayMarker {
   date: string       // YYYY-MM-DD
   name: string
   countryCode: string
+  /** Hidden by an admin; shown dimmed to admins only (the server omits it for everyone else). */
+  hidden?: boolean
 }
 
 interface GanttCalendarProps {
@@ -287,7 +289,7 @@ export function GanttCalendar({
                           title={(() => {
                             const dateKey = `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`
                             const holiday = holidayMap.get(dateKey)
-                            if (holiday) return `🎉 ${holiday.name}${onDayClick ? ' · Click to add override' : ''}`
+                            if (holiday) return `🎉 ${holiday.name}${holiday.hidden ? ' (hidden)' : ''}${onDayClick ? ' · Click to add override' : ''}`
                             return onDayClick ? `Add override for ${SHORT_DAYS[day.getDay()]} ${day.getDate()}` : undefined
                           })()}
                         >
@@ -308,11 +310,11 @@ export function GanttCalendar({
                                 </span>
                                 {holiday && (
                                   <div className="relative group/hday flex justify-center mt-0.5">
-                                    <div className="inline-flex items-center px-1.5 py-0.5 bg-amber-50 border border-amber-300 rounded-full cursor-default">
+                                    <div className={`inline-flex items-center px-1.5 py-0.5 bg-amber-50 border border-amber-300 rounded-full cursor-default ${holiday.hidden ? 'opacity-40 border-dashed' : ''}`}>
                                       <span className="text-[11px] font-semibold text-amber-700 leading-none">{countryFlagEmoji(holiday.countryCode)}</span>
                                     </div>
                                     <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap shadow-lg opacity-0 group-hover/hday:opacity-100 transition-opacity duration-150 z-50">
-                                      {holiday.name}
+                                      {holiday.name}{holiday.hidden ? ' (hidden)' : ''}
                                       <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
                                     </div>
                                   </div>

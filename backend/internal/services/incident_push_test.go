@@ -151,8 +151,14 @@ func (r *minimalScheduleRepo) GetHolidayCountries(_ uuid.UUID) ([]string, error)
 func (r *minimalScheduleRepo) SetHolidayCountries(_ uuid.UUID, _ []string) ([]string, []string, error) {
 	return nil, nil, nil
 }
+func (r *minimalScheduleRepo) GetHoliday(_, _ uuid.UUID) (*models.ScheduleHoliday, error) {
+	return nil, nil
+}
+func (r *minimalScheduleRepo) CreateHoliday(_ *models.ScheduleHoliday) error   { return nil }
+func (r *minimalScheduleRepo) UpdateHoliday(_ *models.ScheduleHoliday) error   { return nil }
+func (r *minimalScheduleRepo) DeleteHoliday(_, _ uuid.UUID) error              { return nil }
 func (r *minimalScheduleRepo) UpsertHolidays(_ []models.ScheduleHoliday) error { return nil }
-func (r *minimalScheduleRepo) ListHolidays(_ uuid.UUID, _, _ time.Time) ([]models.ScheduleHoliday, error) {
+func (r *minimalScheduleRepo) ListHolidays(_ uuid.UUID, _, _ time.Time, _ bool) ([]models.ScheduleHoliday, error) {
 	return nil, nil
 }
 func (r *minimalScheduleRepo) DeleteHolidaysByCountry(_ uuid.UUID, _ string) error { return nil }

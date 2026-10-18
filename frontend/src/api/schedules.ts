@@ -111,12 +111,32 @@ export async function deleteUnavailability(scheduleId: string, uid: string): Pro
   return apiClient.delete<void>(`/api/v1/schedules/${scheduleId}/unavailabilities/${uid}`)
 }
 
+/** includeHidden is honoured by the server for admins only. */
 export async function getHolidays(
   scheduleId: string,
   from: string,
   to: string,
+  includeHidden = false,
 ): Promise<{ data: ScheduleHoliday[]; total: number }> {
-  return apiClient.get(`/api/v1/schedules/${scheduleId}/holidays?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+  const hidden = includeHidden ? '&include_hidden=true' : ''
+  return apiClient.get(`/api/v1/schedules/${scheduleId}/holidays?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${hidden}`)
+}
+
+export async function createHoliday(scheduleId: string, body: { date: string; name: string }): Promise<ScheduleHoliday> {
+  return apiClient.post<ScheduleHoliday>(`/api/v1/schedules/${scheduleId}/holidays`, body)
+}
+
+export async function updateHoliday(
+  scheduleId: string,
+  holidayId: string,
+  body: { name?: string; hidden?: boolean },
+): Promise<ScheduleHoliday> {
+  return apiClient.patch<ScheduleHoliday>(`/api/v1/schedules/${scheduleId}/holidays/${holidayId}`, body)
+}
+
+/** Removes an admin-added holiday, or hides a holiday that came from the country feed. */
+export async function deleteHoliday(scheduleId: string, holidayId: string): Promise<void> {
+  return apiClient.delete<void>(`/api/v1/schedules/${scheduleId}/holidays/${holidayId}`)
 }
 
 export const SUPPORTED_HOLIDAY_COUNTRIES: { code: string; label: string }[] = [

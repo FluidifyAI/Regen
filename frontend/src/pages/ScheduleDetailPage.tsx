@@ -17,6 +17,8 @@ import { Button } from '../components/ui/Button'
 import { SkeletonDetail } from '../components/ui/Skeleton'
 import { GeneralError } from '../components/ui/ErrorState'
 import { ToastContainer, useToast } from '../components/ui/Toast'
+import { useAuth } from '../hooks/useAuth'
+import { HolidaysPanel } from '../components/oncall/HolidaysPanel'
 import { useSchedule } from '../hooks/useSchedule'
 import {
   updateSchedule,
@@ -1539,6 +1541,8 @@ export function ScheduleDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
 
   const { schedule, onCall, overrides, unavailabilities, loading, error, refetch } = useSchedule(id!)
 
@@ -1549,6 +1553,7 @@ export function ScheduleDetailPage() {
   const [unavailModalOpen, setUnavailModalOpen] = useState(false)
   const [editLayerOpen, setEditLayerOpen] = useState(false)
   const [holidays, setHolidays] = useState<ScheduleHoliday[]>([])
+  const [holidaysKey, setHolidaysKey] = useState(0)
   const [editingLayer, setEditingLayer] = useState<ScheduleLayer | null>(null)
   const [windowStart, setWindowStart] = useState<Date>(() => getMonthStart(new Date()))
   const GANTT_DAYS = useMemo(() => daysInMonth(windowStart), [windowStart])
@@ -1576,10 +1581,13 @@ export function ScheduleDetailPage() {
     const toDate = new Date(windowStart)
     toDate.setDate(toDate.getDate() + GANTT_DAYS)
     const to = localDateStr(toDate)
-    getHolidays(id, from, to)
+    // Admins also get hidden holidays so they can restore them; everyone else never sees them.
+    getHolidays(id, from, to, isAdmin)
       .then(r => setHolidays(r.data))
       .catch(() => {})
-  }, [id, windowStart, GANTT_DAYS])
+  }, [id, windowStart, GANTT_DAYS, isAdmin, holidaysKey])
+
+  const visibleHolidays = useMemo(() => holidays.filter(h => !h.hidden), [holidays])
 
   const handleScheduleDeleted = async () => {
     if (!schedule) return
@@ -1797,7 +1805,7 @@ export function ScheduleDetailPage() {
                 )}
                 {(() => {
                   const todayStr = localDateStr(new Date())
-                  const todayHoliday = holidays.find(h => h.date === todayStr)
+                  const todayHoliday = visibleHolidays.find(h => h.date === todayStr)
                   if (!todayHoliday) return null
                   return (
                     <div className="mt-2">
@@ -1829,17 +1837,27 @@ export function ScheduleDetailPage() {
             days={GANTT_DAYS}
             onNavigate={setWindowStart}
             onDayClick={handleDayClick}
-            holidays={holidays.map(h => ({ date: h.date, name: h.name, countryCode: h.country_code }))}
+            holidays={holidays.map(h => ({ date: h.date, name: h.name, countryCode: h.country_code, hidden: h.hidden }))}
             scheduleTimezone={schedule.timezone}
           />
         </div>
         <div className="sm:hidden">
           <SevenDayList
             effectiveSegments={layerTimelines?.effective ?? []}
-            holidays={holidays}
+            holidays={visibleHolidays}
             onDayClick={handleDayClick}
           />
         </div>
+
+        {isAdmin && (
+          <HolidaysPanel
+            scheduleId={schedule.id}
+            holidays={holidays}
+            onChanged={() => setHolidaysKey(k => k + 1)}
+            onSuccess={(m) => toast.success(m)}
+            onError={(m) => toast.error(m)}
+          />
+        )}
 
         {/* Overrides */}
         <OverridesTable

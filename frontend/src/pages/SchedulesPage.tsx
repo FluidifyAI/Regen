@@ -11,6 +11,9 @@ import { createSchedule, createLayer, getTimeline, deleteSchedule } from '../api
 import { TimezoneSelect } from '../components/ui/TimezoneSelect'
 import type { CreateScheduleRequest, TimelineSegment } from '../api/types'
 import { listUsers, type UserSummary } from '../api/users'
+import { getSystemSettings } from '../api/settings'
+import { computeLayerSegments } from '../lib/schedulePreview'
+import { defaultScheduleTimezone, todayInTimezone, zonedMidnightToISO } from '../lib/timezone'
 import { GanttCalendar, GanttRow, getMondayOf } from '../components/oncall/GanttCalendar'
 
 // ─── On-call data per schedule ────────────────────────────────────────────────
@@ -60,48 +63,6 @@ function useSchedulesOnCall(scheduleIds: string[]): Record<string, OnCallEntry> 
   return data
 }
 
-// ─── computeLayerSegments (for create-modal live preview) ────────────────────
-
-function computeLayerSegments(
-  layer: {
-    shift_duration_seconds: number
-    rotation_start: string
-    participants?: Array<{ user_name: string; order_index: number }>
-  },
-  windowStart: Date,
-  days: number,
-): TimelineSegment[] {
-  const participants = layer.participants ?? []
-  if (participants.length === 0) return []
-
-  const shiftMs = (layer.shift_duration_seconds || 86400) * 1000
-  const rotationStart = new Date(layer.rotation_start).getTime()
-  const sorted = [...participants].sort((a, b) => a.order_index - b.order_index)
-  const segments: TimelineSegment[] = []
-
-  for (let i = 0; i < days; i++) {
-    const dayStart = new Date(windowStart)
-    dayStart.setDate(dayStart.getDate() + i)
-    dayStart.setHours(0, 0, 0, 0)
-    const dayEnd = new Date(dayStart)
-    dayEnd.setHours(23, 59, 59, 999)
-
-    const elapsed = dayStart.getTime() - rotationStart
-    const slotIndex = Math.floor(elapsed / shiftMs)
-    const normalizedIndex =
-      ((slotIndex % sorted.length) + sorted.length) % sorted.length
-
-    segments.push({
-      start: dayStart.toISOString(),
-      end: dayEnd.toISOString(),
-      user_name: sorted[normalizedIndex]?.user_name ?? '?',
-      is_override: false,
-    })
-  }
-
-  return segments
-}
-
 // ─── Layer form state ─────────────────────────────────────────────────────────
 
 interface LayerFormState {
@@ -112,12 +73,15 @@ interface LayerFormState {
   participants: string[]
 }
 
-const DEFAULT_LAYER_FORM: LayerFormState = {
-  name: '',
-  rotation_type: 'weekly',
-  rotation_start: new Date().toISOString().split('T')[0] as string,
-  shift_duration_seconds: 604800,
-  participants: [],
+/** A fresh layer form that starts today, in the schedule's timezone. */
+function defaultLayerForm(timezone: string): LayerFormState {
+  return {
+    name: '',
+    rotation_type: 'weekly',
+    rotation_start: todayInTimezone(timezone),
+    shift_duration_seconds: 604800,
+    participants: [],
+  }
 }
 
 const SHIFT_DURATION_MAP: Record<'daily' | 'weekly' | 'custom', number> = {
@@ -137,8 +101,8 @@ interface CreateScheduleModalProps {
 function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalProps) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [timezone, setTimezone] = useState('UTC')
-  const [layerForm, setLayerForm] = useState<LayerFormState>(DEFAULT_LAYER_FORM)
+  const [timezone, setTimezone] = useState(() => defaultScheduleTimezone())
+  const [layerForm, setLayerForm] = useState<LayerFormState>(() => defaultLayerForm(defaultScheduleTimezone()))
   const [previewWindowStart, setPreviewWindowStart] = useState<Date>(() => getMondayOf(new Date()))
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -149,17 +113,27 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
   }, [])
 
   useEffect(() => {
-    if (isOpen) {
-      setName('')
-      setDescription('')
-      setTimezone('UTC')
-      setLayerForm({
-        ...DEFAULT_LAYER_FORM,
-        rotation_start: new Date().toISOString().split('T')[0] as string,
+    if (!isOpen) return
+    setName('')
+    setDescription('')
+    // Start from the browser's timezone, then switch to the instance default once it loads.
+    const initial = defaultScheduleTimezone()
+    setTimezone(initial)
+    setLayerForm(defaultLayerForm(initial))
+    setPreviewWindowStart(getMondayOf(new Date()))
+    setError(null)
+
+    let cancelled = false
+    getSystemSettings()
+      .then((settings) => {
+        if (cancelled) return
+        const instanceTz = defaultScheduleTimezone(settings.timezone)
+        setTimezone(instanceTz)
+        // Only re-date the form if the user has not started filling it in.
+        setLayerForm((f) => (f.participants.length === 0 && !f.name ? defaultLayerForm(instanceTz) : f))
       })
-      setPreviewWindowStart(getMondayOf(new Date()))
-      setError(null)
-    }
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [isOpen])
 
   useEffect(() => {
@@ -173,17 +147,17 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
     if (filled.length === 0) return []
     const layerDef = {
       shift_duration_seconds: layerForm.shift_duration_seconds,
-      rotation_start: layerForm.rotation_start + 'T00:00:00Z',
+      rotation_start: zonedMidnightToISO(layerForm.rotation_start, timezone),
       participants: filled.map((name, i) => ({ user_name: name, order_index: i })),
     }
     return [
       {
         id: 'preview',
         label: layerForm.name || 'Layer 1',
-        segments: computeLayerSegments(layerDef, getMondayOf(new Date()), 7),
+        segments: computeLayerSegments(layerDef, getMondayOf(new Date()), 7, timezone),
       },
     ]
-  }, [layerForm])
+  }, [layerForm, timezone])
 
   if (!isOpen) return null
 
@@ -210,7 +184,7 @@ function CreateScheduleModal({ isOpen, onClose, onSaved }: CreateScheduleModalPr
         await createLayer(created.id, {
           name: layerForm.name || 'Primary',
           rotation_type: layerForm.rotation_type,
-          rotation_start: layerForm.rotation_start + 'T00:00:00Z',
+          rotation_start: zonedMidnightToISO(layerForm.rotation_start, timezone),
           shift_duration_seconds: layerForm.shift_duration_seconds,
           participants: filledParticipants.map((user_name, i) => ({ user_name, order_index: i })),
         })

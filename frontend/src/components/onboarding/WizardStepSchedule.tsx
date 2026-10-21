@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Loader2, AlertCircle, CheckCircle } from 'lucide-react'
 import { importOnCallMigration } from '../../api/migrations'
 import { createSchedule, createLayer } from '../../api/schedules'
 import { TimezoneSelect } from '../ui/TimezoneSelect'
+import { getSystemSettings } from '../../api/settings'
+import { defaultScheduleTimezone } from '../../lib/timezone'
 import { PagerDutyImportPanel } from '../migrations/PagerDutyImportPanel'
 import { OpsgenieImportPanel } from '../migrations/OpsgenieImportPanel'
 
@@ -216,11 +218,21 @@ function GrafanaImport({ onComplete, onBack }: { onComplete: () => void; onBack:
 
 function ManualSchedule({ onComplete, onBack }: { onComplete: () => void; onBack: () => void }) {
   const [name, setName] = useState('')
-  const [timezone, setTimezone] = useState('UTC')
+  const [timezone, setTimezone] = useState(() => defaultScheduleTimezone())
   const [rotationType, setRotationType] = useState<'daily' | 'weekly'>('weekly')
   const [participantName, setParticipantName] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // Use the instance's timezone once it loads, unless the user has already picked one.
+  const [timezoneTouched, setTimezoneTouched] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    getSystemSettings()
+      .then((settings) => { if (!cancelled && !timezoneTouched) setTimezone(defaultScheduleTimezone(settings.timezone)) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [timezoneTouched])
 
   async function handleCreate() {
     if (!name) return
@@ -254,7 +266,7 @@ function ManualSchedule({ onComplete, onBack }: { onComplete: () => void; onBack
 
       <div>
         <label className="block text-xs font-medium text-text-secondary mb-1">Timezone</label>
-        <TimezoneSelect value={timezone} onChange={setTimezone} className={inputClass} />
+        <TimezoneSelect value={timezone} onChange={(tz) => { setTimezoneTouched(true); setTimezone(tz) }} className={inputClass} />
       </div>
 
       <div>

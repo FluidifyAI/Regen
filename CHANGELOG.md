@@ -2,6 +2,22 @@
 
 All notable changes to Fluidify Regen are documented here.
 
+## [1.2.1] — 2026-10-21
+
+### Bug fixes
+
+- **Instance timezone ignored the container's `TZ`** — with nothing saved, Settings → System showed a hard-coded UTC. It now follows `TZ` when that is a valid timezone name (otherwise UTC). A saved value still wins. (#185, GitHub #183)
+- **New schedules always defaulted to UTC** — the create-schedule form and the onboarding wizard now default to the instance timezone, then the browser's. (#185, GitHub #182)
+- **A schedule starting on a given day began part-way through it** — the layer start date was saved as midnight UTC whatever timezone was chosen, so a Perth schedule starting on Monday began at 08:00 and the preview showed the previous person on day one. The date is now midnight in the schedule's timezone, and the preview is computed in that timezone. The default start date also uses today in the schedule's timezone rather than the UTC date. (#185, GitHub #184)
+
+### Upgrade notes
+
+- Schedules created before this release keep the start they were saved with (midnight UTC). To move one to local midnight, an admin can re-save the layer start.
+
+### Known limitations
+
+- The on-call calendar still draws its day columns in the viewer's timezone rather than the schedule's. Tracked in GitHub #186.
+
 ## [1.2.0] — 2026-10-18
 
 ### Added

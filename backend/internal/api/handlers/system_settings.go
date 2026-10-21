@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/repository"
 	"github.com/FluidifyAI/Regen/backend/internal/services"
@@ -55,6 +58,10 @@ func GetSystemSettings(repo repository.SystemSettingsRepository, aiSvc services.
 	return func(c *gin.Context) {
 		name, _ := repo.GetString(repository.KeyInstanceName)
 		tz, _ := repo.GetString(repository.KeyTimezone)
+		if tz == "" {
+			// Nothing saved yet: follow the container's TZ instead of a hard-coded UTC.
+			tz = defaultInstanceTimezone()
+		}
 		aiKeyRaw, _ := repo.GetString(repository.KeyOpenAIAPIKey)
 		aiProvider, _ := repo.GetString(repository.KeyAIProvider)
 		if aiProvider == "" {
@@ -247,4 +254,18 @@ func TestAIKey(repo repository.SystemSettingsRepository) gin.HandlerFunc {
 		}
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
+}
+
+// defaultInstanceTimezone returns the IANA name from the TZ environment variable, or "UTC"
+// when it is unset or not a real zone. Go's special "Local" name is rejected because it is
+// not an IANA name a browser can use.
+func defaultInstanceTimezone() string {
+	tz := strings.TrimPrefix(strings.TrimSpace(os.Getenv("TZ")), ":")
+	if tz == "" || tz == "Local" {
+		return "UTC"
+	}
+	if _, err := time.LoadLocation(tz); err != nil {
+		return "UTC"
+	}
+	return tz
 }

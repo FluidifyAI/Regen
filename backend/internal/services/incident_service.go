@@ -248,7 +248,7 @@ func (s *incidentService) getOnCallIdentifiers() []string {
 	return nil
 }
 
-// findOnCallTeamsUserID returns the Azure AD Object ID (teams_user_id) of the current
+// findOnCallTeamsUserID returns the Teams user ID (teams_user_id) of the current
 // on-call responder, or nil if not found or not configured.
 func (s *incidentService) findOnCallTeamsUserID() *string {
 	userID := s.findOnCallUserID()
@@ -1782,7 +1782,7 @@ func (s *incidentService) createTeamsChannelForIncident(incident *models.Inciden
 		"channel_name", channel.Name)
 
 	// Proactive DM to the on-call responder (OPE-31).
-	// Requires teams_user_id (AAD Object ID) set on the user record.
+	// Requires teams_user_id (Teams user ID, "29:...") set on the user record.
 	// Skipped silently if: no schedule configured, no one on-call, or no teams_user_id.
 	if aadID := s.findOnCallTeamsUserID(); aadID != nil {
 		appURL := os.Getenv("SAML_BASE_URL")
@@ -1792,10 +1792,10 @@ func (s *incidentService) createTeamsChannelForIncident(incident *models.Inciden
 		if err := s.teamsSvc.SendOnCallDM(*aadID, incident, appURL); err != nil {
 			slog.Warn("teams: failed to send on-call DM",
 				"incident_id", incident.ID,
-				"aad_object_id", *aadID,
+				"teams_user_id", *aadID,
 				"error", err)
 		} else {
-			slog.Info("teams: on-call DM sent", "incident_id", incident.ID, "aad_object_id", *aadID)
+			slog.Info("teams: on-call DM sent", "incident_id", incident.ID, "teams_user_id", *aadID)
 		}
 	} else {
 		slog.Debug("teams: no on-call user with teams_user_id found, skipping DM", "incident_id", incident.ID)

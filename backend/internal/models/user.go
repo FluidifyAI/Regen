@@ -49,8 +49,9 @@ type User struct {
 	// Used to invite on-call responders to incident channels and send DMs.
 	SlackUserID *string `gorm:"type:varchar(20);column:slack_user_id" json:"slack_user_id,omitempty"`
 
-	// TeamsUserID is the Azure AD Object ID (e.g. 29dcb621-b60b-4b3d-aa41-...).
-	// Set automatically when user is imported from Teams, or manually by admin.
+	// TeamsUserID is the user's Teams user ID, as Bot Framework knows them: "29:<id>",
+	// with or without the "29:" prefix. It is not the Entra Object ID; Bot Framework
+	// rejects that with "Failed to decrypt pairwise id".
 	// Used to send proactive Adaptive Card DMs via Bot Framework.
 	TeamsUserID *string `gorm:"type:varchar(255);column:teams_user_id" json:"teams_user_id,omitempty"`
 

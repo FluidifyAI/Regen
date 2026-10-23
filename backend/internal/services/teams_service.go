@@ -223,38 +223,67 @@ func (s *TeamsService) PostToConversation(conversationID string, msg Message) (s
 	return s.postToConversation(conversationID, msg)
 }
 
+// teamsMemberID returns the Bot Framework member ID for a stored teams_user_id.
+// Bot Framework identifies a person by their Teams user ID, which starts with "29:".
+// The stored value may already carry that prefix or may be the remainder without it;
+// both are accepted.
+func teamsMemberID(stored string) string {
+	stored = strings.TrimSpace(stored)
+	if strings.HasPrefix(stored, "29:") {
+		return stored
+	}
+	return "29:" + stored
+}
+
 // SendOnCallDM sends a proactive Adaptive Card DM to the on-call responder via Bot Framework.
-// aadObjectID is the Azure AD Object ID stored in users.teams_user_id.
+// teamsUserID is the Teams user ID stored in users.teams_user_id (see teamsMemberID for the
+// accepted forms). An Entra Object ID is not accepted by Bot Framework and fails with
+// "Failed to decrypt pairwise id".
 // Unlike SendDirectMessage (which uses Graph API chat threads), this uses the Bot Framework
 // relay so it works with the same client credentials scope — no Chat.ReadWrite delegation needed.
-func (s *TeamsService) SendOnCallDM(aadObjectID string, incident *models.Incident, appURL string) error {
-	url := fmt.Sprintf("%sv3/conversations", s.serviceURL)
-	card := teamsDMCard(incident, appURL)
-	activity := map[string]interface{}{
-		"type": "message",
-		"attachments": []map[string]interface{}{
-			{
-				"contentType": "application/vnd.microsoft.card.adaptive",
-				"content":     card,
-			},
-		},
-	}
+//
+// The card is posted as a separate call to the new conversation: Bot Framework accepts an
+// activity on the create call and returns 200, but does not deliver it to a 1:1 chat.
+func (s *TeamsService) SendOnCallDM(teamsUserID string, incident *models.Incident, appURL string) error {
+	createURL := fmt.Sprintf("%sv3/conversations", s.serviceURL)
 	body := map[string]interface{}{
 		"bot": map[string]string{
 			"id":   "28:" + s.botAppID,
 			"name": "Fluidify Regen",
 		},
 		"members": []map[string]string{
-			{"id": "29:" + aadObjectID},
+			{"id": teamsMemberID(teamsUserID)},
 		},
 		"tenantId": s.tenantID,
-		"activity": activity,
 	}
-	var result struct {
+	var created struct {
 		ID string `json:"id"`
 	}
-	if err := s.botfwPostJSON(url, body, &result); err != nil {
-		return fmt.Errorf("teams: send on-call DM to %s: %w", aadObjectID, err)
+	if err := s.botfwPostJSON(createURL, body, &created); err != nil {
+		return fmt.Errorf("teams: open DM conversation with %s: %w", teamsUserID, err)
+	}
+	if created.ID == "" {
+		return fmt.Errorf("teams: open DM conversation with %s: no conversation id returned", teamsUserID)
+	}
+
+	activityURL := fmt.Sprintf("%sv3/conversations/%s/activities", s.serviceURL, created.ID)
+	activity := map[string]interface{}{
+		"type": "message",
+		"attachments": []map[string]interface{}{
+			{
+				"contentType": "application/vnd.microsoft.card.adaptive",
+				"content":     teamsDMCard(incident, appURL),
+			},
+		},
+	}
+	var posted struct {
+		ID string `json:"id"`
+	}
+	if err := s.botfwPostJSON(activityURL, activity, &posted); err != nil {
+		return fmt.Errorf("teams: send on-call DM to %s: %w", teamsUserID, err)
+	}
+	if posted.ID == "" {
+		return fmt.Errorf("teams: send on-call DM to %s: no activity id returned", teamsUserID)
 	}
 	return nil
 }
@@ -375,7 +404,7 @@ func TestTeamsCredentials(ctx context.Context, appID, appPassword, tenantID, tea
 
 // TeamMember is a member of the Teams team as returned by the Graph API.
 type TeamMember struct {
-	UserID      string // AAD Object ID — stable identifier for proactive DMs (teams_user_id)
+	UserID      string // Entra Object ID from Graph (not the Bot Framework user ID needed for DMs)
 	DisplayName string
 	Email       string
 }

@@ -165,7 +165,7 @@ When an incident is created, Regen sends the on-call responder a direct message 
 - The bot must be installed for that user (in the team, or in personal scope).
 - Users without a `teams_user_id` are skipped; the incident channel is still created.
 
-You can read a person's Teams user ID from the `from.id` field of any activity they send the bot (Regen logs inbound activities at debug level).
+A person's Teams user ID is the `from.id` field of any message they send the bot, and the `id` field returned by the Bot Framework roster API (`GET {serviceUrl}v3/conversations/{conversationId}/members`).
 
 ## Verifying the connection
 

@@ -265,7 +265,8 @@ func (e *escalationEngine) notifyTier(
 					if err := e.notifier.SendEscalationDM(userID, alert, state.CurrentTierIndex); err != nil {
 						slog.Error("failed to send escalation DM",
 							"user_id", userID,
-							"alert_id", alert.ID,
+							"alert_id", state.AlertID,
+							"incident_id", state.IncidentID,
 							"err", err,
 						)
 					}

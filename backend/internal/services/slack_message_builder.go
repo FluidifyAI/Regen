@@ -473,7 +473,28 @@ func (b *SlackMessageBuilder) BuildShiftChannelNotification(
 // to POST /api/v1/alerts/:id/acknowledge.
 //
 // tierIndex is 0-based; the display shows "Tier N" where N = tierIndex+1.
+//
+// alert is nil for incident-sourced escalations; those get a page without the
+// Acknowledge button, since the button acknowledges an alert.
 func (b *SlackMessageBuilder) BuildEscalationDMMessage(alert *models.Alert, tierIndex int) Message {
+	if alert == nil {
+		text := fmt.Sprintf("⚠️ [Tier %d] You're being paged for an incident", tierIndex+1)
+		blocks := []slack.Block{
+			slack.NewHeaderBlock(
+				slack.NewTextBlockObject(slack.PlainTextType,
+					fmt.Sprintf("⚠️ You're being paged (Tier %d)", tierIndex+1), false, false),
+			),
+			slack.NewDividerBlock(),
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType,
+					fmt.Sprintf("An incident escalated to *Tier %d* of its escalation policy. Check Fluidify Regen for details.", tierIndex+1),
+					false, false),
+				nil, nil,
+			),
+		}
+		return Message{Text: text, Blocks: blocksToInterfaces(blocks)}
+	}
+
 	severityEmoji := map[models.AlertSeverity]string{
 		models.AlertSeverityCritical: "🔴",
 		models.AlertSeverityWarning:  "🟡",

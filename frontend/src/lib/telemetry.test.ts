@@ -119,10 +119,9 @@ describe('installUnhandledRejectionReporting', () => {
     const listener = captureInstalledListener()
     listener({ reason: new Error('boom') })
 
-    // reportError is async (hashing); let its microtask settle.
-    await new Promise((r) => setTimeout(r, 0))
-
-    expect(captureMock).toHaveBeenCalledTimes(1)
+    // reportError hashes with crypto.subtle, which resolves off the microtask queue,
+    // so wait for the capture itself rather than a fixed tick.
+    await vi.waitFor(() => expect(captureMock).toHaveBeenCalledTimes(1))
     const [eventName, props] = firstCapture()
     expect(eventName).toBe('$exception')
     expect(props.message_hash).toBe(SHA256_OF_BOOM)
@@ -132,9 +131,7 @@ describe('installUnhandledRejectionReporting', () => {
     const listener = captureInstalledListener()
     listener({ reason: 'plain string rejection' })
 
-    await new Promise((r) => setTimeout(r, 0))
-
-    expect(captureMock).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(captureMock).toHaveBeenCalledTimes(1))
     const [, props] = firstCapture()
     expect(props.name).toBe('UnhandledRejection')
   })

@@ -2,6 +2,21 @@
 
 All notable changes to Fluidify Regen are documented here.
 
+## [1.2.2] — 2026-10-24
+
+### Bug fixes
+
+- **Escalating a manually declared incident crashed the server** — an escalation with no alert dereferenced a nil alert while building the page, so every replica crash-looped on the 30-second worker tick. These escalations now send a page without the alert Acknowledge button. (#189, GitHub #188)
+- **Teams on-call DMs were not delivered** — the card was sent inline on conversation create, which Bot Framework accepts with a 200 but does not deliver, and Regen logged success. The DM now opens the conversation and posts the card to it, and reports success only from that response. (#190, GitHub #188)
+- **Teams escalation and shift DMs could not work** — they created a Graph 1:1 chat, which application permissions cannot do. They now go through Bot Framework as plain text, using the recipient's `teams_user_id`. A user with no `teams_user_id` now logs an error instead of being skipped silently. (#190, GitHub #188)
+- **`teams_user_id` format** — the `29:` prefix is now added only when missing, so both `29:<id>` and the bare ID work. The field holds the Teams user ID, not the Entra Object ID; the Teams guide now says so. (#190, GitHub #188)
+
+### Upgrade notes
+
+- Teams DMs have not been tested against a real tenant by the maintainers. Reports are welcome on GitHub #188.
+- Users brought in with Import from Teams have an Entra Object ID in `teams_user_id`, which Bot Framework rejects for DMs. Replace it with the Teams user ID (`29:...`) until this is handled.
+- Teams escalation pages are plain text, without an Acknowledge button.
+
 ## [1.2.1] — 2026-10-21
 
 ### Bug fixes

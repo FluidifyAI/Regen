@@ -40,6 +40,8 @@ type TeamsService struct {
 	botUserID  string
 	serviceURL string // Bot Framework relay URL, e.g. https://smba.trafficmanager.net/amer/
 
+	resolveUser TeamsUserResolver // email -> Teams user ID for DMs; set by SetUserResolver
+
 	graphClient *http.Client // Graph API — channel CRUD, DMs
 	botfwClient *http.Client // Bot Framework — channel message posting
 }
@@ -164,19 +166,31 @@ func (s *TeamsService) InviteUsers(channelID string, userIDs []string) error {
 	return nil
 }
 
-func (s *TeamsService) SendDirectMessage(userID string, msg Message) error {
-	chat, err := s.createOrGetChat(userID)
-	if err != nil {
-		return fmt.Errorf("teams: get dm chat with %s: %w", userID, err)
+// TeamsUserResolver maps an on-call identifier (an email address) to the user's
+// Teams user ID, as stored in users.teams_user_id. ok is false when the user is
+// unknown or has no Teams ID.
+type TeamsUserResolver func(identifier string) (teamsUserID string, ok bool)
+
+// SetUserResolver sets how SendDirectMessage finds a recipient's Teams user ID.
+// Without a resolver SendDirectMessage returns an error rather than guessing.
+func (s *TeamsService) SetUserResolver(r TeamsUserResolver) { s.resolveUser = r }
+
+// SendDirectMessage sends a plain-text DM to the user identified by identifier
+// (an email address) through Bot Framework.
+//
+// It does not use Graph chats: creating a 1:1 chat with the bot is not possible with
+// application permissions. Only msg.Text is sent; the Blocks on a Message are built for
+// Slack and are not valid Adaptive Cards.
+func (s *TeamsService) SendDirectMessage(identifier string, msg Message) error {
+	if s.resolveUser == nil {
+		return fmt.Errorf("teams: no user resolver configured, cannot DM %s", identifier)
 	}
-	body := map[string]interface{}{
-		"body": map[string]string{
-			"contentType": "text",
-			"content":     msg.Text,
-		},
+	teamsUserID, ok := s.resolveUser(identifier)
+	if !ok {
+		return fmt.Errorf("teams: %s has no teams_user_id set", identifier)
 	}
-	url := fmt.Sprintf("%s/chats/%s/messages", graphBaseURL, chat)
-	return s.graphPostNoResult(url, body)
+	activity := map[string]interface{}{"type": "message", "text": msg.Text}
+	return s.sendDM(teamsUserID, activity)
 }
 
 func (s *TeamsService) GetThreadMessages(channelID, threadTS string) ([]string, error) {
@@ -245,6 +259,20 @@ func teamsMemberID(stored string) string {
 // The card is posted as a separate call to the new conversation: Bot Framework accepts an
 // activity on the create call and returns 200, but does not deliver it to a 1:1 chat.
 func (s *TeamsService) SendOnCallDM(teamsUserID string, incident *models.Incident, appURL string) error {
+	activity := map[string]interface{}{
+		"type": "message",
+		"attachments": []map[string]interface{}{
+			{
+				"contentType": "application/vnd.microsoft.card.adaptive",
+				"content":     teamsDMCard(incident, appURL),
+			},
+		},
+	}
+	return s.sendDM(teamsUserID, activity)
+}
+
+// sendDM opens a 1:1 conversation with the user and posts the activity to it.
+func (s *TeamsService) sendDM(teamsUserID string, activity map[string]interface{}) error {
 	createURL := fmt.Sprintf("%sv3/conversations", s.serviceURL)
 	body := map[string]interface{}{
 		"bot": map[string]string{
@@ -267,23 +295,14 @@ func (s *TeamsService) SendOnCallDM(teamsUserID string, incident *models.Inciden
 	}
 
 	activityURL := fmt.Sprintf("%sv3/conversations/%s/activities", s.serviceURL, created.ID)
-	activity := map[string]interface{}{
-		"type": "message",
-		"attachments": []map[string]interface{}{
-			{
-				"contentType": "application/vnd.microsoft.card.adaptive",
-				"content":     teamsDMCard(incident, appURL),
-			},
-		},
-	}
 	var posted struct {
 		ID string `json:"id"`
 	}
 	if err := s.botfwPostJSON(activityURL, activity, &posted); err != nil {
-		return fmt.Errorf("teams: send on-call DM to %s: %w", teamsUserID, err)
+		return fmt.Errorf("teams: send DM to %s: %w", teamsUserID, err)
 	}
 	if posted.ID == "" {
-		return fmt.Errorf("teams: send on-call DM to %s: no activity id returned", teamsUserID)
+		return fmt.Errorf("teams: send DM to %s: no activity id returned", teamsUserID)
 	}
 	return nil
 }
@@ -476,34 +495,6 @@ func (s *TeamsService) getTeam() (map[string]interface{}, error) {
 	return result, nil
 }
 
-func (s *TeamsService) createOrGetChat(userID string) (string, error) {
-	members := []map[string]interface{}{
-		{
-			"@odata.type":     "#microsoft.graph.aadUserConversationMember",
-			"roles":           []string{"owner"},
-			"user@odata.bind": fmt.Sprintf("https://graph.microsoft.com/v1.0/users('%s')", userID),
-		},
-	}
-	if s.botUserID != "" {
-		members = append(members, map[string]interface{}{
-			"@odata.type":     "#microsoft.graph.aadUserConversationMember",
-			"roles":           []string{"owner"},
-			"user@odata.bind": fmt.Sprintf("https://graph.microsoft.com/v1.0/users('%s')", s.botUserID),
-		})
-	}
-	body := map[string]interface{}{
-		"chatType": "oneOnOne",
-		"members":  members,
-	}
-	var result struct {
-		ID string `json:"id"`
-	}
-	if err := s.graphPost(graphBaseURL+"/chats", body, &result); err != nil {
-		return "", err
-	}
-	return result.ID, nil
-}
-
 func (s *TeamsService) graphGet(url string, out interface{}) error {
 	req, err := http.NewRequestWithContext(s.ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -524,10 +515,6 @@ func (s *TeamsService) graphPost(url string, body interface{}, out interface{}) 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	return s.doRequest(s.graphClient, req, out)
-}
-
-func (s *TeamsService) graphPostNoResult(url string, body interface{}) error {
-	return s.graphPost(url, body, nil)
 }
 
 func (s *TeamsService) graphPatch(url string, body interface{}) error {

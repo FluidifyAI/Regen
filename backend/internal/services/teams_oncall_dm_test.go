@@ -87,3 +87,52 @@ func TestSendOnCallDM_ReportsActivityFailure(t *testing.T) {
 		t.Fatal("a failed activity post must not be reported as success")
 	}
 }
+
+func TestSendDirectMessage_UsesBotFrameworkWithResolvedTeamsID(t *testing.T) {
+	var calls []recordedCall
+	svc := newDMTestService(t, http.StatusOK, &calls)
+	svc.SetUserResolver(func(identifier string) (string, bool) {
+		if identifier == "alice@example.com" {
+			return "alice-teams-id", true
+		}
+		return "", false
+	})
+
+	if err := svc.SendDirectMessage("alice@example.com", Message{Text: "you are being paged"}); err != nil {
+		t.Fatalf("SendDirectMessage: %v", err)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("want 2 Bot Framework calls, got %d", len(calls))
+	}
+	members := calls[0].body["members"].([]interface{})
+	if id := members[0].(map[string]interface{})["id"]; id != "29:alice-teams-id" {
+		t.Errorf("member id = %v", id)
+	}
+	if calls[1].body["text"] != "you are being paged" {
+		t.Errorf("activity text = %v", calls[1].body["text"])
+	}
+	if _, hasCard := calls[1].body["attachments"]; hasCard {
+		t.Error("Slack blocks must not be sent as an Adaptive Card")
+	}
+}
+
+func TestSendDirectMessage_UnknownUserFailsWithoutCallingTeams(t *testing.T) {
+	var calls []recordedCall
+	svc := newDMTestService(t, http.StatusOK, &calls)
+	svc.SetUserResolver(func(string) (string, bool) { return "", false })
+
+	if err := svc.SendDirectMessage("nobody@example.com", Message{Text: "hi"}); err == nil {
+		t.Fatal("a user with no teams_user_id must produce an error, not a silent success")
+	}
+	if len(calls) != 0 {
+		t.Errorf("no Teams call expected, got %d", len(calls))
+	}
+}
+
+func TestSendDirectMessage_WithoutResolverFails(t *testing.T) {
+	var calls []recordedCall
+	svc := newDMTestService(t, http.StatusOK, &calls)
+	if err := svc.SendDirectMessage("alice@example.com", Message{Text: "hi"}); err == nil {
+		t.Fatal("expected an error when no resolver is configured")
+	}
+}

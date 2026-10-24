@@ -156,6 +156,17 @@ TEAMS_SERVICE_URL=https://smba.trafficmanager.net/amer/
 
 Then restart: `make stop && make start`
 
+## On-call DMs: the `teams_user_id` field
+
+When an incident is created, Regen sends the on-call responder a direct message through the bot. For this to work, that user's **Teams user ID** must be set on their Regen user (Settings → Users).
+
+- Use the Teams user ID Bot Framework knows the person by: `29:<id>`. Entering it with or without the `29:` prefix works.
+- Do **not** use the Entra Object ID (the GUID from Entra or Graph). Bot Framework rejects it with `Failed to decrypt pairwise id`.
+- The bot must be installed for that user (in the team, or in personal scope).
+- Users without a `teams_user_id` are skipped; the incident channel is still created.
+
+A person's Teams user ID is the `from.id` field of any message they send the bot, and the `id` field returned by the Bot Framework roster API (`GET {serviceUrl}v3/conversations/{conversationId}/members`).
+
 ## Verifying the connection
 
 Check logs:

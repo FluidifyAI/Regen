@@ -39,6 +39,15 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *se
 		activeChatServices = append(activeChatServices, chatService)
 	}
 	if teamsSvc != nil {
+		// Teams DMs go through Bot Framework, which needs each person's Teams user ID.
+		userRepo := repository.NewUserRepository(db)
+		teamsSvc.SetUserResolver(func(identifier string) (string, bool) {
+			user, err := userRepo.GetByEmail(identifier)
+			if err != nil || user == nil || user.TeamsUserID == nil || *user.TeamsUserID == "" {
+				return "", false
+			}
+			return *user.TeamsUserID, true
+		})
 		activeChatServices = append(activeChatServices, teamsSvc)
 	}
 	var workerChatService services.ChatService

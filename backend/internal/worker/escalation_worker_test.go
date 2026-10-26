@@ -2,7 +2,9 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -301,5 +303,39 @@ func TestEscalationWorker_SendEscalationDM_PushSkippedWhenUserNotFound(t *testin
 	defer push.mu.Unlock()
 	if len(push.calls) != 0 {
 		t.Errorf("expected 0 push calls when user not found, got %d", len(push.calls))
+	}
+}
+
+func TestEscalationWorker_SendEscalationDM_AttachesTeamsCard(t *testing.T) {
+	t.Setenv("SAML_BASE_URL", "https://regen.example.com/")
+	chat := &mockChatForWorker{}
+	worker := newWorkerWithEngine(&mockEscalationEngineForWorker{}, chat)
+
+	alert := &models.Alert{ID: uuid.New(), Title: "Disk full", Severity: models.AlertSeverityWarning}
+	if err := worker.SendEscalationDM("alice", alert, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	card := chat.dms[0].message.TeamsCard
+	if card == nil {
+		t.Fatal("escalation message should carry a Teams card")
+	}
+	raw, _ := json.Marshal(card)
+	for _, want := range []string{"Disk full", "Tier 2", "https://regen.example.com/alerts/" + alert.ID.String()} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("card missing %q: %s", want, raw)
+		}
+	}
+}
+
+func TestEscalationWorker_SendEscalationDM_NilAlertStillSendsCard(t *testing.T) {
+	chat := &mockChatForWorker{}
+	worker := newWorkerWithEngine(&mockEscalationEngineForWorker{}, chat)
+
+	if err := worker.SendEscalationDM("alice", nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	if chat.dms[0].message.TeamsCard == nil {
+		t.Error("incident-sourced escalation should still get a Teams card")
 	}
 }

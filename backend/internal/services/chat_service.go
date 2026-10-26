@@ -145,6 +145,11 @@ type Message struct {
 	// Stored as []interface{} to remain platform-agnostic
 	Blocks []interface{}
 
+	// TeamsCard is an Adaptive Card for Teams. Only TeamsService reads it, so a message
+	// fanned out to several providers can carry rich content for each. When nil, Teams
+	// sends Text.
+	TeamsCard map[string]interface{}
+
 	// ThreadTS is the parent message timestamp for threaded replies
 	// Empty string for top-level messages
 	ThreadTS string

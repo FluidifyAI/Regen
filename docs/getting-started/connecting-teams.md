@@ -121,13 +121,14 @@ This is your `TEAMS_BOT_USER_ID`.
 
 ## Step 8: Sideload the bot into your Team
 
-Regen provides a script to generate the Teams app package:
+Regen generates the Teams app package for you. It reads the bot App ID you saved in Regen, so save your credentials first:
 
-```bash
-TEAMS_APP_ID=your-app-id bash scripts/teams-app-package.sh
-```
+1. In Regen, go to **Settings → Integrations → Teams** and enter the App ID, client secret, Tenant ID, Team ID and Bot User ID from the earlier steps.
+2. After saving, click **Download Teams App Package**. This downloads `fluidify-regen-teams-app.zip`.
 
-This creates `fluidify-regen-teams-app.zip`. Install it:
+The download is also available from the API as `GET /api/v1/settings/teams/config/app-package` (admin only). It returns an error until credentials are saved.
+
+Install the package:
 
 1. In Teams → **Apps → Manage your apps → Upload an app**
 2. Select `fluidify-regen-teams-app.zip`
@@ -214,4 +215,4 @@ The Bot Framework relay URL is region-specific. If messages aren't posting, veri
 | 401 on Bot Framework | Bot Framework permission missing | Complete Steps 4–5 |
 | `BadSyntax` on first post | Bot not installed in the Team | Complete Step 8 |
 | Messages not posting | Wrong `TEAMS_SERVICE_URL` | Match your tenant's region |
-| Bot not responding | Bot not sideloaded or app package stale | Re-run `scripts/teams-app-package.sh` and re-upload |
+| Bot not responding | Bot not sideloaded or app package stale | Download a fresh package from **Settings → Integrations → Teams** and re-upload it |

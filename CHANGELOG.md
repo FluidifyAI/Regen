@@ -2,6 +2,21 @@
 
 All notable changes to Fluidify Regen are documented here.
 
+## [1.2.4] — 2026-10-26
+
+### Added
+
+- **Teams escalation pages are Adaptive Cards** — the page shows the alert title (coloured by severity), severity, source and tier, with a **View Alert** button. Incident-sourced escalations get a card with the tier and a link to the incidents list. Slack pages are unchanged. (#195, GitHub #188)
+
+### Documentation
+
+- The Teams guide pointed to `scripts/teams-app-package.sh`, which does not exist. It now describes the in-app download (Settings → Integrations → Teams → Download Teams App Package), which needs the credentials saved first. (#196, GitHub #188)
+
+### Known limitations
+
+- Teams escalation cards have no Acknowledge button.
+- Users brought in with Import from Teams have an Entra Object ID in `teams_user_id`, which Bot Framework rejects for DMs. Set the Teams user ID (`29:...`) by hand for now.
+
 ## [1.2.3] — 2026-10-26
 
 ### Bug fixes

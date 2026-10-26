@@ -45,7 +45,19 @@ type escalationEngine struct {
 	repo        repository.EscalationPolicyRepository
 	evaluator   ScheduleEvaluator
 	notifier    EscalationNotifier
-	alertLookup AlertLookupFunc // overridable in tests; nil uses a no-op
+	alertLookup AlertLookupFunc // set by WithAlertRepository or tests; nil returns an ID-only placeholder
+}
+
+// EscalationEngineOption configures optional parts of the engine.
+type EscalationEngineOption func(*escalationEngine)
+
+// WithAlertRepository makes the engine load the full alert for each escalation, so the
+// pages it sends carry the alert's title, severity and source. Without it the notifier
+// only receives an alert holding its ID.
+func WithAlertRepository(repo repository.AlertRepository) EscalationEngineOption {
+	return func(e *escalationEngine) {
+		e.alertLookup = repo.GetByID
+	}
 }
 
 // NewEscalationEngine creates a new escalation engine.
@@ -54,12 +66,17 @@ func NewEscalationEngine(
 	repo repository.EscalationPolicyRepository,
 	evaluator ScheduleEvaluator,
 	notifier EscalationNotifier,
+	opts ...EscalationEngineOption,
 ) EscalationEngine {
-	return &escalationEngine{
+	e := &escalationEngine{
 		repo:      repo,
 		evaluator: evaluator,
 		notifier:  notifier,
 	}
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
 }
 
 // ── TriggerEscalation ─────────────────────────────────────────────────────────
@@ -374,13 +391,18 @@ func (e *escalationEngine) findTier(tiers []models.EscalationTier, index int) *m
 	return nil
 }
 
-// lookupAlert delegates to alertLookup if set (test hook), otherwise returns a
-// minimal placeholder alert so the engine can function without the alert repo.
+// lookupAlert loads the alert through alertLookup. If there is no lookup, or it fails,
+// it returns an ID-only placeholder so the escalation still pages someone; the page
+// then lacks the alert's title and severity.
 func (e *escalationEngine) lookupAlert(id uuid.UUID) (*models.Alert, error) {
-	if e.alertLookup != nil {
-		return e.alertLookup(id)
+	if e.alertLookup == nil {
+		return &models.Alert{ID: id}, nil
 	}
-	// Production path: alertLookup is injected by the worker/service layer.
-	// Return a minimal alert so notification metadata is non-nil.
-	return &models.Alert{ID: id}, nil
+	alert, err := e.alertLookup(id)
+	if err != nil || alert == nil {
+		slog.Warn("escalation: could not load alert, paging without its details",
+			"alert_id", id, "err", err)
+		return &models.Alert{ID: id}, nil
+	}
+	return alert, nil
 }

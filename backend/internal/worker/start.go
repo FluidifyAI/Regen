@@ -67,7 +67,8 @@ func StartAll(ctx context.Context, db *gorm.DB, cfg *config.Config, teamsSvc *se
 	// the engine can immediately send DMs when a tier fires.
 	escalationPolicyRepo := repository.NewEscalationPolicyRepository(db)
 	escalationWorker := NewEscalationWorker(workerChatService)
-	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, escalationWorker)
+	escalationEngine := services.NewEscalationEngine(escalationPolicyRepo, scheduleEvaluator, escalationWorker,
+		services.WithAlertRepository(repository.NewAlertRepository(db)))
 	escalationWorker.SetEngine(escalationEngine)
 	if pushSvc != nil {
 		escalationWorker.SetPushService(pushSvc, repository.NewUserRepository(db))

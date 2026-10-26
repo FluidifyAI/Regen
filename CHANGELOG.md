@@ -2,6 +2,16 @@
 
 All notable changes to Fluidify Regen are documented here.
 
+## [1.2.3] — 2026-10-26
+
+### Bug fixes
+
+- **Escalation pages had no alert details** — the escalation engine was never given a way to load the alert, so pages arrived as "You're being paged:" with no title and the fallback emoji. This affected Slack and Teams pages and the push notification text. Pages now carry the alert's title, severity and source. If the alert cannot be loaded, a warning is logged and the bare page is still sent. (#193, GitHub #188)
+
+### Known limitations
+
+- Teams escalation pages are plain text, without an Acknowledge button or a link to the incident. Tracked on GitHub #188.
+
 ## [1.2.2] — 2026-10-24
 
 ### Bug fixes

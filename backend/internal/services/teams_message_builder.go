@@ -120,6 +120,73 @@ func teamsDMCard(incident *models.Incident, appURL string) map[string]interface{
 	}
 }
 
+// TeamsEscalationCard builds the Adaptive Card sent to someone an escalation has reached.
+// alert is nil for incident-sourced escalations, which get a card without alert details.
+func TeamsEscalationCard(alert *models.Alert, tierIndex int, appURL string) map[string]interface{} {
+	body := []map[string]interface{}{
+		{
+			"type":   "TextBlock",
+			"size":   "Medium",
+			"weight": "Bolder",
+			"text":   fmt.Sprintf("🚨 You're being paged (Tier %d)", tierIndex+1),
+			"wrap":   true,
+		},
+	}
+	actions := []map[string]interface{}{}
+
+	if alert == nil {
+		body = append(body, map[string]interface{}{
+			"type": "TextBlock",
+			"text": fmt.Sprintf("An incident escalated to Tier %d of its escalation policy.", tierIndex+1),
+			"wrap": true,
+		})
+		actions = append(actions, map[string]interface{}{
+			"type": "Action.OpenUrl", "title": "Open Fluidify Regen", "url": appURL + "/incidents",
+		})
+	} else {
+		body = append(body,
+			map[string]interface{}{
+				"type":   "TextBlock",
+				"size":   "Large",
+				"weight": "Bolder",
+				"text":   alert.Title,
+				"wrap":   true,
+				"color":  teamsAlertSeverityColor(string(alert.Severity)),
+			},
+			map[string]interface{}{
+				"type": "FactSet",
+				"facts": []map[string]interface{}{
+					{"title": "Severity", "value": string(alert.Severity)},
+					{"title": "Source", "value": alert.Source},
+					{"title": "Tier", "value": fmt.Sprintf("%d of escalation policy", tierIndex+1)},
+				},
+			},
+		)
+		actions = append(actions, map[string]interface{}{
+			"type": "Action.OpenUrl", "title": "View Alert", "url": fmt.Sprintf("%s/alerts/%s", appURL, alert.ID),
+		})
+	}
+
+	return map[string]interface{}{
+		"$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+		"type":    "AdaptiveCard",
+		"version": "1.4",
+		"body":    body,
+		"actions": actions,
+	}
+}
+
+func teamsAlertSeverityColor(severity string) string {
+	switch severity {
+	case "critical":
+		return "Attention"
+	case "warning":
+		return "Warning"
+	default:
+		return "Default"
+	}
+}
+
 func teamsStatusEmoji(status string) string {
 	switch status {
 	case "triggered":

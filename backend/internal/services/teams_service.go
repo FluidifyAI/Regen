@@ -175,12 +175,12 @@ type TeamsUserResolver func(identifier string) (teamsUserID string, ok bool)
 // Without a resolver SendDirectMessage returns an error rather than guessing.
 func (s *TeamsService) SetUserResolver(r TeamsUserResolver) { s.resolveUser = r }
 
-// SendDirectMessage sends a plain-text DM to the user identified by identifier
-// (an email address) through Bot Framework.
+// SendDirectMessage sends a DM to the user identified by identifier (an email
+// address) through Bot Framework: msg.TeamsCard as an Adaptive Card if set, otherwise msg.Text.
 //
 // It does not use Graph chats: creating a 1:1 chat with the bot is not possible with
-// application permissions. Only msg.Text is sent; the Blocks on a Message are built for
-// Slack and are not valid Adaptive Cards.
+// application permissions. msg.Blocks are never sent: they are built for Slack and are not valid
+// Adaptive Cards.
 func (s *TeamsService) SendDirectMessage(identifier string, msg Message) error {
 	if s.resolveUser == nil {
 		return fmt.Errorf("teams: no user resolver configured, cannot DM %s", identifier)
@@ -190,6 +190,14 @@ func (s *TeamsService) SendDirectMessage(identifier string, msg Message) error {
 		return fmt.Errorf("teams: %s has no teams_user_id set", identifier)
 	}
 	activity := map[string]interface{}{"type": "message", "text": msg.Text}
+	if msg.TeamsCard != nil {
+		activity = map[string]interface{}{
+			"type": "message",
+			"attachments": []map[string]interface{}{
+				{"contentType": "application/vnd.microsoft.card.adaptive", "content": msg.TeamsCard},
+			},
+		}
+	}
 	return s.sendDM(teamsUserID, activity)
 }
 

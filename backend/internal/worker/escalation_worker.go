@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/FluidifyAI/Regen/backend/internal/metrics"
@@ -147,6 +149,7 @@ func (w *EscalationWorker) SendEscalationDM(userID string, alert *models.Alert, 
 
 	chatStart := time.Now()
 	msg := w.msgBuilder.BuildEscalationDMMessage(alert, tierIndex)
+	msg.TeamsCard = services.TeamsEscalationCard(alert, tierIndex, appBaseURL())
 	err := w.chatService.SendDirectMessage(userID, msg)
 	metrics.NotificationSendDurationSeconds.WithLabelValues("chat").Observe(time.Since(chatStart).Seconds())
 	if err != nil {
@@ -193,4 +196,12 @@ func (w *EscalationWorker) SendEscalationDM(userID string, alert *models.Alert, 
 	}
 
 	return nil
+}
+
+// appBaseURL is the externally reachable URL of this instance, used for links in pages.
+func appBaseURL() string {
+	if u := os.Getenv("SAML_BASE_URL"); u != "" {
+		return strings.TrimRight(u, "/")
+	}
+	return "http://localhost:8080"
 }

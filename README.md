@@ -20,7 +20,23 @@
 
 ---
 
-> Unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests with 1-click Import from Grafana Oncall/Pagerduty
+> Unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests with 1-click Import from Grafana OnCall/PagerDuty/Opsgenie
+
+---
+
+## Two ways to run Regen
+
+| | **Regen Cloud** | **Self-hosted (this repo)** |
+|---|---|---|
+| Get started | [Sign up at regen.fluidify.ai](https://regen.fluidify.ai) | `git clone` + `make start` |
+| Price | 30-day free trial, then $100/month flat. No per-seat pricing | Free forever (AGPLv3) |
+| Hosting, upgrades, backups, HA | Managed by us | You run it |
+| Paging by SMS, voice call and email | Included (with monthly allowances) | Bring your own providers |
+| OnCall mobile app (iOS/Android) push | Included | Not included |
+| Support | SLA based | Community ([Discord](https://discord.gg/b6PSdhzDa)) |
+
+Same core product either way. Your data, your choice. See [pricing](https://fluidify.ai/pricing) for Cloud allowances.
+
 ---
 
 ## Features
@@ -28,7 +44,7 @@
 ### - Incident lifecycle with immutable timeline
 <table>
   <tr>
-    <td width="50%"><img src=".github/assets/incident-lifecycle.png" alt="Fluidify Regen — Immutable incident lifecycle for auditablity"></td>
+    <td width="50%"><img src=".github/assets/incident-lifecycle.png" alt="Fluidify Regen — Immutable incident lifecycle for auditability"></td>
     <td width="50%"><img src=".github/assets/declare-incidents.png" alt="Fluidify Regen — Declare Incidents with AI Summaries"></td>
   </tr>
 </table>
@@ -36,21 +52,21 @@
 ### - Escalation policies with multi-step timeouts
 <table>
   <tr>
-    <td width="50%"><img src=".github/assets/escalation-path1.png" alt="Fluidify Regen — Define Esacalation policies for incidents"></td>
-    <td width="50%"><img src=".github/assets/escalation-path2.png" alt="Fluidify Regen — Define Esacalation policies for incidents"></td>
+    <td width="50%"><img src=".github/assets/escalation-path1.png" alt="Fluidify Regen — Define Escalation policies for incidents"></td>
+    <td width="50%"><img src=".github/assets/escalation-path2.png" alt="Fluidify Regen — Define Escalation policies for incidents"></td>
   </tr>
 </table>
 
 ### - Alert ingestion — Prometheus, Grafana, CloudWatch, generic webhook
 <p align="center">
-  <img src=".github/assets/integrations.png" alt="Fluidify Regen integrates with your Prometheur, Grafan, Cloudwatch and other so many tools" width="960">
+  <img src=".github/assets/integrations.png" alt="Fluidify Regen integrates with your Prometheus, Grafana, CloudWatch and other so many tools" width="960">
 </p>
 
 ### - Slack integration — channels, bot commands, timeline sync
 ### - Microsoft Teams integration — Adaptive Cards, bot commands
-### - 1-click migration from Grafana OnCall/PagerDuty
+### - 1-click migration from Grafana OnCall/PagerDuty/Opsgenie
 <p align="center">
-  <img src=".github/assets/1click-import.png" alt="Fluidify Regen lets you import your schedules and configurations from Grafana, Pagerduty and Opsgenie in 1 click" width="960">
+  <img src=".github/assets/1click-import.png" alt="Fluidify Regen lets you import your schedules and configurations from Grafana OnCall, PagerDuty and Opsgenie in 1 click" width="960">
 </p>
 
 
@@ -85,16 +101,18 @@
 | **Chat** | Slack · Microsoft Teams · Telegram |
 | **AI** | OpenAI · Anthropic · Ollama (BYO key — local or cloud) |
 | **Auth** | SAML 2.0 — Okta · Azure AD · Google Workspace · any compliant IdP |
-| **Migration** | Grafana OnCall · PagerDuty |
+| **Migration** | Grafana OnCall · PagerDuty · Opsgenie |
 | **Deploy** | Docker Compose · Kubernetes Helm · bare metal |
 
 ---
 
-## Fluidify Regen Vs Pagerduty/incident.io/Grafana Oncall
+## Fluidify Regen vs PagerDuty/incident.io/Grafana OnCall
 
 | | Regen | PagerDuty | incident.io | Grafana OnCall |
 |---|---|---|---|---|
-| Price | Free  | $21–50/user/mo | $30+/user/mo | Archived |
+| Price | Free (self-hosted) · $100/mo flat (Cloud) | $21–50/user/mo | $30+/user/mo | Archived |
+| Per-seat pricing | ❌ None | 💰 Yes | 💰 Yes | n/a |
+| Managed cloud option | ✅ | ✅ | ✅ | ❌ (archived) |
 | Self-hosted | ✅ | ❌ | ❌ | ✅ (archived) |
 | Open source | AGPLv3 | ❌ | ❌ | Apache 2.0 |
 | SSO | ✅ Free | 💰 Paid | 💰 Paid | ✅ Free |
@@ -108,13 +126,16 @@
 ## Migrate in 1 click from
 
 - [PagerDuty](docs/migrations/pagerduty.md) — schedules, escalation policies, EU region supported
+- [Opsgenie](docs/migrations/opsgenie.md): schedules and escalation policies
 - [Grafana OnCall](docs/migrations/grafana-oncall.md) — drop-in replacement for the archived OSS project
 
 ---
 
 ## Installation
 
-**Quickest start — Docker Compose:**
+**Option A: Regen Cloud.** [Start a 30-day free trial](https://regen.fluidify.ai) and skip the rest of this section.
+
+**Option B: Self-host with Docker Compose:**
 
 ```bash
 git clone https://github.com/FluidifyAI/Regen.git
@@ -132,7 +153,8 @@ For detailed guides, see:
 - [Environment variables](docs/self-hosting/environment-variables.md) — all config options
 
 
-> Don't wanna host and manage yourself? [Get in touch](https://fluidify.ai/contact) and we'd do it for you.
+> Rather not run it yourself? [Start on Regen Cloud](https://regen.fluidify.ai): managed hosting, backups and upgrades, ready in minutes.
+
 ---
 
 ## Built for production
@@ -194,11 +216,11 @@ An incident is created automatically. If Slack is configured, a dedicated channe
 - **CORS**: explicit allowlist via `CORS_ALLOWED_ORIGINS`; dev-only fallback to localhost
 - **Frontend**: no `dangerouslySetInnerHTML`, no secrets in bundle, session token never accessible to JavaScript
 
-Review the **[Production Security Checklist](SECURITY.md#11-production-security-checklist)** — TLS, PostgreSQL password, Redis auth, and CORS origins for prerequisiste checklist.
+Review the **[Production Security Checklist](SECURITY.md#11-production-security-checklist)** — TLS, PostgreSQL password, Redis auth, and CORS origins for the prerequisite checklist.
 
 Full security architecture: [SECURITY.md](SECURITY.md)
 
-> Don't wanna manage uptime and security? [Get in touch](https://fluidify.ai/contact) and we'd do it for you.
+> Want uptime and security handled for you? [Regen Cloud](https://regen.fluidify.ai) runs this same stack with TLS, backups and HA managed by us.
 
 ---
 

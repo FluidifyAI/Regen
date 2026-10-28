@@ -56,7 +56,7 @@ export function NeuriPanel({ incidentId, onResultLoaded }: NeuriPanelProps) {
         onResultLoaded?.(latest)
       })
       .catch(() => {})
-  }, [incidentId])
+  }, [incidentId, onResultLoaded])
 
   function stopPolling() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }

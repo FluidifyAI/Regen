@@ -76,7 +76,9 @@ export function Sidebar() {
   const toggleAdminSection = () => {
     setAdminExpanded(prev => {
       const next = !prev
-      try { localStorage.setItem(ADMIN_EXPANDED_KEY, String(next)) } catch {}
+      try { localStorage.setItem(ADMIN_EXPANDED_KEY, String(next)) } catch {
+        // Storage can be unavailable; retain the current in-memory setting.
+      }
       return next
     })
   }

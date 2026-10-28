@@ -106,8 +106,8 @@ export interface Alert {
   // Typed nullable so every access site must guard (e.g. `alert.labels ?? {}`).
   labels: Record<string, string> | null
   annotations: Record<string, string> | null
-  started_at: string
-  ended_at?: string
+  started_at?: string | null
+  ended_at?: string | null
   received_at: string
   // Escalation fields (v0.5)
   escalation_policy_id?: string

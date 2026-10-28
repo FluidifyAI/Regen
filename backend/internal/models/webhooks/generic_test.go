@@ -336,3 +336,20 @@ func TestGenerateExternalID(t *testing.T) {
 	id6 := GenerateExternalID(title, labels2)
 	assert.Equal(t, id5, id6, "label order should not affect ID")
 }
+
+func TestGenericProviderRFC3339Timestamps(t *testing.T) {
+	for _, timestamp := range []string{"2026-10-28T05:26:41Z", "2026-10-28T06:26:41+01:00", "2026-10-28T00:26:41-05:00", "2026-10-28T05:26:41.123456Z", "2026-10-28T06:26:41.123456+01:00"} {
+		t.Run(timestamp, func(t *testing.T) {
+			payload := []byte(`{"alerts":[{"external_id":"stable","title":"Datumtest","status":"resolved","started_at":"` + timestamp + `","ended_at":"` + timestamp + `"}]}`)
+			alerts, err := (&GenericProvider{}).ParsePayload(payload)
+			require.NoError(t, err)
+			require.Len(t, alerts, 1)
+			expected, err := time.Parse(time.RFC3339Nano, timestamp)
+			require.NoError(t, err)
+			assert.True(t, expected.Equal(alerts[0].StartedAt))
+			require.NotNil(t, alerts[0].EndedAt)
+			assert.True(t, expected.Equal(*alerts[0].EndedAt))
+			assert.Equal(t, "stable", alerts[0].ExternalID)
+		})
+	}
+}

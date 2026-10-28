@@ -4,10 +4,11 @@ Regen prevents alert storms from creating hundreds of duplicate incidents. Two m
 
 ## Deduplication
 
-When an alert arrives, Regen checks if an active alert with the same `external_id` already exists:
+When an alert arrives, Regen deduplicates by the stable pair `(source, external_id)`, including alerts previously resolved:
 
-- **Match found** — Regen updates the existing alert (timestamps, annotations). No new alert or incident is created.
-- **No match** — Regen creates a new alert and evaluates routing rules.
+- **Match found** — Regen updates the existing alert status, title, description and end time. A firing alert already linked to an active incident does not create another incident.
+- **Firing after closure** — Regen evaluates routing and grouping again and creates or joins a new active incident. Earlier incident links and timelines are retained; the alert record represents its latest state. The original `received_at` remains unchanged.
+- **No match** — Regen creates a new alert. Only firing alerts evaluate routing rules for incident creation.
 
 The `external_id` source depends on the integration:
 
@@ -57,3 +58,13 @@ Routing rules control what happens after deduplication and grouping. Configure u
 Rules are evaluated in priority order. The first matching rule wins. Match criteria support exact matching, RE2 regex on label/annotation values, and `*` wildcards.
 
 → **Full reference:** [Alert Routing Rules](routing.md)
+
+## Resolution and delivery retries
+
+An incident created automatically from alerts resolves only when all its linked alerts are resolved. A firing linked alert keeps a triggered or acknowledged incident active. Manually created incidents are excluded from automatic resolution.
+
+Alert status, incident links and lifecycle timeline entries commit together. PostgreSQL serializes webhook lifecycle decisions with a transaction-scoped advisory lock, including concurrent first deliveries and grouped alerts from different sources. External notifications run after commit. This deliberately trades parallel lifecycle writes for consistency; unrelated webhooks may briefly wait for the current transaction.
+
+Replayed firing or resolved messages are idempotent within the current state. The contract has no event sequence number: a firing received after a resolved message is treated as a recurrence, including an old firing delivered out of order.
+
+Existing inconsistent records are not changed by a migration or background repair. A subsequent resolved delivery reconciles an active automatic incident, and a firing with only closed incident links starts a new lifecycle. Historical incident links remain attached to the shared alert record, so alert details in an older incident reflect the alert's latest state rather than an immutable per-occurrence snapshot. Repairing old records without another webhook requires a separately reviewed operation.

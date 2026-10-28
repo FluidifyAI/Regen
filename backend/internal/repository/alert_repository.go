@@ -135,6 +135,7 @@ func (r *alertRepository) Update(ctx context.Context, alert *models.Alert) error
 		"title":                alert.Title,
 		"description":          alert.Description,
 		"ended_at":             alert.EndedAt,
+		"started_at":           alert.StartedAt,
 		"escalation_policy_id": alert.EscalationPolicyID,
 	}
 

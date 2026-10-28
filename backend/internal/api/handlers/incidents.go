@@ -135,6 +135,8 @@ func GetIncident(incidentSvc services.IncidentService, userRepo repository.UserR
 				Status:     string(alert.Status),
 				Labels:     alert.Labels,
 				ReceivedAt: alert.ReceivedAt,
+				StartedAt:  alert.StartedAt,
+				EndedAt:    alert.EndedAt,
 			}
 		}
 

@@ -1,3 +1,4 @@
+import { formatAlertDate, parseAPITimestamp } from '../lib/alertDates'
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useEffect, useCallback } from 'react'
@@ -85,7 +86,7 @@ function AcknowledgeModal({ alertId, isOpen, onClose, onAcknowledged }: AckModal
             <input
               className="w-full px-3 py-2 rounded-lg border border-border bg-surface-secondary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
               value={userName}
-              onChange={e => setUserName(e.target.value)}
+              onChange={(e) => setUserName(e.target.value)}
               placeholder="e.g. alice"
               autoFocus
             />
@@ -128,12 +129,17 @@ export function AlertDetailPage() {
     }
   }, [id])
 
-  useEffect(() => { fetchAlert() }, [fetchAlert])
+  useEffect(() => {
+    fetchAlert()
+  }, [fetchAlert])
 
   if (loading) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-primary mb-4">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-primary mb-4"
+        >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
         <SkeletonTable rows={4} />
@@ -149,7 +155,8 @@ export function AlertDetailPage() {
     )
   }
 
-  const isAcknowledged = alert.acknowledgment_status === 'acknowledged' || alert.acknowledgment_status === 'completed'
+  const isAcknowledged =
+    alert.acknowledgment_status === 'acknowledged' || alert.acknowledgment_status === 'completed'
   const canAcknowledge = !!alert.escalation_policy_id && !isAcknowledged
 
   return (
@@ -164,10 +171,15 @@ export function AlertDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-start gap-3">
-          <AlertTriangle className={`w-6 h-6 mt-0.5 flex-shrink-0 ${
-            alert.severity === 'critical' ? 'text-red-500' :
-            alert.severity === 'warning' ? 'text-yellow-500' : 'text-blue-400'
-          }`} />
+          <AlertTriangle
+            className={`w-6 h-6 mt-0.5 flex-shrink-0 ${
+              alert.severity === 'critical'
+                ? 'text-red-500'
+                : alert.severity === 'warning'
+                  ? 'text-yellow-500'
+                  : 'text-blue-400'
+            }`}
+          />
           <div>
             <h1 className="text-xl font-bold text-text-primary">{alert.title}</h1>
             <p className="text-sm text-text-tertiary mt-1">
@@ -247,21 +259,25 @@ export function AlertDetailPage() {
           </div>
           <div>
             <dt className="text-text-tertiary text-xs">Started</dt>
-            <dd className="mt-0.5 text-text-secondary">{new Date(alert.started_at).toLocaleString()}</dd>
+            <dd className="mt-0.5 text-text-secondary">
+              {formatAlertDate(alert.started_at, alert.received_at)}
+            </dd>
           </div>
-          {alert.ended_at && (
+          {parseAPITimestamp(alert.ended_at) && (
             <div>
               <dt className="text-text-tertiary text-xs">Ended</dt>
-              <dd className="mt-0.5 text-text-secondary">{new Date(alert.ended_at).toLocaleString()}</dd>
+              <dd className="mt-0.5 text-text-secondary">{formatAlertDate(alert.ended_at)}</dd>
             </div>
           )}
           <div>
             <dt className="text-text-tertiary text-xs">Received</dt>
-            <dd className="mt-0.5 text-text-secondary">{new Date(alert.received_at).toLocaleString()}</dd>
+            <dd className="mt-0.5 text-text-secondary">{formatAlertDate(alert.received_at)}</dd>
           </div>
           <div>
             <dt className="text-text-tertiary text-xs">External ID</dt>
-            <dd className="mt-0.5 text-text-secondary font-mono text-xs truncate">{alert.external_id}</dd>
+            <dd className="mt-0.5 text-text-secondary font-mono text-xs truncate">
+              {alert.external_id}
+            </dd>
           </div>
         </dl>
         {alert.description && (

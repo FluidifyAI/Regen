@@ -73,6 +73,12 @@ When resolved, Regen:
 4. Renames the channel to `[RESOLVED] #inc-042-...`
 5. Calculates MTTR
 
+## Automatic alert resolution
+
+For incidents created by the alert pipeline, a resolved webhook closes the incident only after every linked alert is resolved. Repeated notifications do not create duplicate lifecycle entries. A later firing reuses an active linked incident or starts a new incident using the existing routing and grouping rules; it never reopens a closed incident. Previous links and timeline entries remain available. Manually created incidents keep their manually controlled lifecycle.
+
+Incident detail responses include `started_at`, nullable `ended_at`, and `received_at` for linked alerts as machine-readable timestamps. The UI displays timestamps in the browser timezone using the existing view locale, falls back to `received_at` if the start is unusable, and shows `—` if neither value is usable. A resolution time is displayed only for a valid `ended_at`.
+
 ## The Timeline
 
 Every action on an incident is recorded as an immutable timeline entry:

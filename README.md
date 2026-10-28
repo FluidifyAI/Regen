@@ -6,7 +6,8 @@
 </p>
 
 <p align="center">
-  Part of the <a href="https://fluidify.ai">FluidifyAI</a> open-source suite
+  Open-source on-call and incident management. Alerts, incidents, schedules and AI postmortems in one place.<br>
+  Part of the <a href="https://fluidify.ai">FluidifyAI</a> open-source suite.
 </p>
 
 <p align="center">
@@ -18,95 +19,117 @@
   <a href="https://goreportcard.com/report/github.com/FluidifyAI/Regen/backend"><img src="https://goreportcard.com/badge/github.com/FluidifyAI/Regen/backend" alt="Go Report Card"></a>
 </p>
 
----
+<p align="center">
+  <a href="https://regen.fluidify.ai"><img src="https://img.shields.io/badge/Try_Regen_Cloud-30--day_free_trial-a8324f?style=for-the-badge" alt="Try Regen Cloud: 30-day free trial"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Self--host-in_2_minutes-24292f?style=for-the-badge" alt="Self-host in 2 minutes"></a>
+</p>
 
-> Unlimited alert noise reduction and incidents, unlimited on-call schedules, and unlimited AI postmortems and handoff digests with 1-click Import from Grafana OnCall/PagerDuty/Opsgenie
+<p align="center">
+  <img src=".github/assets/readme/hero.jpg" alt="Regen incident board with critical, high and low severity incidents" width="100%">
+</p>
 
----
+## Why Regen
+
+- **No per-seat pricing.** Self-host free forever, or run on Regen Cloud for $100/month flat.
+- **One tool, not three.** Alerts, incidents and on-call share one timeline.
+- **Your AI, your data.** Bring your own OpenAI, Anthropic or Ollama key.
+- **No limits.** Unlimited incidents, schedules, AI postmortems and handoff digests.
+
+## Features
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src=".github/assets/readme/declare-incidents.jpg" alt="Declare an incident with AI-written title and summary" width="100%"><br>
+      <b>Incidents with an immutable timeline</b><br>
+      Alerts open incidents automatically, or declare one by hand with AI writing the title and summary.
+    </td>
+    <td width="50%" valign="top">
+      <img src=".github/assets/readme/oncall.jpg" alt="On-call schedule with current on-call, handoff briefing and coverage checks" width="100%"><br>
+      <b>On-call schedules</b><br>
+      Layered rotations, overrides, holidays and leave, with who is on call shown at a glance.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src=".github/assets/readme/escalation-path2.jpg" alt="Escalation path with multiple notify levels" width="100%"><br>
+      <b>Escalation paths</b><br>
+      Multi-step escalation with timeouts, so an unacknowledged page always reaches the next person.
+    </td>
+    <td width="50%" valign="top">
+      <img src=".github/assets/readme/integrations.jpg" alt="Integrations page with Slack, Teams, Telegram, Prometheus, Grafana and CloudWatch" width="100%"><br>
+      <b>Alerts from your existing tools</b><br>
+      Prometheus Alertmanager, Grafana, CloudWatch and a generic webhook, plus Slack, Teams and Telegram.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src=".github/assets/readme/ai-summary-ss.jpg" alt="AI-generated incident summary" width="100%"><br>
+      <b>AI summaries</b><br>
+      One-click incident summaries and handoff digests, synced to Slack and Teams.
+    </td>
+    <td width="50%" valign="top">
+      <img src=".github/assets/readme/pm-ss.jpg" alt="Post-mortem tab with Generate with AI" width="100%"><br>
+      <b>AI postmortems</b><br>
+      Editable postmortem drafts built from the incident timeline, with your own templates.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src=".github/assets/readme/pattern-matching-ss.jpg" alt="Incident grouped with similar past alerts" width="100%"><br>
+      <b>Similar past incidents</b><br>
+      New incidents are matched against history so responders see what worked last time.
+    </td>
+    <td width="50%" valign="top">
+      <img src=".github/assets/readme/byok.jpg" alt="AI provider settings with OpenAI, Anthropic and Ollama" width="100%"><br>
+      <b>Bring your own AI key</b><br>
+      OpenAI, Anthropic, or Ollama running on your own hardware. Regen works fully without AI too.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src=".github/assets/readme/1click-import.jpg" alt="Migration page importing from Grafana OnCall, PagerDuty or Opsgenie" width="100%"><br>
+      <b>1-click import</b><br>
+      Bring schedules and escalation policies over from <a href="docs/migrations/pagerduty.md">PagerDuty</a>, <a href="docs/migrations/opsgenie.md">Opsgenie</a> or <a href="docs/migrations/grafana-oncall.md">Grafana OnCall</a>.
+    </td>
+    <td width="50%" valign="top">
+      <img src=".github/assets/readme/sso.jpg" alt="Sign-in page with SSO" width="100%"><br>
+      <b>SSO and SAML, free</b><br>
+      Okta, Azure AD, Google Workspace or any SAML 2.0 provider.
+    </td>
+  </tr>
+</table>
+
+**Also included:** Slack and Microsoft Teams channels with bot commands and timeline sync · Telegram · Docker Compose · Kubernetes Helm chart · PostgreSQL HA · Redis Sentinel
+
+<details>
+<summary><b>All integrations</b></summary>
+
+| Category | Tools |
+|---|---|
+| **Alert ingestion** | Prometheus Alertmanager · Grafana · AWS CloudWatch · Generic webhook |
+| **Chat** | Slack · Microsoft Teams · Telegram |
+| **AI** | OpenAI · Anthropic · Ollama (BYO key, local or cloud) |
+| **Auth** | SAML 2.0: Okta · Azure AD · Google Workspace · any compliant IdP |
+| **Migration** | Grafana OnCall · PagerDuty · Opsgenie |
+| **Deploy** | Docker Compose · Kubernetes Helm · bare metal |
+
+</details>
 
 ## Two ways to run Regen
 
 | | **Regen Cloud** | **Self-hosted (this repo)** |
 |---|---|---|
-| Get started | [Sign up at regen.fluidify.ai](https://regen.fluidify.ai) | `git clone` + `make start` |
+| Get started | [Sign up at regen.fluidify.ai](https://regen.fluidify.ai) | [Quick start](#quick-start) below |
 | Price | 30-day free trial, then $100/month flat. No per-seat pricing | Free forever (AGPLv3) |
 | Hosting, upgrades, backups, HA | Managed by us | You run it |
 | Paging by SMS, voice call and email | Included (with monthly allowances) | Bring your own providers |
 | OnCall mobile app (iOS/Android) push | Included | Not included |
 | Support | SLA based | Community ([Discord](https://discord.gg/b6PSdhzDa)) |
 
-Same core product either way. Your data, your choice. See [pricing](https://fluidify.ai/pricing) for Cloud allowances.
+Same core product either way. See [pricing](https://fluidify.ai/pricing) for Cloud allowances.
 
----
-
-## Features
-
-### - Incident lifecycle with immutable timeline
-<table>
-  <tr>
-    <td width="50%"><img src=".github/assets/incident-lifecycle.png" alt="Fluidify Regen — Immutable incident lifecycle for auditability"></td>
-    <td width="50%"><img src=".github/assets/declare-incidents.png" alt="Fluidify Regen — Declare Incidents with AI Summaries"></td>
-  </tr>
-</table>
-
-### - Escalation policies with multi-step timeouts
-<table>
-  <tr>
-    <td width="50%"><img src=".github/assets/escalation-path1.png" alt="Fluidify Regen — Define Escalation policies for incidents"></td>
-    <td width="50%"><img src=".github/assets/escalation-path2.png" alt="Fluidify Regen — Define Escalation policies for incidents"></td>
-  </tr>
-</table>
-
-### - Alert ingestion — Prometheus, Grafana, CloudWatch, generic webhook
-<p align="center">
-  <img src=".github/assets/integrations.png" alt="Fluidify Regen integrates with your Prometheus, Grafana, CloudWatch and other so many tools" width="960">
-</p>
-
-### - Slack integration — channels, bot commands, timeline sync
-### - Microsoft Teams integration — Adaptive Cards, bot commands
-### - 1-click migration from Grafana OnCall/PagerDuty/Opsgenie
-<p align="center">
-  <img src=".github/assets/1click-import.png" alt="Fluidify Regen lets you import your schedules and configurations from Grafana OnCall, PagerDuty and Opsgenie in 1 click" width="960">
-</p>
-
-
-### - AI incident summaries, Post-mortem, Handoffs Summaries with Slack/Teams synch (BYO key — OpenAI/Anthropic/Ollama)
-<table>
-  <tr>
-    <td width="50%"><img src=".github/assets/ai-summary-ss.png" alt="Fluidify Regen — AI assisted summaries"></td>
-    <td width="50%"><img src=".github/assets/pm-ss.png" alt="Fluidify Regen — Editable AI Postmortems"></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src=".github/assets/pattern-matching-ss.png" alt="Fluidify Regen — Pattern matching and learning with historical incidents"></td>
-    <td width="50%"><img src=".github/assets/byok.png" alt="Fluidify Regen — integrates with multiple LLM Providers"></td>
-  </tr>
-</table>
-
-### - SSO / SAML — Okta, Azure AD, Google Workspace
-<p align="center">
-  <img src=".github/assets/sso.png" alt="Fluidify Regen allows you to sign in with SSO/SAML from Okta, Azure AD, Google Workspace, Slack" width="960">
-</p>
-
-### - Docker Compose + Kubernetes Helm chart
-### - PostgreSQL HA + Redis Sentinel support
-### - No limits on incidents/AI features
-
----
-
-## Integrations
-
-| Category | Tools |
-|---|---|
-| **Alert ingestion** | Prometheus Alertmanager · Grafana · AWS CloudWatch · Generic webhook |
-| **Chat** | Slack · Microsoft Teams · Telegram |
-| **AI** | OpenAI · Anthropic · Ollama (BYO key — local or cloud) |
-| **Auth** | SAML 2.0 — Okta · Azure AD · Google Workspace · any compliant IdP |
-| **Migration** | Grafana OnCall · PagerDuty · Opsgenie |
-| **Deploy** | Docker Compose · Kubernetes Helm · bare metal |
-
----
-
-## Fluidify Regen vs PagerDuty/incident.io/Grafana OnCall
+## Regen vs PagerDuty, incident.io and Grafana OnCall
 
 | | Regen | PagerDuty | incident.io | Grafana OnCall |
 |---|---|---|---|---|
@@ -119,23 +142,9 @@ Same core product either way. Your data, your choice. See [pricing](https://flui
 | BYO AI | ✅ | ❌ | ❌ | ❌ |
 | Agent-native | ✅ | ❌ | ❌ | ❌ |
 | Alert + incident + on-call in one | ✅ | 💰💰💰 Paid | 💰💰💰 Paid | 💰💰💰 Paid |
-| 1-Click imports | ✅ | ❌ | ❌ | ❌ |
+| 1-click imports | ✅ | ❌ | ❌ | ❌ |
 
----
-
-## Migrate in 1 click from
-
-- [PagerDuty](docs/migrations/pagerduty.md) — schedules, escalation policies, EU region supported
-- [Opsgenie](docs/migrations/opsgenie.md): schedules and escalation policies
-- [Grafana OnCall](docs/migrations/grafana-oncall.md) — drop-in replacement for the archived OSS project
-
----
-
-## Installation
-
-**Option A: Regen Cloud.** [Start a 30-day free trial](https://regen.fluidify.ai) and skip the rest of this section.
-
-**Option B: Self-host with Docker Compose:**
+## Quick start
 
 ```bash
 git clone https://github.com/FluidifyAI/Regen.git
@@ -144,46 +153,14 @@ cp .env.example .env   # add your Slack token, AI key, etc.
 make start
 ```
 
-Open **http://localhost:8080** — create your admin account on first load.
+Open **http://localhost:8080** and create your admin account on first load.
 
-For detailed guides, see:
-- [Full installation guide](docs/getting-started/installation.md) — prerequisites, env vars, health checks
-- [Docker Compose self-hosting](docs/self-hosting/docker-compose.md) — production setup
-- [Kubernetes / Helm](docs/self-hosting/kubernetes.md) — HA deploy with Helm chart
-- [Environment variables](docs/self-hosting/environment-variables.md) — all config options
-
+Guides: [Installation](docs/getting-started/installation.md) · [Docker Compose](docs/self-hosting/docker-compose.md) · [Kubernetes / Helm](docs/self-hosting/kubernetes.md) · [Environment variables](docs/self-hosting/environment-variables.md) · [Connecting Slack](docs/getting-started/connecting-slack.md)
 
 > Rather not run it yourself? [Start on Regen Cloud](https://regen.fluidify.ai): managed hosting, backups and upgrades, ready in minutes.
 
----
-
-## Built for production
-
-### Benchmark results (HA stack · Apple M2 / Colima · 2026-03-31)
-
-| Scenario | Result |
-|---|---|
-| Webhook ingestion p99 | **< 10 ms** (target: < 200 ms) |
-| Webhook sustained p50 / p95 | **1.55 ms / 2.82 ms** |
-| API reads p95 (list / detail) | **4.42 ms / 2.83 ms** |
-| Peak throughput (burst test) | **3,917 RPS — 0 × 5xx** |
-| PostgreSQL failover RTO | **11 s** (Patroni + HAProxy, target: < 60 s) |
-| Redis failover RTO | **5 s** (Sentinel 3-node quorum) |
-| In-flight requests lost on rolling deploy | **0** |
-
-> Production numbers will be higher — these were captured on a single-machine local HA stack.
-> Reproduce yourself: `make load-test` and `make chaos-db`. Full methodology in [docs/RELIABILITY.md](docs/RELIABILITY.md).
-
-### How it stays up
-
-- **Zero-downtime deploys** — rolling restarts drain in-flight requests before pod shutdown (SIGTERM → 30 s drain → exit)
-- **PostgreSQL HA** — Patroni manages automatic primary election; HAProxy re-routes to the new primary within one health-check interval (3 s). No app restart, no config change.
-- **Redis Sentinel** — 3-node quorum detects primary loss; workers reconnect to new master automatically
-- **Kubernetes-native** — HPA, health-gated rolling deploys, resource limits out of the box
-- **Webhook flood protection** — rate limiter returns 429 before the DB sees load spikes; validated at 3,917 RPS with zero OOM events
-- **Full observability** — `/metrics` (Prometheus) + pre-built Grafana dashboard in `deploy/grafana/`
-
-### Send a test alert
+<details>
+<summary><b>Send a test alert</b></summary>
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/webhooks/prometheus \
@@ -202,31 +179,57 @@ curl -X POST http://localhost:8080/api/v1/webhooks/prometheus \
 
 An incident is created automatically. If Slack is configured, a dedicated channel appears within seconds.
 
-> **Connecting Slack:** Regen uses Slack's HTTP Events API (signed `POST` to `/api/v1/slack/{events,interactions,commands}`) — not Socket Mode. Local dev needs a public tunnel (ngrok). Full setup, including the three Request URLs and troubleshooting, is in [docs/getting-started/connecting-slack.md](docs/getting-started/connecting-slack.md).
+Regen uses Slack's HTTP Events API (signed `POST` to `/api/v1/slack/{events,interactions,commands}`), not Socket Mode, so local dev needs a public tunnel such as ngrok. Full setup, including the three Request URLs and troubleshooting, is in [docs/getting-started/connecting-slack.md](docs/getting-started/connecting-slack.md).
 
----
+</details>
 
-## Security
-- **Authentication**: bcrypt (cost 12), timing-safe comparison, 5-attempt account lockout, HTTP-only SameSite=Strict session cookies
-- **No SQL injection surface**: All database access uses GORM parameterized queries — no raw string interpolation
-- **Webhook verification**: Slack (HMAC-SHA256 + replay protection), Teams (RSA/OIDC), CloudWatch (RSA + SSRF-safe cert validation)
-- **Rate limiting**: Redis Lua script enforcing three tiers — 10/min on auth endpoints, 120/min unauthenticated, 600/min authenticated
-- **Security headers**: CSP, HSTS (2 years), X-Frame-Options, X-Content-Type-Options, Permissions-Policy on every response
-- **Container hardening**: non-root UID 1001, read-only filesystem, all Linux capabilities dropped
-- **CORS**: explicit allowlist via `CORS_ALLOWED_ORIGINS`; dev-only fallback to localhost
-- **Frontend**: no `dangerouslySetInnerHTML`, no secrets in bundle, session token never accessible to JavaScript
+<details>
+<summary><b>Built for production: benchmarks and high availability</b></summary>
 
-Review the **[Production Security Checklist](SECURITY.md#11-production-security-checklist)** — TLS, PostgreSQL password, Redis auth, and CORS origins for the prerequisite checklist.
+Benchmark results (HA stack · Apple M2 / Colima · 2026-03-31):
 
-Full security architecture: [SECURITY.md](SECURITY.md)
+| Scenario | Result |
+|---|---|
+| Webhook ingestion p99 | **< 10 ms** (target: < 200 ms) |
+| Webhook sustained p50 / p95 | **1.55 ms / 2.82 ms** |
+| API reads p95 (list / detail) | **4.42 ms / 2.83 ms** |
+| Peak throughput (burst test) | **3,917 RPS, 0 × 5xx** |
+| PostgreSQL failover RTO | **11 s** (Patroni + HAProxy, target: < 60 s) |
+| Redis failover RTO | **5 s** (Sentinel 3-node quorum) |
+| In-flight requests lost on rolling deploy | **0** |
 
-> Want uptime and security handled for you? [Regen Cloud](https://regen.fluidify.ai) runs this same stack with TLS, backups and HA managed by us.
+These were captured on a single-machine local HA stack; production numbers will be higher. Reproduce them with `make load-test` and `make chaos-db`. Full methodology in [docs/RELIABILITY.md](docs/RELIABILITY.md).
 
----
+How it stays up:
+
+- **Zero-downtime deploys:** rolling restarts drain in-flight requests before pod shutdown (SIGTERM, 30 s drain, exit)
+- **PostgreSQL HA:** Patroni manages automatic primary election; HAProxy re-routes to the new primary within one health-check interval (3 s). No app restart, no config change.
+- **Redis Sentinel:** a 3-node quorum detects primary loss; workers reconnect to the new master automatically
+- **Kubernetes-native:** HPA, health-gated rolling deploys, resource limits out of the box
+- **Webhook flood protection:** the rate limiter returns 429 before the DB sees load spikes; validated at 3,917 RPS with zero OOM events
+- **Full observability:** `/metrics` (Prometheus) plus a pre-built Grafana dashboard in `deploy/grafana/`
+
+</details>
+
+<details>
+<summary><b>Security</b></summary>
+
+- **Authentication:** bcrypt (cost 12), timing-safe comparison, 5-attempt account lockout, HTTP-only SameSite=Strict session cookies
+- **No SQL injection surface:** all database access uses GORM parameterized queries, with no raw string interpolation
+- **Webhook verification:** Slack (HMAC-SHA256 + replay protection), Teams (RSA/OIDC), CloudWatch (RSA + SSRF-safe cert validation)
+- **Rate limiting:** a Redis Lua script enforcing three tiers: 10/min on auth endpoints, 120/min unauthenticated, 600/min authenticated
+- **Security headers:** CSP, HSTS (2 years), X-Frame-Options, X-Content-Type-Options, Permissions-Policy on every response
+- **Container hardening:** non-root UID 1001, read-only filesystem, all Linux capabilities dropped
+- **CORS:** explicit allowlist via `CORS_ALLOWED_ORIGINS`; dev-only fallback to localhost
+- **Frontend:** no `dangerouslySetInnerHTML`, no secrets in the bundle, session token never accessible to JavaScript
+
+Before going live, work through the **[Production Security Checklist](SECURITY.md#11-production-security-checklist)**: TLS, PostgreSQL password, Redis auth and CORS origins. Full security architecture: [SECURITY.md](SECURITY.md).
+
+</details>
 
 ## Contributing
 
-We love contributions big and small. This is how you join us:
+We love contributions big and small.
 
 ```bash
 # Start backend + dependencies
@@ -239,24 +242,14 @@ cd backend && go run ./cmd/regen/... serve
 cd frontend && npm install && npm run dev
 ```
 
-Read for raising a PR:
-- Read the setup & workflow in [CONTRIBUTING.md](CONTRIBUTING.md)
+- Read the setup and workflow in [CONTRIBUTING.md](CONTRIBUTING.md)
 - Discover all developer commands with `make help`
-- Have a big idea? [Let’s discuss it first](https://github.com/FluidifyAI/Regen/discussions)
+- Have a big idea? [Let's discuss it first](https://github.com/FluidifyAI/Regen/discussions)
 
----
-
-## Support us
-If you find Regen useful, consider supporting us by:
-- Star this repo - It helps others discover Regen
-- [Guide us](https://github.com/FluidifyAI/Regen/issues/new) - Every issue you raise goes into building
-
----
+If Regen is useful to you, **star this repo** so others can find it, and [open an issue](https://github.com/FluidifyAI/Regen/issues/new) with anything you'd like to see.
 
 ## License
 
-[AGPLv3](LICENSE) — free forever, including SSO.
-
----
+[AGPLv3](LICENSE): free forever, including SSO.
 
 <p align="center">Built by <a href="https://fluidify.ai">FluidifyAI</a> · your incident data belongs to you</p>

@@ -12,11 +12,13 @@ import {
   Globe,
   Sunrise,
 } from 'lucide-react'
-import { GanttCalendar, GanttRow, getMonthStart, daysInMonth, segmentBg, segmentText } from '../components/oncall/GanttCalendar'
+import { GanttCalendar, type GanttRow } from '../components/oncall/GanttCalendar'
+import { getMonthStart, daysInMonth, segmentBg, segmentText } from '../components/oncall/ganttCalendarHelpers'
 import { Button } from '../components/ui/Button'
 import { SkeletonDetail } from '../components/ui/Skeleton'
 import { GeneralError } from '../components/ui/ErrorState'
-import { ToastContainer, useToast } from '../components/ui/Toast'
+import { ToastContainer } from '../components/ui/Toast'
+import { useToast } from '../hooks/useToast'
 import { useAuth } from '../hooks/useAuth'
 import { HolidaysPanel } from '../components/oncall/HolidaysPanel'
 import { useSchedule } from '../hooks/useSchedule'

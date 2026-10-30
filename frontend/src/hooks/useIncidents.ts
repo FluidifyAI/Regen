@@ -29,12 +29,14 @@ export function useIncidents(params: ListIncidentsParams = {}): UseIncidentsResu
   const incidentsRef = useRef<Incident[]>([])
   incidentsRef.current = incidents
 
+  const { status, severity, limit, page, offset } = params
+
   const fetchIncidents = useCallback(async () => {
     setLoading(true)
     setError(null)
 
     try {
-      const response = await listIncidents(params)
+      const response = await listIncidents({ status, severity, limit, page, offset })
       setIncidents(response.data)
       setTotal(response.total)
     } catch (err) {
@@ -43,12 +45,7 @@ export function useIncidents(params: ListIncidentsParams = {}): UseIncidentsResu
     } finally {
       setLoading(false)
     }
-  }, [
-    params.status,
-    params.severity,
-    params.limit,
-    params.page,
-  ])
+  }, [status, severity, limit, page, offset])
 
   useEffect(() => {
     fetchIncidents()

@@ -14,7 +14,8 @@ import { listUsers, type UserSummary } from '../api/users'
 import { getSystemSettings } from '../api/settings'
 import { computeLayerSegments } from '../lib/schedulePreview'
 import { defaultScheduleTimezone, todayInTimezone, zonedMidnightToISO } from '../lib/timezone'
-import { GanttCalendar, GanttRow, getMondayOf } from '../components/oncall/GanttCalendar'
+import { GanttCalendar, type GanttRow } from '../components/oncall/GanttCalendar'
+import { getMondayOf } from '../components/oncall/ganttCalendarHelpers'
 
 // ─── On-call data per schedule ────────────────────────────────────────────────
 

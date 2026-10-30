@@ -1,14 +1,6 @@
+import type { Toast, ToastType } from '../../hooks/useToast'
 import { useEffect, useState } from 'react'
 import { CheckCircle, XCircle, AlertCircle, X } from 'lucide-react'
-
-export type ToastType = 'success' | 'error' | 'info'
-
-interface Toast {
-  id: string
-  type: ToastType
-  message: string
-  duration?: number
-}
 
 interface ToastProps {
   toast: Toast
@@ -97,31 +89,5 @@ function getToastStyles(type: ToastType) {
         textColor: 'text-blue-800',
         borderColor: 'border-blue-200',
       }
-  }
-}
-
-/**
- * Hook for managing toasts
- */
-export function useToast() {
-  const [toasts, setToasts] = useState<Toast[]>([])
-
-  const showToast = (type: ToastType, message: string, duration?: number) => {
-    const id = Math.random().toString(36).substring(7)
-    const toast: Toast = { id, type, message, duration }
-    setToasts((prev) => [...prev, toast])
-  }
-
-  const dismissToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
-  }
-
-  return {
-    toasts,
-    showToast,
-    dismissToast,
-    success: (message: string, duration?: number) => showToast('success', message, duration),
-    error: (message: string, duration?: number) => showToast('error', message, duration),
-    info: (message: string, duration?: number) => showToast('info', message, duration),
   }
 }

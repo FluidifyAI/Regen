@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"time"
@@ -26,11 +28,10 @@ func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []web
 		var partial *ProcessingResult
 		var boundIncident *incidentService
 		err := original.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			// Serialize lifecycle decisions across sources and grouping keys. A single
-			// transaction-scoped lock also covers first inserts (no row to lock yet) and
-			// multi-alert groups. Never hold it while calling external integrations.
+			// The stable alert identity protects first inserts as well as retries.
+			// Independent alerts never share a lifecycle-wide lock.
 			if tx.Name() == "postgres" {
-				if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", int64(0x726567656e)).Error; err != nil {
+				if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", alertLifecycleLockKey(alert.Source, alert.ExternalID)).Error; err != nil {
 					return fmt.Errorf("lock alert lifecycle: %w", err)
 				}
 			}
@@ -46,7 +47,13 @@ func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []web
 			service.incidentSvc = &incident
 			service.deferEffect = incident.deferEffect
 			if grouping, ok := s.groupingEngine.(*groupingEngine); ok {
-				service.groupingEngine = NewGroupingEngine(grouping.ruleRepo, incident.incidentRepo, tx)
+				boundGrouping := NewGroupingEngine(grouping.ruleRepo, incident.incidentRepo, tx).(*groupingEngine)
+				// Always take locks in alert -> group -> incident order. Resolve
+				// deliveries use the same group lock as first firing deliveries.
+				if err := boundGrouping.lockAlertGroup(alert.Labels); err != nil {
+					return err
+				}
+				service.groupingEngine = boundGrouping
 			}
 			var err error
 			partial, err = service.processNormalizedAlerts(ctx, []webhooks.NormalizedAlert{alert})
@@ -68,7 +75,8 @@ func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []web
 }
 
 // reconcileAlert considers active links only. Closed links remain as history.
-// Caller holds the lifecycle lock and uses transaction-bound repositories.
+// Caller holds the alert identity lock (and matching group lock when configured)
+// and uses transaction-bound repositories. Incident rows serialize shared links.
 func (s *incidentService) reconcileAlert(ctx context.Context, alert *models.Alert) (bool, error) {
 	var incidents []models.Incident
 	err := s.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE", Table: clause.Table{Name: "incidents"}}).
@@ -129,4 +137,11 @@ func (s *incidentService) reconcileAlert(ctx context.Context, alert *models.Aler
 		})
 	}
 	return false, nil
+}
+
+// Length-prefixing the source makes identities such as ("a:b", "c") and
+// ("a", "b:c") distinct. The domain prefix separates alert and group locks.
+func alertLifecycleLockKey(source, externalID string) int64 {
+	hash := sha256.Sum256([]byte(fmt.Sprintf("regen:alert:%d:%s:%s", len(source), source, externalID)))
+	return int64(binary.BigEndian.Uint64(hash[:8]))
 }

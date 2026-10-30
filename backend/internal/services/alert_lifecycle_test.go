@@ -219,7 +219,7 @@ func TestAlertLifecycleConcurrentGrouping(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make(chan error, len(alerts))
 	for i := range alerts {
-		alerts[i] = makeNormalizedAlert("generic", "warning")
+		alerts[i] = makeNormalizedAlert([]string{"generic", "prometheus"}[i%2], "warning")
 		alerts[i].Labels = map[string]string{"service": "bridge"}
 		wg.Add(1)
 		go func(a webhooks.NormalizedAlert) {
@@ -237,11 +237,24 @@ func TestAlertLifecycleConcurrentGrouping(t *testing.T) {
 	require.NoError(t, db.Model(&models.Incident{}).Count(&count).Error)
 	require.EqualValues(t, 1, count)
 	incident := incidentFor(t, db, alerts[0])
-	for i, alert := range alerts {
-		deliver(t, svc, alert, "resolved")
-		if i < len(alerts)-1 {
-			assertStatus(t, db, incident.ID, models.IncidentStatusTriggered)
-		}
+	// Acknowledged automatic incidents still resolve when the final alerts clear.
+	require.NoError(t, repository.NewIncidentRepository(db).UpdateStatus(incident.ID, models.IncidentStatusAcknowledged))
+	deliver(t, svc, alerts[0], "resolved")
+	assertStatus(t, db, incident.ID, models.IncidentStatusAcknowledged)
+	resolvedErrors := make(chan error, len(alerts)-1)
+	for _, alert := range alerts[1:] {
+		alert.Status = "resolved"
+		wg.Add(1)
+		go func(a webhooks.NormalizedAlert) {
+			defer wg.Done()
+			_, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{a})
+			resolvedErrors <- err
+		}(alert)
+	}
+	wg.Wait()
+	close(resolvedErrors)
+	for err := range resolvedErrors {
+		require.NoError(t, err)
 	}
 	assertStatus(t, db, incident.ID, models.IncidentStatusResolved)
 	deliver(t, svc, alerts[0], "firing")
@@ -259,4 +272,145 @@ func TestAlertLifecycleClosedManualAndResolvedFirst(t *testing.T) {
 	require.Equal(t, 1, deliver(t, svc, alert, "firing").IncidentsCreated)
 	require.NotEqual(t, first.ID, incidentFor(t, db, alert).ID)
 	assertStatus(t, db, first.ID, models.IncidentStatusCanceled)
+}
+
+func TestAlertLifecycleLockIdentity(t *testing.T) {
+	key := alertLifecycleLockKey("generic", "stable")
+	require.Equal(t, key, alertLifecycleLockKey("generic", "stable"))
+	require.NotEqual(t, key, alertLifecycleLockKey("prometheus", "stable"))
+	require.NotEqual(t, key, alertLifecycleLockKey("generic", "other"))
+	require.NotEqual(t, alertLifecycleLockKey("a:b", "c"), alertLifecycleLockKey("a", "b:c"))
+}
+
+// Wait for a real PostgreSQL lock wait rather than inferring it from elapsed time.
+func awaitLifecycleLockWait(t *testing.T, db *gorm.DB, holderPID int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var count int64
+		err := db.Raw("SELECT count(*) FROM pg_stat_activity WHERE wait_event = 'advisory' AND ? = ANY(pg_blocking_pids(pid))", holderPID).Scan(&count).Error
+		return err == nil && count > 0
+	}, 5*time.Second, 10*time.Millisecond, "webhook never reached the held advisory lock")
+}
+
+func startLifecycleDelivery(t *testing.T, svc AlertService, alert webhooks.NormalizedAlert) <-chan error {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	done := make(chan error, 1)
+	exited := make(chan struct{})
+	go func() {
+		defer close(exited)
+		_, err := svc.ProcessNormalizedAlerts(ctx, []webhooks.NormalizedAlert{alert})
+		done <- err
+	}()
+	t.Cleanup(func() { cancel(); <-exited })
+	return done
+}
+
+func TestAlertLifecycleBlockedIdentityAllowsIndependentAlerts(t *testing.T) {
+	db := lifecycleDB(t)
+	svc := lifecycleService(db)
+	blocked := makeNormalizedAlert("generic", "warning")
+	held := db.Begin()
+	require.NoError(t, held.Error)
+	t.Cleanup(func() { _ = held.Rollback().Error })
+	var pid int
+	require.NoError(t, held.Raw("SELECT pg_backend_pid()").Scan(&pid).Error)
+	require.NoError(t, held.Exec("SELECT pg_advisory_xact_lock(?)", alertLifecycleLockKey(blocked.Source, blocked.ExternalID)).Error)
+	done := startLifecycleDelivery(t, svc, blocked)
+	awaitLifecycleLockWait(t, db, pid)
+
+	// Both dimensions of the alert identity must independently scope the lock.
+	for _, independent := range []webhooks.NormalizedAlert{
+		makeNormalizedAlert(blocked.Source, "warning"),
+		func() webhooks.NormalizedAlert { a := blocked; a.Source = "prometheus"; return a }(),
+	} {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_, err := svc.ProcessNormalizedAlerts(ctx, []webhooks.NormalizedAlert{independent})
+		cancel()
+		require.NoError(t, err, "an unrelated webhook was blocked by the held alert lock")
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("same-identity delivery bypassed the held lock: %v", err)
+	default:
+	}
+	require.NoError(t, held.Commit().Error)
+	require.NoError(t, <-done)
+}
+
+func TestAlertLifecycleBlockedGroupAllowsIndependentGroups(t *testing.T) {
+	db := lifecycleDB(t)
+	require.NoError(t, db.Exec("DELETE FROM grouping_rules").Error)
+	rule := &models.GroupingRule{ID: uuid.New(), Name: "by service", Enabled: true, Priority: 1, MatchLabels: models.JSONB{}, CrossSourceLabels: models.JSONBArray{"service"}, TimeWindowSeconds: 300}
+	require.NoError(t, db.Create(rule).Error)
+	engine := NewGroupingEngine(repository.NewGroupingRuleRepository(db), repository.NewIncidentRepository(db), db).(*groupingEngine)
+	svc := lifecycleService(db)
+	svc.SetGroupingEngine(engine)
+	blocked := makeNormalizedAlert("generic", "warning")
+	blocked.Labels = map[string]string{"service": "blocked"}
+	groupKey := engine.deriveGroupKey(blocked.Labels, rule)
+	held := db.Begin()
+	require.NoError(t, held.Error)
+	t.Cleanup(func() { _ = held.Rollback().Error })
+	var pid int
+	require.NoError(t, held.Raw("SELECT pg_backend_pid()").Scan(&pid).Error)
+	require.NoError(t, held.Exec("SELECT pg_advisory_xact_lock(?)", hashGroupKeyForLock(groupKey)).Error)
+	done := startLifecycleDelivery(t, svc, blocked)
+	awaitLifecycleLockWait(t, db, pid)
+	independent := makeNormalizedAlert("generic", "warning")
+	independent.Labels = map[string]string{"service": "independent"}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	_, err := svc.ProcessNormalizedAlerts(ctx, []webhooks.NormalizedAlert{independent})
+	cancel()
+	require.NoError(t, err, "an unrelated group was blocked by the held group lock")
+	select {
+	case err := <-done:
+		t.Fatalf("grouped delivery bypassed the held group lock: %v", err)
+	default:
+	}
+	require.NoError(t, held.Commit().Error)
+	require.NoError(t, <-done)
+	require.NotEqual(t, incidentFor(t, db, blocked).ID, incidentFor(t, db, independent).ID)
+}
+
+func TestAlertLifecycleGroupLockPinsRuleSnapshot(t *testing.T) {
+	db := lifecycleDB(t)
+	require.NoError(t, db.Exec("DELETE FROM grouping_rules").Error)
+	rule := &models.GroupingRule{ID: uuid.New(), Name: "snapshot", Enabled: true, Priority: 1, MatchLabels: models.JSONB{}, CrossSourceLabels: models.JSONBArray{"service"}, TimeWindowSeconds: 300}
+	require.NoError(t, db.Create(rule).Error)
+	tx := db.Begin()
+	require.NoError(t, tx.Error)
+	defer func() { _ = tx.Rollback().Error }()
+	engine := NewGroupingEngine(repository.NewGroupingRuleRepository(tx), repository.NewIncidentRepository(tx), tx).(*groupingEngine)
+	labels := map[string]string{"service": "bridge"}
+	require.NoError(t, engine.lockAlertGroup(labels))
+	require.NoError(t, db.Model(rule).Update("enabled", false).Error)
+	// Even if the usual TTL expires while waiting, selection must use the rule
+	// whose group key was locked, rather than a newly refreshed configuration.
+	engine.rulesCacheExpiry = time.Now().Add(-time.Second)
+	decision, err := engine.EvaluateAlert(&models.Alert{ID: uuid.New(), Labels: models.JSONB{"service": "bridge"}})
+	require.NoError(t, err)
+	require.Equal(t, "snapshot", decision.RuleName)
+	require.Equal(t, engine.deriveGroupKey(labels, rule), decision.GroupKey)
+}
+
+func TestAlertLifecycleConcurrentSharedIncidentResolutions(t *testing.T) {
+	db := lifecycleDB(t)
+	svc := lifecycleService(db)
+	a, b := makeNormalizedAlert("generic", "warning"), makeNormalizedAlert("generic", "warning")
+	deliver(t, svc, a, "firing")
+	deliver(t, svc, b, "firing")
+	first, second := incidentFor(t, db, a), incidentFor(t, db, b)
+	br, err := repository.NewAlertRepository(db).GetByExternalID(context.Background(), b.Source, b.ExternalID)
+	require.NoError(t, err)
+	require.NoError(t, repository.NewIncidentRepository(db).LinkAlert(context.Background(), first.ID, br.ID, "user", "operator"))
+	require.NoError(t, repository.NewIncidentRepository(db).UpdateStatus(first.ID, models.IncidentStatusAcknowledged))
+	a.Status, b.Status = "resolved", "resolved"
+	// No grouping engine here: only incident row locks coordinate these distinct
+	// identities sharing an incident through a manual link.
+	aDone, bDone := startLifecycleDelivery(t, svc, a), startLifecycleDelivery(t, svc, b)
+	require.NoError(t, <-aDone)
+	require.NoError(t, <-bDone)
+	assertStatus(t, db, first.ID, models.IncidentStatusResolved)
+	assertStatus(t, db, second.ID, models.IncidentStatusResolved)
 }

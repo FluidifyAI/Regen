@@ -63,7 +63,7 @@ Rules are evaluated in priority order. The first matching rule wins. Match crite
 
 An incident created automatically from alerts resolves only when all its linked alerts are resolved. A firing linked alert keeps a triggered or acknowledged incident active. Manually created incidents are excluded from automatic resolution.
 
-Alert status, incident links and lifecycle timeline entries commit together. PostgreSQL serializes webhook lifecycle decisions with a transaction-scoped advisory lock, including concurrent first deliveries and grouped alerts from different sources. External notifications run after commit. This deliberately trades parallel lifecycle writes for consistency; unrelated webhooks may briefly wait for the current transaction.
+Alert status, incident links and lifecycle timeline entries commit together. PostgreSQL takes a transaction-scoped advisory lock per stable `(source, external_id)` identity, including first deliveries. When a grouping rule matches, a second lock covers that group key before the alert is updated or an incident is selected. Locks are acquired in alert → group → incident order; incident row locks serialize lifecycle decisions for alerts sharing an incident. Independent alert identities and groups can proceed concurrently. External notifications run after commit. This repository version has no organization identifier on alerts, so lock scope follows its existing alert identity and grouping boundaries.
 
 Replayed firing or resolved messages are idempotent within the current state. The contract has no event sequence number: a firing received after a resolved message is treated as a recurrence, including an old firing delivered out of order.
 

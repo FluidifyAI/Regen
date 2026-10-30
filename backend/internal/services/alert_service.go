@@ -49,6 +49,8 @@ type AlertService interface {
 
 // alertService implements AlertService
 type alertService struct {
+	deferEffect func(func())
+
 	alertRepo          repository.AlertRepository
 	incidentSvc        IncidentService
 	groupingEngine     GroupingEngine                        // Optional - can be nil if grouping disabled
@@ -156,10 +158,19 @@ func (s *alertService) createOrUpdateAlert(ctx context.Context, alert *models.Al
 	}
 
 	// Alert exists, update mutable fields
+	previousStatus := existing.Status
 	existing.Status = alert.Status
 	existing.Title = alert.Title
 	existing.Description = alert.Description
-	existing.EndedAt = alert.EndedAt
+	if alert.EndedAt != nil {
+		existing.EndedAt = alert.EndedAt
+	}
+	if existing.Status == models.AlertStatusFiring {
+		if previousStatus == models.AlertStatusResolved {
+			existing.StartedAt = alert.StartedAt
+		}
+		existing.EndedAt = nil
+	}
 
 	if err := s.alertRepo.Update(ctx, existing); err != nil {
 		return false, fmt.Errorf("failed to update alert: %w", err)
@@ -194,7 +205,8 @@ func parseSeverity(severity string) models.AlertSeverity {
 // Pipeline (v0.3+ with grouping):
 //  1. Convert NormalizedAlert → models.Alert
 //  2. Deduplicate: Check (source, external_id) - create new or update existing
-//  3. If new alert and should create incident:
+//  3. Reconcile active incident links; resolve automatic incidents when all alerts resolve.
+//  4. If firing without an active incident and severity should create an incident:
 //     a. Evaluate grouping rules (if grouping engine configured)
 //     b. Based on grouping decision:
 //     - Link to existing incident (if group match found)
@@ -203,7 +215,7 @@ func parseSeverity(severity string) models.AlertSeverity {
 //
 // The existing ProcessAlertmanagerPayload() delegates to this method after Prometheus-specific
 // parsing, ensuring backwards compatibility while enabling multi-source support.
-func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []webhooks.NormalizedAlert) (*ProcessingResult, error) {
+func (s *alertService) processNormalizedAlerts(ctx context.Context, alerts []webhooks.NormalizedAlert) (*ProcessingResult, error) {
 	result := &ProcessingResult{
 		Received: len(alerts),
 	}
@@ -221,6 +233,18 @@ func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []web
 
 		if created {
 			result.Created++
+		} else {
+			result.Updated++
+		}
+		needsIncident := created
+		if is, ok := s.incidentSvc.(*incidentService); ok {
+			var err error
+			needsIncident, err = is.reconcileAlert(ctx, alert)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if alert.Status == models.AlertStatusFiring && needsIncident {
 
 			// v0.3+: Evaluate routing rules to determine incident behavior
 			routingDecision := &RoutingDecision{AIEnabled: true}
@@ -235,7 +259,7 @@ func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []web
 			// DM the user in the named label before suppress is applied, so a
 			// suppressed alert still reaches its owner.
 			if routingDecision.NotifyEmailLabel != "" {
-				s.notifyLabeledEmail(ctx, alert, routingDecision.NotifyEmailLabel)
+				s.afterCommit(func() { s.notifyLabeledEmail(ctx, alert, routingDecision.NotifyEmailLabel) })
 			}
 
 			// If routing says suppress, skip incident creation entirely.
@@ -256,10 +280,14 @@ func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []web
 					if err := s.alertRepo.Update(ctx, alert); err != nil {
 						slog.ErrorContext(ctx, "failed to persist escalation_policy_id on alert", "alert_id", alert.ID, "err", err)
 					}
-					if err := s.escalationEngine.TriggerEscalation(alert); err != nil {
-						// Log and continue — escalation failure must not block incident creation.
-						slog.ErrorContext(ctx, "failed to trigger escalation for alert", "alert_id", alert.ID, "err", err)
-					}
+					// Preserve monitoring severity; the override below is incident-only.
+					escalationAlert := *alert
+					s.afterCommit(func() {
+						if err := s.escalationEngine.TriggerEscalation(&escalationAlert); err != nil {
+							// Log and continue — escalation failure must not block incident creation.
+							slog.ErrorContext(ctx, "failed to trigger escalation for alert", "alert_id", alert.ID, "err", err)
+						}
+					})
 				}
 			}
 
@@ -313,8 +341,6 @@ func (s *alertService) ProcessNormalizedAlerts(ctx context.Context, alerts []web
 					result.IncidentsCreated++
 				}
 			}
-		} else {
-			result.Updated++
 		}
 	}
 
@@ -485,4 +511,12 @@ func (s *alertService) resolveEscalationPolicy(alert *models.Alert) *uuid.UUID {
 		}
 	}
 	return nil
+}
+
+func (s *alertService) afterCommit(effect func()) {
+	if s.deferEffect != nil {
+		s.deferEffect(effect)
+	} else {
+		effect()
+	}
 }

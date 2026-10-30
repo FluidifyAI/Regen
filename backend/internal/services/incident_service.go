@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CreateIncidentParams holds parameters for creating a manual incident
@@ -99,6 +100,9 @@ type IncidentService interface {
 
 // incidentService implements IncidentService
 type incidentService struct {
+	// deferEffect queues external work until the webhook transaction commits.
+	deferEffect func(func())
+
 	incidentRepo   repository.IncidentRepository
 	timelineRepo   repository.TimelineRepository
 	alertRepo      repository.AlertRepository
@@ -275,10 +279,6 @@ func (s *incidentService) ShouldCreateIncident(severity models.AlertSeverity) bo
 }
 
 // CreateIncidentFromAlert creates an incident from an alert with full transaction support
-//
-// NOTE: the transaction wrapper below does not actually provide atomicity —
-// see REG-159, filed separately, not fixed here (different change, needs its
-// own test coverage).
 func (s *incidentService) CreateIncidentFromAlert(ctx context.Context, alert *models.Alert, aiEnabled bool) (*models.Incident, error) {
 	// Map alert severity to incident severity
 	incidentSeverity := mapAlertSeverityToIncident(alert.Severity)
@@ -310,12 +310,12 @@ func (s *incidentService) CreateIncidentFromAlert(ctx context.Context, alert *mo
 	// Execute all operations in a transaction for atomicity
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Step 1: Create the incident
-		if err := s.incidentRepo.Create(ctx, incident); err != nil {
+		if err := repository.NewIncidentRepository(tx).Create(ctx, incident); err != nil {
 			return fmt.Errorf("failed to create incident: %w", err)
 		}
 
 		// Step 2: Link the alert to the incident
-		if err := s.incidentRepo.LinkAlert(ctx, incident.ID, alert.ID, "system", "alertmanager"); err != nil {
+		if err := repository.NewIncidentRepository(tx).LinkAlert(ctx, incident.ID, alert.ID, "system", "alertmanager"); err != nil {
 			return fmt.Errorf("failed to link alert to incident: %w", err)
 		}
 
@@ -334,7 +334,7 @@ func (s *incidentService) CreateIncidentFromAlert(ctx context.Context, alert *mo
 			},
 		}
 
-		if err := s.timelineRepo.Create(ctx, timelineEntry); err != nil {
+		if err := repository.NewTimelineRepository(tx).Create(ctx, timelineEntry); err != nil {
 			return fmt.Errorf("failed to create timeline entry: %w", err)
 		}
 
@@ -345,6 +345,20 @@ func (s *incidentService) CreateIncidentFromAlert(ctx context.Context, alert *mo
 		return nil, fmt.Errorf("transaction failed: %w", err)
 	}
 
+	s.afterCommit(func() { *incident = *s.finishAlertIncident(ctx, alert, incident) })
+	return incident, nil
+}
+
+// afterCommit keeps network calls and goroutines outside a lifecycle transaction.
+func (s *incidentService) afterCommit(effect func()) {
+	if s.deferEffect != nil {
+		s.deferEffect(effect)
+	} else {
+		effect()
+	}
+}
+
+func (s *incidentService) finishAlertIncident(ctx context.Context, alert *models.Alert, incident *models.Incident) *models.Incident {
 	// Reload to pick up DB-assigned fields (e.g. incident_number) and get a fresh pointer
 	// that is not shared with the caller, avoiding data races in the channel-creation goroutine.
 	reloadedIncident, err := s.incidentRepo.GetByID(ctx, incident.ID)
@@ -352,7 +366,7 @@ func (s *incidentService) CreateIncidentFromAlert(ctx context.Context, alert *mo
 		slog.ErrorContext(ctx, "failed to reload incident after creation; proceeding with partial struct",
 			"incident_id", incident.ID, "error", err)
 		s.launchChannelCreation(incident, []models.Alert{*alert})
-		return incident, nil
+		return incident
 	}
 
 	// Auto-assign on-call engineer as commander (best-effort); capture onCallID for push.
@@ -416,7 +430,7 @@ func (s *incidentService) CreateIncidentFromAlert(ctx context.Context, alert *mo
 	observability.SetIncidentID(ctx, reloadedIncident.ID)
 	observability.MarkIncidentCreated(ctx)
 
-	return reloadedIncident, nil
+	return reloadedIncident
 }
 
 // CreateIncidentFromAlertWithGrouping creates an incident from an alert with grouping support (v0.3+)
@@ -525,72 +539,7 @@ func (s *incidentService) CreateIncidentFromAlertWithGrouping(ctx context.Contex
 	}
 
 	if newIncidentCreated {
-		// Reload to get DB-assigned fields and a fresh pointer for the goroutine.
-		reloadedIncident, err := s.incidentRepo.GetByID(ctx, incident.ID)
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to reload incident after creation; proceeding with partial struct",
-				"incident_id", incident.ID, "error", err)
-			s.launchChannelCreation(incident, []models.Alert{*alert})
-			return incident, nil
-		}
-
-		// Auto-assign on-call engineer as commander (best-effort); capture onCallID for push.
-		var onCallIDGrouped *uuid.UUID
-		if reloadedIncident.CommanderID == nil {
-			onCallIDGrouped = s.findOnCallUserID()
-			if onCallIDGrouped != nil {
-				reloadedIncident.CommanderID = onCallIDGrouped
-				if err := s.incidentRepo.Update(ctx, reloadedIncident); err != nil {
-					slog.WarnContext(ctx, "failed to persist auto-assigned commander", "incident_id", reloadedIncident.ID, "error", err)
-				}
-			}
-		} else {
-			onCallIDGrouped = reloadedIncident.CommanderID
-		}
-		reloadedIncident.CommanderName = s.resolveCommanderName(reloadedIncident.CommanderID)
-
-		s.launchChannelCreation(reloadedIncident, []models.Alert{*alert})
-
-		// bgCtx keeps the trace link (see recoverAsyncPanic) but drops the
-		// request's cancellation — the REG-10 WithoutCancel criterion.
-		bgCtx := context.WithoutCancel(ctx)
-
-		// Post Telegram incident-created notification asynchronously
-		if s.telegramSvc != nil {
-			go func() {
-				defer recoverAsyncPanic(bgCtx, "sendTelegramIncidentCreated", "incident_id", reloadedIncident.ID)
-				if err := s.telegramSvc.SendIncidentCreated(reloadedIncident); err != nil {
-					slog.ErrorContext(bgCtx, "telegram: failed to send incident created notification",
-						"incident_id", reloadedIncident.ID, "error", err)
-				}
-			}()
-		}
-
-		// Push notification to on-call engineer (or commander) asynchronously
-		if s.pushSvc != nil && s.pushSvc.IsEnabled() && onCallIDGrouped != nil {
-			inc := reloadedIncident
-			go func() {
-				defer recoverAsyncPanic(bgCtx, "sendPushIncidentCreated", "incident_id", inc.ID)
-				n := PushNotification{
-					Title: fmt.Sprintf("INC-%d: %s", inc.IncidentNumber, inc.Title),
-					Body:  fmt.Sprintf("%s severity incident triggered", strings.ToUpper(string(inc.Severity))),
-					Data: map[string]string{
-						"event":           "incident_created",
-						"incident_id":     inc.ID.String(),
-						"incident_number": strconv.Itoa(inc.IncidentNumber),
-					},
-				}
-				if err := s.pushSvc.SendToUser(bgCtx, *onCallIDGrouped, n); err != nil {
-					slog.ErrorContext(bgCtx, "push: failed to send incident created notification",
-						"incident_id", inc.ID, "err", err)
-				}
-			}()
-		}
-
-		metrics.IncidentsCreatedTotal.WithLabelValues(string(reloadedIncident.Severity), "alert").Inc()
-		observability.SetIncidentID(ctx, reloadedIncident.ID)
-		observability.MarkIncidentCreated(ctx)
-		return reloadedIncident, nil
+		s.afterCommit(func() { *incident = *s.finishAlertIncident(ctx, alert, incident) })
 	}
 
 	return incident, nil
@@ -610,44 +559,56 @@ func (s *incidentService) LinkAlertToExistingIncident(ctx context.Context, alert
 		return fmt.Errorf("failed to link alert to incident: %w", err)
 	}
 
-	// Post Slack notification asynchronously (non-blocking)
-	if s.chatService != nil {
-		// bgCtx keeps the trace link but drops the request's cancellation — the
-		// REG-10 WithoutCancel criterion.
-		bgCtx := context.WithoutCancel(ctx)
-		go func() {
-			defer recoverAsyncPanic(bgCtx, "postAlertLinkedToSlack", "incident_id", incidentID)
+	s.afterCommit(func() {
+		// Post Slack notification asynchronously (non-blocking)
+		if s.chatService != nil {
+			// bgCtx keeps the trace link but drops the request's cancellation — the
+			// REG-10 WithoutCancel criterion.
+			bgCtx := context.WithoutCancel(ctx)
+			go func() {
+				defer recoverAsyncPanic(bgCtx, "postAlertLinkedToSlack", "incident_id", incidentID)
 
-			incident, err := s.incidentRepo.GetByID(bgCtx, incidentID)
-			if err != nil {
-				slog.ErrorContext(bgCtx, "failed to get incident for slack notification",
-					"incident_id", incidentID,
-					"error", err)
-				return
-			}
+				incident, err := s.incidentRepo.GetByID(bgCtx, incidentID)
+				if err != nil {
+					slog.ErrorContext(bgCtx, "failed to get incident for slack notification",
+						"incident_id", incidentID,
+						"error", err)
+					return
+				}
 
-			if incident.SlackChannelID == "" {
-				// Channel not created yet (might be in progress)
-				return
-			}
+				if incident.SlackChannelID == "" {
+					// Channel not created yet (might be in progress)
+					return
+				}
 
-			// Post alert notification to existing channel
-			message := s.messageBuilder.BuildAlertLinkedMessage(alert, incident)
-			_, err = s.chatService.PostMessage(incident.SlackChannelID, message)
-			if err != nil {
-				slog.ErrorContext(bgCtx, "failed to post alert linked message to slack",
-					"incident_id", incidentID,
-					"alert_id", alert.ID,
-					"error", err)
-			}
-		}()
-	}
+				// Post alert notification to existing channel
+				message := s.messageBuilder.BuildAlertLinkedMessage(alert, incident)
+				_, err = s.chatService.PostMessage(incident.SlackChannelID, message)
+				if err != nil {
+					slog.ErrorContext(bgCtx, "failed to post alert linked message to slack",
+						"incident_id", incidentID,
+						"alert_id", alert.ID,
+						"error", err)
+				}
+			}()
+		}
+
+	})
 
 	return nil
 }
 
 // linkAlertToIncidentInTx links an alert to an incident within a transaction
 func (s *incidentService) linkAlertToIncidentInTx(tx *gorm.DB, alert *models.Alert, incident *models.Incident) error {
+	// A manual status change can race the grouping decision. Lock and recheck
+	// before linking, so failure rolls the alert update back for a safe retry.
+	var current models.Incident
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&current, "id = ?", incident.ID).Error; err != nil {
+		return fmt.Errorf("lock incident before linking: %w", err)
+	}
+	if current.Status != models.IncidentStatusTriggered && current.Status != models.IncidentStatusAcknowledged {
+		return fmt.Errorf("incident %s is no longer active", incident.ID)
+	}
 	// Link the alert (within transaction)
 	link := map[string]interface{}{
 		"incident_id":    incident.ID,

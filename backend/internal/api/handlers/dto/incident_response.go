@@ -58,6 +58,8 @@ type AlertSummary struct {
 	Severity   string                 `json:"severity"`
 	Status     string                 `json:"status"`
 	Labels     map[string]interface{} `json:"labels,omitempty"`
+	StartedAt  time.Time              `json:"started_at"`
+	EndedAt    *time.Time             `json:"ended_at"`
 	ReceivedAt time.Time              `json:"received_at"`
 }
 

@@ -372,6 +372,8 @@ func (r *incidentRepository) GetIncidentByAlertID(alertID uuid.UUID) (*models.In
 	err := r.db.
 		Joins("JOIN incident_alerts ON incident_alerts.incident_id = incidents.id").
 		Where("incident_alerts.alert_id = ?", alertID).
+		Order("CASE WHEN incidents.status IN ('triggered', 'acknowledged') THEN 0 ELSE 1 END").
+		Order("incidents.created_at DESC").
 		First(&incident).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

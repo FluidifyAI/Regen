@@ -309,10 +309,11 @@ func TestGetIncident(t *testing.T) {
 					ExternalID:  "alert-1",
 					Source:      "prometheus",
 					Fingerprint: "fp-1",
-					Status:      models.AlertStatusFiring,
+					Status:      models.AlertStatusResolved,
 					Severity:    models.AlertSeverityCritical,
 					Title:       "Test Alert 1",
-					StartedAt:   time.Now(),
+					StartedAt:   time.Now().Add(-time.Hour),
+					EndedAt:     func() *time.Time { now := time.Now(); return &now }(),
 					ReceivedAt:  time.Now(),
 				},
 			},
@@ -322,6 +323,10 @@ func TestGetIncident(t *testing.T) {
 				assert.Equal(t, "Incident with Alerts", resp.Title)
 				assert.Len(t, resp.Alerts, 1, "Should have 1 alert")
 				assert.Equal(t, "Test Alert 1", resp.Alerts[0].Title)
+				assert.False(t, resp.Alerts[0].StartedAt.IsZero())
+				assert.False(t, resp.Alerts[0].ReceivedAt.IsZero())
+				require.NotNil(t, resp.Alerts[0].EndedAt)
+				assert.True(t, resp.Alerts[0].EndedAt.After(resp.Alerts[0].StartedAt))
 			},
 			description: "Should return incident with linked alerts",
 		},

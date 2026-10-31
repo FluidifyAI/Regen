@@ -1,2 +1,6 @@
-// Re-export from context for ergonomic import: import { useAuth } from '../hooks/useAuth'
-export { useAuth } from '../contexts/AuthContext'
+import { useContext } from 'react'
+import { AuthContext, type AuthState } from '../contexts/authState'
+
+export function useAuth(): AuthState {
+  return useContext(AuthContext)
+}

@@ -8,7 +8,7 @@ import { Avatar } from '../ui/Avatar'
 import { HandoffDigest } from '../incidents/HandoffDigest'
 import type { Alert, TimelineEntry } from '../../api/types'
 import { updateIncident } from '../../api/incidents'
-import { useAuth } from '../../contexts/AuthContext'
+import { useAuth } from '../../hooks/useAuth'
 import { listUsers, type UserSummary } from '../../api/users'
 
 type StatusType = 'triggered' | 'acknowledged' | 'resolved' | 'canceled'
@@ -319,7 +319,6 @@ export function PropertiesPanel({ incident, onIncidentUpdated, lastActivityAt }:
 
 function Section({
   title,
-  sectionKey: _k,
   open,
   onToggle,
   children,

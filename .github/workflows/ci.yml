@@ -56,6 +56,7 @@ jobs:
       - name: Test
         working-directory: backend
         env:
+          REGEN_LIFECYCLE_TEST_DSN: postgres://regen:secret@localhost:5432/regen_test?sslmode=disable
           DATABASE_URL: postgres://regen:secret@localhost:5432/regen_test?sslmode=disable
         run: go test ./...
 

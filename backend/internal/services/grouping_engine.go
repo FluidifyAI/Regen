@@ -64,6 +64,8 @@ type groupingEngine struct {
 	rulesCacheMutex  sync.RWMutex
 	rulesCacheExpiry time.Time
 	ruleCacheTTL     time.Duration
+	// Transaction-bound engines pin the rule snapshot used to choose their lock.
+	rulesCachePinned bool
 }
 
 // NewGroupingEngine creates a new grouping engine
@@ -193,7 +195,7 @@ func (g *groupingEngine) RefreshRules() error {
 // ensureRulesCached refreshes the rules cache if expired
 func (g *groupingEngine) ensureRulesCached() error {
 	g.rulesCacheMutex.RLock()
-	expired := time.Now().After(g.rulesCacheExpiry)
+	expired := !g.rulesCachePinned && time.Now().After(g.rulesCacheExpiry)
 	g.rulesCacheMutex.RUnlock()
 
 	if expired {
@@ -308,15 +310,6 @@ func (g *groupingEngine) findOpenIncidentForGroup(groupKey string, timeWindowSec
 	return &incident, nil
 }
 
-// hashGroupKey generates a numeric hash for PostgreSQL advisory locks
-func (g *groupingEngine) hashGroupKey(groupKey string) int64 {
-	hash := sha256.Sum256([]byte(groupKey))
-	// Use first 8 bytes as int64 for advisory lock ID
-	lockID := int64(hash[0]) | int64(hash[1])<<8 | int64(hash[2])<<16 | int64(hash[3])<<24 |
-		int64(hash[4])<<32 | int64(hash[5])<<40 | int64(hash[6])<<48 | int64(hash[7])<<56
-	return lockID
-}
-
 // AcquireGroupLock acquires a PostgreSQL advisory lock for the given group key
 //
 // This prevents race conditions when multiple concurrent webhooks try to create
@@ -324,7 +317,7 @@ func (g *groupingEngine) hashGroupKey(groupKey string) int64 {
 //
 // The lock is automatically released at the end of the current transaction.
 func (g *groupingEngine) AcquireGroupLock(groupKey string) error {
-	lockID := g.hashGroupKey(groupKey)
+	lockID := hashGroupKeyForLock(groupKey)
 
 	// pg_advisory_xact_lock is transaction-scoped (auto-releases on commit/rollback)
 	err := g.db.Exec("SELECT pg_advisory_xact_lock(?)", lockID).Error
@@ -332,5 +325,28 @@ func (g *groupingEngine) AcquireGroupLock(groupKey string) error {
 		return fmt.Errorf("failed to acquire advisory lock for group %s: %w", groupKey, err)
 	}
 
+	return nil
+}
+
+// lockAlertGroup runs on the transaction-bound engine before the alert upsert.
+// Using the same key as incident creation protects first deliveries and prevents
+// resolution from overtaking a new grouped alert between lookup and linkage.
+func (g *groupingEngine) lockAlertGroup(labels map[string]string) error {
+	if g.db.Name() != "postgres" {
+		return nil
+	}
+	if err := g.ensureRulesCached(); err != nil {
+		return fmt.Errorf("load grouping rules for lifecycle lock: %w", err)
+	}
+	g.rulesCacheMutex.Lock()
+	defer g.rulesCacheMutex.Unlock()
+	// A long lock wait must not refresh to a different grouping rule later in
+	// this transaction: lock selection and incident selection share a snapshot.
+	g.rulesCachePinned = true
+	for _, rule := range g.rulesCache {
+		if g.matchesRule(labels, &rule) {
+			return g.AcquireGroupLock(g.deriveGroupKey(labels, &rule))
+		}
+	}
 	return nil
 }

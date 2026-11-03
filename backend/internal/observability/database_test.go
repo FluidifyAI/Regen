@@ -127,9 +127,9 @@ func TestGORMTracingOptions_RedactsQueryTextByDefault(t *testing.T) {
 
 	for _, s := range sr.Ended() {
 		for _, attr := range s.Attributes() {
-			if strings.Contains(attr.Value.Emit(), secretName) {
+			if strings.Contains(attr.Value.String(), secretName) {
 				t.Fatalf("found interpolated value %q in span attribute %s=%s — query text must be redacted by default",
-					secretName, attr.Key, attr.Value.Emit())
+					secretName, attr.Key, attr.Value.String())
 			}
 		}
 	}
@@ -192,7 +192,7 @@ func TestRedisTracingOptions_RedactsCommandArgumentsByDefault(t *testing.T) {
 
 	for _, s := range sr.Ended() {
 		for _, attr := range s.Attributes() {
-			if strings.Contains(attr.Value.Emit(), secretValue) {
+			if strings.Contains(attr.Value.String(), secretValue) {
 				t.Fatalf("found command argument %q in span attribute %s — redis command args must be redacted by default",
 					secretValue, attr.Key)
 			}

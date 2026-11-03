@@ -204,8 +204,8 @@ func TestInstrumentedHTTPClient_NeverRecordsRequestBodyOrHeaders(t *testing.T) {
 		t.Errorf("expected no span events (message bodies/headers), got %d: %v", len(spans[0].Events()), spans[0].Events())
 	}
 	for _, attr := range spans[0].Attributes() {
-		if attr.Value.Emit() == "Bearer super-secret-token" || string(attr.Key) == "http.request.header.authorization" {
-			t.Fatalf("found the auth header value on a span attribute: %s=%s", attr.Key, attr.Value.Emit())
+		if attr.Value.String() == "Bearer super-secret-token" || string(attr.Key) == "http.request.header.authorization" {
+			t.Fatalf("found the auth header value on a span attribute: %s=%s", attr.Key, attr.Value.String())
 		}
 	}
 }

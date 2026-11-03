@@ -46,7 +46,7 @@ func testMessages() []Message {
 func findAttr(span sdktrace.ReadOnlySpan, key string) (string, bool) {
 	for _, a := range span.Attributes() {
 		if string(a.Key) == key {
-			return a.Value.Emit(), true
+			return a.Value.String(), true
 		}
 	}
 	return "", false
@@ -225,7 +225,7 @@ func TestInstrumentedClient_NeverRecordsPromptOrCompletionText_ByDefault(t *test
 		t.Errorf("expected zero span events by default, got %d: %+v", len(span.Events()), span.Events())
 	}
 	for _, a := range span.Attributes() {
-		v := a.Value.Emit()
+		v := a.Value.String()
 		if strings.Contains(v, "database is down") || strings.Contains(v, "helpful incident assistant") || strings.Contains(v, "the secret incident summary") {
 			t.Errorf("span attribute %s leaked prompt/completion text: %q", a.Key, v)
 		}
@@ -252,7 +252,7 @@ func TestInstrumentedClient_RecordsPromptAndCompletionText_WhenEnvVarEnabled(t *
 	var sawPrompt, sawCompletion bool
 	for _, e := range events {
 		for _, a := range e.Attributes {
-			v := a.Value.Emit()
+			v := a.Value.String()
 			if strings.Contains(v, "database is down") {
 				sawPrompt = true
 			}

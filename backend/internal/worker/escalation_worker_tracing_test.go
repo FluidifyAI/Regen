@@ -29,7 +29,7 @@ func lastSpanAttr(sr *tracetest.SpanRecorder, key string) (string, bool) {
 	for i := len(spans) - 1; i >= 0; i-- {
 		for _, a := range spans[i].Attributes() {
 			if string(a.Key) == key {
-				return a.Value.Emit(), true
+				return a.Value.String(), true
 			}
 		}
 	}

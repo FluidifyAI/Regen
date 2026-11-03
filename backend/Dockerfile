@@ -1,7 +1,7 @@
 # ============================================================================
 # Development Stage - with hot reload using air
 # ============================================================================
-FROM golang:1.25-alpine AS development
+FROM golang:1.26-alpine AS development
 
 ENV GOTOOLCHAIN=local
 
@@ -28,7 +28,7 @@ CMD ["air", "-c", ".air.toml"]
 # ============================================================================
 # Builder Stage - compile the binary
 # ============================================================================
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 ENV GOTOOLCHAIN=local
 

@@ -127,7 +127,7 @@ func firstSpanAttr(sr *tracetest.SpanRecorder, key string) (string, bool) {
 	for _, s := range sr.Ended() {
 		for _, a := range s.Attributes() {
 			if string(a.Key) == key {
-				return a.Value.Emit(), true
+				return a.Value.String(), true
 			}
 		}
 	}

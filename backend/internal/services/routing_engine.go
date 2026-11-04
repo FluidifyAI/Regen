@@ -18,7 +18,7 @@ type RoutingDecision struct {
 	// Suppress means: store the alert but do not create an incident
 	Suppress bool
 
-	// SeverityOverride replaces the alert's severity for incident creation (empty = no override)
+	// SeverityOverride selects incident severity; legacy warning/info retain alert-level behavior (empty = no override)
 	SeverityOverride string
 
 	// ChannelOverride replaces the auto-generated Slack channel name suffix (empty = no override)

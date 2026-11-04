@@ -281,7 +281,7 @@ func (s *incidentService) ShouldCreateIncident(severity models.AlertSeverity) bo
 // CreateIncidentFromAlert creates an incident from an alert with full transaction support
 func (s *incidentService) CreateIncidentFromAlert(ctx context.Context, alert *models.Alert, aiEnabled bool) (*models.Incident, error) {
 	// Map alert severity to incident severity
-	incidentSeverity := mapAlertSeverityToIncident(alert.Severity)
+	incidentSeverity := incidentSeverityForAlert(alert)
 
 	// Generate slug from title
 	slug := generateSlug(alert.Title)
@@ -440,7 +440,7 @@ func (s *incidentService) finishAlertIncident(ctx context.Context, alert *models
 // with the same group_key try to create incidents.
 func (s *incidentService) CreateIncidentFromAlertWithGrouping(ctx context.Context, alert *models.Alert, groupKey string, aiEnabled bool) (*models.Incident, error) {
 	// Map alert severity to incident severity
-	incidentSeverity := mapAlertSeverityToIncident(alert.Severity)
+	incidentSeverity := incidentSeverityForAlert(alert)
 
 	// Generate slug from title
 	slug := generateSlug(alert.Title)
@@ -804,6 +804,13 @@ func (s *incidentService) createTimelineEntry(incidentID uuid.UUID, entryType st
 			"type", entryType,
 			"error", err)
 	}
+}
+
+func incidentSeverityForAlert(alert *models.Alert) models.IncidentSeverity {
+	if alert.IncidentSeverity != "" {
+		return alert.IncidentSeverity
+	}
+	return mapAlertSeverityToIncident(alert.Severity)
 }
 
 // mapAlertSeverityToIncident maps alert severity to incident severity

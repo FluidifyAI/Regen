@@ -18,6 +18,7 @@ const SOURCES = [
   { id: 'generic',    label: 'Generic'    },
 ] as const
 
+const INCIDENT_SEVERITY_OVERRIDES = ['critical', 'high', 'medium', 'low', 'warning', 'info'] as const
 const SEVERITIES = ['critical', 'high', 'warning', 'info', 'low'] as const
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -455,7 +456,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-text-primary">Severity override</p>
-                    <p className="text-xs text-text-tertiary">Override the alert's severity before incident creation</p>
+                    <p className="text-xs text-text-tertiary">Set incident severity; warning maps to high, info creates no incident</p>
                   </div>
                   <div className="relative">
                     <select
@@ -464,7 +465,7 @@ function RouteBuilderModal({ isOpen, rule, onClose, onSaved }: RouteBuilderModal
                       className="appearance-none pl-3 pr-8 py-1.5 border border-border rounded-lg text-sm bg-surface-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     >
                       <option value="">None</option>
-                      {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      {INCIDENT_SEVERITY_OVERRIDES.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                     <ChevronDown className="absolute right-2 top-2 w-4 h-4 text-text-tertiary pointer-events-none" />
                   </div>

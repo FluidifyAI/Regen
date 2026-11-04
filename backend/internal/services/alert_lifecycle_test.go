@@ -414,3 +414,93 @@ func TestAlertLifecycleConcurrentSharedIncidentResolutions(t *testing.T) {
 	assertStatus(t, db, first.ID, models.IncidentStatusResolved)
 	assertStatus(t, db, second.ID, models.IncidentStatusResolved)
 }
+
+func TestAlertLifecycleExplicitIncidentSeverity(t *testing.T) {
+	db := lifecycleDB(t)
+	require.NoError(t, db.Exec("DELETE FROM grouping_rules").Error)
+	rule := &models.GroupingRule{ID: uuid.New(), Name: "severity test", Enabled: true, Priority: 1, MatchLabels: models.JSONB{}, CrossSourceLabels: models.JSONBArray{"service"}, TimeWindowSeconds: 300}
+	require.NoError(t, db.Create(rule).Error)
+	for _, grouped := range []bool{false, true} {
+		for _, level := range []string{"critical", "high", "medium", "low"} {
+			t.Run(fmt.Sprintf("%s/grouped=%t", level, grouped), func(t *testing.T) {
+				svc := lifecycleService(db)
+				if grouped {
+					svc.SetGroupingEngine(NewGroupingEngine(repository.NewGroupingRuleRepository(db), repository.NewIncidentRepository(db), db))
+				}
+				alert := makeNormalizedAlert("generic", "info")
+				alert.Labels = map[string]string{"service": alert.ExternalID}
+				// Exercise an existing info alert as well as a fresh explicit request.
+				require.Zero(t, deliver(t, svc, alert, "firing").IncidentsCreated)
+				alert.IncidentSeverity = level
+				require.Equal(t, 1, deliver(t, svc, alert, "firing").IncidentsCreated)
+				inc := incidentFor(t, db, alert)
+				require.Equal(t, models.IncidentSeverity(level), inc.Severity)
+				require.Zero(t, deliver(t, svc, alert, "firing").IncidentsCreated)
+				if grouped {
+					other := makeNormalizedAlert("generic", "info")
+					other.Labels = alert.Labels
+					other.IncidentSeverity = "high"
+					require.Zero(t, deliver(t, svc, other, "firing").IncidentsCreated)
+					linked := incidentFor(t, db, other)
+					require.Equal(t, inc.ID, linked.ID)
+					require.Equal(t, models.IncidentSeverity(level), linked.Severity)
+					deliver(t, svc, other, "resolved")
+				}
+				deliver(t, svc, alert, "resolved")
+				assertStatus(t, db, inc.ID, models.IncidentStatusResolved)
+				resolved := makeNormalizedAlert("generic", "info")
+				resolved.IncidentSeverity = level
+				require.Zero(t, deliver(t, svc, resolved, "resolved").IncidentsCreated)
+			})
+		}
+	}
+}
+
+func TestAlertLifecycleIncidentSeveritySuppressed(t *testing.T) {
+	db := lifecycleDB(t)
+	svc := lifecycleService(db)
+	svc.SetRoutingEngine(severityRoutingEngine{RoutingDecision{Suppress: true}})
+	for _, level := range []string{"critical", "high", "medium", "low"} {
+		alert := makeNormalizedAlert("generic", "warning")
+		alert.IncidentSeverity = level
+		require.Zero(t, deliver(t, svc, alert, "firing").IncidentsCreated)
+		stored, err := repository.NewAlertRepository(db).GetByExternalID(context.Background(), alert.Source, alert.ExternalID)
+		require.NoError(t, err)
+		require.Equal(t, models.AlertSeverityWarning, stored.Severity)
+	}
+	var count int64
+	require.NoError(t, db.Model(&models.Incident{}).Count(&count).Error)
+	require.Zero(t, count)
+}
+
+func TestAlertLifecycleRoutingIncidentSeverity(t *testing.T) {
+	db := lifecycleDB(t)
+	require.NoError(t, db.Exec("DELETE FROM grouping_rules").Error)
+	groupRule := &models.GroupingRule{ID: uuid.New(), Name: "routing severity test", Enabled: true, Priority: 1, MatchLabels: models.JSONB{}, CrossSourceLabels: models.JSONBArray{"service"}, TimeWindowSeconds: 300}
+	require.NoError(t, db.Create(groupRule).Error)
+	for _, source := range []string{"prometheus", "grafana", "cloudwatch"} {
+		for _, level := range []string{"critical", "high", "medium", "low"} {
+			for _, grouped := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/grouped=%t", source, level, grouped), func(t *testing.T) {
+					svc := lifecycleService(db)
+					rule := makeRoutingRule(1, models.JSONB{"source": []interface{}{source}}, models.JSONB{"severity_override": level})
+					svc.SetRoutingEngine(NewRoutingEngine(&mockRoutingRuleRepo{rules: []models.RoutingRule{rule}}))
+					if grouped {
+						svc.SetGroupingEngine(NewGroupingEngine(repository.NewGroupingRuleRepository(db), repository.NewIncidentRepository(db), db))
+					}
+					alert := makeNormalizedAlert(source, "info")
+					alert.Labels = map[string]string{"service": alert.ExternalID}
+					require.Equal(t, 1, deliver(t, svc, alert, "firing").IncidentsCreated)
+					inc := incidentFor(t, db, alert)
+					require.Equal(t, models.IncidentSeverity(level), inc.Severity)
+					stored, err := repository.NewAlertRepository(db).GetByExternalID(context.Background(), source, alert.ExternalID)
+					require.NoError(t, err)
+					require.Equal(t, models.AlertSeverityInfo, stored.Severity)
+					require.Zero(t, deliver(t, svc, alert, "firing").IncidentsCreated)
+					deliver(t, svc, alert, "resolved")
+					assertStatus(t, db, inc.ID, models.IncidentStatusResolved)
+				})
+			}
+		}
+	}
+}

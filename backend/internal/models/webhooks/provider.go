@@ -119,7 +119,7 @@ type NormalizedAlert struct {
 	// Severity represents the urgency level of the alert.
 	// MUST be one of: "critical", "warning", or "info"
 	//
-	// Severity affects incident auto-creation:
+	// Without an explicit IncidentSeverity, severity affects incident auto-creation:
 	//   - "critical" → Always creates incident
 	//   - "warning"  → Always creates incident
 	//   - "info"     → Alert stored but no incident created
@@ -130,6 +130,9 @@ type NormalizedAlert struct {
 	//   - Map informational/low severity to "info"
 	//   - Default to "warning" if source doesn't specify severity
 	Severity string `json:"severity"`
+
+	// IncidentSeverity requests an incident independently of monitoring severity.
+	IncidentSeverity string `json:"incident_severity,omitempty"`
 
 	// Title is a short, human-readable summary of the alert.
 	// Displayed in incident lists and Slack notifications.

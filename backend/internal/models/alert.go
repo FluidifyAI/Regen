@@ -137,21 +137,23 @@ func (j *JSONBArray) Scan(value interface{}) error {
 
 // Alert represents an alert from a monitoring system
 type Alert struct {
-	ID          uuid.UUID     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	ExternalID  string        `gorm:"type:varchar(255);not null" json:"external_id"`
-	Source      string        `gorm:"type:varchar(100);not null" json:"source"`
-	Fingerprint string        `gorm:"type:varchar(255);index" json:"fingerprint"`
-	Status      AlertStatus   `gorm:"type:varchar(50);not null;default:'firing'" json:"status"`
-	Severity    AlertSeverity `gorm:"type:varchar(50);not null;default:'info'" json:"severity"`
-	Title       string        `gorm:"type:varchar(500);not null" json:"title"`
-	Description string        `gorm:"type:text" json:"description"`
-	Labels      JSONB         `gorm:"type:jsonb;default:'{}'" json:"labels"`
-	Annotations JSONB         `gorm:"type:jsonb;default:'{}'" json:"annotations"`
-	RawPayload  JSONB         `gorm:"type:jsonb" json:"raw_payload"`
-	StartedAt   time.Time     `gorm:"type:timestamptz;not null" json:"started_at"`
-	EndedAt     *time.Time    `gorm:"type:timestamptz" json:"ended_at"`
-	ReceivedAt  time.Time     `gorm:"type:timestamptz;not null;default:now()" json:"received_at"`
-	CreatedAt   time.Time     `gorm:"type:timestamptz;not null;default:now()" json:"created_at"`
+	// IncidentSeverity is a transient request used only when creating an incident.
+	IncidentSeverity IncidentSeverity `gorm:"-" json:"-"`
+	ID               uuid.UUID        `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	ExternalID       string           `gorm:"type:varchar(255);not null" json:"external_id"`
+	Source           string           `gorm:"type:varchar(100);not null" json:"source"`
+	Fingerprint      string           `gorm:"type:varchar(255);index" json:"fingerprint"`
+	Status           AlertStatus      `gorm:"type:varchar(50);not null;default:'firing'" json:"status"`
+	Severity         AlertSeverity    `gorm:"type:varchar(50);not null;default:'info'" json:"severity"`
+	Title            string           `gorm:"type:varchar(500);not null" json:"title"`
+	Description      string           `gorm:"type:text" json:"description"`
+	Labels           JSONB            `gorm:"type:jsonb;default:'{}'" json:"labels"`
+	Annotations      JSONB            `gorm:"type:jsonb;default:'{}'" json:"annotations"`
+	RawPayload       JSONB            `gorm:"type:jsonb" json:"raw_payload"`
+	StartedAt        time.Time        `gorm:"type:timestamptz;not null" json:"started_at"`
+	EndedAt          *time.Time       `gorm:"type:timestamptz" json:"ended_at"`
+	ReceivedAt       time.Time        `gorm:"type:timestamptz;not null;default:now()" json:"received_at"`
+	CreatedAt        time.Time        `gorm:"type:timestamptz;not null;default:now()" json:"created_at"`
 
 	// EscalationPolicyID links this alert to the escalation policy assigned by
 	// the routing engine.  Nil means no escalation is configured for this alert.

@@ -159,6 +159,7 @@ func (s *alertService) createOrUpdateAlert(ctx context.Context, alert *models.Al
 
 	// Alert exists, update mutable fields
 	previousStatus := existing.Status
+	existing.IncidentSeverity = alert.IncidentSeverity
 	existing.Status = alert.Status
 	existing.Title = alert.Title
 	existing.Description = alert.Description
@@ -297,10 +298,11 @@ func (s *alertService) processNormalizedAlerts(ctx context.Context, alerts []web
 			// only affects which severity the resulting incident is created at.
 			if routingDecision.SeverityOverride != "" {
 				alert.Severity = parseSeverity(routingDecision.SeverityOverride)
+				alert.IncidentSeverity = ""
 			}
 
 			// Check if this alert should trigger an incident (uses possibly-overridden severity)
-			if s.incidentSvc.ShouldCreateIncident(alert.Severity) {
+			if alert.IncidentSeverity != "" || s.incidentSvc.ShouldCreateIncident(alert.Severity) {
 				// v0.3+: Use grouping engine if configured
 				if s.groupingEngine != nil {
 					decision, err := s.groupingEngine.EvaluateAlert(alert)
@@ -381,19 +383,20 @@ func (s *alertService) normalizedAlertToModel(normalized *webhooks.NormalizedAle
 	}
 
 	return &models.Alert{
-		ID:          uuid.New(),
-		ExternalID:  normalized.ExternalID,
-		Source:      normalized.Source,
-		Fingerprint: normalized.ExternalID, // Use external_id as fingerprint (for Prometheus, this IS the fingerprint)
-		Status:      status,
-		Severity:    severity,
-		Title:       normalized.Title,
-		Description: normalized.Description,
-		Labels:      labels,
-		Annotations: annotations,
-		RawPayload:  rawPayload,
-		StartedAt:   normalized.StartedAt,
-		EndedAt:     normalized.EndedAt,
+		ID:               uuid.New(),
+		ExternalID:       normalized.ExternalID,
+		Source:           normalized.Source,
+		Fingerprint:      normalized.ExternalID, // Use external_id as fingerprint (for Prometheus, this IS the fingerprint)
+		Status:           status,
+		Severity:         severity,
+		IncidentSeverity: models.IncidentSeverity(normalized.IncidentSeverity),
+		Title:            normalized.Title,
+		Description:      normalized.Description,
+		Labels:           labels,
+		Annotations:      annotations,
+		RawPayload:       rawPayload,
+		StartedAt:        normalized.StartedAt,
+		EndedAt:          normalized.EndedAt,
 	}
 }
 

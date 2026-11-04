@@ -140,10 +140,10 @@ aws sns subscribe \\
   -H 'Content-Type: application/json' \\
   -d '{
     "external_id": "alert-001",
-    "source": "my-tool",
     "title": "High memory usage on web-01",
     "description": "Memory usage exceeded 90% threshold",
-    "severity": "critical",
+    "severity": "info",
+    "incident_severity": "low",
     "status": "firing",
     "started_at": "2024-01-01T12:00:00Z"
   }'`,
@@ -151,7 +151,7 @@ aws sns subscribe \\
       {
         title: 'Required fields',
         content:
-          'external_id (string) — unique ID for deduplication\nsource (string) — name of your tool\ntitle (string) — short alert title\nstatus (string) — "firing" or "resolved"\n\nOptional: description, severity (critical/warning/info), started_at, ended_at, labels, annotations',
+          'title (string) — short alert title\n\nOptional: external_id (deduplication ID), description, severity (critical/warning/info; defaults to warning), incident_severity (critical/high/medium/low), status (firing/resolved), started_at, ended_at, labels, annotations\n\nSet incident_severity to create an incident at that level, including for info alerts. Without it: critical creates critical, warning creates high, and info creates no incident. Routing suppression and severity overrides take precedence. Grouping can link the alert to an existing incident without changing its severity.',
       },
     ],
   },

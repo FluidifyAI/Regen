@@ -56,6 +56,9 @@ type GenericAlert struct {
 	// Severity must be "critical", "warning", or "info" (defaults to "warning")
 	Severity string `json:"severity" binding:"omitempty,oneof=critical warning info"`
 
+	// IncidentSeverity explicitly requests an incident at this level, including for info alerts.
+	IncidentSeverity string `json:"incident_severity,omitempty" binding:"omitempty,oneof=critical high medium low"`
+
 	// Status must be "firing" or "resolved" (defaults to "firing")
 	Status string `json:"status" binding:"omitempty,oneof=firing resolved"`
 
@@ -202,6 +205,10 @@ func (g *GenericProvider) normalizeGenericAlert(genericAlert *GenericAlert) (*No
 		}
 	}
 
+	if v := genericAlert.IncidentSeverity; v != "" && v != "critical" && v != "high" && v != "medium" && v != "low" {
+		return nil, fmt.Errorf("invalid incident_severity %q: must be critical, high, medium, or low", v)
+	}
+
 	// Apply status default and validate
 	status := genericAlert.Status
 	if status == "" {
@@ -248,17 +255,18 @@ func (g *GenericProvider) normalizeGenericAlert(genericAlert *GenericAlert) (*No
 	}
 
 	return &NormalizedAlert{
-		ExternalID:  externalID,
-		Source:      "generic",
-		Status:      status,
-		Severity:    severity,
-		Title:       genericAlert.Title,
-		Description: genericAlert.Description,
-		Labels:      labels,
-		Annotations: annotations,
-		RawPayload:  json.RawMessage(rawPayloadBytes),
-		StartedAt:   startedAt,
-		EndedAt:     genericAlert.EndedAt,
+		ExternalID:       externalID,
+		Source:           "generic",
+		Status:           status,
+		Severity:         severity,
+		IncidentSeverity: genericAlert.IncidentSeverity,
+		Title:            genericAlert.Title,
+		Description:      genericAlert.Description,
+		Labels:           labels,
+		Annotations:      annotations,
+		RawPayload:       json.RawMessage(rawPayloadBytes),
+		StartedAt:        startedAt,
+		EndedAt:          genericAlert.EndedAt,
 	}, nil
 }
 
@@ -307,6 +315,11 @@ func GetJSONSchema() map[string]interface{} {
 							"description": "Alert severity (defaults to 'warning')",
 							"enum":        []string{"critical", "warning", "info"},
 							"default":     "warning",
+						},
+						"incident_severity": map[string]interface{}{
+							"type":        "string",
+							"description": "Explicit incident severity; creates an incident even for info alerts. Routing suppression and severity overrides take precedence. Omit for legacy severity mapping.",
+							"enum":        []string{"critical", "high", "medium", "low"},
 						},
 						"status": map[string]interface{}{
 							"type":        "string",

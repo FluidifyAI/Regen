@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/FluidifyAI/Regen/backend/internal/models"
@@ -121,4 +122,40 @@ func TestDuplicatePreservesIncidentSeverityRequest(t *testing.T) {
 	_, err := svc.createOrUpdateAlert(context.Background(), alert)
 	require.NoError(t, err)
 	require.Equal(t, models.IncidentSeverityMedium, alert.IncidentSeverity)
+}
+
+func TestRoutingIncidentSeverityAllProviders(t *testing.T) {
+	for _, source := range []string{"generic", "prometheus", "grafana", "cloudwatch"} {
+		for _, level := range []string{"critical", "high", "medium", "low"} {
+			for _, grouped := range []bool{false, true} {
+				for _, suppress := range []bool{false, true} {
+					t.Run(fmt.Sprintf("%s/%s/grouped=%t/suppress=%t", source, level, grouped, suppress), func(t *testing.T) {
+						incidents := &severityIncidentService{}
+						svc := NewAlertService(&mockAlertRepository{}, incidents)
+						rule := makeRoutingRule(1, models.JSONB{"source": []interface{}{source}}, models.JSONB{"severity_override": level, "suppress": suppress})
+						svc.SetRoutingEngine(NewRoutingEngine(&mockRoutingRuleRepo{rules: []models.RoutingRule{rule}}))
+						if grouped {
+							svc.SetGroupingEngine(severityGroupingEngine{})
+						}
+						alert := makeNormalizedAlert(source, "info")
+						// The routing rule must also replace any generic webhook request.
+						if source == "generic" {
+							alert.IncidentSeverity = "high"
+						}
+						result, err := svc.ProcessNormalizedAlerts(context.Background(), []webhooks.NormalizedAlert{alert})
+						require.NoError(t, err)
+						if suppress {
+							require.Zero(t, result.IncidentsCreated)
+							require.Nil(t, incidents.captured)
+						} else {
+							require.Equal(t, 1, result.IncidentsCreated)
+							require.NotNil(t, incidents.captured)
+							require.Equal(t, models.IncidentSeverity(level), incidentSeverityForAlert(incidents.captured))
+							require.Equal(t, models.AlertSeverityInfo, incidents.captured.Severity)
+						}
+					})
+				}
+			}
+		}
+	}
 }

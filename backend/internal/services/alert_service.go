@@ -297,8 +297,14 @@ func (s *alertService) processNormalizedAlerts(ctx context.Context, alerts []web
 			// severity (intentional — preserves the raw audit record). The override
 			// only affects which severity the resulting incident is created at.
 			if routingDecision.SeverityOverride != "" {
-				alert.Severity = parseSeverity(routingDecision.SeverityOverride)
-				alert.IncidentSeverity = ""
+				switch routingDecision.SeverityOverride {
+				case "critical", "high", "medium", "low":
+					alert.IncidentSeverity = models.IncidentSeverity(routingDecision.SeverityOverride)
+				default:
+					// Preserve legacy warning/info overrides and their incident-creation behavior.
+					alert.Severity = parseSeverity(routingDecision.SeverityOverride)
+					alert.IncidentSeverity = ""
+				}
 			}
 
 			// Check if this alert should trigger an incident (uses possibly-overridden severity)

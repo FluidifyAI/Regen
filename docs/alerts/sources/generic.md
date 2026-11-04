@@ -78,7 +78,7 @@ When `incident_severity` is omitted, existing behavior is preserved:
 | `warning` (default) | `high` |
 | `info` | No incident; the alert is stored |
 
-Routing rules take precedence: `suppress` prevents incident creation even when `incident_severity` is present. An existing routing `severity_override` replaces the request using the alert severity mapping above; an override of `info` therefore prevents incident creation. Routing overrides continue to accept alert levels (`critical`, `warning`, `info`).
+Routing rules take precedence: `suppress` prevents incident creation even when `incident_severity` is present. A routing `severity_override` replaces the requested incident severity and supports `critical`, `high`, `medium`, and `low` for every provider. Legacy `warning` maps to `high`, while `info` prevents incident creation.
 
 `incident_severity` applies when creating a new incident. It does not change the severity of an existing incident on retries or when grouping links the alert to an existing incident. A `resolved` alert never creates a new incident.
 

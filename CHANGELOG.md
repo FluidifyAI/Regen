@@ -2,6 +2,30 @@
 
 All notable changes to Fluidify Regen are documented here.
 
+## [1.3.0] - 2026-11-09
+
+### Added
+
+- **Choose the incident severity from the generic webhook.** A new optional `incident_severity` field (`critical`, `high`, `medium`, `low`) sets the level of the incident an alert creates, independently of the alert's own `severity`, and can open an incident for an `info` alert. Leaving it out keeps the existing mapping (critical → critical, warning → high, info → no incident). Routing `suppress` and routing severity overrides take precedence. (#204, GitHub #202, thanks @NickvanTholen)
+- **Routing rule severity overrides accept the four incident levels for every source** (Prometheus, Grafana, CloudWatch and the generic webhook). The original monitoring severity is still stored on the alert. `warning` and `info` keep their previous meaning. (#204)
+
+### Changed
+
+- **Automatic incidents now resolve when their alerts resolve.** An incident created from alerts is resolved once every linked alert has resolved (acknowledged incidents included), with a timeline note. If the alert fires again later, a new incident is opened. Manually created incidents are never auto-resolved. Webhook processing for an alert happens in one transaction, so retries and simultaneous deliveries cannot create duplicate incidents. (#200, thanks @NickvanTholen)
+- **Routing rules saved with a `low` override now open a low incident.** The routing UI already offered `low`, but the backend treated it as `warning`, so those rules opened a high incident. Check existing rules that use `low`. (#204)
+- **Go 1.26.10** toolchain, with updated `x/net`, `x/text`, OpenTelemetry, gRPC and ClickHouse driver dependencies. Clears 27 reachable vulnerabilities reported by `govulncheck`. (#203)
+
+### Fixed
+
+- Linked alerts on the incident page showed "Invalid Date". Alert start, end and received times are now included and shown in the browser's timezone. (#200)
+- Frontend: `dompurify` (used by the analytics library) updated to 3.4.17 for critical XSS advisories. (#203)
+- The weekly security audit workflow had been failing since July because of an invalid secret-scan option. (#203)
+
+### Known limitations
+
+- A resolved incident shows its alert as firing again if that alert recurs, because the alert record holds only its latest state.
+- Incidents whose alerts never send another webhook stay open; they are reconciled on the next delivery for that alert.
+
 ## [1.2.4] — 2026-10-26
 
 ### Added

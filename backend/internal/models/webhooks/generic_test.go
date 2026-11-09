@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -352,4 +353,43 @@ func TestGenericProviderRFC3339Timestamps(t *testing.T) {
 			assert.Equal(t, "stable", alerts[0].ExternalID)
 		})
 	}
+}
+
+func TestGenericIncidentSeverityValidation(t *testing.T) {
+	for _, body := range []string{
+		`{"title":"Test","incident_severity":"invalid"}`,
+		`{"alerts":[{"title":"Test","incident_severity":"warning"}]}`,
+	} {
+		_, err := (&GenericProvider{}).ParsePayload([]byte(body))
+		require.Error(t, err)
+	}
+}
+
+func TestGenericProviderIncidentSeverity(t *testing.T) {
+	for _, level := range []string{"", "critical", "high", "medium", "low"} {
+		for _, batch := range []bool{false, true} {
+			name := fmt.Sprintf("level=%s/batch=%t", level, batch)
+			t.Run(name, func(t *testing.T) {
+				payload := fmt.Sprintf(`{"title":"Test", "severity":"info", "incident_severity":%q}`, level)
+				if batch {
+					payload = `{"alerts":[` + payload + `]}`
+				}
+				alerts, err := (&GenericProvider{}).ParsePayload([]byte(payload))
+				require.NoError(t, err)
+				require.Len(t, alerts, 1)
+				require.Equal(t, level, alerts[0].IncidentSeverity)
+				require.Equal(t, "info", alerts[0].Severity)
+			})
+		}
+	}
+}
+
+func TestGenericIncidentSeveritySchema(t *testing.T) {
+	properties := GetJSONSchema()["properties"].(map[string]interface{})
+	items := properties["alerts"].(map[string]interface{})["items"].(map[string]interface{})
+	fields := items["properties"].(map[string]interface{})
+	field := fields["incident_severity"].(map[string]interface{})
+	require.Equal(t, []string{"critical", "high", "medium", "low"}, field["enum"])
+	require.NotContains(t, items["required"], "incident_severity")
+	require.NotContains(t, field, "default")
 }

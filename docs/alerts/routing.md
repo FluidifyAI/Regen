@@ -67,7 +67,7 @@ Regex uses Go's [RE2 syntax](https://pkg.go.dev/regexp/syntax) — no lookaheads
 |--------|-----|-------------|
 | Create incident | `"create_incident": true` | Automatically open an incident (default) |
 | Suppress | `"suppress": true` | Store the alert but create no incident |
-| Override severity | `"severity_override": "critical"` | Change the alert's severity before incident creation |
+| Override severity | `"severity_override": "critical"` | Set incident severity (`critical`, `high`, `medium`, `low`); legacy `warning` and `info` are also supported |
 | Override channel | `"channel_override": "db-oncall"` | Use a different Slack/Teams channel name suffix |
 | DM by label | `"notify_email_label": "owner"` | DM the Regen user whose email is in that label. Still sent when the alert is suppressed |
 
@@ -80,6 +80,14 @@ Regex uses Go's [RE2 syntax](https://pkg.go.dev/regexp/syntax) — no lookaheads
 ```
 
 ---
+
+### Incident severity overrides
+
+`severity_override` accepts `critical`, `high`, `medium`, and `low` for all providers, including Prometheus, Grafana, CloudWatch, and the generic webhook. The override can create an incident even when the original alert severity is `info`. The stored monitoring severity and escalation policy selection remain based on the original alert.
+
+For compatibility, `warning` continues to create a `high` incident, and `info` prevents incident creation. When no override is set, the provider's usual incident-creation behavior applies.
+
+Routing `suppress` always wins, including when the same rule sets `severity_override`. An override takes precedence over a generic webhook's `incident_severity`. Grouping and retries preserve the severity of existing incidents; the override applies to new incidents only.
 
 ## Examples
 

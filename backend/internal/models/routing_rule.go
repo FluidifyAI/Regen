@@ -46,7 +46,7 @@ import (
 //	{
 //	  "create_incident":    true,        // default action
 //	  "suppress":           true,        // alert stored, no incident created
-//	  "severity_override":  "critical",  // override alert severity
+//	  "severity_override":  "critical",  // incident level (critical/high/medium/low), or legacy warning/info
 //	  "channel_override":   "db-oncall"  // override Slack channel name suffix
 //	  "notify_email_label": "owner"      // DM the Regen user at labels[owner]
 //	}

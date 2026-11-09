@@ -20,6 +20,7 @@ All notable changes to Fluidify Regen are documented here.
 - Linked alerts on the incident page showed "Invalid Date". Alert start, end and received times are now included and shown in the browser's timezone. (#200)
 - Frontend: `dompurify` (used by the analytics library) updated to 3.4.17 for critical XSS advisories. (#203)
 - The weekly security audit workflow had been failing since July because of an invalid secret-scan option. (#203)
+- **Helm chart now deploys the current release.** The chart's `appVersion` had stayed at 1.0.0, so installs that did not set `image.tag` kept running Regen 1.0.0. The chart is now 1.3.0 and deploys 1.3.0 by default. Upgrading from a 1.0.0 deployment runs every migration since 1.0.0 during the upgrade, so take a database backup first.
 
 ### Known limitations
 

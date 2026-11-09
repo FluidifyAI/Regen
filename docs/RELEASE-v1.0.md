@@ -66,7 +66,7 @@ docker pull ghcr.io/fluidifyai/regen:1.0.0
 make start
 
 # Kubernetes
-helm upgrade fluidify-regen fluidify/regen --version 1.0.0 -n fluidify --reuse-values
+helm upgrade fluidify-regen fluidify/fluidify-regen --version 1.0.0 -n fluidify --reuse-values
 ```
 
 Migrations run automatically. No environment variable changes required. `SLACK_APP_TOKEN` is now unused — safe to remove or leave as-is.
@@ -83,5 +83,5 @@ v1.1 focuses on the MCP server — external agents (Claude, GPT, custom bots) wi
 
 **Full changelog:** [CHANGELOG.md](https://github.com/FluidifyAI/Regen/blob/main/CHANGELOG.md)  
 **Docker image:** `ghcr.io/fluidifyai/regen:1.0.0`  
-**Helm chart:** `helm install regen fluidify/regen --version 1.0.0`  
+**Helm chart:** `helm install regen fluidify/fluidify-regen --version 1.0.0`  
 **Discord:** https://discord.gg/b6PSdhzDa
